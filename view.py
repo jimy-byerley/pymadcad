@@ -118,7 +118,15 @@ IDENT_TYPE = 'u2'
 IDENT_SIZE = int(IDENT_TYPE[1:]) * 8
 
 class Scene(QOpenGLWidget):
-	''' Scene widget to display CAD objects '''
+	''' Scene widget to display CAD objects 
+		Attributes defined here:
+			
+		* objs			list of the objects to render, in the render order. The user can hack into it
+		* projection
+		* manipulator
+		* ctx			the moderngl context used for renders
+	'''
+	
 	def __init__(self, parent=None, objects=(), projection=None, manipulator=None):
 		# vieille version: QGLWidget, qui plante quand on écrit du texte
 		#fmt = QGLFormat()
@@ -136,13 +144,8 @@ class Scene(QOpenGLWidget):
         
 		self.projection = projection or Perspective()
 		self.manipulator = manipulator or Turntable()
-		self.ids = {}
-		self.objs = {}
+		self.objs = list(objects)	# objects to render, in the render order, the user can hack into it
 		self.ressources = {}
-		self.maxid = 1
-		
-		for obj in objects:
-			self.add(obj)
 		
 		self.drag = False
 		self.ctx = None		# opengl context, that is None when no yet initialized
@@ -157,27 +160,6 @@ class Scene(QOpenGLWidget):
 		self.speckeys = 0b00
 		self.mode = self.modes[self.speckeys]
 		self.modelock = False
-	
-	def add(self, obj):
-		''' add an object to the scene 
-			the object must provide a method renderer() that provide a renderer (an object to render it on a moderngl context)
-		'''
-		if self.maxid >= 1<<IDENT_SIZE:	
-			raise OverflowError('the scene has reached the maximum object count (see IDENT_TYPE)')
-		
-		self.ids[id(obj)] = ident = self.maxid
-		self.maxid += 1
-		self.objs[ident] = [obj, None]
-	
-	def remove(self, obj):
-		''' remove an object from the scene '''
-		if id(obj) in self.ids:	
-			del self.objs[self.ids[id(obj)]]
-			del self.ids[id(obj)]
-	def extend(self, objs):
-		''' add all object from objs to the scene '''
-		for obj in objs:	
-			self.add(obj)
 	
 	
 	def initializeGL(self):	pass
@@ -214,8 +196,11 @@ class Scene(QOpenGLWidget):
 		self.ctx.blend_equation = moderngl.FUNC_ADD
 		
 		# configure the additional objects
-		for obj in self.objs.values():
-			if not obj[1]:	obj[1] = obj[0].display(self)
+		i = 0
+		while i < len(self.objs):
+			if not hasattr(self.objs[i], 'render'):	
+				self.objs[i] = self.objs[i].display(self)
+			i += 1
 		
 		# setup the render pass
 		self.view_matrix = self.manipulator.matrix().T.tobytes()	# transpose to get a column major matrix (for opengl)
@@ -224,14 +209,13 @@ class Scene(QOpenGLWidget):
 		# identification map
 		self.ident_frame.use()
 		self.ident_frame.clear()
-		for ident,item in self.objs.items():
-			obj,rdr = item
+		for ident,rdr in enumerate(self.objs):
 			rdr.identify(self, ident)
 		
 		# render objects
 		self.screen.use()
 		self.screen.clear()
-		for obj,rdr in self.objs.values():
+		for rdr in self.objs:
 			rdr.render(self)
 		
 		# filter TODO
@@ -468,7 +452,7 @@ if __name__ == '__main__':
 
 	app = QApplication(sys.argv)
 	scn = Scene()
-	scn.add(m)
+	scn.objs.append(m)
 	
 	scn.show()
 	sys.exit(app.exec())

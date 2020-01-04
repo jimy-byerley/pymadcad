@@ -23,13 +23,14 @@ def create_font_texture(font, maxchar=1100):
 	return tex, (c, l)
 
 class Text:
-	def __init__(self, position, text, size):
+	def __init__(self, position, text, size, color=(1,1,1)):
 		self.text = text
 		self.position = position
 		self.size = size
+		self.color = color
 	
 	def display(self, scene):
-		return TextDisplay(scene, self.position, self.text, self.size, color=(0.2, 0.8, 1))	# TODO: ask the color at initialization
+		return TextDisplay(scene, self.position, self.text, self.size, self.color)
 
 def char_placement(fontsize, c, l, n):
 	fontsize += 4

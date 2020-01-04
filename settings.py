@@ -11,7 +11,7 @@ from PyQt5.QtCore import Qt
 display = {
 	'field_of_view': pi/6,
 	'view_limits': (0.1, 1024.),
-	'solid_color': (0.8, 0.8, 0.8),
+	'solid_color': (0.2, 0.2, 0.2),
 	'line_color': (0.9, 0.9, 0.9),
 	'select_color': (1., 0.4, 0.1),
 	'line_width': 1.,

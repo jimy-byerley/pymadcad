@@ -50,9 +50,19 @@ class Mesh:
 	def display(self, scene):
 		import view
 		import text
+		from random import random
 		
-		for i,p in enumerate(self.points):
-			scene.add(text.Text(p, str(i), 9))
+		#for i,p in enumerate(self.points):
+			#scene.objs.append(text.Text(
+				#tuple(p*1.08 + vec3(0,0,0.05*random())), 
+				#str(i), 
+				#size=9, 
+				#color=(0.2, 0.8, 1)
+				#))
+		
+		#for i,f in enumerate(self.faces):
+			#p = 1.1 * (self.points[f[0]] + self.points[f[1]] + self.points[f[2]]) /3
+			#scene.objs.append(text.Text(tuple(p), str(i), 9, (1, 0.2, 0)))
 		
 		fn = np.array([tuple(p) for p in self.facenormals()])
 		points = np.array([tuple(p) for p in self.points], dtype=np.float32)		
@@ -88,10 +98,11 @@ def notint(x):
 def intersection_edge_face(face, edge):
 	coords = intersection_coords(face[1]-face[0], face[2]-face[0], face[0], edge[1], edge[0])
 	#if 0 <= coords[0] and 0 <= coords[1] and coords[0]+coords[1] <= 1 and 0 < coords[2] and coords[2] <= 1 and (notint(coords[0]) or notint(coords[1]) or notint(coords[2])):
-	#if 0 <= coords[0] and 0 <= coords[1] and coords[0]+coords[1] <= 1 and 0 < coords[2] and coords[2] <= 1 and (notint(coords[0]) or notint(coords[1])):
+	#if 0 <= coords[0] and 0 <= coords[1] and coords[0]+coords[1] <= 1 and 0 <= coords[2] and coords[2] <= 1 and (notint(coords[0]) or notint(coords[1])):
 	#if 0 <= coords[0] and 0 <= coords[1] and coords[0]+coords[1] <= 1 and 0 <= coords[2] and coords[2] <= 1:
 	if 0 < coords[0] and 0 < coords[1] and coords[0]+coords[1] < 1 and 0 < coords[2] and coords[2] < 1 and (notint(coords[0]) or notint(coords[1])):
 	#if -NUMPREC <= coords[0] and -NUMPREC <= coords[1] and coords[0]+coords[1] <= 1+NUMPREC and -NUMPREC <= coords[2] and coords[2] <= 1+NUMPREC and (notint(coords[0]) or notint(coords[1])):
+		#print(coords, '\t\t', face, edge)
 		return edge[0] + (edge[1]-edge[0])*coords[2]
 	else:
 		return None
@@ -100,8 +111,8 @@ def intersection_edge_face(face, edge):
 def intersection(f1, f2):
 	p1 = intersection_edge_face(f1, (f2[0], f2[1]))
 	p2 = intersection_edge_face(f1, (f2[0], f2[2]))
-	if not p1:	p1 = intersection_edge_face(f1, (f2[2], f2[1]))
-	if not p2:	p2 = intersection_edge_face(f1, (f2[2], f2[1]))
+	if   not p1:	p1 = intersection_edge_face(f1, (f2[2], f2[1]))
+	elif not p2:	p2 = intersection_edge_face(f1, (f2[2], f2[1]))
 	return p1, p2
 
 def append_nonempty_face(mesh, face):
@@ -111,12 +122,14 @@ def append_nonempty_face(mesh, face):
 	# test si la face et vide (aretes colinéaires)
 	if length(cross(e1, e2)) > NUMPREC:
 		mesh.faces.append(face)
+	else:
+		print('reject', face)
 
-def faceintersection(mesh, fi, f2):
+def faceintersection(mesh, fi, f2, f2i):
 	pts = mesh.facepoints(fi)
 	i1 = intersection(pts, f2)
 	if not i1[0] or not i1[1]:
-		i2 = intersection(f2, mesh.facepoints(fi))
+		i2 = intersection(f2, pts)
 		if not (i1[0] or i2[0] or i2[1]) or not (i1[1] or i2[1] or i2[0]):
 			msg = 'one only point'
 		else:
@@ -126,9 +139,15 @@ def faceintersection(mesh, fi, f2):
 	else:
 		msg = 'two intersections into face'
 		p1, p2 = i1
-	if p1:
-		print(msg)
+	if p1 and p2:
 		return (p1, p2)
+
+def usepointat(mesh, point):
+	for i,p in enumerate(mesh.points):
+		if length(p-point) < NUMPREC:	return i
+	i = len(mesh.points)
+	mesh.points.append(point)
+	return i
 
 def cutface(mesh, fi, edge):
 	pts = mesh.facepoints(fi)
@@ -136,13 +155,19 @@ def cutface(mesh, fi, edge):
 	# remove the former face
 	fp = mesh.faces.pop(fi)
 	# insert the intersection points
-	p1i = len(mesh.points)
-	p2i = p1i+1
-	mesh.points.append(p1)
-	mesh.points.append(p2)
+	p1i = usepointat(mesh, p1)
+	p2i = usepointat(mesh, p2)
+	#p1i = len(mesh.points)
+	#p2i = p1i+1
+	#mesh.points.append(p1)
+	#mesh.points.append(p2)
 	
-	d = cross(p2-p1, cross(pts[1]-pts[0], pts[2]-pts[0]))	# projection direction orthogonal to the axis bt p1 and p2
+	
+	n = cross(pts[1]-pts[0], pts[2]-pts[0])
+	d = normalize(cross(p2-p1, n))	# projection direction orthogonal to the axis bt p1 and p2
 	s = [dot(pt-p1, d) for pt in pts]	# signs of projections
+	
+	print('config', fp, s[0]*s[2], s[1]*s[0], s[1]*s[2])
 	
 	# turn the face to get the proper configuration where fp[1] and fp[2] are apart of the crossing axis (p1, p2)
 	# choose the edge at the middle of which the axis is the nearer
@@ -151,8 +176,11 @@ def cutface(mesh, fi, edge):
 
 	# exchange the points of the intersection in order to avoid crossing triangle 
 	p0 = mesh.points[fp[0]]
-	if length(p0-p1) > length(p0-p2):
+	a = cross(n, mesh.points[fp[2]] - mesh.points[fp[1]])	# perpendicular axis to base, oriented to triangle center
+	if dot(p1-p2, a) < 0:	# p1 is nearer to the base than p2
 		p2i,p1i = p1i,p2i
+		
+	print('choice', fp, p1i, p2i)
 	
 	# the links created must have the same normal orientation than the former one
 	for face in [
@@ -167,13 +195,18 @@ def cutface(mesh, fi, edge):
 			
 def intersectwith(m1, m2):
 	intersections = []
+	c = 0
 	# work with separated faces
 	for f2 in range(len(m2.faces)):
 		f1 = 0
 		for _ in range(len(m1.faces)):	# m1 length varies over the iterations of m2
-			edge = faceintersection(m1, f1, m2.facepoints(f2))
+			face1, face2 = m1.faces[f1], m2.faces[f2]
+			edge = faceintersection(m1, f1, m2.facepoints(f2), f2)
 			if edge:
-				intersections.append((*cutface(m1, f1, edge), f2))
+				cut = cutface(m1, f1, edge)
+				intersections.append((*cut, f2))
+				c += 1
+				print('cut', cut)
 			else:
 				f1 += 1
 	return intersections
@@ -217,6 +250,7 @@ def booleanwith(m1, m2, side):
 		or tryuseface(i, (face[2], face[0], face[1]))
 		or tryuseface(i, (face[1], face[2], face[0])))
 	
+	
 	# complete the loops of faces
 	extremes = set()
 	for edge in notto:
@@ -235,6 +269,10 @@ def booleanwith(m1, m2, side):
 		or	trycomplete(face[1], face[2])
 		or	trycomplete(face[2], face[0]))
 		
+	for edge in notto:
+		p = (m1.points[edge[0]] + m1.points[edge[1]]) /2
+		scn3D.objs.append(text.Text(tuple(p), str(edge), 9, (1, 1, 0)))
+	'''	
 	front -= notto
 	frontchanged = [True]
 	def trypropagate(e1,e2):
@@ -262,7 +300,7 @@ def booleanwith(m1, m2, side):
 			or propagate(i, face)
 			or propagate(i, (face[2], face[0], face[1]))
 			or propagate(i, (face[1], face[2], face[0])))
-	
+	'''
 	m1.faces = [f for u,f in zip(used, m1.faces) if u]
 
 def boolean(m1, m2, selector):
@@ -273,6 +311,16 @@ def boolean(m1, m2, selector):
 if __name__ == '__main__':
 	from nprint import nprint
 	from mathutils import vec4, mat4, rotate
+	
+	import view, text
+	import sys
+	from PyQt5 import Qt
+	from PyQt5.QtWidgets import QApplication
+	
+	app = QApplication(sys.argv)
+	
+	main = scn3D = view.Scene()
+	
 	
 	m1 = Mesh(
 		[
@@ -301,25 +349,21 @@ if __name__ == '__main__':
 	m2 = deepcopy(m1)
 	m2.translate(vec3(0.6, 0.3, 0.4))
 	m2.transform(rotate(mat4(1), 0.3, vec3(1,1,1)))
+	#m2.translate(vec3(0.6, 0.3, 0.4))
+	#m2.translate(vec3(0.5, 0.3, 0.4))
 	#m2.transform(rotate(mat4(1), 0.7, vec3(1,0,0)))
-	#m3 = deepcopy(m1)
+	#m2.translate(vec3(0.5, 0.3, 0.4))
+	#m2.transform(rotate(mat4(1), 0.7, vec3(1,1,0)))
+	
+	m3 = deepcopy(m1)
 	#intersectwith(m1, m2)
 	#intersectwith(m2, m3)
 	#intersectwith(m2, m3)
 	#booleanwith(m1, m2, False)
-	#booleanwith(m2, m3, False)
-	
-	import view, text
-	import sys
-	from PyQt5 import Qt
-	from PyQt5.QtWidgets import QApplication
-	
-	app = QApplication(sys.argv)
-	
-	main = scn3D = view.Scene()
-	
-	scn3D.add(m2)
-	scn3D.add(text.Text((2,0,0), 'coucou\n\ttout le monde', 10))
+	booleanwith(m2, m3, True)
+		
+	scn3D.objs.append(m2)
+	#scn3D.objs.append(m1)
 	
 	main.show()
 	sys.exit(app.exec())
