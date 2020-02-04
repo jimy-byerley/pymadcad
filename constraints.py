@@ -5,9 +5,9 @@ from math import asin, cos, sin, degrees, inf
 class Tangent:
 	def __init__(self, c1, c2, p):
 		arc = None
-		if type(c1) in (primitives.Segment, primitives.Axis) and isinstance(c2, primitives.Arc):
+		if isinstance(c1, (primitives.Segment, primitives.Axis)) and isinstance(c2, primitives.Arc):
 			arc,seg = c2,c1
-		elif type(c2) in (primitives.Segment, primitives.Axis) and isinstance(c1, primitives.Arc):
+		elif isinstance(c2, (primitives.Segment, primitives.Axis)) and isinstance(c1, primitives.Arc):
 			arc,seg = c1,c2
 		if arc:
 			self.arc, self.seg = arc, seg

@@ -1,5 +1,6 @@
 from PIL import Image, ImageFont, ImageDraw
 import numpy.core as np
+from mathutils import fvec3
 import moderngl
 
 # TODO: utiliser les methodes et attributs ImgeFont.size, .getmetrics(), etc pour avoir les hauteur et largeur de police
@@ -19,18 +20,20 @@ def create_font_texture(font, maxchar=1100):
 	l = imsize // fontsize
 	for i in range(maxchar):
 		draw.text(char_placement(font.size, c, l, i), chr(i), fill=255, font=font)
+	#tex.show()
 	
 	return tex, (c, l)
 
 class Text:
-	def __init__(self, position, text, size, color=(1,1,1)):
+	def __init__(self, position, text, size, color=(1,1,1), align=(0,0)):
 		self.text = text
 		self.position = position
 		self.size = size
 		self.color = color
+		self.align = align
 	
 	def display(self, scene):
-		return TextDisplay(scene, self.position, self.text, self.size, self.color)
+		scene.objs.append(TextDisplay(scene, self.position, self.text, self.size, self.color, self.align))
 
 def char_placement(fontsize, c, l, n):
 	fontsize += 4
@@ -46,9 +49,10 @@ pointsdef = [
 	]
 
 class TextDisplay:
-	def __init__(self, scene, position, text, size, color):
-		self.position = position
+	def __init__(self, scene, position, text, size, color, align=(0,0)):
+		self.position = fvec3(position)
 		self.color = color
+		self.size = size
 		
 		# load font
 		def load(scene):
@@ -80,12 +84,15 @@ class TextDisplay:
 				n = ord(char)
 				for j,add in enumerate(pointsdef):
 					points[len(pointsdef)*i + j] = [
-						(c+add[0])*(size+4)/scene.width(), 
-						(-l+add[1])*2*(size+4)/scene.height(), 
+						add[0]+c, 
+						add[1]-l, 
 						(n % self.fontalign[0] +add[0]) / self.fontalign[0], 
 						(n //self.fontalign[0] -add[1]) / self.fontalign[1],
 						]
 				c += 1
+		align = (processalign(align[0], c), processalign(align[1], l))
+		points -= [*align, 0, 0]
+			
 		
 		# create the buffers on the GPU
 		self.vb_points = scene.ctx.buffer(points)
@@ -96,17 +103,29 @@ class TextDisplay:
 			)
 	
 	def render(self, scene):		
-		self.shader['color'].value = self.color
-		self.shader['position'].value = self.position
+		self.shader['color'] = self.color
+		self.shader['position'].write(self.position)
 		self.shader['view'].write(scene.view_matrix)
 		self.shader['proj'].write(scene.proj_matrix)
+		self.shader['ratio'].value = (
+				(self.size-2.1) / scene.width()*2,
+				(self.size-2.1) / scene.height()*4,
+				)
 		self.fonttex.use(0)
-		scene.ctx.point_size = 3
 		self.va.render(moderngl.TRIANGLES)
 
 	def identify(self, scene, ident):
 		pass
-		
+
+def processalign(align, size):
+	if isinstance(align, str):
+		if align == 'left':		return 0
+		elif align == 'right':	return size
+		elif align == 'center':	return size/2
+		else:
+			raise ValueError("align must be int, float or any of 'left', 'right', 'center'")
+	else:
+		return align
 
 def test_text_display():
 	import sys

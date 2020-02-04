@@ -2,33 +2,31 @@
 
 import glm
 from glm import *
+from math import pi
 
 '''
 vec3 = dvec3
 mat3 = dmat3
 vec4 = dvec4
 mat4 = dmat4
+
+NUMPREC = 1e-12
 '''
 
+# numerical precision of floats used (float32 here, so 7 decimals, so 1e-6 when exponent is 1)
 NUMPREC = 1e-6
 COMPREC = 1-NUMPREC
 
-"""
-# set default types: NOTE there is a precision problem with float64: the results are not more precise
-for cls in ['vec2', 'vec3', 'vec4', 'mat2', 'mat3', 'mat4', 'quat']:
-	exec('''
-class {0}(d{0}):
-	def __copy__(self):
-		return {0}(self)
-	def __deepcopy__(self, memo):
-		copy = {0}(self)
-		memo[id(self)] = copy
-		return copy
-		'''.format(cls))
-"""
+
+def anglebt(x,y):
+	n = length(x)*length(y)
+	return acos(dot(x,y) / n)	if n else 0
 
 def project(vec, dir):
 	return dot(vec, dir) * dir
+
+def perpdot(a:vec2, b:vec2) -> float:
+	return -a[1]*b[0] + a[0]*b[1]
 
 # donne la matrice de transformation 4x4
 def transform(translation=None, rotation=None):
@@ -49,3 +47,14 @@ def inversetransform(transform):
 		return inv
 	else:
 		raise typeError('transform must be a a tuple (translation, rotation), a quaternion, or a matrix')
+
+
+def dichotomy_index(l, index, key=lambda x:x):
+	start,end = 0, len(l)
+	while start < end:
+		mid = (start+end)//2
+		val = key(l[mid])
+		if val < index:		start =	mid+1
+		elif val > index:	end =	mid
+		else:	return mid
+	return start

@@ -4,11 +4,14 @@
 #version 330
 
 in vec3 sight;		// vector from object to eye
-in vec3 normal;	// normal to the surface
+in vec3 normal;		// normal to the surface
+flat in int flags;
 uniform vec3 min_color;		// color for dark zones
 uniform vec3 max_color;		// color for light zones
 uniform vec3 refl_color;	// color for the reflect
+uniform vec3 select_color;
 uniform sampler2D reflectmap;	// color of the sky for reflection
+uniform int selection;
 
 // render color
 out vec4 color;
@@ -35,6 +38,7 @@ void main() {
 	vec3 refl = texture2D(reflectmap, skybox(tosky)).rgb;
 	
 	color = vec4(refl * refl_color + mix(min_color, max_color, diffuse), 1);
+	if ((flags & 1) != 0)		color += vec4(select_color, 0) * min(1/diffuse, 10);
 }
 
 
