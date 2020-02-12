@@ -9,6 +9,7 @@ from PyQt5.QtCore import Qt
 
 
 display = {
+	'view_font_size': 8,
 	'field_of_view': pi/6,
 	'view_limits': (0.1, 1024.),
 	'solid_color': (0.2, 0.2, 0.2),
