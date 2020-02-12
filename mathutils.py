@@ -48,6 +48,19 @@ def inversetransform(transform):
 	else:
 		raise typeError('transform must be a a tuple (translation, rotation), a quaternion, or a matrix')
 
+def interpol1(a, b, x):
+	''' 1st order polynomial interpolation '''
+	return x*a + (1-x)*b
+
+def interpol2(a, b, x):
+	''' 2nd order polynomial interpolation 
+		a and b are iterable of successive derivatives of a[0] and b[0]
+	'''
+	return (	2*x*(1-x)  * interpol1(a,b,x)		# linear component
+			+	x**2       * (a[0] + x*a[1])		# tangent
+			+	(1-x)**2   * (b[0] + (x-1)*b[1])	# tangent
+			)
+
 
 def dichotomy_index(l, index, key=lambda x:x):
 	start,end = 0, len(l)
