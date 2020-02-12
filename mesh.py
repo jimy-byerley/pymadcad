@@ -2,10 +2,11 @@
 	Defines triangular meshes for pymadcad
 '''
 
+from copy import deepcopy
 from random import random
 import numpy as np
 from array import array
-from mathutils import vec3, vec4, mat3, mat4, quat, mat3_cast, cross, dot, normalize, length, distance, anglebt, NUMPREC
+from mathutils import Box, vec3, vec4, mat3, mat4, quat, mat3_cast, cross, dot, normalize, length, distance, anglebt, NUMPREC
 import math
 import view
 import text
@@ -192,6 +193,16 @@ class Mesh:
 	
 	
 	# --- extraction methods ---
+	
+	def box(self):
+		''' return the extreme coordinates of the mesh (vec3, vec3) '''
+		max = deepcopy(self.points[0])
+		min = deepcopy(self.points[0])
+		for pt in self.points:
+			for i in range(3):
+				if   pt[i] < min[i]:	min[i] = pt[i]
+				elif pt[i] > max[i]:	max[i] = pt[i]
+		return Box(min, max)
 	
 	def facenormal(self, face):
 		if isinstance(face, int):	

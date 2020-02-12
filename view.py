@@ -2,7 +2,7 @@ import settings
 import numpy.core as np
 import moderngl as mgl
 from math import tan, sin, cos, pi, exp
-from mathutils import fvec3, fvec4, fmat3, fmat4, row, column, perspective, translate, dichotomy_index
+from mathutils import fvec3, fvec4, fmat3, fmat4, row, column, length, perspective, translate, dichotomy_index
 from PyQt5.QtCore import Qt
 from PyQt5.QtOpenGL import QGLWidget, QGLFormat
 from PyQt5.QtWidgets import QWidget
@@ -53,7 +53,7 @@ class Turntable:
 	def panstart(self):
 		self.old_center = deepcopy(self.center)
 	def paning(self, x,y):
-		f = settings.controls['pan_sensitivity'] * self.speed * self.distance
+		f = - settings.controls['pan_sensitivity'] * self.speed * self.distance
 		vx = fvec3(row(self.mat, 0))
 		vy = fvec3(row(self.mat, 1))
 		self.center = self.old_center + vx * f*x + vy * f*y
@@ -80,7 +80,7 @@ class Turntable:
 								-sin(rotx),   cos(rotx),  0.,
 								 0.,          0.,         1.)
 					)
-		self.mat = mat = translate(fmat4(rotation), self.center)
+		self.mat = mat = translate(fmat4(rotation), -self.center)
 		mat[3,2] -= self.distance
 		
 	def matrix(self):	return self.mat
@@ -295,6 +295,12 @@ class Scene(QGLWidget):
 			return obji, groupi
 		else:
 			return None
+	
+	def look(self, box):
+		fov = self.projection.fov or settings.display['field_of_view']
+		self.manipulator.center = box.center
+		self.manipulator.distance = length(box.width) / (2*tan(fov/2))
+		self.manipulator.update()
 
 
 class View(QWidget):

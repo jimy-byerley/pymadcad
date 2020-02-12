@@ -380,13 +380,12 @@ if __name__ == '__main__':
 	start = time()
 	m3 = boolean(m1, m2, (True, False))
 	m3.strippoints()
+	print('computation time:', time()-start)
+	
 	assert m3.isvalid()
 	#assert m3.isenvelope()
-	print('computation time:', time()-start)
+	
 	scn3D.objs.append(m3)
-	#for i,pt in enumerate(usefulpts(m3)):
-		#if not pt:
-			#scn3D.objs.append(text.Text(m3.points[i]*1.05, str(i), 9))
 	
 	main.show()
 	sys.exit(app.exec())

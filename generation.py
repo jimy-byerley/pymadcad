@@ -341,6 +341,7 @@ def tangentellipsis(axis1, axis2, axis3, resolution=None):
 if __name__ == '__main__':
 	from nprint import nprint
 	from math import pi
+	from mathutils import Box
 	import view
 	from primitives import Arc, Segment
 	import sys
@@ -375,9 +376,12 @@ if __name__ == '__main__':
 	assert m.isenvelope()
 	assert m.isvalid()
 	
+	m.transform(vec3(0,0,5))
+	
 	#m.options['debug_display'] = True
 	#m.options['debug_points'] = 'tracks'
 	scn3D.objs.append(m)
+	scn3D.look(m.box())
 	
 	main.show()
 	sys.exit(app.exec())

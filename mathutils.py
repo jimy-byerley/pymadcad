@@ -2,7 +2,9 @@
 
 import glm
 from glm import *
+del version, license
 from math import pi
+from copy import deepcopy
 
 '''
 vec3 = dvec3
@@ -71,3 +73,67 @@ def dichotomy_index(l, index, key=lambda x:x):
 		elif val > index:	end =	mid
 		else:	return mid
 	return start
+
+
+
+class Box:
+	__slots__ = ('min', 'max')
+	def __init__(self, min=None, max=None, center=vec3(0), width=vec3(0)):
+		if min and max:			self.min, self.max = min, max
+		else:					self.min, self.max = center-width, center+width
+	@property
+	def center(self):
+		return (self.min + self.max) /2
+	@property
+	def width(self):
+		return self.max - self.min
+	
+	def __add__(self, other):
+		if isinstance(other, vec3):		return Box(self.min + other, self.max + other)
+		elif isinstance(other, Box):	return Box(other.min, other.max)
+		else:
+			return NotImplemented
+	def __iadd__(self, other):
+		if isinstance(other, vec3):		
+			self.min += other
+			self.max += other
+		elif isinstance(other, Box):	
+			self.min += other.min
+			self.max += other.max
+		else:
+			return NotImplemented
+	def __sub__(self, other):
+		if isinstance(other, vec3):		return Box(self.min - other, self.max - other)
+		elif isinstance(other, Box):	return Box(other.min, other.max)
+		else:
+			return NotImplemented
+	def __or__(self, other):	return deepcopy(self).union(other)
+	def __and__(self, other):	return deepcopy(self).intersection(other)
+	def union(self, other):
+		if isinstance(other, vec3):
+			self.min = glm.min(self.min, other)
+			self.max = glm.max(self.max, other)
+		elif isinstance(other, Box):
+			self.min = glm.min(self.min, other.min)
+			self.max = glm.max(self.max, other.max)
+		else:
+			return NotImplemented
+		return self
+	def intersection(self, other):
+		if isinstance(other, vec3):
+			self.min = glm.max(self.min, other)
+			self.max = glm.min(self.max, other)
+		elif isinstance(other, Box):
+			self.min = glm.max(self.min, other.min)
+			self.max = glm.min(self.max, other.max)
+		else:
+			return NotImplemented
+		for i in range(3):
+			if self.min[i] > self.max[i]:
+				self.min[i] = self.max[i] = (self.min[i]+self.max[i])/2
+				break
+		return self
+	def __bool__(self):
+		for i in range(3):
+			if self.min[i] >= self.max[i]:	return False
+		return True
