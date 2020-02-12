@@ -1,7 +1,8 @@
 from PIL import Image, ImageFont, ImageDraw
 import numpy.core as np
 from mathutils import fvec3
-import moderngl
+import settings
+import moderngl as mgl
 
 # TODO: utiliser les methodes et attributs ImgeFont.size, .getmetrics(), etc pour avoir les hauteur et largeur de police
 
@@ -25,10 +26,10 @@ def create_font_texture(font, maxchar=1100):
 	return tex, (c, l)
 
 class Text:
-	def __init__(self, position, text, size, color=(1,1,1), align=(0,0)):
+	def __init__(self, position, text, size=None, color=(1,1,1), align=(0,0)):
 		self.text = text
 		self.position = position
-		self.size = size
+		self.size = size or settings.display['view_font_size']
 		self.color = color
 		self.align = align
 	
@@ -112,7 +113,7 @@ class TextDisplay:
 				(self.size-2.1) / scene.height()*4,
 				)
 		self.fonttex.use(0)
-		self.va.render(moderngl.TRIANGLES)
+		self.va.render(mgl.TRIANGLES)
 
 	def identify(self, scene, ident):
 		pass
