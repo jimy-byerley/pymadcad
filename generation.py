@@ -12,9 +12,6 @@ __all__ = [
 
 class Outline:
 	''' Hold datas for creation of surfaces from outlines 
-		Outline(points, tracks=None)
-		Outline(primitives)
-		
 		the outline is a contiguous suite of points linked by segments, tracks are identifiers for each group associated with segments
 	'''
 	def __init__(self, points, tracks=None, groups=None):
@@ -67,10 +64,10 @@ def outline(*args):
 				found = True
 				break
 			if not found:
+				nprint(primitives)
 				raise ValueError('line is discontinuous over points {} and {}'.format(repr(line[0]), repr(line[-1])))
 		return Outline(line, tracks, groups)
-			
-		
+
 
 def extrusion(displt, outline):
 	''' create a surface by extruding the given outline by a displacement vector '''
@@ -95,7 +92,7 @@ def revolution(angle, axis, center, outline, resolution=None):
 		v -= project(v,axis)
 		radius = max(radius, length(v))
 	trans = lambda x: translate(rotate(translate(mat4(1), -center), x*angle, axis), center)
-	steps = settings.curve_resolution(2*angle*radius, angle, resolution)
+	steps = settings.curve_resolution(angle*radius, angle, resolution)
 	return extrans(trans, steps, outline)
 
 def saddle(outline1, outline2):
@@ -149,19 +146,22 @@ def extrans(transformer, steps, outline):
 def junction(line1, line2, steps):
 	pass
 
+def facekeyo(a,b,c):
+	if a < b and b < c:		return (a,b,c)
+	elif a < b:				return (c,a,b)
+	else:					return (b,c,a)
 
 def makeloops(lines, faces=()):
 	''' return a list of the loops that can be formed with lines.
 		lines must be oriented suite of points and loops are returned as suite of points.
 	'''
-	if not isinstance(lines, list):		lines = list(lines)
-	
+	lines = list(lines)
 	# get contiguous suite of points
 	loops = []
 	loop = list(lines.pop())
 	while lines:
 		found = False
-		for i in range(len(lines)):
+		for i,edge in enumerate(lines):
 			edge = lines[i]
 			if edge[-1] == loop[0]:		loop[0:1] = edge
 			elif edge[0] == loop[-1]:	loop[-1:] = edge
@@ -318,6 +318,25 @@ def flatsurface(outline):
 	triangulate(mesh, list(range(len(outline))))
 	return mesh
 
+def tangentellipsis(axis1, axis2, axis3, resolution=None):
+	axis = (axis1, axis2, axis3)
+	base = [ -normalize(cross(axis[i-1][0] - axis[i-2][0], axis[i][1]))
+				for i in range(3)]
+	dims = inverse(mat3(base)) * (-2*axis[0][0] + axis[1][0] + axis[2][0])
+	base[0] *= -2*dim[0]
+	base[1] *= dim[1]
+	base[2] *= dim[2]
+	origin = axis[0][0] - base[0]
+	pts = []
+	faces = []
+	for i in range(div+1):
+		for j in range(i+1):
+			u,v = i/(div+1), j/(i+1)
+			pts.append((base[0]*(1-cos(u)) + base[1]*(1-sin(u))) * (1-cos(v)) + base[2]*(1-sin(v)) + origin)
+	return Mesh(pts, faces)
+
+
+
 
 if __name__ == '__main__':
 	from nprint import nprint
@@ -334,6 +353,8 @@ if __name__ == '__main__':
 	m1 = extrusion(vec3(0,0,0.5), Outline(
 		[vec3(1,1,0), vec3(-1,1,0), vec3(-1,-1,0), vec3(1,-1,0), vec3(1,1,0)],
 		[0,1,2,3]))
+		
+	print(m1)
 	#m1 = extrusion(vec3(0,0,0.5), Outline(
 		#[vec3(1,1,0), vec3(-1,1,0), vec3(-1,0.5,0), vec3(-1,-0.5,0), vec3(-1,-1,0), vec3(1,-1,0), vec3(1,-0.5,0),vec3(1,0.5,0), vec3(1,1,0)],
 		#[0,1,2,3,4,5,6,7]))
@@ -342,17 +363,19 @@ if __name__ == '__main__':
 		#[0, 1, 1, 2]), 16)
 	m2 = revolution(pi, vec3(0,1,0), vec3(0,0,0), outline([
 		Segment(vec3(1,1,0), vec3(0.9,0.5,0)), 
-		Arc(vec3(1.4,0,0), vec3(0.9,0.5,0), vec3(0.9,-0.5,0)), 
+		Arc(vec3(0.9,0.5,0), vec3(0.7,0,0), vec3(0.9,-0.5,0)), 
 		Segment(vec3(0.9,-0.5,0), vec3(1,-1,0)),
 		]))
 	
 	m = m1+m2
 	m.mergedoubles()
-	m.removeunused()
+	m.strippoints()
 	assert len(loopholes(m)) == 5
 	closeenvelope(m)
+	assert m.isenvelope()
+	assert m.isvalid()
 	
-	m.options['debug_display'] = True
+	#m.options['debug_display'] = True
 	#m.options['debug_points'] = 'tracks'
 	scn3D.objs.append(m)
 	

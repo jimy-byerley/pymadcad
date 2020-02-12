@@ -354,19 +354,19 @@ if __name__ == '__main__':
 		)
 	m2 = deepcopy(m1)
 	#
-	#m2.translate(vec3(0.6, 0.3, 0.4))
+	#m2.transform(vec3(0.6, 0.3, 0.4))
 	#m2.transform(rotate(mat4(1), 0.3, vec3(1,1,1)))
 	#
-	#m2.translate(vec3(0.6, 0.3, 0.4))
-	#m2.translate(vec3(0.5, 0.3, 0.4))
+	#m2.transform(vec3(0.6, 0.3, 0.4))
+	#m2.transform(vec3(0.5, 0.3, 0.4))
 	#m2.transform(rotate(mat4(1), 0.7, vec3(1,0,0)))
 	#
-	m2.translate(vec3(0.5, 0.3, 0.4))
+	m2.transform(vec3(0.5, 0.3, 0.4))
 	m2.transform(rotate(mat4(1), 0.7, vec3(1,1,0)))
 	#
-	#m2.translate(vec3(1.99, 0.52, 0.51))
+	#m2.transform(vec3(1.99, 0.52, 0.51))
 	#
-	#m2.translate(vec3(2, 0.5, 0.5))
+	#m2.transform(vec3(2, 0.5, 0.5))
 	
 	#m3 = deepcopy(m1)
 	#intersectwith(m1, m2)
@@ -379,7 +379,9 @@ if __name__ == '__main__':
 	#scn3D.objs.append(m1)
 	start = time()
 	m3 = boolean(m1, m2, (True, False))
-	m3.removeunused()
+	m3.strippoints()
+	assert m3.isvalid()
+	#assert m3.isenvelope()
 	print('computation time:', time()-start)
 	scn3D.objs.append(m3)
 	#for i,pt in enumerate(usefulpts(m3)):
