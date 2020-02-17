@@ -82,16 +82,16 @@ def extrusion(displt, outline):
 		mesh.tracks.append(t)
 	return mesh
 
-def revolution(angle, axis, center, outline, resolution=None):
+def revolution(angle, axis, outline, resolution=None):
 	''' create a revolution surface by extruding the given outline
 		`steps` is the number of steps between the start and the end of the extrusion
 	'''
 	radius = 0
 	for pt in outline.points:
-		v = pt-center
-		v -= project(v,axis)
+		v = pt-axis[0]
+		v -= project(v,axis[1])
 		radius = max(radius, length(v))
-	trans = lambda x: translate(rotate(translate(mat4(1), -center), x*angle, axis), center)
+	trans = lambda x: translate(rotate(translate(mat4(1), -axis[0]), x*angle, axis[1]), axis[0])
 	steps = settings.curve_resolution(angle*radius, angle, resolution)
 	return extrans(trans, steps, outline)
 
@@ -362,7 +362,7 @@ if __name__ == '__main__':
 	#m2 = revolution(pi, vec3(0,1,0), vec3(0,0,0), Outline(
 		#[vec3(1,1,0), vec3(1,0.5,0), vec3(0.8,0,0), vec3(1,-0.5,0), vec3(1,-1,0)],
 		#[0, 1, 1, 2]), 16)
-	m2 = revolution(pi, vec3(0,1,0), vec3(0,0,0), outline([
+	m2 = revolution(pi, (vec3(0,0,0), vec3(0,1,0)), outline([
 		Segment(vec3(1,1,0), vec3(0.9,0.5,0)), 
 		Arc(vec3(0.9,0.5,0), vec3(0.7,0,0), vec3(0.9,-0.5,0)), 
 		Segment(vec3(0.9,-0.5,0), vec3(1,-1,0)),
