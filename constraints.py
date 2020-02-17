@@ -109,11 +109,11 @@ class PointOn:
 	def corrections(self):
 		indev()
 		
-
-def solve(constraints, precision=1e-5, afterset=None, fixed=()):
+'''
+def solve_old(constraints, precision=1e-4, afterset=None, fixed=()):
 	corrections = {}
 	params = {}
-	rate = 0.8
+	rate = 1
 	max_delta = inf
 	
 	# recuperation des parametres a modifier
@@ -133,16 +133,80 @@ def solve(constraints, precision=1e-5, afterset=None, fixed=()):
 			corr = list(zip(const.params(), const.corrections()))
 			for i in reversed(range(len(corr))):
 				if id(corr[i][0]) in fixed:	corr.pop(i)
+			if not len(corr):	continue
 			f = rate / len(corr)
 			for p,correction in corr:
 				corrections[id(p)] += correction * f
+		
+		print('corrections', corrections)
 		
 		for k,correction in corrections.items():
 			corr_norm = length(correction)
 			if corr_norm > max_delta:	max_delta = corr_norm
 			params[k] += correction
 		
-		print(max_delta)
+		#print(max_delta)
+		if afterset:	afterset()
+
+	return max_delta
+'''
+	
+def solve(constraints, precision=1e-4, afterset=None, fixed=()):
+	params = []
+	corrections = []
+	corrnorms = []
+	
+	indices = []
+	knownparams = {}
+	
+	rates = []
+	rate = 1
+	max_delta = inf
+	
+	# recuperation des parametres a modifier
+	i = 0
+	for const in constraints:
+		c = 0
+		for param in const.params():
+			k = id(param)
+			if k in fixed:	c += 1
+			if k not in knownparams:
+				knownparams[k] = i
+				params.append(param)
+				corrections.append(None)
+				corrnorms.append(0)
+				i += 1
+			indices.append(knownparams[k])
+		rates.append(rate/(len(param)-c))
+	
+	# resolution iterative
+	while max_delta > precision:
+		max_delta = 0
+		
+		for i in range(len(corrections)):
+			corrections[i] = type(params[i])()
+			corrnorms[i] = 0.
+		
+		i = 0
+		for const,rate in zip(constraints, rates):
+			corr = const.corrections()
+			for correction in corr:
+				contrib = correction * rate
+				corrections[indices[i]] += contrib
+				l = length(contrib)
+				if l > corrnorms[indices[i]]:	corrnorms[indices[i]] = l
+				i += 1
+		
+		#print('corrections', corrections)
+		
+		for param,correction,corrnorm in zip(params, corrections, corrnorms):
+			if id(param) not in fixed:
+				if corrnorm > max_delta:	max_delta = corrnorm
+				l = length(correction)
+				if l > 0:
+					param += correction * (corrnorm / l)
+		
+		#print(max_delta)
 		if afterset:	afterset()
 
 	return max_delta
