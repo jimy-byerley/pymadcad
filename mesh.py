@@ -43,11 +43,11 @@ class Mesh:
 	
 	# --- standard point container methods ---
 	
-	def __init__(self, points, faces, tracks, groups):
-		self.points = points
-		self.faces = faces
-		self.tracks = tracks
-		self.groups = groups
+	def __init__(self, points=None, faces=None, tracks=None, groups=None):
+		self.points = points or []
+		self.faces = faces or []
+		self.tracks = tracks or []
+		self.groups = groups or []
 		self.options = {}
 	
 	def transform(self, trans):
