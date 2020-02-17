@@ -3,7 +3,7 @@
 import glm
 from glm import *
 del version, license
-from math import pi
+from math import pi, atan2
 from copy import deepcopy
 
 '''
