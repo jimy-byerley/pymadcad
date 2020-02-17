@@ -368,7 +368,7 @@ class SolidDisplay:
 						)
 			shader['select_color'] = settings.display['select_color_line']
 			return shader
-		self.lineshader = scene.ressource('shader_uniformcolor', load)
+		self.lineshader = scene.ressource('shader_wire', load)
 		
 		self.ident_shader = scene.ident_shader
 		
