@@ -38,6 +38,10 @@ def dirbase(dir, align=vec3(1,0,0)):
 	y = normalize(cross(dir, x))
 	return x,y,dir
 
+# donne une mat3 effectuant une mise a l'echelle selon la direction donnée
+def scaledir(dir, factor):
+	return mat3(1) + (factor-1)*mat3(dir[0]*dir, dir[1]*dir, dir[2]*dir)
+
 # donne la matrice de transformation 4x4
 def transform(translation=None, rotation=None):
 	if rotation is not None:	transform = mat4(rotation)
