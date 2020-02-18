@@ -1,5 +1,5 @@
 from math import sqrt
-from mathutils import vec3, mat3, normalize, anglebt, project, cos, sin, pi, length, cross, vec2, mat2, determinant, inverse, dot, atan, acos
+from mathutils import vec3, mat3, normalize, anglebt, project, cos, sin, pi, length, cross, vec2, mat2, determinant, inverse, dot, atan, acos, dirbase
 import settings
 
 class Primitive(object):
@@ -49,9 +49,10 @@ class Arc(object):
 	#def radius(self):
 		#return (self.a-self.center).norm()
 	
-	__slots__ = ('a', 'b', 'c')
-	def __init__(self, a,b,c):
+	__slots__ = ('a', 'b', 'c', 'resolution')
+	def __init__(self, a,b,c, resolution=None):
 		self.a, self.b, self.c = a,b,c
+		self.resolution = resolution
 	
 	def center(self):
 		a,c = self.a-self.b, self.c-self.b
@@ -65,7 +66,7 @@ class Arc(object):
 		center = self.center()
 		angle = anglebt(self.a-center, self.c-center)
 		r = length(self.a-center)
-		div = settings.curve_resolution(angle, angle*r, resolution)
+		div = settings.curve_resolution(angle, angle*r, self.resolution or resolution)
 		x = normalize(self.a-center)
 		y = self.b-center
 		y = normalize(y - project(y,x))
@@ -91,23 +92,19 @@ def tangentellipsis(axis1, axis2, resolution=None):
 		pts.append(x*a*(1-cos(u)) + y*b*(1-sin(u)) + origin)
 	return pts
 
-def dirbase(dir, align=vec3(1,0,0)):
-	x = normalize(align - project(align, self.axis[1]))
-	if length(x) < NUMPREC:		
-		align = vec3(align[1],-align[0],align[2])
-		x = normalize(align - project(align, self.axis[1]))
-	y = normalize(cross(self.axis[1], x))
-	return x,y,dir
-
 class Circle:
-	def __init__(self, axis, radius, alignment=vec3(1,0,0)):
+	__slots__ = ('axis', 'radius', 'alignment', 'resolution')
+	def __init__(self, axis, radius, alignment=vec3(1,0,0), resolution=None):
 		self.axis, self.radius = axis, radius
 		self.alignment = alignment
+		self.resolution = resolution
+	
 	def mesh(self, resolution=None):
 		center = self.axis[0]
 		x,y,z = dirbase(self.axis[1], self.alignment)
 		angle = 2*pi
-		div = settings.curve_resolution(angle*radius, angle, resolution)
+		r = self.radius
+		div = settings.curve_resolution(angle*r, angle, self.resolution or resolution)
 		pts = []
 		for i in range(div+1):
 			a = angle * i/div

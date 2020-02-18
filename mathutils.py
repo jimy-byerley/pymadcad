@@ -29,6 +29,14 @@ def project(vec, dir):
 
 def perpdot(a:vec2, b:vec2) -> float:
 	return -a[1]*b[0] + a[0]*b[1]
+	
+def dirbase(dir, align=vec3(1,0,0)):
+	x = normalize(align - project(align, dir))
+	if isnan(length(x)):
+		align = vec3(align[2],-align[0],align[1])
+		x = normalize(align - project(align, dir))
+	y = normalize(cross(dir, x))
+	return x,y,dir
 
 # donne la matrice de transformation 4x4
 def transform(translation=None, rotation=None):
@@ -36,19 +44,6 @@ def transform(translation=None, rotation=None):
 	else:						transform = mat4(1)
 	if translation is not None:	transform[3] = vec4(translation)
 	return transform
-
-# donne la matrice de transformation 4x4 inverse
-def inversetransform(transform):
-	if isinstance(transform, tuple):		return (-transform[0], inversetransform(transform[1]))
-	elif isinstance(transform, quat):		return 1/transform
-	elif isinstance(transform, mat3):		return transpose(transform)
-	elif isinstance(transform, mat4):
-		rot = mat3(transform)
-		inv = mat4(transpose(rot))
-		inv[3] = vec4(- rot * transform[3])
-		return inv
-	else:
-		raise typeError('transform must be a a tuple (translation, rotation), a quaternion, or a matrix')
 
 def interpol1(a, b, x):
 	''' 1st order polynomial interpolation '''
@@ -81,6 +76,7 @@ class Box:
 	def __init__(self, min=None, max=None, center=vec3(0), width=vec3(0)):
 		if min and max:			self.min, self.max = min, max
 		else:					self.min, self.max = center-width, center+width
+	
 	@property
 	def center(self):
 		return (self.min + self.max) /2
