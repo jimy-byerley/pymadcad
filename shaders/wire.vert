@@ -7,7 +7,6 @@ in vec3 v_position;	// vertex position
 in int v_flags;
 uniform mat4 view;	// view matrix (camera orientation)
 uniform mat4 proj;	// projection matrix (perspective or orthographic)
-uniform int selection;
 flat out int flags;
 
 void main() {

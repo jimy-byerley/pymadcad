@@ -4,7 +4,6 @@
 #version 330
 
 flat in int flags;
-uniform int selection;
 uniform vec3 color;
 uniform vec3 select_color;
 out vec4 outcolor;
