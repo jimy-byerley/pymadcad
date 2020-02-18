@@ -196,6 +196,7 @@ class Mesh:
 	
 	def box(self):
 		''' return the extreme coordinates of the mesh (vec3, vec3) '''
+		if not self.points:		return None
 		max = deepcopy(self.points[0])
 		min = deepcopy(self.points[0])
 		for pt in self.points:
@@ -206,11 +207,26 @@ class Mesh:
 	
 	def facenormal(self, face):
 		if isinstance(face, int):	
-			face = self.faces(face)
+			face = self.faces[face]
 		p0 = self.points[face[0]]
 		e1 = self.points[face[1]] - p0
 		e2 = self.points[face[2]] - p0
 		return normalize(cross(e1, e2))
+	
+	def vertexnormals(self):
+		l = len(self.points)
+		normals = [vec3(0) for _ in range(l)]
+		contribs = [0] * l
+		for face in self.faces:
+			normal = self.facenormal(face)
+			for i in range(3):
+				o = self.points[face[i]]
+				contrib = anglebt(self.points[face[i-2]]-o, self.points[face[i-1]]-o)
+				contribs[face[i]] += contrib
+				normals[face[i]] += contrib * normal
+		for i in range(l):
+			normals[i] /= contribs[i]
+		return normals
 	
 	def facepoints(self, index):
 		f = self.faces[index]
