@@ -229,9 +229,9 @@ def closeenvelope(mesh):
 	''' create surfaces to close the loop holes in the envelope '''
 	for hole in loopholes(mesh):
 		hole.pop()
-		trianguate(mesh, hole)
+		triangulate(mesh, hole)
 
-def trianguate(mesh, outline, group=None):
+def triangulate(mesh, outline, group=None):
 	''' insert triangles in mesh in order to create a flat surface in the outline 
 		outline must be oriented
 		if group is specified, the new faces will use this group id
