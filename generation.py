@@ -107,20 +107,44 @@ def saddle(outline1, outline2):
 		return translate(mat4(1), outline2.points[i]-outline2.points[0])
 	return extrans(trans, l, outline1)
 
-def tube(outline1, outline2):
-	rot = quat()
+def tube(outline1, outline2, end=True, section=True):
+	''' create a tube surface by extrusing the outline 1 along the outline 2
+		if section is True, there is a correction of the segments to keep the section undeformed by the curve
+	'''
+	lastrot = quat()
+	hrot = quat()
 	l = len(outline2.points)-1
+	offset = 0 if end else 1
 	def trans(x):
-		if x > 0 and x < 1:
-			i = int(x*l+0.5)
+		i = int(x*(l-2*offset)+0.5) + offset
+		if i > 0 and i < l:
+			# calculer l'angle a ce coude
 			o = outline.points[i]
 			c = cross(o-outline.points[i-1], outline2.points[i+1]-o)
 			cl = length(c)
-			rot *= quat(asin(cl), c/cl)
-			return translate(mat4_cast(rot), outline2.points[i]-outline2.points[0])
-			# TODO: integrer la deformation de la section pour ne pas réduire le volume
-		return mat4(1)
+			ha = asin(cl)/2
+			cn = c/cl
+			hrot = quat(ha, cn)
+			# calcul de la rotation de la section
+			rot *= hrot * lasthrot
+			lasthrot = hrot*rot
+			trans = mat4(1)
+			m = mat3_cast(rot)
+			# deformation de la section pour ne pas réduire le volume
+			if section:	
+				m = scaledir(cn, 1/cos(ha)) * m
+		else:
+			m = mat3_cast(rot)
+		# construction de la transformation
+		center = outline.points[i]-outline2.points[0]
+		t = translate(t, -center)
+		t = rotate(t, m)
+		t = translate(t, center)
+		return trans
+	
+	if not end:		trans(0)
 	return extrans(trans, l, outline1)
+
 
 def extrans(transformer, steps, outline):
 	''' create a surface by extruding and transforming the given outline.
