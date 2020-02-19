@@ -1,5 +1,5 @@
 from mesh import Mesh, edgekey, MeshError
-from mathutils import vec2,mat2,vec3,vec4,mat3,mat4, mat3_cast, quat, rotate, translate, dot, cross, perpdot, project, scaledir, transform, normalize, inverse, length, cos, asin, NUMPREC, COMPREC, angleAxis, angle
+from mathutils import vec2,mat2,vec3,vec4,mat3,mat4, mat3_cast, quat, rotate, translate, dot, cross, perpdot, project, scaledir, transform, normalize, inverse, length, cos, asin, NUMPREC, COMPREC, angleAxis, angle, distance, anglebt
 from math import atan2
 from primitives import Primitive
 import settings
@@ -19,6 +19,11 @@ class Outline:
 		self.tracks = tracks or [0] * (len(points)-1)
 		self.groups = groups or [None] * (max(self.tracks)+1)
 	
+	def length(self):
+		s = 0
+		for i in range(1,len(self.points)):
+			s += distance(self.points[i-1], self.points[i])
+		return s
 	# NOTE: voir si il est plus interessant d'utiliser de lignes continues decrites par une suite de points, ou des lignes quelconques decrites par des couples d'indices pour les aretes
 
 
@@ -164,13 +169,96 @@ def extrans(transformations, outline):
 	return mesh
 
 def matchcurves(line1, line2):
-	pass
+	match = [(0,0)]
+	l1, l2 = line1.length(), line2.length()
+	i1, i2 = 1, 1
+	x1, x2 = 0, 0
+	while i1 < len(line1.points) and i2 < len(line2.points):
+		p1 = distance(line1.points[i1-1], line1.points[i1])
+		p2 = distance(line2.points[i2-1], line2.points[i2])
+		if x1 <= x2 and x2 <= x1+p1   or   x2 <= x1 and x1 <= x2+p2:
+			i1 += 1; x1 += p1
+			i2 += 1; x2 += p2
+		elif x1/l1 < x2/l2:	
+			i1 += 1; x1 += p1
+		else:				
+			i2 += 1; x2 += p2
+		match.append((i1-1,i2-1))
+	while i1 < len(line1.points):
+		i1 += 1
+		match.append((i1-1,i2-1))
+	while i2 < len(line2.points):
+		i2 += 1
+		match.append((i1-1,i2-1))
+	return match
 
-def simplejunction(line1, line2, steps=0):
-	pass
+def simplejunction(mesh, line1, line2):
+	group = len(mesh.groups)
+	mesh.groups.append('junction')
+	match = matchcurves(line1, line2)
+	for i in range(1,len(match)):
+		a,b = match[i-1]
+		d,c = match[i]
+		if b == c:		mktri(mesh, (a,b,c), group)
+		elif a == d:	mktri(mesh, (a,b,c), group)
+		else:
+			mkquad(mesh, (a,b,c,d), group)
+		
 
 def junction(line1, line2, resolution=None):
-	pass
+	mesh = Mesh([], [], [], ['junction'])
+	group = 0
+	match = matchcurves(line1, line2)
+	
+	# get the discretisation
+	segts = 0
+	for i in range(1,len(match)):
+		a,b = match[i-1]
+		d,c = match[i]
+		a,b,c,d = line1.points[a], line2.points[b], line2.points[c], line1.points[d]
+		v = normalize(a+d - b+c)
+		angle = anglebt(a-b - project(a-b,v), d-c - project(d-c,v))
+		dist = min(distance(a,b), distance(d,c))
+		div = settings.curve_resolution(dist, angle, resolution)
+		if div > segts:	
+			segts = div
+	segts += 2
+	
+	# create interpolation points
+	for i1,i2 in match:
+		p1,p2 = line1.points[i1], line2.points[i2]
+		for i in range(segts):
+			x = i/(segts-1)
+			mesh.points.append(p1*(1-x) + p2*x)
+	
+	# create faces
+	for i in range(1,len(match)):
+		j = (i-1)*segts
+		a,b = match[i-1]
+		d,c = match[i]
+		if a==d:	mktri(mesh, (j,j+1,j+segts+1), group)
+		else:		mkquad(mesh, (j, j+1, j+segts+1, j+segts), group)
+		for k in range(1,segts-2):
+			mkquad(mesh, (j+k, j+k+1, j+k+segts+1, j+k+segts), group)
+		if b==c:	mktri(mesh, (j+segts-2, j+segts-1, j+segts+segts-2), group)
+		else:		mkquad(mesh, (j+segts-2, j+segts-1, j+segts+segts-1, j+segts+segts-2), group)
+	return mesh
+		
+		
+def mktri(mesh, pts, track):
+	mesh.faces.append(pts)
+	mesh.tracks.append(track)
+
+def mkquad(mesh, pts, track):
+	if (	distance(mesh.points[pts[0]], mesh.points[pts[2]]) 
+		<=	distance(mesh.points[pts[1]], mesh.points[pts[3]]) ):
+		mesh.faces.append((pts[:-1]))
+		mesh.faces.append((pts[3], pts[0], pts[2]))
+	else:
+		mesh.faces.append((pts[0], pts[1], pts[3]))
+		mesh.faces.append((pts[2], pts[3], pts[1]))
+	mesh.tracks.append(track)
+	mesh.tracks.append(track)
 
 def facekeyo(a,b,c):
 	if a < b and b < c:		return (a,b,c)
@@ -377,11 +465,12 @@ if __name__ == '__main__':
 	app = QApplication(sys.argv)
 	main = scn3D = view.Scene()
 	
+	# test extrusion
 	m1 = extrusion(vec3(0,0,0.5), outline(
 			[vec3(1,1,0), vec3(-1,1,0), vec3(-1,-1,0), vec3(1,-1,0), vec3(1,1,0)],
 			[0,1,2,3]))
-		
-	#print(m1)
+	
+	# test revolution
 	#m1 = extrusion(vec3(0,0,0.5), Outline(
 		#[vec3(1,1,0), vec3(-1,1,0), vec3(-1,0.5,0), vec3(-1,-0.5,0), vec3(-1,-1,0), vec3(1,-1,0), vec3(1,-0.5,0),vec3(1,0.5,0), vec3(1,1,0)],
 		#[0,1,2,3,4,5,6,7]))
@@ -394,18 +483,24 @@ if __name__ == '__main__':
 			Segment(vec3(0.9,-0.5,0), vec3(1,-1,0)),
 			]))
 	
-	m = m1+m2
-	m.mergedoubles()
-	m.strippoints()
-	assert m.isvalid()
-	print(loopholes(m))
+	# test closeholes
+	#m = m1+m2
+	#m.mergedoubles()
+	#m.strippoints()
+	#assert m.isvalid()
+	#print(loopholes(m))
 	#assert len(loopholes(m)) == 5, len(loopholes(m))
 	#closeenvelope(m)
 	#assert m.isenvelope()
 	#assert m.isvalid()
 	
 	#m.transform(vec3(0,0,5))
+	#m.options['debug_display'] = True
+	#m.options['debug_points'] = True
+	#scn3D.objs.append(m)
 	
+	
+	# test tubes
 	m3 = tube(
 			outline([vec3(1,0,0), vec3(0,1,0), vec3(-1,0,0), vec3(0,-1,0), vec3(1,0,0)], [0,1,2,3]),
 			#outline(Arc(vec3(0,0,0), vec3(4,1,4), vec3(6,0,3))),
@@ -414,13 +509,20 @@ if __name__ == '__main__':
 	assert m3.isvalid()
 	m3.transform(vec3(-4,0,0))
 	
-	#m.options['debug_display'] = True
-	#m.options['debug_points'] = True
-	scn3D.objs.append(m)
 	#m3.options['debug_display'] = True
 	#m3.options['debug_points'] = True
-	scn3D.objs.append(m3)
-	scn3D.look(m3.box())
+	#scn3D.objs.append(m3)
+	#scn3D.look(m3.box())
+	
+	# test junction
+	m4 = junction(
+			outline([vec3(-2,0,0), vec3(-1,0,0), vec3(0,0,0), vec3(1,0,0), vec3(2,0,0)]),
+			outline([vec3(-3,0,-1), vec3(-0.9,1,-2), vec3(0,0,-2), vec3(1.5,-1,-1)]),
+			#resolution=('div', 2),
+			)
+	m4.options['debug_display'] = True
+	#m4.options['debug_points'] = True
+	scn3D.objs.append(m4)
 	
 	main.show()
 	sys.exit(app.exec())
