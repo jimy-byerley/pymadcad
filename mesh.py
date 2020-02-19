@@ -96,12 +96,18 @@ class Mesh:
 		''' merge points with the merge dictionnary {src index: dst index}
 			remaining points are not removed
 		'''
-		for i,f in enumerate(self.faces):
-			self.faces[i] = (
+		i = 0
+		while i < len(self.faces):
+			f = self.faces[i]
+			self.faces[i] = f = (
 				merges.get(f[0], f[0]),
 				merges.get(f[1], f[1]),
 				merges.get(f[2], f[2]),
 				)
+			if f[0] == f[1] or f[1] == f[2] or f[2] == f[0]:
+				self.faces.pop(i)
+			else:
+				i += 1
 	
 	def strippoints(self):
 		''' remove points that are used by no faces, return the reindex list '''
@@ -128,15 +134,18 @@ class Mesh:
 		''' return true if the surfaces are a closed envelope '''
 		return len(self.outlines_oriented()) == 0
 	
-	def isvalid(self):
+	def isvalid(self):	return not self.invalidity()
+	
+	def invalidity(self):
 		''' check that the internal data references are good (indices and list lengths) '''
 		l = len(self.points)
 		for face in self.faces:
 			for p in face:
-				if p >= l:	return False
-		if len(self.faces) != len(self.tracks):	return False
-		if max(self.tracks) >= len(self.groups): return False
-		return True
+				if p >= l:	return "some indices of face points are greater than the number of points", face, l
+			if face[0] == face[1] or face[1] == face[2] or face[2] == face[0]:	return "some faces use the same point multiple times", face
+		if len(self.faces) != len(self.tracks):	return "tracks list doesn't match faces list length",
+		if max(self.tracks) >= len(self.groups): return "some face group indices are greater than the number of groups", max(self.tracks), len(self.groups)
+		return None
 	
 	def finish(self):
 		''' finish and clean the mesh 
