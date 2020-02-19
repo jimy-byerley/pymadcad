@@ -1,5 +1,5 @@
 from mesh import Mesh, edgekey, MeshError
-from mathutils import vec2,mat2,vec3,vec4,mat3,mat4, mat3_cast, quat, rotate, translate, dot, cross, perpdot, project, scaledir, transform, normalize, inverse, length, cos, asin, NUMPREC, COMPREC, angleAxis, angle, distance, anglebt
+from mathutils import vec2,mat2,vec3,vec4,mat3,mat4, mat3_cast, quat, rotate, translate, dot, cross, perpdot, project, scaledir, transform, normalize, inverse, length, cos, asin, NUMPREC, COMPREC, angleAxis, angle, distance, anglebt, interpol1
 from math import atan2
 from primitives import Primitive
 import settings
@@ -203,33 +203,40 @@ def simplejunction(mesh, line1, line2):
 		elif a == d:	mktri(mesh, (a,b,c), group)
 		else:
 			mkquad(mesh, (a,b,c,d), group)
-		
 
-def junction(line1, line2, resolution=None):
+def junction(line1, line2, resolution=None, linecut=True):
+	''' create a smooth surface between two lines, using matchcurves()
+		resolution is the segments curve resolution
+		linecut allow the function to subdivide portions of the given lines to get better result on smooth surfaces
+	'''
 	mesh = Mesh([], [], [], ['junction'])
 	group = 0
 	match = matchcurves(line1, line2)
+	match = [(line1.points[i1], line2.points[i2]) for i1,i2 in match]
 	
 	# get the discretisation
 	segts = 0
-	for i in range(1,len(match)):
+	i = 1
+	while i < len(match):
 		a,b = match[i-1]
 		d,c = match[i]
-		a,b,c,d = line1.points[a], line2.points[b], line2.points[c], line1.points[d]
-		v = normalize(a+d - b+c)
+		v = normalize((a+b) - (d+c))
 		angle = anglebt(a-b - project(a-b,v), d-c - project(d-c,v))
 		dist = min(distance(a,b), distance(d,c))
-		div = settings.curve_resolution(dist, angle, resolution)
-		if div > segts:	
-			segts = div
-	segts += 2
+		lsegts = settings.curve_resolution(dist, angle, resolution) + 2
+		if lsegts > segts:
+			segts = lsegts
+		if lsegts and linecut:
+			match[i:i] = [	(interpol1(a,d, j/(lsegts-1)), interpol1(b,c, j/(lsegts-1)))
+							for j in range(1,lsegts-1)]
+			i += lsegts-2
+		i += 1
 	
 	# create interpolation points
-	for i1,i2 in match:
-		p1,p2 = line1.points[i1], line2.points[i2]
+	for p1,p2 in match:
 		for i in range(segts):
 			x = i/(segts-1)
-			mesh.points.append(p1*(1-x) + p2*x)
+			mesh.points.append(interpol1(p1, p2, x))
 	
 	# create faces
 	for i in range(1,len(match)):
@@ -520,7 +527,7 @@ if __name__ == '__main__':
 			outline([vec3(-3,0,-1), vec3(-0.9,1,-2), vec3(0,0,-2), vec3(1.5,-1,-1)]),
 			#resolution=('div', 2),
 			)
-	m4.options['debug_display'] = True
+	#m4.options['debug_display'] = True
 	#m4.options['debug_points'] = True
 	scn3D.objs.append(m4)
 	
