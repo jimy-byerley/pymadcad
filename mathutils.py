@@ -22,7 +22,7 @@ COMPREC = 1-NUMPREC
 
 def anglebt(x,y):
 	n = length(x)*length(y)
-	return acos(dot(x,y) / n)	if n else 0
+	return acos(min(1,max(-1, dot(x,y)/n)))	if n else 0
 
 def project(vec, dir):
 	return dot(vec, dir) * dir
@@ -51,7 +51,7 @@ def transform(translation=None, rotation=None):
 
 def interpol1(a, b, x):
 	''' 1st order polynomial interpolation '''
-	return x*a + (1-x)*b
+	return (1-x)*a + x*b
 
 def interpol2(a, b, x):
 	''' 2nd order polynomial interpolation 
