@@ -1,5 +1,5 @@
 from math import sqrt
-from mathutils import vec3, mat3, normalize, anglebt, project, cos, sin, pi, length, cross, vec2, mat2, determinant, inverse, dot, atan, acos, dirbase
+from mathutils import vec3, mat3, normalize, anglebt, project, cos, sin, atan2, pi, length, cross, vec2, mat2, determinant, inverse, dot, atan, acos, dirbase
 import settings
 
 class Primitive(object):
@@ -64,12 +64,13 @@ class Arc(object):
 	
 	def mesh(self, resolution=None):
 		center = self.center()
-		angle = anglebt(self.a-center, self.c-center)
 		r = length(self.a-center)
-		div = settings.curve_resolution(angle, angle*r, self.resolution or resolution)
 		x = normalize(self.a-center)
 		y = self.b-center
 		y = normalize(y - project(y,x))
+		c = self.c-center
+		angle = atan2(dot(c,y), dot(c,x)) % (2*pi)
+		div = settings.curve_resolution(angle*r, angle, self.resolution or resolution)
 		pts = [self.a]
 		for i in range(1,div):
 			a = angle * i/div
