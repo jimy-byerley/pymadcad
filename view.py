@@ -201,7 +201,8 @@ class Scene(QGLWidget):
 		self.ident_steps = steps = [0]*len(self.objs)
 		ident = 1
 		for i,rdr in enumerate(self.objs):
-			steps[i] = ident = ident + (rdr.identify(self, ident) or 0)
+			ident += (rdr.identify(self, ident) or 0)
+			steps[i] = ident-1
 		self.ident_refreshed = True
 		
 		
@@ -288,10 +289,12 @@ class Scene(QGLWidget):
 		
 		ident = self.ident_map[-coords[1],coords[0]]
 		if ident:
-			ident -= 1
 			obji = dichotomy_index(self.ident_steps, ident)
-			if obji > 0:	groupi = ident - self.ident_steps[obji-1]
-			else:			groupi = ident
+			if obji == len(self.ident_steps):
+				print('problem: object ident points out of idents list')
+			while obji > 0 and self.ident_steps[obji-1] == ident:	obji -= 1
+			if obji > 0:	groupi = ident - self.ident_steps[obji-1] - 1
+			else:			groupi = ident - 1
 			return obji, groupi
 		else:
 			return None
@@ -402,7 +405,7 @@ class SolidDisplay:
 						(self.vb_idents, IDENT_TYPE, 'item_ident')], 
 					self.vb_faces,
 					)
-			self.nidents = max(idents)+1
+			self.nidents = int(max(idents)+1)
 		else:
 			self.va_idents = None
 			
