@@ -52,7 +52,7 @@ def curve_resolution(length, angle, param=None):
 		res = ceil(angle * sqrt(length) / prec)
 	else:
 		raise ValueError("unknown type for round_limit: {}".format(repr(kind)))
-	res = max(res, ceil(angle * 2/pi))
+	res = max(res, int(angle * 2/pi))
 	return res
 
 def getparam(levels: list, key):
