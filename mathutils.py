@@ -46,7 +46,7 @@ def scaledir(dir, factor):
 def transform(translation=None, rotation=None):
 	if rotation is not None:	transform = mat4(rotation)
 	else:						transform = mat4(1)
-	if translation is not None:	transform[3] = vec4(translation)
+	if translation is not None:	transform[3] = vec4(translation, 1)
 	return transform
 
 def interpol1(a, b, x):
