@@ -1,5 +1,5 @@
 from mesh import Mesh, edgekey, MeshError
-from mathutils import vec2,mat2,vec3,vec4,mat3,mat4, rotate, translate, dot, cross, perpdot, project, normalize, inverse, length, NUMPREC, COMPREC
+from mathutils import vec2,mat2,vec3,vec4,mat3,mat4, mat3_cast, quat, rotate, translate, dot, cross, perpdot, project, scaledir, transform, normalize, inverse, length, cos, asin, NUMPREC, COMPREC, angleAxis, angle
 from math import atan2
 from primitives import Primitive
 import settings
@@ -86,88 +86,90 @@ def revolution(angle, axis, outline, resolution=None):
 	''' create a revolution surface by extruding the given outline
 		`steps` is the number of steps between the start and the end of the extrusion
 	'''
+	# get the maximum radius, to compute the curve resolution
 	radius = 0
 	for pt in outline.points:
 		v = pt-axis[0]
 		v -= project(v,axis[1])
 		radius = max(radius, length(v))
-	trans = lambda x: translate(rotate(translate(mat4(1), -axis[0]), x*angle, axis[1]), axis[0])
 	steps = settings.curve_resolution(angle*radius, angle, resolution)
-	return extrans(trans, steps, outline)
+	# use extrans
+	def trans():
+		for i in range(steps+1):
+			yield translate(rotate(translate(mat4(1), -axis[0]), i/steps*angle, axis[1]), axis[0])
+	return extrans(trans(), outline)
 
 def saddle(outline1, outline2):
-	#print(outline1.points)
-	#for i,p in enumerate(outline2.points):
-		#for j,p2 in enumerate(outline2.points):
-			#if j!=i and p == p2:	print('!!! same as',j)
-		#print(i,p)
-	l = len(outline2.points)-1
-	def trans(x):
-		i = int(x*l+0.5)
-		return translate(mat4(1), outline2.points[i]-outline2.points[0])
-	return extrans(trans, l, outline1)
+	''' create a surface by extruding outine1 translating each instance to the next point of outline2
+	'''
+	def trans():
+		for i in range(len(outline2.points)):
+			yield translate(mat4(1), outline2.points[i]-outline2.points[0])
+	return extrans(trans(), outline1)
 
 def tube(outline1, outline2, end=True, section=True):
 	''' create a tube surface by extrusing the outline 1 along the outline 2
 		if section is True, there is a correction of the segments to keep the section undeformed by the curve
 	'''
-	lastrot = quat()
-	hrot = quat()
-	l = len(outline2.points)-1
-	offset = 0 if end else 1
-	def trans(x):
-		i = int(x*(l-2*offset)+0.5) + offset
-		if i > 0 and i < l:
-			# calculer l'angle a ce coude
-			o = outline.points[i]
-			c = cross(o-outline.points[i-1], outline2.points[i+1]-o)
-			cl = length(c)
-			ha = asin(cl)/2
-			cn = c/cl
-			hrot = quat(ha, cn)
-			# calcul de la rotation de la section
-			rot *= hrot * lasthrot
-			lasthrot = hrot*rot
-			trans = mat4(1)
-			m = mat3_cast(rot)
-			# deformation de la section pour ne pas réduire le volume
-			if section:	
-				m = scaledir(cn, 1/cos(ha)) * m
-		else:
-			m = mat3_cast(rot)
-		# construction de la transformation
-		center = outline.points[i]-outline2.points[0]
-		t = translate(t, -center)
-		t = rotate(t, m)
-		t = translate(t, center)
-		return trans
+	def trans():
+		lastrot = quat()
+		l = len(outline2.points)-1
+		yield mat4(1)
+		for i in range(1,l+1):
+			
+			if i < l:
+				# calculer l'angle a ce coude
+				o = outline2.points[i]
+				v1 = normalize(outline2.points[i-1]-o)
+				v2 = normalize(outline2.points[i+1]-o)
+				c = cross(-v1,v2)
+				cl = length(c)
+				cn = c/cl
+				ha = asin(cl)/2
+				hrot = angleAxis(ha, cn)
+				# calcul de la rotation de la section
+				rot = hrot * lastrot
+				lastrot = hrot * rot
+				m = mat3_cast(rot)
+				# deformation de la section pour ne pas réduire le volume
+				if section:	
+					m = scaledir(normalize(v1+v2), 1/cos(ha)) * m
+			else:
+				m = mat3_cast(lastrot)
+			# construction de la transformation
+			yield transform(outline2.points[i]) * mat4(m) * transform(-outline2.points[0])
 	
-	if not end:		trans(0)
-	return extrans(trans, l, outline1)
+	trans = trans()
+	if not end:		next(trans)
+	return extrans(trans, outline1)
 
 
-def extrans(transformer, steps, outline):
+def extrans(transformations, outline):
 	''' create a surface by extruding and transforming the given outline.
-		transformer gives the transform at each step    
-			transformer(x:[0:1]) -> mat4
-		`steps` is the number of extrusion steps
+		transformations must be an iterable of mat4
 	'''
 	mesh = Mesh([], [], [], outline.groups)
-	for i in range(steps+1):
-		mat = transformer(i/steps)
-		for p in outline.points:
-			mesh.points.append(vec3(mat*vec4(p,1)))
 	l = len(outline.points)
-	for j in range(0,steps*l,l):
-		for i,t in zip(range(l-1), outline.tracks):
-			mesh.faces.append((j+i, j+i+1, j+i+1+l))
-			mesh.faces.append((j+i, j+i+1+l, j+i+l))
-			mesh.tracks.append(t)
-			mesh.tracks.append(t)
+	transformations = iter(transformations)
+	for k,trans in enumerate(transformations):
+		for p in outline.points:
+			mesh.points.append(vec3(trans*vec4(p,1)))
+		if k:
+			j = k*l
+			for i,t in zip(range(l-1), outline.tracks):
+				mesh.faces.append((j+i-l, j+i+1-l, j+i+1))
+				mesh.faces.append((j+i-l, j+i+1,   j+i))
+				mesh.tracks.append(t)
+				mesh.tracks.append(t)
 	return mesh
-	
 
-def junction(line1, line2, steps):
+def matchcurves(line1, line2):
+	pass
+
+def simplejunction(line1, line2, steps=0):
+	pass
+
+def junction(line1, line2, resolution=None):
 	pass
 
 def facekeyo(a,b,c):
@@ -375,11 +377,11 @@ if __name__ == '__main__':
 	app = QApplication(sys.argv)
 	main = scn3D = view.Scene()
 	
-	m1 = extrusion(vec3(0,0,0.5), Outline(
-		[vec3(1,1,0), vec3(-1,1,0), vec3(-1,-1,0), vec3(1,-1,0), vec3(1,1,0)],
-		[0,1,2,3]))
+	m1 = extrusion(vec3(0,0,0.5), outline(
+			[vec3(1,1,0), vec3(-1,1,0), vec3(-1,-1,0), vec3(1,-1,0), vec3(1,1,0)],
+			[0,1,2,3]))
 		
-	print(m1)
+	#print(m1)
 	#m1 = extrusion(vec3(0,0,0.5), Outline(
 		#[vec3(1,1,0), vec3(-1,1,0), vec3(-1,0.5,0), vec3(-1,-0.5,0), vec3(-1,-1,0), vec3(1,-1,0), vec3(1,-0.5,0),vec3(1,0.5,0), vec3(1,1,0)],
 		#[0,1,2,3,4,5,6,7]))
@@ -387,25 +389,38 @@ if __name__ == '__main__':
 		#[vec3(1,1,0), vec3(1,0.5,0), vec3(0.8,0,0), vec3(1,-0.5,0), vec3(1,-1,0)],
 		#[0, 1, 1, 2]), 16)
 	m2 = revolution(pi, (vec3(0,0,0), vec3(0,1,0)), outline([
-		Segment(vec3(1,1,0), vec3(0.9,0.5,0)), 
-		Arc(vec3(0.9,0.5,0), vec3(0.7,0,0), vec3(0.9,-0.5,0)), 
-		Segment(vec3(0.9,-0.5,0), vec3(1,-1,0)),
-		]))
+			Segment(vec3(1,1,0), vec3(0.9,0.5,0)), 
+			Arc(vec3(0.9,0.5,0), vec3(0.7,0,0), vec3(0.9,-0.5,0)), 
+			Segment(vec3(0.9,-0.5,0), vec3(1,-1,0)),
+			]))
 	
 	m = m1+m2
 	m.mergedoubles()
 	m.strippoints()
-	assert len(loopholes(m)) == 5
-	closeenvelope(m)
-	assert m.isenvelope()
 	assert m.isvalid()
+	print(loopholes(m))
+	#assert len(loopholes(m)) == 5, len(loopholes(m))
+	#closeenvelope(m)
+	#assert m.isenvelope()
+	#assert m.isvalid()
 	
-	m.transform(vec3(0,0,5))
+	#m.transform(vec3(0,0,5))
+	
+	m3 = tube(
+			outline([vec3(1,0,0), vec3(0,1,0), vec3(-1,0,0), vec3(0,-1,0), vec3(1,0,0)], [0,1,2,3]),
+			#outline(Arc(vec3(0,0,0), vec3(4,1,4), vec3(6,0,3))),
+			outline([vec3(0,0,0), vec3(0,0,2), vec3(1,0,3), vec3(4,0,3)]),
+			)
+	assert m3.isvalid()
+	m3.transform(vec3(-4,0,0))
 	
 	#m.options['debug_display'] = True
-	#m.options['debug_points'] = 'tracks'
+	#m.options['debug_points'] = True
 	scn3D.objs.append(m)
-	scn3D.look(m.box())
+	#m3.options['debug_display'] = True
+	#m3.options['debug_points'] = True
+	scn3D.objs.append(m3)
+	scn3D.look(m3.box())
 	
 	main.show()
 	sys.exit(app.exec())
