@@ -4,7 +4,7 @@
 		*  primitives		- dictionnary of parameters for primitives
 '''
 
-from math import pi, ceil, sqrt
+from math import pi, ceil, floor, sqrt
 from PyQt5.QtCore import Qt
 
 
@@ -45,14 +45,14 @@ def curve_resolution(length, angle, param=None):
 	elif kind == 'm':
 		res = ceil(length / prec)
 	elif kind == 'rad':
-		res = ceil(angle / prec)
+		res = floor(angle / prec)
 	elif kind == 'radm':
-		res = ceil(angle * length / prec)
+		res = floor(angle * length / prec)
 	elif kind == 'radm2':
-		res = ceil(angle * sqrt(length) / prec)
+		res = floor(angle * sqrt(length) / prec)
 	else:
 		raise ValueError("unknown type for round_limit: {}".format(repr(kind)))
-	res = max(res, int(angle * 2/pi))
+	res = max(res, floor(angle * 2/pi))
 	return res
 
 def getparam(levels: list, key):
