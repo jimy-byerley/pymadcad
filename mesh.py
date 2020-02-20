@@ -225,16 +225,14 @@ class Mesh:
 	def vertexnormals(self):
 		l = len(self.points)
 		normals = [vec3(0) for _ in range(l)]
-		contribs = [0] * l
 		for face in self.faces:
 			normal = self.facenormal(face)
 			for i in range(3):
 				o = self.points[face[i]]
 				contrib = anglebt(self.points[face[i-2]]-o, self.points[face[i-1]]-o)
-				contribs[face[i]] += contrib
 				normals[face[i]] += contrib * normal
 		for i in range(l):
-			normals[i] /= contribs[i]
+			normals[i] = normalize(contribs)
 		return normals
 	
 	def facepoints(self, index):
@@ -335,7 +333,6 @@ class Mesh:
 		# buffers for display
 		points = array('f')
 		normals = array('f')
-		usage = array('f')
 		faces = array('L')
 		edges = array('L')
 		tracks = array('H')
@@ -348,7 +345,6 @@ class Mesh:
 			if pi in used:
 				i = used[pi]
 				# contribute to the points normals
-				usage[i] += contrib
 				normals[3*i+0] += facenormals[fi][0] * contrib
 				normals[3*i+1] += facenormals[fi][1] * contrib
 				normals[3*i+2] += facenormals[fi][2] * contrib
@@ -360,7 +356,6 @@ class Mesh:
 				normals.append(facenormals[fi][0] * contrib)
 				normals.append(facenormals[fi][1] * contrib)
 				normals.append(facenormals[fi][2] * contrib)
-				usage.append(contrib)
 				tracks.append(self.tracks[fi])
 				j = used[pi] = len(points) // 3 -1
 				return j
@@ -385,10 +380,11 @@ class Mesh:
 				edges.append(indices[edge[0]])
 				edges.append(indices[edge[1]])
 		
-		for i,u in enumerate(usage):
-			normals[3*i+0] /= u
-			normals[3*i+1] /= u
-			normals[3*i+2] /= u
+		for i in range(0,len(normals),3):
+			n = normalize(vec3(normals[i:i+3]))
+			normals[i+0] = n[0]
+			normals[i+1] = n[1]
+			normals[i+2] = n[2]
 		
 		scene.objs.append(view.SolidDisplay(scene,
 			np.array(points).reshape((len(points)//3,3)),
