@@ -150,8 +150,10 @@ def solve_old(constraints, precision=1e-4, afterset=None, fixed=()):
 
 	return max_delta
 '''
+
+class SolveError(Exception):	pass
 	
-def solve(constraints, precision=1e-4, afterset=None, fixed=()):
+def solve(constraints, precision=1e-4, afterset=None, fixed=(), maxiter=0):
 	params = []
 	corrections = []
 	corrnorms = []
@@ -160,16 +162,16 @@ def solve(constraints, precision=1e-4, afterset=None, fixed=()):
 	knownparams = {}
 	
 	rates = []
-	rate = 1
-	max_delta = inf
 	
-	# recuperation des parametres a modifier
+	mincorr = precision * 1e-2
+	
+	# get parameters and prepare solver
 	i = 0
 	for const in constraints:
 		c = 0
 		for param in const.params():
 			k = id(param)
-			if k in fixed:	c += 1
+			if k not in fixed:	c += 1
 			if k not in knownparams:
 				knownparams[k] = i
 				params.append(param)
@@ -177,16 +179,22 @@ def solve(constraints, precision=1e-4, afterset=None, fixed=()):
 				corrnorms.append(0)
 				i += 1
 			indices.append(knownparams[k])
-		rates.append(rate/(len(param)-c))
+		rates.append(1/c)
 	
-	# resolution iterative
-	while max_delta > precision:
-		max_delta = 0
+	# iterative resolution
+	oldcorrs = [None] * len(corrections)
+	maxdelta = inf
+	it = 0
+	while maxdelta > precision:
+		maxcorr = 0
+		maxdelta = 0
 		
+		# initialize corrections
 		for i in range(len(corrections)):
 			corrections[i] = type(params[i])()
 			corrnorms[i] = 0.
 		
+		# compute constraints contributions to corrections
 		i = 0
 		for const,rate in zip(constraints, rates):
 			corr = const.corrections()
@@ -197,19 +205,40 @@ def solve(constraints, precision=1e-4, afterset=None, fixed=()):
 				if l > corrnorms[indices[i]]:	corrnorms[indices[i]] = l
 				i += 1
 		
+		#print('corrnorms', corrnorms)
 		#print('corrections', corrections)
+		#for i in range(len(corrections)):
+			#if id(params[i]) in fixed:	corrections[i] = vec3(0)
+		#for c in corrections:	print('    ',c)
 		
-		for param,correction,corrnorm in zip(params, corrections, corrnorms):
+		# apply changes
+		for param,correction,corrnorm,oldcorr in zip(params, corrections, corrnorms, oldcorrs):
 			if id(param) not in fixed:
-				if corrnorm > max_delta:	max_delta = corrnorm
 				l = length(correction)
-				if l > 0:
-					param += correction * (corrnorm / l)
+				if l > maxcorr:		maxcorr = l
+				if corrnorm > maxdelta:		maxdelta = corrnorm
+				#if l > 0:
+					#param += correction * (corrnorm / l)
+				# filtre a oscillation
+				if oldcorr:
+					#print('       ', correction*0.5 + oldcorr*0.5)
+					param += (correction*0.5 + oldcorr*0.5)
+				else:
+					param += correction
+		oldcorrs = corrections[:]
 		
-		#print(max_delta)
+		print('solve:', it, maxdelta)
 		if afterset:	afterset()
+		it += 1
+		# check that the solver is solving
+		if maxiter and it > maxiter:	
+			raise SolveError('failed to converge with the allowed iteration count: '+str(maxiter))
+		if maxdelta > precision and maxcorr < mincorr:	
+			raise SolveError('resolution is blocked (try an other initial state)')
 
-	return max_delta
+	print('iterations:', it-1)
+	return maxdelta
+
 
 
 if __name__ == '__main__':
