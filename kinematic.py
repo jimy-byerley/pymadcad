@@ -1,7 +1,8 @@
 from mathutils import fvec3, fmat4, vec3, vec4, mat3, mat4, quat, mat4_cast, quat_cast, \
 						column, translate, inverse, isnan, \
 						dot, cross, length, normalize, project, dirbase, \
-						atan2, acos, angle, axis, angleAxis, Box
+						atan2, acos, angle, axis, angleAxis, \
+						Box, transform
 from mesh import Mesh
 import generation
 import primitives
@@ -31,7 +32,7 @@ class Solid:
 		self.visuals = args
 	
 	def transform(self):
-		return mktransform(self.position, self.orientation)
+		return transform(self.position, self.orientation)
 	
 	def display(self, scene):
 		if mesh:	return SolidMeshDisplay(self.mesh)
@@ -79,28 +80,10 @@ class InSolid:	# TODO test
 			c = cross(v,r)
 			if not isnan(c):
 				angle = acos(dot(v,r))
-				print('  dot', dot(v,r), angle, c)
 				rot += angleAxis(angle, c/sin(angle))
 		rot = normalize(rot)
 		#print('  pose', center, rot)
 		return self.solid.position+center, self.solid.orientation+rot
-
-def mktransform(*args):
-	if len(args) == 1 and isinstance(args[0], tuple):
-		args = args[0]
-	if len(args) == 1:
-		if isinstance(args[0], mat4):	return args[0]
-		elif isinstance(args[0], mat3):	return mat4(args[0])
-		elif isinstance(args[0], quat):	return mat4_cast(args[0])
-		elif isinstance(args[0], vec3):	return translate(mat4(1), args[0])
-	elif len(args) == 2:
-		if   isinstance(args[0], vec3) and isinstance(args[1], mat3):	return translate(mat4(args[1]), args[0])
-		elif isinstance(args[0], vec3) and isinstance(args[1], quat):	return translate(mat4_cast(args[1]), args[0])
-		elif isinstance(args[0], vec3) and isinstance(args[1], vec3):	return translate(mat4_cast(quat(args[1])), args[0])
-	elif isinstance(args[0], vec3) and len(args) == 3:			return mat4(mat3(args))
-	elif isinstance(args[0], vec3) and len(args) == 4:			return translate(mat4(mat3(args[1:])), args[0])
-	
-	raise TypeError('a transformation must be a  mat3, mat4, quat, (O,mat3), (O,quat), (0,x,y,z)')
 
 def rotbt(dir1, dir2):
 	axis = cross(dir1, dir2)
@@ -222,7 +205,6 @@ class Plane:
 		return s
 	
 	def scheme(self, solid, size, junc):
-		print('axis', self.axis)
 		if   solid is self.solids[0]:		center, normal = self.axis[0]
 		elif solid is self.solids[1]:		center, normal = self.axis[1]
 		else:	return
@@ -257,7 +239,7 @@ def mkwiredisplay(solid, constraints, size=None, color=None):
 	if not size:	size = length(box.width)/len(constraints) or 1
 	
 	# assemble junctions
-	scheme = Scheme([], [], [], [], color)
+	scheme = Scheme([], [], [], [], color, solid.transform())
 	for cst in constraints:
 		part = cst.scheme(solid, size, center)
 		if part:	scheme.extend(part)
@@ -268,12 +250,13 @@ def faceoffset(o):
 	return lambda f: (f[0]+o, f[1]+o, f[2]+o)
 
 class Scheme:
-	def __init__(self, points, transpfaces, opacfaces, lines, color=None):
+	def __init__(self, points, transpfaces, opacfaces, lines, color=None, transform=None):
 		self.color = color or settings.display['schematics_color']
 		self.points = points
 		self.transpfaces = transpfaces
 		self.opaqfaces = opacfaces
 		self.lines = lines
+		self.transform = transform
 	
 	def extend(self, other):
 		l = len(self.points)
@@ -285,7 +268,7 @@ class Scheme:
 		self.lines.extend(((a+l, b+l)  for a,b in other.lines))
 	
 	def display(self, scene):
-		scene.objs.append(WireDisplay(scene, self.points, self.transpfaces, self.opaqfaces, self.lines, self.color))
+		scene.objs.append(WireDisplay(scene, self.points, self.transpfaces, self.opaqfaces, self.lines, self.color, self.transform))
 
 
 class WireDisplay:
@@ -387,62 +370,61 @@ if __name__ == '__main__':
 	# test kinematic solver
 	from constraints import *
 	
-	s0 = Solid()
+	if False:
+		s0 = Solid()
+		
+		print('\ntest simple pivot')
+		s1 = Solid(pose=(vec3(0), 2*vec3(1,1,0)))
+		csts = [Pivot(s0,s1, (vec3(0,0,0), vec3(0,1,0)))]
+		solve(csts,
+				fixed={id(s0.position), id(s0.orientation)}, 
+				afterset=lambda: print(s0.orientation, s1.orientation))
+		
+		print('\ntest simple plane')
+		s1 = Solid(pose=(vec3(0), 2*vec3(1,1,0)))
+		csts = [Plane(s0,s1, (vec3(0,0,0), vec3(0,1,0)))]
+		solve(csts,
+				fixed={id(s0.position), id(s0.orientation)}, 
+				afterset=lambda: print(s0.orientation, s1.orientation))
+		
+		print('\ntest plane and pivot')
+		s1 = Solid()
+		s2 = Solid(pose=(vec3(2,0,1.5), 2*vec3(1,1,0)))
+		csts = [
+			Plane(s0,s1, (vec3(0), vec3(0,0,1))),  
+			Pivot(s1,s2, (vec3(0,0,1), vec3(0,1,0)), (vec3(0,0,-1), vec3(0,1,0))),
+			]
+		solve(csts,
+				fixed={id(s0.position), id(s0.orientation), id(s2.position)}, 
+				afterset=lambda: print(' ', s1.position, '\t', s1.orientation, '\n ', s2.position, '\t', s2.orientation),
+				maxiter=1000,
+				precision=1e-4)
 	
-	print('\ntest simple pivot')
-	s1 = Solid(pose=(vec3(0), 2*vec3(1,1,0)))
-	csts = [Pivot(s0,s1, (vec3(0,0,0), vec3(0,1,0)))]
-	solve(csts,
-			fixed={id(s0.position), id(s0.orientation)}, 
-			afterset=lambda: print(s0.orientation, s1.orientation))
-	
-	print('\ntest simple plane')
-	s1 = Solid(pose=(vec3(0), 2*vec3(1,1,0)))
-	csts = [Plane(s0,s1, (vec3(0,0,0), vec3(0,1,0)))]
-	solve(csts,
-			fixed={id(s0.position), id(s0.orientation)}, 
-			afterset=lambda: print(s0.orientation, s1.orientation))
-	
-	print('\ntest plane and pivot')
-	s1 = Solid()
-	s2 = Solid(pose=(vec3(2,0,1.5), 2*vec3(1,1,0)))
-	csts = [
-		Plane(s0,s1, (vec3(0), vec3(0,0,1))),  
-		Pivot(s1,s2, (vec3(0,0,1), vec3(0,1,0)), (vec3(0,0,-1), vec3(0,1,0))),
-		]
-	solve(csts,
-			fixed={id(s0.position), id(s0.orientation), id(s2.position)}, 
-			afterset=lambda: print(' ', s1.position, '\t', s1.orientation, '\n ', s2.position, '\t', s2.orientation),
-			maxiter=1000,
-			precision=1e-4)
-	
-	'''
-	print('\n test pivots and shared point')
-	s0 = Solid()
-	s1 = Solid()
-	s2 = Solid()
-	A = vec3(0.1, 0.2, 0.3)
-	csts = [
-		Pivot(s0,s1, (vec3(1,0,0),vec3(0,1,0))),
-		Pivot(s0,s2, (vec3(-1,0,0),vec3(0,1,0))),
-		InSolid(s1, [A], [vec3(0,0,1)]),
-		InSolid(s2, [A], [vec3(0,0,1)]),
-		]
-	solve(csts, 
-			fixed={id(s0.position), id(s0.orientation)}, 
-			afterset=lambda: print(s1.orientation, s2.orientation))
-	
-	l12 = Pivot((0,x))
-	l23 = Pivot((A,x))
-	csts = [
-		Solid(
-	'''
+		'''
+		print('\n test pivots and shared point')
+		s0 = Solid()
+		s1 = Solid()
+		s2 = Solid()
+		A = vec3(0.1, 0.2, 0.3)
+		csts = [
+			Pivot(s0,s1, (vec3(1,0,0),vec3(0,1,0))),
+			Pivot(s0,s2, (vec3(-1,0,0),vec3(0,1,0))),
+			InSolid(s1, [A], [vec3(0,0,1)]),
+			InSolid(s2, [A], [vec3(0,0,1)]),
+			]
+		solve(csts, 
+				fixed={id(s0.position), id(s0.orientation)}, 
+				afterset=lambda: print(s1.orientation, s2.orientation))
+		
+		l12 = Pivot((0,x))
+		l23 = Pivot((A,x))
+		csts = [
+			Solid(
+		'''
 
-	# test schematics display
-	
 	print('\n test display')
 	s1 = Solid()
-	s2 = Solid()
+	s2 = Solid(pose=(vec3(0,0,0.5), vec3(1,0,0)))
 	s3 = Solid()
 	A = vec3(2,0,0)
 	B = vec3(0,2,0)
