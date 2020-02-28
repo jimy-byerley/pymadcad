@@ -11,6 +11,7 @@ vec3 = dvec3
 mat3 = dmat3
 vec4 = dvec4
 mat4 = dmat4
+quat = dquat
 
 NUMPREC = 1e-12
 '''
@@ -31,6 +32,7 @@ def perpdot(a:vec2, b:vec2) -> float:
 	return -a[1]*b[0] + a[0]*b[1]
 	
 def dirbase(dir, align=vec3(1,0,0)):
+	''' returns a base using the given direction as z axis (and the nearer vector to align as x) '''
 	x = normalize(align - project(align, dir))
 	if isnan(length(x)):
 		align = vec3(align[2],-align[0],align[1])
@@ -38,16 +40,43 @@ def dirbase(dir, align=vec3(1,0,0)):
 	y = normalize(cross(dir, x))
 	return x,y,dir
 
-# donne une mat3 effectuant une mise a l'echelle selon la direction donnée
 def scaledir(dir, factor):
+	''' return a mat3 scaling in the given direction, with the given factor (1 means original scale) '''
 	return mat3(1) + (factor-1)*mat3(dir[0]*dir, dir[1]*dir, dir[2]*dir)
 
-# donne la matrice de transformation 4x4
-def transform(translation=None, rotation=None):
-	if rotation is not None:	transform = mat4(rotation)
-	else:						transform = mat4(1)
-	if translation is not None:	transform[3] = vec4(translation, 1)
-	return transform
+def transform(*args):
+	''' create an affine transformation matrix
+		supported inputs:
+			mat4
+			vec3                                    - translation only
+			quat, mat3, mat4                        - rotation only
+			(vec3,vec3), (vec3,mat3), (vec3,quat)   - translation and rotation
+			(vec3,vec3,vec3)                        - base of vectors for rotation
+			(vec3,vec3,vec3,vec3)                   - translation and base of vectors for rotation
+	'''
+	if len(args) == 1 and isinstance(args[0], tuple):
+		args = args[0]
+	if len(args) == 1:
+		if isinstance(args[0], mat4):	return args[0]
+		elif isinstance(args[0], mat3):	return mat4(args[0])
+		elif isinstance(args[0], quat):	return mat4_cast(args[0])
+		elif isinstance(args[0], vec3):	return translate(mat4(1), args[0])
+	elif len(args) == 2:
+		if isinstance(args[0], vec3):
+			if   isinstance(args[1], mat3):		m = args[1]
+			elif isinstance(args[1], quat):		m = mat4_cast(args[1])
+			elif isinstance(args[1], vec3):		m = mat4_cast(quat(args[1]))
+			m[3] = vec4(args[0], 1)
+			return m
+	elif isinstance(args[0], vec3) and len(args) == 3:			
+		return mat4(mat3(*args))
+	elif isinstance(args[0], vec3) and len(args) == 4:			
+		m = mat4(mat3(args[1:]))
+		m[3] = vec4(args[0], 1)
+		return m
+	
+	raise TypeError('a transformation must be a  mat3, mat4, quat, (O,mat3), (O,quat), (0,x,y,z)')
+
 
 def interpol1(a, b, x):
 	''' 1st order polynomial interpolation '''
@@ -64,6 +93,9 @@ def interpol2(a, b, x):
 
 
 def dichotomy_index(l, index, key=lambda x:x):
+	''' use dichotomy to get the index of `index` in a list sorted in ascending order
+		key can be used to specify a function that gives numerical value for list elements
+	'''
 	start,end = 0, len(l)
 	while start < end:
 		mid = (start+end)//2
