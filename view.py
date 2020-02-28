@@ -2,7 +2,7 @@ import settings
 import numpy.core as np
 import moderngl as mgl
 from math import tan, sin, cos, pi, exp
-from mathutils import fvec3, fvec4, fmat3, fmat4, row, column, length, perspective, translate, dichotomy_index
+from mathutils import fvec3, fvec4, fmat3, fmat4, row, column, length, perspective, translate, inverse, dichotomy_index, Box
 from PyQt5.QtCore import Qt
 from PyQt5.QtOpenGL import QGLWidget, QGLFormat
 from PyQt5.QtWidgets import QWidget
@@ -14,7 +14,6 @@ from PyQt5.QtGui import QSurfaceFormat
 
 
 opengl_version = (3,3)	# min (3,3)
-
 
 
 class Perspective:
@@ -161,6 +160,7 @@ class Scene(QGLWidget):
 		#self.screen = self.ctx.detect_framebuffer(self.defaultFramebufferObject())
 		#self.ident_map = bytearray(w*h*IDENT_SIZE)
 		self.ident_map = np.empty((h,w), dtype='u2')
+		self.depth_map = np.empty((h,w), dtype='f4')
 		
 		return True
 
@@ -203,7 +203,8 @@ class Scene(QGLWidget):
 		for i,rdr in enumerate(self.objs):
 			ident += (rdr.identify(self, ident) or 0)
 			steps[i] = ident-1
-		self.ident_refreshed = True
+		#self.ident_refreshed = True
+		self.refreshed = False
 		
 		
 	
@@ -256,7 +257,8 @@ class Scene(QGLWidget):
 			self.mouse_clicked = (x,y)	# movement origin
 			self.mode[0]()
 		else:
-			h,w = self.ident_frame.viewport[2:]			
+			h,w = self.ident_frame.viewport[2:]
+			print(self.ptat((x,y)))
 			clicked = self.objat((x,y))
 			if clicked: 
 				self.tool = self.objs[clicked[0]].control(self, clicked[1], (x/w, y/h))
@@ -282,10 +284,17 @@ class Scene(QGLWidget):
 		self.manipulator.zoom(-evt.angleDelta().y()/8 * pi/180)	# the 8 factor is there because of the Qt documentation
 		self.update()
 	
-	def objat(self, coords):
-		if self.ident_refreshed:
+	def refreshmaps(self):
+		if not self.refreshed:
 			self.ident_frame.read_into(self.ident_map, viewport=self.ident_frame.viewport, components=2)
-			self.ident_refreshed = False
+			self.ident_frame.read_into(self.depth_map, viewport=self.ident_frame.viewport, components=1, attachment=-1, dtype='f4')
+			self.refreshed = True
+	
+	def objat(self, coords):
+		#if self.ident_refreshed:
+			#self.ident_frame.read_into(self.ident_map, viewport=self.ident_frame.viewport, components=2)
+			#self.ident_refreshed = False
+		self.refreshmaps()
 		
 		ident = self.ident_map[-coords[1],coords[0]]
 		if ident:
@@ -299,9 +308,44 @@ class Scene(QGLWidget):
 		else:
 			return None
 	
+	def sight(self, coords):
+		''' sight axis from the camera center to the point matching the given pixel coordinates '''
+		m = inverse(self.manipulator.view_matrix)
+		return (vec3(m[3]), vec3(m[2]))
+
+	
+	def ptat(self, coords, default=True):
+		''' return the point of the rendered surfaces that match the given window coordinates '''
+		self.refreshmaps()
+		#import PIL
+		#print('any:', np.min(self.depth_map), np.max(self.depth_map))
+		#PIL.Image.fromarray(self.ident_map, mode='I;16').show()
+		#PIL.Image.fromarray((1-self.depth_map)*100, mode='F').show()
+		viewport = self.ident_frame.viewport
+		depthred = float(self.depth_map[-coords[1],coords[0]])
+		
+		#from matplotlib import pyplot as plt
+		#plt.imshow(depthmax - self.depth_map)
+		#plt.show()
+		
+		if depthred == 1.0:
+			if default:
+				pass
+			else:
+				return None
+		else:
+			a,b = self.proj_matrix[2][2], self.proj_matrix[3][2]
+			depth = b/(depthred + a)/2	# get the true depth  (can't get why there is a 2 factor ... opengl trick)
+			#print('depth', depth, length(fvec3(self.view_matrix[3])))
+			return inverse(self.view_matrix) * fvec4(
+						depth * (coords[0]/viewport[2] *2 -1) /self.proj_matrix[0][0],
+						depth * -(coords[1]/viewport[3] *2 -1) /self.proj_matrix[1][1],
+						-depth,
+						1)
+	
 	def look(self, box):
 		fov = self.projection.fov or settings.display['field_of_view']
-		self.manipulator.center = box.center
+		self.manipulator.center = fvec3(box.center)
 		self.manipulator.distance = length(box.width) / (2*tan(fov/2))
 		self.manipulator.update()
 
@@ -332,9 +376,11 @@ class SolidDisplay:
 			points=None, 
 			idents=None, 
 			selection=None,
-			color=None):
+			color=None,
+			transform=None):
 		
 		ctx = scene.ctx
+		self.transform = fmat4(transform or 1)
 		self.color = fvec3(color or settings.display['solid_color'])
 		self.linecolor = settings.display['line_color']
 		
@@ -434,13 +480,14 @@ class SolidDisplay:
 		
 	def render(self, scene):
 		self.update(scene)
+		viewmat = scene.view_matrix * self.transform
 		
 		if self.va_faces:
 			# setup uniforms
 			self.shader['min_color'].write(self.color * settings.display['solid_color_side'])
 			self.shader['max_color'].write(self.color * settings.display['solid_color_front'])
 			self.shader['refl_color'].write(self.color)
-			self.shader['view'].write(scene.view_matrix)
+			self.shader['view'].write(viewmat)
 			self.shader['proj'].write(scene.proj_matrix)
 			# render on self.context
 			self.reflectmap.use(0)
@@ -448,7 +495,7 @@ class SolidDisplay:
 		
 		if self.va_lines:
 			self.lineshader['color'] = self.linecolor
-			self.lineshader['view'].write(scene.view_matrix)
+			self.lineshader['view'].write(viewmat)
 			self.lineshader['proj'].write(scene.proj_matrix)
 			self.va_lines.render(mgl.LINES)
 		
@@ -458,8 +505,10 @@ class SolidDisplay:
 		
 	def identify(self, scene, startident):
 		if self.va_idents:
+			viewmat = scene.view_matrix * self.transform
+			
 			scene.ident_shader['start_ident'] = startident
-			scene.ident_shader['view'].write(scene.view_matrix)
+			scene.ident_shader['view'].write(viewmat)
 			scene.ident_shader['proj'].write(scene.proj_matrix)
 			self.va_idents.render(mgl.TRIANGLES)
 			return self.nidents
@@ -493,6 +542,7 @@ if __name__ == '__main__':
 				self.points[self.faces].reshape((self.faces.shape[0]*3,3)),
 				np.hstack((self.facenormals, self.facenormals, self.facenormals)).reshape((self.faces.shape[0]*3,3)),
 				np.array(range(3*self.faces.shape[0]), dtype=np.uint32).reshape(self.faces.shape),
+				idents = np.array(range(self.faces.shape[0]), dtype='u2'),
 				)
 	
 	m = Mesh(
@@ -537,6 +587,7 @@ if __name__ == '__main__':
 	app = QApplication(sys.argv)
 	scn = Scene()
 	scn.objs.append(m)
+	scn.look(Box(center=fvec3(0), width=fvec3(1)))
 	
 	scn.show()
 	sys.exit(app.exec())
