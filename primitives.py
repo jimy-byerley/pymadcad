@@ -41,15 +41,9 @@ class Segment(object):
 	def mesh(self):
 		return [self.a, self.b], 'flat'
 
-class Arc(object):
-	#__slots__ = ('a', 'b', 'center')
-	#def __init__(self, c, a, b):
-		#self.center = c
-		#self.a, self.b = a,b
-	#def radius(self):
-		#return (self.a-self.center).norm()
-	
+class Arc(object):	
 	__slots__ = ('a', 'b', 'c', 'resolution')
+	
 	def __init__(self, a,b,c, resolution=None):
 		self.a, self.b, self.c = a,b,c
 		self.resolution = resolution
@@ -61,6 +55,12 @@ class Arc(object):
 		h = 0.5 * (l1/l2-t) * 1/sqrt(1-t**2)
 		n = normalize(cross(self.a-self.b, self.c-self.b))
 		return (self.c+self.b)/2 + cross(n, self.b-self.c) * h
+		
+	def radius(self):
+		return (self.a-self.center()).norm()
+	
+	def axis(self):
+		return (self.center(), normalize(cross(self.a-self.b, self.c-self.b)))
 	
 	def mesh(self, resolution=None):
 		center = self.center()
@@ -78,22 +78,29 @@ class Arc(object):
 		pts.append(self.c)
 		return pts, 'arc'
 
+class TangentEllipsis(object):
+	__slots__ = ('a', 'b', 'c', 'resolution')
+	def __init__(self, a,b,c, resolution=None):
+		self.a, self.b, self.c = a,b,c
+		self.resolution = resolution
+	
+	def axis(self):
+		return (self.a+self.c - self.b, normalize(cross(self.a-self.b, self.c-self.b)))
+	
+	def mesh(self, resolution=None):
+		''' axis directions doesn't need to be normalized nor oriented '''
+		origin = self.b
+		x = self.a - origin
+		y = self.b - origin
+		angleapprox = acos(dot(x,-y))
+		div = settings.curve_resolution(distance(self.a,self.b), angleapprox, self.resolution or resolution)
+		pts = []
+		for i in range(div+1):
+			u = pi/2 * i/div
+			pts.append(x*a*(1-cos(u)) + y*b*(1-sin(u)) + origin)
+		return pts, 'ellipsis'
 
-def tangentellipsis(axis1, axis2, resolution=None):
-	''' axis directions doesn't need to be normalized nor oriented '''
-	x,y = -axis1[1], -axis2[1]
-	a,b,_ = inverse(mat3(x,y,cross(x,y))) * (axis2[0]-axis1[0])
-	a = -a
-	angleapprox = acos(dot(x,-y))
-	origin = axis1[0] - a*x
-	div = settings.curve_resolution(angleapprox*min(a,b), angleapprox, resolution)
-	pts = []
-	for i in range(div+1):
-		u = pi/2 * i/div
-		pts.append(x*a*(1-cos(u)) + y*b*(1-sin(u)) + origin)
-	return pts
-
-class Circle:
+class Circle(object):
 	__slots__ = ('axis', 'radius', 'alignment', 'resolution')
 	def __init__(self, axis, radius, alignment=vec3(1,0,0), resolution=None):
 		self.axis, self.radius = axis, radius
