@@ -232,7 +232,7 @@ class Mesh:
 				contrib = anglebt(self.points[face[i-2]]-o, self.points[face[i-1]]-o)
 				normals[face[i]] += contrib * normal
 		for i in range(l):
-			normals[i] = normalize(contribs)
+			normals[i] = normalize(normals[i])
 		return normals
 	
 	def facepoints(self, index):
