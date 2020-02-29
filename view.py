@@ -374,7 +374,6 @@ class SolidDisplay:
 			lines=None, 
 			points=None, 
 			idents=None, 
-			selection=None,
 			color=None,
 			transform=None):
 		
@@ -383,10 +382,7 @@ class SolidDisplay:
 		self.color = fvec3(color or settings.display['solid_color'])
 		self.linecolor = settings.display['line_color']
 		
-		if selection:
-			self.flags = np.array(selection, dtype='u1', copy=False)
-		else:
-			self.flags = np.zeros(len(idents), dtype='u1')
+		self.flags = np.zeros(len(idents), dtype='u1')
 		self.flags_updated = True
 		self.idents = idents
 		self.displays = set()
