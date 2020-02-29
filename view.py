@@ -314,34 +314,33 @@ class Scene(QGLWidget):
 		return (vec3(m[3]), vec3(m[2]))
 
 	
-	def ptat(self, coords, default=True):
+	def ptat(self, coords, default=False):
 		''' return the point of the rendered surfaces that match the given window coordinates '''
 		self.refreshmaps()
-		#import PIL
-		#print('any:', np.min(self.depth_map), np.max(self.depth_map))
-		#PIL.Image.fromarray(self.ident_map, mode='I;16').show()
-		#PIL.Image.fromarray((1-self.depth_map)*100, mode='F').show()
 		viewport = self.ident_frame.viewport
 		depthred = float(self.depth_map[-coords[1],coords[0]])
-		
-		#from matplotlib import pyplot as plt
-		#plt.imshow(depthmax - self.depth_map)
-		#plt.show()
+		x =  (coords[0]/viewport[2] *2 -1)
+		y = -(coords[1]/viewport[3] *2 -1)
 		
 		if depthred == 1.0:
 			if default:
-				pass
+				dir = inverse(mat3(self.view_matrix)) * fvec4(
+							x/self.proj_matrix[0][0],
+							y/self.proj_matrix[1][1],
+							1)
+				orig = fvec3(column(self.view_matrix,3))
+				return vec3(orig + project(self.manipulator.center - orig, dir))
 			else:
 				return None
 		else:
 			a,b = self.proj_matrix[2][2], self.proj_matrix[3][2]
 			depth = b/(depthred + a)/2	# get the true depth  (can't get why there is a 2 factor ... opengl trick)
 			#print('depth', depth, length(fvec3(self.view_matrix[3])))
-			return inverse(self.view_matrix) * fvec4(
-						depth * (coords[0]/viewport[2] *2 -1) /self.proj_matrix[0][0],
-						depth * -(coords[1]/viewport[3] *2 -1) /self.proj_matrix[1][1],
+			return vec3(inverse(self.view_matrix) * fvec4(
+						depth * x /self.proj_matrix[0][0],
+						depth * y /self.proj_matrix[1][1],
 						-depth,
-						1)
+						1))
 	
 	def look(self, box):
 		fov = self.projection.fov or settings.display['field_of_view']
