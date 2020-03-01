@@ -2,7 +2,7 @@ import settings
 import numpy.core as np
 import moderngl as mgl
 from math import tan, sin, cos, pi, exp
-from mathutils import fvec3, fvec4, fmat3, fmat4, row, column, length, perspective, translate, inverse, dichotomy_index, Box
+from mathutils import vec3, fvec3, fvec4, fmat3, fmat4, row, column, length, perspective, translate, inverse, dichotomy_index, Box
 from PyQt5.QtCore import Qt
 from PyQt5.QtOpenGL import QGLWidget, QGLFormat
 from PyQt5.QtWidgets import QWidget
@@ -482,7 +482,8 @@ class SolidDisplay:
 			self.shader['min_color'].write(self.color * settings.display['solid_color_side'])
 			self.shader['max_color'].write(self.color * settings.display['solid_color_front'])
 			self.shader['refl_color'].write(self.color)
-			self.shader['view'].write(viewmat)
+			self.shader['pose'].write(self.transform)
+			self.shader['view'].write(scene.view_matrix)
 			self.shader['proj'].write(scene.proj_matrix)
 			# render on self.context
 			self.reflectmap.use(0)
@@ -490,7 +491,7 @@ class SolidDisplay:
 		
 		if self.va_lines:
 			self.lineshader['color'] = self.linecolor
-			self.lineshader['view'].write(viewmat)
+			self.lineshader['view'].write(scene.view_matrix * self.transform)
 			self.lineshader['proj'].write(scene.proj_matrix)
 			self.va_lines.render(mgl.LINES)
 		
@@ -500,10 +501,8 @@ class SolidDisplay:
 		
 	def identify(self, scene, startident):
 		if self.va_idents:
-			viewmat = scene.view_matrix * self.transform
-			
 			scene.ident_shader['start_ident'] = startident
-			scene.ident_shader['view'].write(viewmat)
+			scene.ident_shader['view'].write(scene.view_matrix * self.transform)
 			scene.ident_shader['proj'].write(scene.proj_matrix)
 			self.va_idents.render(mgl.TRIANGLES)
 			return self.nidents
