@@ -7,12 +7,15 @@ from mesh import Mesh
 import generation
 import primitives
 import settings
+import constraints
 import numpy.core as np
 import moderngl as mgl
 
 
 class Torsor:
 	__slots__ = ('momentum', 'resulting', 'position')
+	def __init__(self, momentum, resulting, position):
+		self.momentum, self.resulting, self.position = momentum, resulting, position
 	def locate(pt):
 		return Torsor(self.momentum, self.resulting + cross(self.momentum, pt-self.position))
 
@@ -85,17 +88,10 @@ class InSolid:	# TODO test
 		#print('  pose', center, rot)
 		return self.solid.position+center, self.solid.orientation+rot
 
-def rotbt(dir1, dir2):
-	axis = cross(dir1, dir2)
-	#angle = atan2(length(axis), dot(dir1,dir2))
-	angle = acos(max(-1,min(1,dot(dir1, dir2))))
-	if angle:	return angleAxis(angle, normalize(axis))
-	else:		return quat()
-
 cornersize = 0.1
 
 
-class Pivot:	# TODO test corrections
+class Pivot:
 	def __init__(self, s1, s2, a1, a2=None, position=None):
 		self.solids = (s1,s2)
 		self.axis = (a1, a2 or a1)
@@ -221,7 +217,24 @@ class Plane:
 			[(4,5,6)],
 			[(0,1),(1,2),(2,3),(3,0),(4,6),(6,7)],
 			)
-				
+
+class Near:
+	def __init__(self, solid, pt, ref):
+		self.solid, self.pt, self.ref = solid, pt, ref
+		self.lastref = self.solid.transform() * self.ref
+	
+	def params(self):
+		return self.solid.position, self.solid.orientation
+	
+	def corrections(self):
+		ref = self.solid.transform() * self.ref
+		free = normalize(ref - self.lastref)		# approximation for the free direction
+		if not isnan(free):
+			gap = project(self.pt - ref, free)
+		r = self.solid.orientation*self.ref
+		rot = cross(r, gap) / (dot(r,r) + 1e-15)
+		return gap, rot
+		
 				
 def noproject(x,dir):	return x - project(x,dir)
 
@@ -318,7 +331,7 @@ class WireDisplay:
 				self.vb_lines,
 				)
 	
-	def render(self, scene):
+	def render(self, scene):		
 		viewmat = scene.view_matrix * self.transform
 		
 		#scene.ctx.blend_func = mgl.SRC_ALPHA, mgl.ONE_MINUS_SRC_ALPHA
@@ -348,6 +361,18 @@ class WireDisplay:
 		#scene.ident_shader['view'].write(scene.view_matrix)
 		#scene.ident_shader['proj'].write(scene.proj_matrix)
 		#self.va_idents.render(mgl.TRIANGLES)
+
+
+def display_mechanism(csts):
+	def callback(scene, ident, evt):
+		#csts.append(Near(solid_for_self, scene.ptat(evt.po
+		constraints.solve(csts, fixed={id(base.position), id(base.orientation)})
+		
+	
+	for solid in constraints.geoparams(csts):
+		for obj in self.objs:
+			pass
+
 
 '''
 onesolid = Solid(mesh1, base=R0)	# solide avec visuel, maillage a transformer pour passer dans la base adhoc
@@ -421,31 +446,32 @@ if __name__ == '__main__':
 		csts = [
 			Solid(
 		'''
-
-	print('\n test display')
-	s1 = Solid()
-	s2 = Solid(pose=(vec3(0,0,0.5), vec3(1,0,0)))
-	s3 = Solid()
-	A = vec3(2,0,0)
-	B = vec3(0,2,0)
-	C = vec3(0,-1,1)
-	x = vec3(1,0,0)
-	y = vec3(0,1,0)
-	csts = [Pivot(s1,s2, (A,x)), Pivot(s1,s2, (B,y)), Plane(s2,s3, (C,y), position=C)]
-	sc1 = mkwiredisplay(s1, csts, 1, color=(1, 1, 1))
-	sc2 = mkwiredisplay(s2, csts, 1)
-	sc3 = mkwiredisplay(s3, csts, 1)
 	
-	import sys
-	from PyQt5.QtWidgets import QApplication
-	from view import Scene
-	
-	app = QApplication(sys.argv)
-	scn = Scene()
-	scn.objs.append(sc1)
-	scn.objs.append(sc2)
-	scn.objs.append(sc3)
-	
-	scn.show()
-	sys.exit(app.exec())
+	if True:
+		print('\n test display')
+		s1 = Solid()
+		s2 = Solid(pose=(vec3(0,0,0.5), vec3(1,0,0)))
+		s3 = Solid()
+		A = vec3(2,0,0)
+		B = vec3(0,2,0)
+		C = vec3(0,-1,1)
+		x = vec3(1,0,0)
+		y = vec3(0,1,0)
+		csts = [Pivot(s1,s2, (A,x)), Pivot(s1,s2, (B,y)), Plane(s2,s3, (C,y), position=C)]
+		sc1 = mkwiredisplay(s1, csts, 1, color=(1, 1, 1))
+		sc2 = mkwiredisplay(s2, csts, 1)
+		sc3 = mkwiredisplay(s3, csts, 1)
+		
+		import sys
+		from PyQt5.QtWidgets import QApplication
+		from view import Scene
+		
+		app = QApplication(sys.argv)
+		scn = Scene()
+		scn.objs.append(sc1)
+		scn.objs.append(sc2)
+		scn.objs.append(sc3)
+		
+		scn.show()
+		sys.exit(app.exec())
 	
