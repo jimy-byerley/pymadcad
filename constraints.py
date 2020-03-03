@@ -152,6 +152,18 @@ def solve_old(constraints, precision=1e-4, afterset=None, fixed=()):
 '''
 
 class SolveError(Exception):	pass
+
+'''
+def geoparams(constraints):
+	knownparams = set()
+	# get parameters and prepare solver
+	for const in constraints:
+		for param in const.params():
+			k = id(param)
+			if k not in knownparams:
+				knownparams.add(k)
+				yield param
+'''
 	
 def solve(constraints, precision=1e-4, afterset=None, fixed=(), maxiter=0):
 	params = []
@@ -161,7 +173,7 @@ def solve(constraints, precision=1e-4, afterset=None, fixed=(), maxiter=0):
 	indices = []
 	knownparams = {}
 	
-	rates = []
+	parts = []
 	
 	mincorr = precision * 1e-2
 	
@@ -179,7 +191,7 @@ def solve(constraints, precision=1e-4, afterset=None, fixed=(), maxiter=0):
 				corrnorms.append(0)
 				i += 1
 			indices.append(knownparams[k])
-		rates.append(1/c)
+		parts.append(c)
 	
 	# iterative resolution
 	oldcorrs = [None] * len(corrections)
@@ -196,10 +208,10 @@ def solve(constraints, precision=1e-4, afterset=None, fixed=(), maxiter=0):
 		
 		# compute constraints contributions to corrections
 		i = 0
-		for const,rate in zip(constraints, rates):
+		for const,part in zip(constraints, parts):
 			corr = const.corrections()
 			for correction in corr:
-				contrib = correction * rate
+				contrib = correction / part
 				corrections[indices[i]] += contrib
 				l = length(contrib)
 				if l > corrnorms[indices[i]]:	corrnorms[indices[i]] = l
@@ -227,7 +239,7 @@ def solve(constraints, precision=1e-4, afterset=None, fixed=(), maxiter=0):
 					param += correction
 		oldcorrs = corrections[:]
 		
-		print('solve:', it, maxdelta)
+		#print('solve:', it, maxdelta)
 		if afterset:	afterset()
 		it += 1
 		# check that the solver is solving
