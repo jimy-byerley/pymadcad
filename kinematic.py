@@ -12,6 +12,23 @@ import numpy.core as np
 import moderngl as mgl
 
 
+'''
+onesolid = Solid(mesh1, base=R0)	# solide avec visuel, maillage a transformer pour passer dans la base adhoc
+othersolid = Solid(mesh2, pose=R1)	 # solide avec visuel, maillage prétransformé
+onceagain = Solid()                 # solide vide, base bar defaut (transformation = I4)
+csts = [
+	Pivot(onesolid, othersolid, (O,x), (O,z)),
+	Linear(onesolid, othersolid, (C,x), C),
+	Plane(onesolid, othersolid, z, x),	# plan
+	Screw(onesolid, othersolid, (B,x), (D,y), 0.2),	# helicoidale
+	Gear(onesolid, onceagain, (O,z), (O,z), 2, offset=0),	# engrenage
+	Rack(onesolid, onceagain, (O,z), x, 1, offset=0),	# cremaillere
+	Track(onesolid, othersolid, x, y),		# glissiere
+	InSolid(onesolid, A, B, C, D, E),	# points sur solide
+	]
+'''
+
+
 class Torsor:
 	__slots__ = ('momentum', 'resulting', 'position')
 	def __init__(self, momentum, resulting, position):
@@ -32,14 +49,14 @@ class Solid:
 		else:
 			self.position = vec3(0)
 			self.orientation = vec3(0)
-		self.visuals = args
+		self.visuals = list(args)
 	
 	def transform(self):
 		return transform(self.position, self.orientation)
 	
 	def display(self, scene):
-		if mesh:	return SolidMeshDisplay(self.mesh)
-		else:		return None
+		for visu in self.visuals:
+			yield from visu.display(scene)
 		
 	
 class InSolid:	# TODO test
@@ -185,12 +202,19 @@ class Plane:
 		orients = (quat(self.solids[0].orientation), quat(self.solids[1].orientation))
 		a1 = (orients[0] * self.axis[0][0] + self.solids[0].position,  orients[0] * self.axis[0][1])
 		a2 = (orients[1] * self.axis[1][0] + self.solids[1].position,  orients[1] * self.axis[1][1])
+		#if dot(a1[1], a2[1]) < -0.2:
+			#print('\tpush')
+			#normal = a1[1]
+			#rot = vec3(3.14,0,0)
+		#else:							
 		normal = normalize(a1[1] + a2[1])
+		rot = cross(a1[1],a2[1])
 		gap = project(a1[0] - a2[0], normal)
 		#print('  a1', a1)
 		#print('  a2', a2)
+		print('\tgap', gap)
+		print('\trot', rot)
 		
-		rot = cross(a1[1],a2[1])
 		r = (orients[0]*self.axis[0][0], orients[1]*self.axis[1][0])
 		s = (-gap - noproject(cross(rot, r[0]), normal),
 			  rot + project(cross(r[0],-gap) / (dot(r[0],r[0]) + 1e-15), normal),
@@ -201,10 +225,10 @@ class Plane:
 		return s
 	
 	def scheme(self, solid, size, junc):
-		if   solid is self.solids[0]:		center, normal = self.axis[0]
-		elif solid is self.solids[1]:		center, normal = self.axis[1]
+		if   solid is self.solids[0]:		(center, normal), position = self.axis[0], self.position[0]
+		elif solid is self.solids[1]:		(center, normal), position = self.axis[1], self.position[1]
 		else:	return
-		center = self.position - project(self.position - center, normal)
+		center = position - project(position - center, normal)
 		if dot(junc-center, normal) < 0:	normal = -normal
 		if solid is self.solids[1]:			normal = -normal
 		x,y,z = dirbase(normal)
@@ -221,18 +245,21 @@ class Plane:
 class Near:
 	def __init__(self, solid, pt, ref):
 		self.solid, self.pt, self.ref = solid, pt, ref
-		self.lastref = self.solid.transform() * self.ref
+		self.lastref = vec3(self.solid.transform() * vec4(self.ref,1))
 	
 	def params(self):
 		return self.solid.position, self.solid.orientation
 	
 	def corrections(self):
-		ref = self.solid.transform() * self.ref
+		r = quat(self.solid.orientation) * self.ref
+		ref = r + self.solid.position
 		free = normalize(ref - self.lastref)		# approximation for the free direction
+		gap = self.pt - ref
 		if not isnan(free):
-			gap = project(self.pt - ref, free)
-		r = self.solid.orientation*self.ref
+			gap = project(gap, free)
 		rot = cross(r, gap) / (dot(r,r) + 1e-15)
+		#rot = vec3(0)
+		self.lastref = ref
 		return gap, rot
 		
 				
@@ -262,6 +289,8 @@ def mkwiredisplay(solid, constraints, size=None, color=None):
 def faceoffset(o):
 	return lambda f: (f[0]+o, f[1]+o, f[2]+o)
 
+
+
 class Scheme:
 	def __init__(self, points, transpfaces, opacfaces, lines, color=None, transform=None):
 		self.color = color or settings.display['schematics_color']
@@ -281,10 +310,12 @@ class Scheme:
 		self.lines.extend(((a+l, b+l)  for a,b in other.lines))
 	
 	def display(self, scene):
-		scene.objs.append(WireDisplay(scene, self.points, self.transpfaces, self.opaqfaces, self.lines, self.color, self.transform))
+		return WireDisplay(scene, self.points, self.transpfaces, self.opaqfaces, self.lines, self.color, self.transform),
 
 
 class WireDisplay:
+	renderindex = 1
+	
 	def __init__(self, scene, points, transpfaces, opaqfaces, lines, color=None, transform=None):
 		ctx = scene.ctx
 		self.transform = fmat4(transform or 1)
@@ -311,25 +342,43 @@ class WireDisplay:
 				np.array([tuple(v) for v in points], dtype='f4', copy=False),
 				np.array([tuple(v) for v in normals], dtype='f4'),
 				)))
-		self.vb_transpfaces = ctx.buffer(np.array(transpfaces, dtype='u4', copy=False))
-		self.vb_opaqfaces = ctx.buffer(np.array(opaqfaces, dtype='u4', copy=False))
-		self.vb_lines = ctx.buffer(np.array(lines, dtype='u4', copy=False))
-		
-		self.va_transpfaces = ctx.vertex_array(
-				self.transpshader,
-				[(self.vb_vertices, '3f4 3f4', 'v_position', 'v_normal')],
-				self.vb_transpfaces,
-				)
-		self.va_opaqfaces = ctx.vertex_array(
-				self.uniformshader,
-				[(self.vb_vertices, '3f4 12x', 'v_position')],
-				self.vb_opaqfaces,
-				)
-		self.va_lines = ctx.vertex_array(
-				self.uniformshader,
-				[(self.vb_vertices, '3f4 12x', 'v_position')],
-				self.vb_lines,
-				)
+		if transpfaces:
+			self.vb_transpfaces = ctx.buffer(np.array(transpfaces, dtype='u4', copy=False))
+			self.va_transpfaces = ctx.vertex_array(
+					self.transpshader,
+					[(self.vb_vertices, '3f4 3f4', 'v_position', 'v_normal')],
+					self.vb_transpfaces,
+					)
+			self.va_ident_faces = ctx.vertex_array(
+					scene.ident_shader,
+					[(self.vb_vertices, '3f4 12x', 'v_position')],
+					self.vb_transpfaces,
+					)
+		else:
+			self.vb_transpfaces = None
+		if opaqfaces:
+			self.vb_opaqfaces = ctx.buffer(np.array(opaqfaces, dtype='u4', copy=False))
+			self.va_opaqfaces = ctx.vertex_array(
+					self.uniformshader,
+					[(self.vb_vertices, '3f4 12x', 'v_position')],
+					self.vb_opaqfaces,
+					)
+		else:
+			self.vb_opaqfaces = None
+		if lines:
+			self.vb_lines = ctx.buffer(np.array(lines, dtype='u4', copy=False))
+			self.va_lines = ctx.vertex_array(
+					self.uniformshader,
+					[(self.vb_vertices, '3f4 12x', 'v_position')],
+					self.vb_lines,
+					)
+			self.va_ident_lines = ctx.vertex_array(
+					scene.ident_shader,
+					[(self.vb_vertices, '3f4 12x', 'v_position')],
+					self.vb_lines,
+					)
+		else:
+			self.vb_lines = None
 	
 	def render(self, scene):		
 		viewmat = scene.view_matrix * self.transform
@@ -340,138 +389,203 @@ class WireDisplay:
 		self.uniformshader['color'].write(self.color)
 		self.uniformshader['view'].write(viewmat)
 		self.uniformshader['proj'].write(scene.proj_matrix)
-		self.transpshader['color'].write(self.color)
-		self.transpshader['view'].write(viewmat)
-		self.transpshader['proj'].write(scene.proj_matrix)
 		
 		scene.ctx.enable(mgl.DEPTH_TEST)
 		scene.ctx.disable(mgl.CULL_FACE)
-		self.va_opaqfaces.render(mgl.TRIANGLES)
-		self.va_lines.render(mgl.LINES)
+		if self.vb_opaqfaces:	self.va_opaqfaces.render(mgl.TRIANGLES)
+		if self.vb_lines:		self.va_lines.render(mgl.LINES)
 		
 		scene.ctx.disable(mgl.DEPTH_TEST)
 		scene.ctx.enable(mgl.CULL_FACE)
-		self.va_transpfaces.render(mgl.TRIANGLES)
+		if self.vb_transpfaces:	
+			self.transpshader['color'].write(self.color)
+			self.transpshader['view'].write(viewmat)
+			self.transpshader['proj'].write(scene.proj_matrix)
+			self.va_transpfaces.render(mgl.TRIANGLES)
 	
 	def identify(self, scene, startident):
-		pass	# 1 ident for the whole solid
-		
-		#viewmat = scene.view_matrix * self.transform
-		#scene.ident_shader['start_ident'] = startident
-		#scene.ident_shader['view'].write(scene.view_matrix)
-		#scene.ident_shader['proj'].write(scene.proj_matrix)
-		#self.va_idents.render(mgl.TRIANGLES)
+		viewmat = scene.view_matrix * self.transform
+		scene.ident_shader['ident'] = startident
+		scene.ident_shader['view'].write(viewmat)
+		scene.ident_shader['proj'].write(scene.proj_matrix)
+		if self.vb_transpfaces:		self.va_ident_faces.render(mgl.TRIANGLES)
+		if self.vb_lines:			self.va_ident_lines.render(mgl.LINES)
+		return 1
 
 
-def display_mechanism(csts):
-	def callback(scene, ident, evt):
-		#csts.append(Near(solid_for_self, scene.ptat(evt.po
-		constraints.solve(csts, fixed={id(base.position), id(base.orientation)})
-		
+
+from PyQt5.QtCore import QEvent	
+import view, text
+
+class ToolMove:
+	renderindex = 0
 	
-	for solid in constraints.geoparams(csts):
-		for obj in self.objs:
-			pass
+	def __init__(self, scene, csts, root):
+		self.csts, self.root = csts, root
+		self.fixed = {id(self.root.position), id(self.root.orientation)}
+		
+		# build displays for params, keeping there indices to access their pose later
+		self.params = []
+		for cst in csts:
+			self.params.extend(cst.solids)
+		self.displays = []
+	
+	def display(self, scene):
+		for param in self.params:
+			grp = list(param.display(scene))
+			self.displays.append(grp)
+			for disp in grp:
+				disp.control = lambda scene, grp, ident, evt:	self.start(param, scene, ident, evt)
+				yield disp
+	
+	def render(self, scene):	pass
+	def identify(self, scene, startident):	pass	
+		
+	def start(self, solid, scene, ident, pt):
+		point = scene.ptat(pt)
+		print(point)
+		#self.startpt = point
+		#self.startpos = solid.position
+		#self.actsolid = solid
+		self.placement = Near(solid, point, vec3(inverse(solid.transform()) * vec4(point,1)))
+		self.csts.append(self.placement)
+		return self.move
+	
+	def move(self, scene, evt):
+		if evt.type() == QEvent.MouseMove:
+			#scene.sight((evt.x(), evt.y()))
+			pt = scene.ptat((evt.x(), evt.y()), True)
+			self.placement.pt = pt
+			print('  ',pt)
+			#print('\t',pt)
+			#self.actsolid.position = pt - self.startpt + self.startpos
+			try:	constraints.solve(self.csts, fixed=self.fixed, precision=1e-3, maxiter=200)
+			except constraints.SolveError as err:
+				print(err)
+			for p in self.params:
+				print(p.position, p.orientation)
+			i = 0
+			for param,grp in zip(self.params, self.displays):
+				trans = param.transform()
+				for disp in grp:
+					if isinstance(disp, (view.SolidDisplay, WireDisplay)):
+						disp.transform = trans
+					elif isinstance(disp, text.Text):
+						disp.position = trans * disp.position
+		else:
+			self.csts.pop()
+			scene.tool = None
+	
 
+def test_constraints():
+	# test kinematic solver
+	from constraints import solve
+	
+	s0 = Solid()
+	
+	print('\ntest simple pivot')
+	s1 = Solid(pose=(vec3(0), 2*vec3(1,1,0)))
+	csts = [Pivot(s0,s1, (vec3(0,0,0), vec3(0,1,0)))]
+	solve(csts,
+			fixed={id(s0.position), id(s0.orientation)}, 
+			afterset=lambda: print(s0.orientation, s1.orientation))
+	
+	print('\ntest simple plane')
+	s1 = Solid(pose=(vec3(0), 2*vec3(1,1,0)))
+	csts = [Plane(s0,s1, (vec3(0,0,0), vec3(0,1,0)))]
+	solve(csts,
+			fixed={id(s0.position), id(s0.orientation)}, 
+			afterset=lambda: print(s0.orientation, s1.orientation))
+	
+	print('\ntest plane and pivot')
+	s1 = Solid()
+	s2 = Solid(pose=(vec3(2,0,1.5), 2*vec3(1,1,0)))
+	csts = [
+		Plane(s0,s1, (vec3(0), vec3(0,0,1))),  
+		Pivot(s1,s2, (vec3(0,0,1), vec3(0,1,0)), (vec3(0,0,-1), vec3(0,1,0))),
+		]
+	solve(csts,
+			fixed={id(s0.position), id(s0.orientation), id(s2.position)}, 
+			afterset=lambda: print(' ', s1.position, '\t', s1.orientation, '\n ', s2.position, '\t', s2.orientation),
+			maxiter=1000,
+			precision=1e-4)
 
-'''
-onesolid = Solid(mesh1, base=R0)	# solide avec visuel, maillage a transformer pour passer dans la base adhoc
-othersolid = Solid(mesh2, pose=R1)	 # solide avec visuel, maillage prétransformé
-onceagain = Solid()                 # solide vide, base bar defaut (transformation = I4)
-csts = [
-	Pivot(onesolid, othersolid, (O,x), (O,z)),
-	Linear(onesolid, othersolid, (C,x), C),
-	Plane(onesolid, othersolid, z, x),	# plan
-	Screw(onesolid, othersolid, (B,x), (D,y), 0.2),	# helicoidale
-	Gear(onesolid, onceagain, (O,z), (O,z), 2, offset=0),	# engrenage
-	Rack(onesolid, onceagain, (O,z), x, 1, offset=0),	# cremaillere
-	Track(onesolid, othersolid, x, y),		# glissiere
-	InSolid(onesolid, A, B, C, D, E),	# points sur solide
-	]
-'''
+	'''
+	print('\n test pivots and shared point')
+	s0 = Solid()
+	s1 = Solid()
+	s2 = Solid()
+	A = vec3(0.1, 0.2, 0.3)
+	csts = [
+		Pivot(s0,s1, (vec3(1,0,0),vec3(0,1,0))),
+		Pivot(s0,s2, (vec3(-1,0,0),vec3(0,1,0))),
+		InSolid(s1, [A], [vec3(0,0,1)]),
+		InSolid(s2, [A], [vec3(0,0,1)]),
+		]
+	solve(csts, 
+			fixed={id(s0.position), id(s0.orientation)}, 
+			afterset=lambda: print(s1.orientation, s2.orientation))
+	
+	l12 = Pivot((0,x))
+	l23 = Pivot((A,x))
+	csts = [
+		Solid(
+	'''
+
+def test_display():
+	print('\n test display')
+	s1 = Solid()
+	s2 = Solid(pose=(vec3(0,0,0.5), vec3(1,0,0)))
+	s3 = Solid()
+	A = vec3(2,0,0)
+	B = vec3(0,2,0)
+	C = vec3(0,-1,1)
+	x = vec3(1,0,0)
+	y = vec3(0,1,0)
+	csts = [Pivot(s1,s2, (A,x)), Pivot(s1,s2, (B,y)), Plane(s2,s3, (C,y), position=(C,C))]
+	sc1 = mkwiredisplay(s1, csts, 1, color=(1, 1, 1))
+	sc2 = mkwiredisplay(s2, csts, 1)
+	sc3 = mkwiredisplay(s3, csts, 1)
+	
+	import sys
+	from PyQt5.QtWidgets import QApplication
+	from view import Scene
+	
+	app = QApplication(sys.argv)
+	scn = Scene()
+	scn.objs.append(sc1)
+	scn.objs.append(sc2)
+	scn.objs.append(sc3)
+	
+	scn.show()
+	sys.exit(app.exec())
+
+def test_manip():
+	s0 = Solid()
+	s1 = Solid()
+	s2 = Solid(pose=(vec3(2,0,1.5), 2*vec3(1,1,0)))
+	csts = [
+		Plane(s0,s1, (vec3(0), vec3(0,0,1))),  
+		#Pivot(s1,s2, (vec3(0,0,1), vec3(0,1,0)), (vec3(0,0,-1), vec3(0,1,0))),
+		]
+		
+	import sys
+	from PyQt5.QtWidgets import QApplication
+	from view import Scene
+	
+	app = QApplication(sys.argv)
+	scn = Scene()
+	s0.visuals.append(mkwiredisplay(s0, csts))
+	s1.visuals.append(mkwiredisplay(s1, csts))
+	s2.visuals.append(mkwiredisplay(s2, csts))
+	#display_mechanism(scn, csts, s0)
+	scn.add(ToolMove(scn, csts, s0))
+	scn.show()
+	sys.exit(app.exec())
+	
 
 if __name__ == '__main__':
+	test_manip()
+	#test_display()
+	#test_constraints()
 
-	# test kinematic solver
-	from constraints import *
-	
-	if False:
-		s0 = Solid()
-		
-		print('\ntest simple pivot')
-		s1 = Solid(pose=(vec3(0), 2*vec3(1,1,0)))
-		csts = [Pivot(s0,s1, (vec3(0,0,0), vec3(0,1,0)))]
-		solve(csts,
-				fixed={id(s0.position), id(s0.orientation)}, 
-				afterset=lambda: print(s0.orientation, s1.orientation))
-		
-		print('\ntest simple plane')
-		s1 = Solid(pose=(vec3(0), 2*vec3(1,1,0)))
-		csts = [Plane(s0,s1, (vec3(0,0,0), vec3(0,1,0)))]
-		solve(csts,
-				fixed={id(s0.position), id(s0.orientation)}, 
-				afterset=lambda: print(s0.orientation, s1.orientation))
-		
-		print('\ntest plane and pivot')
-		s1 = Solid()
-		s2 = Solid(pose=(vec3(2,0,1.5), 2*vec3(1,1,0)))
-		csts = [
-			Plane(s0,s1, (vec3(0), vec3(0,0,1))),  
-			Pivot(s1,s2, (vec3(0,0,1), vec3(0,1,0)), (vec3(0,0,-1), vec3(0,1,0))),
-			]
-		solve(csts,
-				fixed={id(s0.position), id(s0.orientation), id(s2.position)}, 
-				afterset=lambda: print(' ', s1.position, '\t', s1.orientation, '\n ', s2.position, '\t', s2.orientation),
-				maxiter=1000,
-				precision=1e-4)
-	
-		'''
-		print('\n test pivots and shared point')
-		s0 = Solid()
-		s1 = Solid()
-		s2 = Solid()
-		A = vec3(0.1, 0.2, 0.3)
-		csts = [
-			Pivot(s0,s1, (vec3(1,0,0),vec3(0,1,0))),
-			Pivot(s0,s2, (vec3(-1,0,0),vec3(0,1,0))),
-			InSolid(s1, [A], [vec3(0,0,1)]),
-			InSolid(s2, [A], [vec3(0,0,1)]),
-			]
-		solve(csts, 
-				fixed={id(s0.position), id(s0.orientation)}, 
-				afterset=lambda: print(s1.orientation, s2.orientation))
-		
-		l12 = Pivot((0,x))
-		l23 = Pivot((A,x))
-		csts = [
-			Solid(
-		'''
-	
-	if True:
-		print('\n test display')
-		s1 = Solid()
-		s2 = Solid(pose=(vec3(0,0,0.5), vec3(1,0,0)))
-		s3 = Solid()
-		A = vec3(2,0,0)
-		B = vec3(0,2,0)
-		C = vec3(0,-1,1)
-		x = vec3(1,0,0)
-		y = vec3(0,1,0)
-		csts = [Pivot(s1,s2, (A,x)), Pivot(s1,s2, (B,y)), Plane(s2,s3, (C,y), position=C)]
-		sc1 = mkwiredisplay(s1, csts, 1, color=(1, 1, 1))
-		sc2 = mkwiredisplay(s2, csts, 1)
-		sc3 = mkwiredisplay(s3, csts, 1)
-		
-		import sys
-		from PyQt5.QtWidgets import QApplication
-		from view import Scene
-		
-		app = QApplication(sys.argv)
-		scn = Scene()
-		scn.objs.append(sc1)
-		scn.objs.append(sc2)
-		scn.objs.append(sc3)
-		
-		scn.show()
-		sys.exit(app.exec())
-	

@@ -491,20 +491,20 @@ if __name__ == '__main__':
 			]))
 	
 	# test closeholes
-	#m = m1+m2
-	#m.mergedoubles()
-	#m.strippoints()
+	m = m1+m2
+	m.mergedoubles()
+	m.strippoints()
 	#assert m.isvalid()
 	#print(loopholes(m))
 	#assert len(loopholes(m)) == 5, len(loopholes(m))
 	#closeenvelope(m)
 	#assert m.isenvelope()
-	#assert m.isvalid()
+	assert m.isvalid()
 	
-	#m.transform(vec3(0,0,5))
+	m.transform(vec3(0,0,4))
 	#m.options['debug_display'] = True
 	#m.options['debug_points'] = True
-	#scn3D.objs.append(m)
+	scn3D.add(m)
 	
 	
 	# test tubes
@@ -518,7 +518,7 @@ if __name__ == '__main__':
 	
 	#m3.options['debug_display'] = True
 	#m3.options['debug_points'] = True
-	#scn3D.objs.append(m3)
+	scn3D.add(m3)
 	#scn3D.look(m3.box())
 	
 	# test junction
@@ -529,7 +529,7 @@ if __name__ == '__main__':
 			)
 	#m4.options['debug_display'] = True
 	#m4.options['debug_points'] = True
-	scn3D.objs.append(m4)
+	scn3D.add(m4)
 	
 	main.show()
 	sys.exit(app.exec())

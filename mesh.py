@@ -300,11 +300,11 @@ class Mesh:
 		if self.options.get('debug_faces', None) == 'indices':
 			for i,f in enumerate(self.faces):
 				p = 1.1 * (self.points[f[0]] + self.points[f[1]] + self.points[f[2]]) /3
-				scene.objs.append(text.Text(p, str(i), 9, (1, 0.2, 0), align=('center', 'center')))
+				yield text.Text(p, str(i), 9, (1, 0.2, 0), align=('center', 'center'))
 		if self.options.get('debug_faces', None) == 'tracks':
 			for i,f in enumerate(self.faces):
 				p = 1.1 * (self.points[f[0]] + self.points[f[1]] + self.points[f[2]]) /3
-				scene.objs.append(text.Text(p, str(self.tracks[i]), 9, (1, 0.2, 0), align=('center', 'center')))
+				yield text.Text(p, str(self.tracks[i]), 9, (1, 0.2, 0), align=('center', 'center'))
 		
 		fn = np.array([tuple(self.facenormal(f)) for f in self.faces])
 		points = np.array([tuple(p) for p in self.points], dtype=np.float32)		
@@ -320,13 +320,13 @@ class Mesh:
 			idents.append(i)
 			idents.append(i)
 		
-		scene.objs.append(view.SolidDisplay(scene,
+		yield view.SolidDisplay(scene,
 			points[np.array(self.faces, dtype='u4')].reshape((len(self.faces)*3,3)),
 			np.hstack((fn, fn, fn)).reshape((len(self.faces)*3,3)),
 			faces = np.array(range(3*len(self.faces)), dtype='u4').reshape(len(self.faces),3),
 			idents = np.array(idents, dtype='u2'),
 			lines = np.array(lines, dtype='u4'),
-			))
+			)
 	
 	def display_groups(self, scene):
 		facenormals = [self.facenormal(f)  for f in self.faces]
@@ -386,20 +386,20 @@ class Mesh:
 			normals[i+1] = n[1]
 			normals[i+2] = n[2]
 		
-		scene.objs.append(view.SolidDisplay(scene,
+		return view.SolidDisplay(scene,
 			np.array(points).reshape((len(points)//3,3)),
 			np.array(normals).reshape((len(normals)//3,3)),
 			faces = np.array(faces).reshape((len(faces)//3,3)),
 			lines = np.array(edges).reshape((len(edges)//2,2)),
 			idents = np.array(tracks, dtype=view.IDENT_TYPE),
 			color = self.options.get('color', None),
-			))
+			),
 	
 	def display(self, scene):
 		if self.options.get('debug_display', False):
-			self.display_triangles(scene)
+			yield from self.display_triangles(scene)
 		else:
-			self.display_groups(scene)
+			yield from self.display_groups(scene)
 	
 	def __repr__(self):
 		return 'Mesh(\n  points= {},\n  faces=  {},\n  tracks= {},\n  groups= {},\n  options= {})'.format(

@@ -34,7 +34,7 @@ class Text:
 		self.align = align
 	
 	def display(self, scene):
-		scene.objs.append(TextDisplay(scene, self.position, self.text, self.size, self.color, self.align))
+		return TextDisplay(scene, self.position, self.text, self.size, self.color, self.align),
 
 def char_placement(fontsize, c, l, n):
 	fontsize += 4
@@ -50,6 +50,8 @@ pointsdef = [
 	]
 
 class TextDisplay:
+	renderindex = 3
+	
 	def __init__(self, scene, position, text, size, color, align=(0,0)):
 		self.position = fvec3(position)
 		self.color = color
@@ -57,7 +59,7 @@ class TextDisplay:
 		
 		# load font
 		def load(scene):
-			img, align = create_font_texture(ImageFont.truetype('NotoMono-Regular.ttf', 10))
+			img, align = create_font_texture(ImageFont.truetype('NotoMono-Regular.ttf', size))
 			return scene.ctx.texture(img.size, 1, img.tobytes()), align
 		self.fonttex, self.fontalign = scene.ressource(('fonttex', size), load)
 		
@@ -72,7 +74,7 @@ class TextDisplay:
 		self.shader = scene.ressource('shader_font', load)
 		
 		# place triangles
-		points = np.empty((6*len(text), 4), np.float32)
+		points = np.empty((6*len(text), 4), 'f4')
 		l = 0
 		c = 0
 		for i,char in enumerate(text):
@@ -97,7 +99,7 @@ class TextDisplay:
 		
 		# create the buffers on the GPU
 		self.vb_points = scene.ctx.buffer(points)
-		self.vb_faces = scene.ctx.buffer(np.arange(points.shape[0], dtype=np.uint32))
+		self.vb_faces = scene.ctx.buffer(np.arange(points.shape[0], dtype='u4'))
 		self.va = scene.ctx.vertex_array(
 			self.shader,
 			[(self.vb_points, '2f 2f', 'v_position', 'v_uv')],
@@ -135,7 +137,7 @@ def test_text_display():
 	
 	app = QApplication(sys.argv)
 	scn = Scene()
-	scn.add(Text((0,0,0), 'coucou', 10))
+	scn.objs.append(Text((0,0,0), 'coucou', 8))
 	
 	scn.show()
 	sys.exit(app.exec())

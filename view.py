@@ -2,7 +2,7 @@ import settings
 import numpy.core as np
 import moderngl as mgl
 from math import tan, sin, cos, pi, exp
-from mathutils import vec3, fvec3, fvec4, fmat3, fmat4, row, column, length, perspective, translate, inverse, dichotomy_index, Box
+from mathutils import vec3, fvec3, fvec4, fmat3, fmat4, row, column, length, perspective, translate, project, inverse, dichotomy_index, Box
 from PyQt5.QtCore import Qt
 from PyQt5.QtOpenGL import QGLWidget, QGLFormat
 from PyQt5.QtWidgets import QWidget
@@ -116,8 +116,13 @@ class Scene(QGLWidget):
         
 		self.projection = projection or Perspective()
 		self.manipulator = manipulator or Turntable()
-		self.objs = list(objects)	# objects to render, in the render order, the user can hack into it
 		self.ressources = {}
+		
+		self.groups = []
+		self.layers = []
+		self.stack = []
+		self.ident_steps = []
+		self.queue = []
 		
 		self.drag = False
 		self.ctx = None		# opengl context, that is None when no yet initialized
@@ -144,7 +149,11 @@ class Scene(QGLWidget):
 		self.ident_frame = self.ctx.simple_framebuffer((self.size().width(), self.size().height()), components=3, dtype='f1')
 		self.ident_shader = self.ctx.program(
 						vertex_shader=open('shaders/identification.vert').read(),
-						fragment_shader=open('shaders/identification2.frag').read(),
+						fragment_shader=open('shaders/identification.frag').read(),
+						)
+		self.subident_shader = self.ctx.program(
+						vertex_shader=open('shaders/subidentification.vert').read(),
+						fragment_shader=open('shaders/subidentification.frag').read(),
 						)
 		self.init()
 		self.render()
@@ -166,19 +175,12 @@ class Scene(QGLWidget):
 
 	def render(self):
 		''' render the scene to the graphic buffer. need to be called from the opengl thread (often the main thread) '''
-		
-		# configure the additional objects
-		i = 0
-		while i < len(self.objs):
-			if not hasattr(self.objs[i], 'render'):	
-				self.objs.pop(i).display(self)
-			else:	
-				i += 1
+		self.dequeue()
 		
 		# setup the render pass
 		self.view_matrix = self.manipulator.matrix()	# column major matrix for opengl
 		self.proj_matrix = self.projection.matrix(self.aspectratio)		# column major matrix for opengl
-				
+					
 		# set the default flags for the scene
 		self.ctx.multisample = True
 		self.ctx.enable_only(mgl.BLEND | mgl.DEPTH_TEST)
@@ -187,7 +189,7 @@ class Scene(QGLWidget):
 		# render objects
 		self.screen.use()
 		self.screen.clear()
-		for rdr in self.objs:
+		for grp,rdr in self.stack:
 			rdr.render(self)
 		# filter TODO
 		
@@ -198,14 +200,57 @@ class Scene(QGLWidget):
 		# identify objects
 		self.ident_frame.use()
 		self.ident_frame.clear()
-		self.ident_steps = steps = [0]*len(self.objs)
 		ident = 1
-		for i,rdr in enumerate(self.objs):
-			ident += (rdr.identify(self, ident) or 0)
-			steps[i] = ident-1
-		#self.ident_refreshed = True
+		for i,(grp,rdr) in enumerate(self.stack):
+			ident += rdr.identify(self, ident) or 0
+			self.ident_steps[i] = ident-1
 		self.refreshed = False
-		
+	
+	def dequeue(self):
+		if self.queue:
+			# insert renderers for each object in queue
+			for grp,obj in self.queue:
+				for rdr in obj.display(self):
+					for _ in range(len(self.layers), rdr.renderindex+1):	
+						self.layers.append([])
+					self.layers[rdr.renderindex].append((grp,rdr))
+			# regenerate the display stack
+			self.stack = []
+			for layer in self.layers:	self.stack.extend(layer)
+			self.ident_steps = [0] * len(self.stack)
+			# empty the queue
+			self.queue = []
+	
+	def add(self, obj):
+		''' add an object to the scene
+			returns the group id created for the object's renderers 
+		'''
+		# find group id
+		grp = 0
+		while grp < len(self.groups) and grp != self.groups[grp]:		grp += 1
+		# register object
+		self.groups.insert(grp,grp)
+		self.queue.append((grp,obj))
+		return grp
+	
+	def remove(self, grp):
+		''' remove an object from the scene and return its renderers if already created
+			grp must be an integer returned by self.stack()
+		'''
+		# search for it in queue
+		for i in range(len(self.queue)):
+			if self.queue[i][0] == grp:	
+				self.queue.pop(i)
+				return ()
+		# else remove already inserted renderers
+		poped = []
+		for layer in self.layers:
+			i = 0
+			while i < len(layer):
+				if layer[i][0] == grp:	poped.append(layer.pop(i))
+				else:					i += 1
+		self.groups.remove(grp)
+		return poped
 		
 	
 	def ressource(self, name, func=None):
@@ -243,8 +288,8 @@ class Scene(QGLWidget):
 		elif k == Qt.Key_Shift:		self.manipulator.slow(False)
 		
 	def mousePressEvent(self, evt):
-		if self.tool:
-			if not self.tool(self.transformevent(evt)):		return
+		self.update()
+		if self.runtool(evt):		return
 	
 		x,y = evt.x(), evt.y()
 		b = evt.button()
@@ -261,42 +306,47 @@ class Scene(QGLWidget):
 			print(self.ptat((x,y)))
 			clicked = self.objat((x,y))
 			if clicked: 
-				self.tool = self.objs[clicked[0]].control(self, clicked[1], (x/w, y/h))
-		self.update()
+				grp,rdr = self.stack[clicked[0]]
+				self.tool = rdr.control(self, grp, clicked[1], (x, y))
 
 	def mouseMoveEvent(self, evt):
-		if self.tool:
-			if not self.tool(self.transformevent(evt)):		return
+		self.update()
+		if self.runtool(evt):		return
 		if self.mode[1]:
 			s = self.sizeref()
 			ox, oy = self.mouse_clicked
 			self.mode[1]((evt.x()-ox)/s, -(evt.y()-oy)/s)	# call the mode function with the coordinates relative to the movement start
-			self.update()
 
 	def mouseReleaseEvent(self, evt):
-		if self.tool:
-			if not self.tool(self.transformevent(evt)):		return
+		if self.runtool(evt):		return
 		self.mouse_clicked = (evt.x(), evt.y())
 	
 	def wheelEvent(self, evt):
-		if self.tool:
-			if not self.tool(self.transformevent(evt)):		return
-		self.manipulator.zoom(-evt.angleDelta().y()/8 * pi/180)	# the 8 factor is there because of the Qt documentation
 		self.update()
+		if self.runtool(evt):		return
+		self.manipulator.zoom(-evt.angleDelta().y()/8 * pi/180)	# the 8 factor is there because of the Qt documentation
+	
+	# apply the given Qt event to the active tool
+	def runtool(self, evt):
+		if self.tool:
+			return self.tool(self, evt)
+	
 	
 	def refreshmaps(self):
+		''' read self.ident_map and self.depth_map  from the GPU buffer 
+			if already done since last render, returns immediately
+		'''
 		if not self.refreshed:
 			self.ident_frame.read_into(self.ident_map, viewport=self.ident_frame.viewport, components=2)
 			self.ident_frame.read_into(self.depth_map, viewport=self.ident_frame.viewport, components=1, attachment=-1, dtype='f4')
 			self.refreshed = True
+			#Image.fromarray(self.ident_map).show()
 	
 	def objat(self, coords):
-		#if self.ident_refreshed:
-			#self.ident_frame.read_into(self.ident_map, viewport=self.ident_frame.viewport, components=2)
-			#self.ident_refreshed = False
+		''' return a tuple (obji, groupi) of the idents of the object and its group at the given screen coordinates '''
 		self.refreshmaps()
 		
-		ident = self.ident_map[-coords[1],coords[0]]
+		ident = int(self.ident_map[-coords[1],coords[0]])
 		if ident:
 			obji = dichotomy_index(self.ident_steps, ident)
 			if obji == len(self.ident_steps):
@@ -324,7 +374,7 @@ class Scene(QGLWidget):
 		
 		if depthred == 1.0:
 			if default:
-				dir = inverse(mat3(self.view_matrix)) * fvec4(
+				dir = inverse(fmat3(self.view_matrix)) * fvec3(
 							x/self.proj_matrix[0][0],
 							y/self.proj_matrix[1][1],
 							1)
@@ -368,6 +418,8 @@ class SolidDisplay:
 			- points            is an array of indices for points (n)
 		color define the main color of the solid
 	'''
+	renderindex = 1
+	
 	def __init__(self, scene, positions, 
 			vertexnormals=None, 
 			faces=None, 
@@ -441,7 +493,7 @@ class SolidDisplay:
 		if faces is not None and idents is not None:
 			self.vb_idents = ctx.buffer(np.array(idents, dtype=IDENT_TYPE, copy=False))
 			self.va_idents = ctx.vertex_array(
-					scene.ident_shader, 
+					scene.subident_shader, 
 					[	(self.vb_positions, '3f', 'v_position'),
 						(self.vb_idents, IDENT_TYPE, 'item_ident')], 
 					self.vb_faces,
@@ -501,13 +553,13 @@ class SolidDisplay:
 		
 	def identify(self, scene, startident):
 		if self.va_idents:
-			scene.ident_shader['start_ident'] = startident
-			scene.ident_shader['view'].write(scene.view_matrix * self.transform)
-			scene.ident_shader['proj'].write(scene.proj_matrix)
+			scene.subident_shader['start_ident'] = startident
+			scene.subident_shader['view'].write(scene.view_matrix * self.transform)
+			scene.subident_shader['proj'].write(scene.proj_matrix)
 			self.va_idents.render(mgl.TRIANGLES)
 			return self.nidents
 	
-	def control(self, scene, ident, evt):
+	def control(self, scene, grp, ident, evt):
 		self.select(ident, not self.select(ident))
 		return None
 	
@@ -580,7 +632,7 @@ if __name__ == '__main__':
 
 	app = QApplication(sys.argv)
 	scn = Scene()
-	scn.objs.append(m)
+	scn.add(m)
 	scn.look(Box(center=fvec3(0), width=fvec3(1)))
 	
 	scn.show()

@@ -3,9 +3,9 @@
 */
 #version 330
 
-flat in vec3 ident;
+uniform uint ident;
 out vec3 color;
 
 void main() {
-	color = ident;
+	color = vec3(float(ident % uint(256)), float(ident/uint(256)), 0)/255.;
 }
