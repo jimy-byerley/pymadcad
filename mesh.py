@@ -106,6 +106,7 @@ class Mesh:
 				)
 			if f[0] == f[1] or f[1] == f[2] or f[2] == f[0]:
 				self.faces.pop(i)
+				self.tracks.pop(i)
 			else:
 				i += 1
 	
