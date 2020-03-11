@@ -236,7 +236,7 @@ def solve(constraints, precision=1e-4, afterset=None, fixed=(), maxiter=0):
 					#print('       ', correction*0.5 + oldcorr*0.5)
 					param += (correction*0.5 + oldcorr*0.5)
 				else:
-					param += correction
+					param += correction * 0.8
 		oldcorrs = corrections[:]
 		
 		#print('solve:', it, maxdelta)
