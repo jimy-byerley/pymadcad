@@ -303,7 +303,6 @@ class Scene(QGLWidget):
 			self.mode[0]()
 		else:
 			h,w = self.ident_frame.viewport[2:]
-			print(self.ptat((x,y)))
 			clicked = self.objat((x,y))
 			if clicked: 
 				grp,rdr = self.stack[clicked[0]]
@@ -364,7 +363,7 @@ class Scene(QGLWidget):
 		return (vec3(m[3]), vec3(m[2]))
 
 	
-	def ptat(self, coords, default=False):
+	def ptat(self, coords):
 		''' return the point of the rendered surfaces that match the given window coordinates '''
 		self.refreshmaps()
 		viewport = self.ident_frame.viewport
@@ -373,15 +372,7 @@ class Scene(QGLWidget):
 		y = -(coords[1]/viewport[3] *2 -1)
 		
 		if depthred == 1.0:
-			if default:
-				dir = inverse(fmat3(self.view_matrix)) * fvec3(
-							x/self.proj_matrix[0][0],
-							y/self.proj_matrix[1][1],
-							1)
-				orig = fvec3(column(self.view_matrix,3))
-				return vec3(orig + project(self.manipulator.center - orig, dir))
-			else:
-				return None
+			return None
 		else:
 			a,b = self.proj_matrix[2][2], self.proj_matrix[3][2]
 			depth = b/(depthred + a)/2	# get the true depth  (can't get why there is a 2 factor ... opengl trick)
@@ -391,6 +382,18 @@ class Scene(QGLWidget):
 						depth * y /self.proj_matrix[1][1],
 						-depth,
 						1))
+	
+	def ptfrom(self, coords, center):
+		viewport = self.ident_frame.viewport
+		x =  (coords[0]/viewport[2] *2 -1)
+		y = -(coords[1]/viewport[3] *2 -1)
+		inv = inverse(fmat3(self.view_matrix))
+		dir = inv * fvec3(
+					x/self.proj_matrix[0][0],
+					y/self.proj_matrix[1][1],
+					1)
+		orig = inv * fvec3(column(self.view_matrix,3))
+		return vec3(orig + project(center - orig, dir))
 	
 	def look(self, box):
 		fov = self.projection.fov or settings.display['field_of_view']
