@@ -1,6 +1,6 @@
 from PIL import Image, ImageFont, ImageDraw
 import numpy.core as np
-from mathutils import fvec3
+from mathutils import fvec3, ceil, sqrt
 import settings
 import moderngl as mgl
 
@@ -8,17 +8,18 @@ import moderngl as mgl
 
 def create_font_texture(font, maxchar=1100):
 	# determine the size of the needed texture
-	imsize = 128
 	fontsize = font.size + 4
-	hold = False
-	while 2*(imsize//fontsize)**2 < maxchar:
-		imsize *= 2
+	width = 64
+	while 2*(width//fontsize)**2 < maxchar:
+		width *= 2
+	c = width//(fontsize//2)
+	l = maxchar//c +1
+	width = c * (fontsize//2)
+	height = l * fontsize
 	# create texture
-	tex = Image.new('L', (imsize,imsize), 0)
+	tex = Image.new('L', (width,height), 0)
 	draw = ImageDraw.Draw(tex)
 	# draw the font onto
-	c = 2*imsize // fontsize
-	l = imsize // fontsize
 	for i in range(maxchar):
 		draw.text(char_placement(font.size, c, l, i), chr(i), fill=255, font=font)
 	#tex.show()
@@ -38,7 +39,7 @@ class Text:
 
 def char_placement(fontsize, c, l, n):
 	fontsize += 4
-	return (fontsize//2 * (n%c), fontsize * (n//c))
+	return ((fontsize//2) * (n%c), fontsize * (n//c))
 
 pointsdef = [
 	[0, 0],
@@ -59,7 +60,7 @@ class TextDisplay:
 		
 		# load font
 		def load(scene):
-			img, align = create_font_texture(ImageFont.truetype('NotoMono-Regular.ttf', size))
+			img, align = create_font_texture(ImageFont.truetype('NotoMono-Regular.ttf', 2*size))
 			return scene.ctx.texture(img.size, 1, img.tobytes()), align
 		self.fonttex, self.fontalign = scene.ressource(('fonttex', size), load)
 		
@@ -85,6 +86,7 @@ class TextDisplay:
 				c += 4 - c%4	# TODO: use a tab size in settings
 			else:
 				n = ord(char)
+				#placement = char_placement(2*size, *self.fontalign, n)
 				for j,add in enumerate(pointsdef):
 					points[len(pointsdef)*i + j] = [
 						add[0]+c, 
@@ -111,8 +113,8 @@ class TextDisplay:
 		self.shader['view'].write(scene.view_matrix)
 		self.shader['proj'].write(scene.proj_matrix)
 		self.shader['ratio'].value = (
-				(self.size-2.1) / scene.width()*2,
-				(self.size-2.1) / scene.height()*4,
+				(self.size-2.5) / scene.width()*2,
+				(self.size-2.5) / scene.height()*4,
 				)
 		self.fonttex.use(0)
 		self.va.render(mgl.TRIANGLES)
@@ -137,14 +139,13 @@ def test_text_display():
 	
 	app = QApplication(sys.argv)
 	scn = Scene()
-	scn.objs.append(Text((0,0,0), 'coucou', 8))
+	scn.add(Text((0,0,0), 'coucou 123456789', 8))
 	
 	scn.show()
 	sys.exit(app.exec())
 
 def test_font_texture():
-	fontsize = 10
-	im, shape = create_font_texture(ImageFont.truetype('NotoMono-Regular.ttf', fontsize))
+	im, shape = create_font_texture(ImageFont.truetype('NotoMono-Regular.ttf', 16))
 	im.show()
 
 
