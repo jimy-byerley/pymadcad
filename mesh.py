@@ -289,22 +289,22 @@ class Mesh:
 	def display_triangles(self, scene):		
 		if self.options.get('debug_points', False):
 			for i,p in enumerate(self.points):
-				scene.objs.append(text.Text(
+				yield from text.Text(
 					tuple(p*1.08 + vec3(0,0,0.05*random())), 
 					str(i), 
-					size=9, 
+					size=8, 
 					color=(0.2, 0.8, 1),
 					align=('center', 'center'),
-					))
+					).display(scene)
 		
 		if self.options.get('debug_faces', None) == 'indices':
 			for i,f in enumerate(self.faces):
 				p = 1.1 * (self.points[f[0]] + self.points[f[1]] + self.points[f[2]]) /3
-				yield text.Text(p, str(i), 9, (1, 0.2, 0), align=('center', 'center'))
+				yield from text.Text(p, str(i), 9, (1, 0.2, 0), align=('center', 'center')).display(scene)
 		if self.options.get('debug_faces', None) == 'tracks':
 			for i,f in enumerate(self.faces):
 				p = 1.1 * (self.points[f[0]] + self.points[f[1]] + self.points[f[2]]) /3
-				yield text.Text(p, str(self.tracks[i]), 9, (1, 0.2, 0), align=('center', 'center'))
+				yield from text.Text(p, str(self.tracks[i]), 9, (1, 0.2, 0), align=('center', 'center')).display(scene)
 		
 		fn = np.array([tuple(self.facenormal(f)) for f in self.faces])
 		points = np.array([tuple(p) for p in self.points], dtype=np.float32)		
@@ -326,6 +326,7 @@ class Mesh:
 			faces = np.array(range(3*len(self.faces)), dtype='u4').reshape(len(self.faces),3),
 			idents = np.array(idents, dtype='u2'),
 			lines = np.array(lines, dtype='u4'),
+			color = self.options.get('color', None),
 			)
 	
 	def display_groups(self, scene):
