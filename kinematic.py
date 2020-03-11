@@ -33,16 +33,26 @@ class Torsor:
 	__slots__ = ('momentum', 'resulting', 'position')
 	def __init__(self, momentum, resulting, position):
 		self.momentum, self.resulting, self.position = momentum, resulting, position
-	def locate(pt):
-		return Torsor(self.momentum, self.resulting + cross(self.momentum, pt-self.position))
+	def locate(self, pt):
+		return Torsor(self.momentum, self.resulting + cross(self.momentum, pt-self.position), pt)
+	#def transform(self):
+		# donne la matrice de l'application affine de la position vers la resultante
+		#return transform(self.position) * transform(self.resulting, self.momentum) * transform(-self.position)
+
+def comomentum(t1, t2):
+	t2 = t2.locate(t1.position)
+	return dot(t1.momentum, t2.resulting) + dot(t2.momentum, t1.resulting)
+
+
 
 class Solid:
 	'''
 		orientation - quat
 		position - vec3
-		mesh
+		visuals	- list of objects to display using the solid's pose
+		name - optional name to display
 	'''
-	def __init__(self, *args, base=None, pose=None):
+	def __init__(self, *args, base=None, pose=None, name=None):
 		if pose:
 			self.position = pose[0]
 			self.orientation = pose[1]
@@ -50,6 +60,7 @@ class Solid:
 			self.position = vec3(0)
 			self.orientation = vec3(0)
 		self.visuals = list(args)
+		self.name = name
 	
 	def transform(self):
 		return transform(self.position, self.orientation)
@@ -106,7 +117,7 @@ class InSolid:	# TODO test
 		return self.solid.position+center, self.solid.orientation+rot
 
 cornersize = 0.1
-
+GAPROT = 0.5
 
 class Pivot:
 	def __init__(self, s1, s2, a1, a2=None, position=None):
@@ -123,19 +134,23 @@ class Pivot:
 		a1 = (orients[0] * self.axis[0][0] + self.solids[0].position,  orients[0] * self.axis[0][1])
 		a2 = (orients[1] * self.axis[1][0] + self.solids[1].position,  orients[1] * self.axis[1][1])
 		normal = normalize(a1[1] + a2[1])
+		rot = cross(a1[1],a2[1])
 		gap = a1[0] - a2[0]
 		#print('  a1', a1)
 		#print('  a2', a2)
 		
-		rot = cross(a1[1],a2[1])
 		r = (orients[0]*self.axis[0][0], orients[1]*self.axis[1][0])
 		s = (-gap,
-			  rot + project(cross(r[0],-gap) / (dot(r[0],r[0]) + 1e-15), normal),
+			  rot + GAPROT*project(cross(r[0],-gap) / (dot(r[0],r[0]) + 1e-15), normal),
 			  gap,
-			 -rot + project(cross(r[1],gap) / (dot(r[1],r[1]) + 1e-15), normal),
+			 -rot + GAPROT*project(cross(r[1],gap) / (dot(r[1],r[1]) + 1e-15), normal),
 			)
 		#print('  pivot', s)
 		return s
+	
+	def freedom(self):
+		orient = quat(self.solids[0].orientation)
+		return Torsor(orient * self.axis[0][1], vec3(0), orient * self.axis[0][0] + self.solids[0].position)
 		
 	def scheme(self, solid, size, junc):
 		''' return primitives to render the junction from the given solid side
@@ -143,8 +158,9 @@ class Pivot:
 			junc is the point the junction is linked with the scheme by
 		'''
 		if solid is self.solids[0]:
+			radius = size/4
 			axis = self.axis[0]
-			center = self.position[0]
+			center = axis[0] + project(self.position[0], axis[1])
 			cyl = generation.extrusion(
 						axis[1]*size * 0.8, 
 						generation.outline(primitives.Circle(
@@ -168,23 +184,28 @@ class Pivot:
 					[(l, l+2), (l+2, l+3)] + [(i-1,i) for i in range(1,l//2)] + [(i-1,i) for i in range(l//2+1,l)],
 					)
 		elif solid is self.solids[1]:
+			radius = size/4
 			axis = self.axis[1]
-			center = self.position[1]
+			center = axis[0] + project(self.position[1], axis[1])
 			side = axis[1] * size * 0.5
 			if dot(junc-axis[0], axis[1]) < 0:
 				side = -side
+			if dot(junc-center-side, side) < 0:
+				attach = side + normalize(noproject(junc-center, axis[1]))*radius
+			else:
+				attach = side
 			c1 = generation.flatsurface(generation.outline(primitives.Circle(
 							(center-axis[1]*size*0.5, -axis[1]), 
-							size/4, 
+							radius, 
 							resolution=('div', 16),
 							)))
 			c2 = generation.flatsurface(generation.outline(primitives.Circle(
 							(center+axis[1]*size*0.5, axis[1]), 
-							size/4, 
+							radius, 
 							resolution=('div', 16),
 							)))
 			indices = [(i-1,i)  for i in range(1,len(c1.points))]
-			s = Scheme([junc, center+side, center-side], [], [], [(0,1), (1,2)])
+			s = Scheme([center-side, center+side, center+attach, junc], [], [], [(0,1), (2,3)])
 			s.extend(Scheme(c1.points, c1.faces, [], indices))
 			s.extend(Scheme(c2.points, c2.faces, [], indices))
 			return s
@@ -212,17 +233,20 @@ class Plane:
 		gap = project(a1[0] - a2[0], normal)
 		#print('  a1', a1)
 		#print('  a2', a2)
-		print('\tgap', gap)
-		print('\trot', rot)
+		#print('\tgap', gap)
+		#print('\trot', rot)
 		
 		r = (orients[0]*self.axis[0][0], orients[1]*self.axis[1][0])
-		s = (-gap - noproject(cross(rot, r[0]), normal),
-			  rot + project(cross(r[0],-gap) / (dot(r[0],r[0]) + 1e-15), normal),
-			  gap - noproject(cross(-rot, r[1]), normal),
-			 -rot + project(cross(r[1],gap) / (dot(r[1],r[1]) + 1e-15), normal),
+		s = (-gap - GAPROT*noproject(cross(rot, r[0]), normal),
+			  rot + GAPROT*project(cross(r[0],-gap) / (dot(r[0],r[0]) + 1e-15), normal),
+			  gap - GAPROT*noproject(cross(-rot, r[1]), normal),
+			 -rot + GAPROT*project(cross(r[1],gap) / (dot(r[1],r[1]) + 1e-15), normal),
 			)
 		#print('  plane', s)
 		return s
+	
+	#def freedom(self):
+		#return (self.solids[0].orientation, self.axis[0][1]), (self.solids[0].position, dirbase(self.axis[0][1])[:2])
 	
 	def scheme(self, solid, size, junc):
 		if   solid is self.solids[0]:		(center, normal), position = self.axis[0], self.position[0]
@@ -254,13 +278,14 @@ class Near:
 		r = quat(self.solid.orientation) * self.ref
 		ref = r + self.solid.position
 		free = normalize(ref - self.lastref)		# approximation for the free direction
+		print('free', ref - self.lastref)
 		gap = self.pt - ref
 		if not isnan(free):
 			gap = project(gap, free)
 		rot = cross(r, gap) / (dot(r,r) + 1e-15)
 		#rot = vec3(0)
-		self.lastref = ref
-		return gap, rot
+		#self.lastref = ref*0.2 + self.lastref*0.8
+		return 0.2*gap, 0.2*rot
 		
 				
 def noproject(x,dir):	return x - project(x,dir)
@@ -408,6 +433,7 @@ class WireDisplay:
 		scene.ident_shader['ident'] = startident
 		scene.ident_shader['view'].write(viewmat)
 		scene.ident_shader['proj'].write(scene.proj_matrix)
+		
 		if self.vb_transpfaces:		self.va_ident_faces.render(mgl.TRIANGLES)
 		if self.vb_lines:			self.va_ident_lines.render(mgl.LINES)
 		return 1
@@ -416,6 +442,7 @@ class WireDisplay:
 
 from PyQt5.QtCore import QEvent	
 import view, text
+from copy import copy
 
 class ToolMove:
 	renderindex = 0
@@ -435,35 +462,42 @@ class ToolMove:
 			grp = list(param.display(scene))
 			self.displays.append(grp)
 			for disp in grp:
-				disp.control = lambda scene, grp, ident, evt:	self.start(param, scene, ident, evt)
+				disp.control = lambda scene, grp, ident, evt, param=param:	self.start(param, scene, ident, evt)	# lambda default argument uncapture the variable
 				yield disp
 	
 	def render(self, scene):	pass
 	def identify(self, scene, startident):	pass	
 		
 	def start(self, solid, scene, ident, pt):
+		if solid is self.root:	return
+		
 		point = scene.ptat(pt)
 		print(point)
-		#self.startpt = point
-		#self.startpos = solid.position
-		#self.actsolid = solid
-		self.placement = Near(solid, point, vec3(inverse(solid.transform()) * vec4(point,1)))
-		self.csts.append(self.placement)
+		
+		self.startpt = point
+		self.startpos = copy(solid.position)
+		self.actsolid = solid
+		self.moved = False
+		
+		#self.placement = Near(solid, point, vec3(inverse(solid.transform()) * vec4(point,1)))
+		#self.csts.append(self.placement)
 		return self.move
 	
 	def move(self, scene, evt):
 		if evt.type() == QEvent.MouseMove:
-			#scene.sight((evt.x(), evt.y()))
-			pt = scene.ptat((evt.x(), evt.y()), True)
-			self.placement.pt = pt
-			print('  ',pt)
-			#print('\t',pt)
-			#self.actsolid.position = pt - self.startpt + self.startpos
-			try:	constraints.solve(self.csts, fixed=self.fixed, precision=1e-3, maxiter=200)
+			if self.actsolid is not self.root:
+				self.lock(self.actsolid, False)
+				self.moved = True
+			
+			pt = scene.ptfrom((evt.x(), evt.y()), self.startpt)
+			self.actsolid.position = pt - self.startpt + self.startpos
+			
+			try:	constraints.solve(self.csts, fixed=self.fixed, precision=1e-3, maxiter=50)
 			except constraints.SolveError as err:
 				print(err)
-			for p in self.params:
-				print(p.position, p.orientation)
+			#for p in self.params:
+				#print(id(p), p.position, p.orientation)
+			
 			i = 0
 			for param,grp in zip(self.params, self.displays):
 				trans = param.transform()
@@ -473,8 +507,27 @@ class ToolMove:
 					elif isinstance(disp, text.Text):
 						disp.position = trans * disp.position
 		else:
-			self.csts.pop()
+			if not self.moved:
+				self.lock(self.actsolid, True)
+				scene.update()
+			#self.csts.pop()
 			scene.tool = None
+	
+	def lock(self, solid, lock):
+		if lock:
+			self.fixed.add(id(self.actsolid.position))
+			self.fixed.add(id(self.actsolid.orientation))
+			for param,grp in zip(self.params, self.displays):
+				if param is self.actsolid:
+					for disp in grp:
+						disp.color = fvec3(0.5, 0.5, 0.5)
+		else:
+			self.fixed.discard(id(self.actsolid.position))
+			self.fixed.discard(id(self.actsolid.orientation))
+			for param,grp in zip(self.params, self.displays):
+				if param is self.actsolid:
+					for disp in grp:
+						disp.color = fvec3(settings.display['schematics_color'])
 	
 
 def test_constraints():
@@ -564,9 +617,18 @@ def test_manip():
 	s0 = Solid()
 	s1 = Solid()
 	s2 = Solid(pose=(vec3(2,0,1.5), 2*vec3(1,1,0)))
+	s3 = Solid()
+	s4 = Solid()
+	s5 = Solid()
 	csts = [
 		Plane(s0,s1, (vec3(0), vec3(0,0,1))),  
-		#Pivot(s1,s2, (vec3(0,0,1), vec3(0,1,0)), (vec3(0,0,-1), vec3(0,1,0))),
+		Pivot(s1,s2, (vec3(0,0,1), vec3(1,0,0)), (vec3(0,0,-1), normalize(vec3(1,1,0)))),
+		#Pivot(s2,s3, (vec3(0,0,2), normalize(vec3(1,1,0))), (vec3(0,0,0), vec3(1,0,0))),
+		
+		#Pivot(s1,s2, (vec3(0,0,1), vec3(1,0,0)), (vec3(0,0,-1), normalize(vec3(1,0,0)))),
+		Pivot(s2,s3, (vec3(0,0,2), normalize(vec3(1,0,0))), (vec3(0,0,0), vec3(1,0,0))),
+		Pivot(s3,s4, (vec3(0,0,2), normalize(vec3(1,0,0))), (vec3(0,0,0), vec3(1,0,0))),
+		Pivot(s4,s5, (vec3(0,0,2), normalize(vec3(1,0,0))), (vec3(0,0,0), vec3(1,0,0))),
 		]
 		
 	import sys
@@ -576,8 +638,11 @@ def test_manip():
 	app = QApplication(sys.argv)
 	scn = Scene()
 	s0.visuals.append(mkwiredisplay(s0, csts))
-	s1.visuals.append(mkwiredisplay(s1, csts))
+	s1.visuals.append(mkwiredisplay(s1, csts, color=(1,0.4,0.2)))
 	s2.visuals.append(mkwiredisplay(s2, csts))
+	s3.visuals.append(mkwiredisplay(s3, csts))
+	s4.visuals.append(mkwiredisplay(s4, csts))
+	s5.visuals.append(mkwiredisplay(s5, csts))
 	#display_mechanism(scn, csts, s0)
 	scn.add(ToolMove(scn, csts, s0))
 	scn.show()
@@ -585,7 +650,7 @@ def test_manip():
 	
 
 if __name__ == '__main__':
+	test_constraints()
 	test_manip()
 	#test_display()
-	#test_constraints()
 
