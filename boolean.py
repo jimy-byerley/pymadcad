@@ -382,10 +382,11 @@ if __name__ == '__main__':
 	m3.strippoints()
 	print('computation time:', time()-start)
 	
+	print(len(m3.points), len(m3.faces), len(m3.tracks), max(m3.tracks), len(m3.groups))
 	assert m3.isvalid()
 	#assert m3.isenvelope()
 	
-	scn3D.objs.append(m3)
+	scn3D.add(m3)
 	
 	main.show()
 	sys.exit(app.exec())
