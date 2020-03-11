@@ -3,6 +3,7 @@ from mathutils import vec2,mat2,vec3,vec4,mat3,mat4, mat3_cast, quat, rotate, tr
 from math import atan2
 from primitives import Primitive
 import settings
+from nprint import nprint
 
 __all__ = [
 	'Outline', 'outline', 
@@ -381,14 +382,14 @@ def triangulate(mesh, outline, group=None):
 		
 	# create faces
 	while len(outline) > 2:
-		best_surf = 0.
+		best_surf = -NUMPREC
 		index = None
 		l = len(pts)
 		for i in range(l):
 			o = pts[i]
 			u = pts[(i+1)%l] - o
 			v = pts[(i-1)%l] - o
-			surf = perpdot(u,v)
+			surf = perpdot(u,v) #/ (length(u)+length(v)+length(u-v))		# ratio surface/perimeter -> leads to equilateral triangles
 			# greatest surface
 			if surf < best_surf:	continue
 			# check hat there is not point of the outline inside the triangle

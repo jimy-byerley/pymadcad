@@ -33,11 +33,13 @@ def perpdot(a:vec2, b:vec2) -> float:
 	
 def dirbase(dir, align=vec3(1,0,0)):
 	''' returns a base using the given direction as z axis (and the nearer vector to align as x) '''
-	x = normalize(align - project(align, dir))
-	if isnan(length(x)):
+	x = align - project(align, dir)
+	if length(x) < NUMPREC:
 		align = vec3(align[2],-align[0],align[1])
-		x = normalize(align - project(align, dir))
-	y = normalize(cross(dir, x))
+		x = align - project(align, dir)
+	x = normalize(x)
+	y = cross(dir, x)
+	print('base', x,y,dir)
 	return x,y,dir
 
 def scaledir(dir, factor):

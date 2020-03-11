@@ -1,269 +1,325 @@
-from mesh import Mesh, edgekey
-from mathutils import vec3, cross, dot, normalize, sqrt, distance, length, NUMPREC
-import math
-from itertools import chain
+from mathutils import vec3, mat3, dot, cross, cos, acos, normalize, distance, length, inverse, transpose, NUMPREC, COMPREC
+import generation
+import text
 
-# return the points intersectig the mesh, by propagation from line
-def intersections(mesh, line, criterion):
-	edges = mesh.edges()
-	for i in range(1,len(line)):		
-		edges.remove(edgekey(line[i-1], line[i]))
-	front = [(o, p, None) for o,p in enumerate(line)]
-	cutted = {}
-	unsolved = True
-	while unsolved:
-		newfront = []
-		unsolved = False
-		for o,p,found in front:
-			if found is not None:
-				newfront.append((o,p,found))
-			else:
-				unsolved = True
-				for edge in edges:
-					if (edge[0] == p or edge[1] == p) and cutted.get(edge, (None,-1))[1] != o:
-						print(edge)
-						if edge[1] == p:	e = (edge[1], edge[0])
-						else:				e = edge
-						r = criterion(mesh, line, o, p, e[1])
-						if r:
-							if edge not in cutted or not cutted[edge][0] or distance(mesh.points[o], cutted[edge][0]) < distance(mesh.points[o], r[0]):
-								newfront.append((o,p,r))
-								cutted[edge] = (r[0], o)
-						else:
-							newfront.append((o,e[1],None))
-							cutted[edge] = (None, o)
-		front = newfront
-	return front
-
-def c_distance(dist, mesh, line, i, p, n):
-	l = len(line)
-	o = mesh.points[line[i]]
-	c = mesh.points[n]
-	# critere destructif
-	if distance(c,o) < dist:
-		return None
-		
-	# calcul des intersections avec les aretes adjacentes
-	d1 = normalize(mesh.points[line[i-1]] - o) if i-1 >= 0 else None
-	d2 = normalize(mesh.points[line[i+1]] - o) if i+1 < l else None
-	d1 = d1 or d2
-	d2 = d2 or d1
-	#print('    ', i, d1, d2)
-	o3 = mesh.points[p]
-	d3 = normalize(c - o3)
-	def body(d, dp):
-		#print('params', (o,d), (o3,d3), dist)
-		i = ap_froma((o,d), (o3,d3), dist)
-		proj = length(i-o3) / length(c-o3)
-		if 0 <= proj and proj <= 1:
-			#if abs(distance_ap((o,d), i) - dist) > NUMPREC:
-				#print('reproj err', p,n, distance_ap((o,d), i))
-			return i, distance_ap((o,dp), i)
-		else:
-			return None, 0
-	i1,dist1 = body(d1,d2)
-	i2,dist2 = body(d2,d1)
+def chamfer(mesh, line, depth):
+	# get adjacent faces' normals to lines
+	adjacents = ({}, {})	# (left adjacents, right adjacents)
+	segts = segmentsdict(line)
+	for f in mesh.faces:
+		for e in ((f[0],f[1]), (f[1],f[2]), (f[2],f[0])):
+			if e in segts:					adjacents[0][segts[e]] = mesh.facenormal(f)
+			elif (e[1],e[0]) in segts:		adjacents[1][segts[(e[1],e[0])]] = mesh.facenormal(f)
 	
-	# selection de l'intersection la plus éloignée
-	if not i1 or not i2:	return None
-	if dist2 < dist1:
-		#print('   take i1')
-		return i1, '{}  {:.4g}  {:.4g}'.format(i, dist1, dist2)
-	else:
-		#print('   take i2')
-		return i2, '{}  {:.4g}  {:.4g}'.format(i, dist2, dist1)
-
-def propagintersect(mesh, line, process, compare):
-	edges = mesh.edges()
-	intersections = []
-	interior = set()
-	
+	# compute offsets (displacement on depth)
+	offsets = []
 	for i in range(len(line)-1):
+		fn1,fn2 = adjacents[0][i], adjacents[1][i]
+		# TODO: utiliser une fonction parametre
+		# depth
+		#offset = -depth * normalize(fn1+fn2)
+		# or distance
+		offset = -depth * cross(normalize(cross(fn1,fn2)), fn1-fn2)
+		# or width
+		#offset = -depth * normalize(fn1+fn2) * dot(fn1,fn2)
+		
+		if dot(cross(fn1, fn2), mesh.points[line[i+1]]-mesh.points[line[i]]) < 0:
+			offset = -offset
+		offsets.append(offset)
 	
-		reached = {}	# dictionnary of states  edgekey: (intersection, reference segment)
-		bold = (line[i], line[i+1])
-		front = {line[i], line[i+1]}
+	# cut faces
+	segments = cut(mesh, line, offsets)
+	# TODO: simplifier les aretes resultantes
 	
+	# create junctions
+	group = len(mesh.groups)
+	mesh.groups.append('junc')
+	for i,s in enumerate(segments):
+		if s:
+			lps = generation.makeloops(s)
+			if len(lps) == 2:
+				generation.triangulate(mesh, lps[0]+lps[1], group)
+
+def cut(mesh, line, offsets):
+	toremove = set()		# faces to remove that match no replacements
+	result = []				# intersection segments for each offset
+
+	# compute cut planes and their intersections
+	grp = len(mesh.groups)
+	mesh.groups.append(None)
+	segments = []	# planes intersections  (origin, plane normal, axis direction)
+	for i in range(1,len(line)-1):
+		n1, n2 = offsets[i-1], offsets[i]
+		d = cross(n1, n2)
+		p = mesh.points[line[i]]
+		intersect = inverse(transpose(mat3(n1, n2, d))) * vec3(
+						dot(p+n1, n1), 
+						dot(p+n2, n2), 
+						dot(p, d))
+		n = normalize(cross(d, intersect-p))
+		if dot(n, mesh.points[line[i]]-mesh.points[line[i-1]]) > 0:		n = -n
+		if length(d) > NUMPREC:
+			segments.append((intersect, n, d))
+		else:
+			segments.append(None)
+		
+		l = len(mesh.points)
+		d = normalize(d)
+		mesh.points.append(p)
+		mesh.points.append(intersect+d)
+		mesh.points.append(intersect-d)
+		mesh.faces.append((l,l+1,l+2))
+		mesh.tracks.append(grp)
+	# complete segments that cannot be computed locally (straight suite of points for example)
+	for i in range(1,len(segments)):
+		if i and not segments[i]:		segments[i] = segments[i-1]
+	for i in reversed(range(len(segments)-1)):
+		if i and not segments[i]:		segments[i] = segments[i+1]
+	# build connectivity
+	conn = connectivity_edgeface(mesh.faces)
+	
+	# cut at each plane
+	for i in range(1,len(line)):
+		# propagate until cut
+		cutplane = (mesh.points[line[i-1]]+offsets[i-1], -normalize(offsets[i-1]))
+		#print('cutplane', cutplane)
+		s1 = segments[i-2] if i >= 2 else None
+		s2 = segments[i-1] if i <= len(segments) else None
+		seen = set()
+		front = [(line[i],line[i-1]), (line[i-1],line[i])]
+		intersections = []
 		while front:
-			newfront = set()
-			for e in edges:
-				if e not in reached:
-					for edge in (e, (e[1],e[0])):
-						if edge[0] in front:
-							data = process(mesh, bold, edge)
-							if data:
-								reached[e] = data
-							else:
-								reached[e] = None
-								newfront.add(edge[1])
-			front = newfront
-		nprint('reached', reached)
-		# update propagations from other segments
-		j = 0
-		while j < len(intersections):
-			ref,edge,data = intersections[j]
-			if edge in reached:
-				if reached[edge]:
-					if compare(mesh, (line[ref], line[ref+1]), reached[edge], (line[i], line[i+1]), data):
-						intersections[j] = (i,edge,reached[edge])
-					del reached[edge]
+			frontedge = front.pop()
+			if frontedge not in conn:	continue
+			fi = conn[frontedge]
+			if fi in seen:	continue
+			
+			f = mesh.faces[fi]
+			#print(fi, 'for', frontedge)
+			# find the intersection of the triangle with the common axis to the two cutplanes (current and next)
+			p = intersection_axis_face((s2[0], s2[2]), mesh.facepoints(fi)) if s2 else None
+			if p:
+				# mark cutplane change
+				unregisterface(mesh, conn, fi)
+				pi = insertpoint(mesh, p)
+				l = len(mesh.faces)
+				mesh.faces[fi] = (f[0], f[1], pi)
+				mesh.faces.append((f[1], f[2], pi))
+				mesh.faces.append((f[2], f[0], pi))
+				mesh.tracks.append(mesh.tracks[fi])
+				mesh.tracks.append(mesh.tracks[fi])
+				registerface(mesh, conn, fi)
+				registerface(mesh, conn, l)
+				registerface(mesh, conn, l+1)
+				front.append(frontedge)
+				
+				'''
+				# mark cutplane change
+				pi = insertpoint(mesh, p)
+				l = len(mesh.faces)
+				parts = [(f[0], f[1], pi), (f[1], f[2], pi), (f[2], f[0], pi)]
+				# remove empty faces
+				j = 0
+				while j<len(parts):
+					o = mesh.points[parts[j][0]]
+					x = mesh.points[parts[j][1]] - o
+					y = mesh.points[parts[j][2]] - o
+					if length(cross(x,y)) < NUMPREC:	parts.pop(j)
+					else:						j += 1
+				# insert remaining faces
+				if parts:
+					mesh.faces[fi] = parts.pop()
+					registerface(mesh, conn, fi)
 				else:
-					intersections.pop(j)
+					toremove.add(fi)
+				if parts:	
+					mesh.faces.append(parts.pop())
+					mesh.tracks.append(mesh.tracks[fi])
+					registerface(mesh, conn, l)
+				if parts:
+					mesh.faces.append(parts.pop())
+					mesh.tracks.append(mesh.tracks[fi])
+					registerface(mesh, conn, l+1)
+				front.append(frontedge)
+				'''
+			else:
+				# mark this face as processed
+				seen.add(fi)
+				
+				#scn3D.add(text.Text(
+					#(mesh.points[f[0]] + mesh.points[f[1]] + mesh.points[f[2]]) /3,
+					#str(fi),
+					#8,
+					#color=(0.1, 1, 0.4),
+					#))
+				
+				# point side for propagation
+				goodside = [False]*3
+				for j,pi in enumerate(f):
+					#goodside[j] = 	dot(mesh.points[pi]-cutplane[0], cutplane[1]) > NUMPREC 
+					goodside[j] = 	dot(mesh.points[pi]-cutplane[0], cutplane[1]) >= 0
+				goodx = [False]*3
+				for j,pi in enumerate(f):
+					p = mesh.points[pi]
+					goodx[j] = ( (not s1 or dot(p-s1[0], -s1[1]) >= 0)
+							 and (not s2 or dot(p-s2[0],  s2[1]) >= 0) )
+				
+				if goodside[0] or goodside[1] or goodside[2]:
+					for j in range(3):
+						front.append((f[j],f[j-1]))
+				else:
 					continue
-			j += 1
-		# append this propagation
-		for edge,data in reached.items():
-			if edge not in interior:
-				if data:	intersections.append((i,edge,data))
-				else:		interior.add(edge)
+				
+				# intersections of triangle's edges with the plane
+				cut = [None]*3
+				for j,e in enumerate(((f[0],f[1]), (f[1],f[2]), (f[2],f[0]))):
+					cut[j] = intersection_edge_plane(cutplane, (mesh.points[e[0]], mesh.points[e[1]]))
+				for j in range(3):
+					if cut[j] and cut[j-1] and distance(cut[j], cut[j-1]) < NUMPREC:	cut[j] = None
+				
+				# register for propagation
+				#for j in range(3):
+					#if goodside[j] or goodside[j-1]:
+						#if s1 and dot(mesh.points[f[j-1]]-s1[0],-s1[1]) <= NUMPREC and dot(mesh.points[f[j]]-s1[0],-s1[1]) <= NUMPREC:	continue
+						#if s2 and dot(mesh.points[f[j-1]]-s2[0], s2[1]) <= NUMPREC and dot(mesh.points[f[j]]-s2[0], s2[1]) <= NUMPREC:	continue
+						
+						#if s1 and dot(mesh.points[f[j-1]]-s1[0],-s1[1]) < 0 and dot(mesh.points[f[j]]-s1[0],-s1[1]) < 0:	continue
+						#if s2 and dot(mesh.points[f[j-1]]-s2[0], s2[1]) < 0 and dot(mesh.points[f[j]]-s2[0], s2[1]) < 0:	continue
+						#front.append((f[j],f[j-1]))
+				#for j in range(3):
+					#if goodside[j] or goodside[j-1]:
+						#if cut[j]:
+							#if s1 and dot(cut[j]-s1[0], -s1[1]) < 0:	continue
+							#if s2 and dot(cut[j]-s2[0],  s2[1]) < 0:	continue
+						#else:
+							#toremove.add(fi)
+						#front.append((f[j],f[j-1]))
+						
+				if goodside[0] and goodside[1] and goodside[2] and (goodx[0] or goodx[1] or goodx[2]):
+					toremove.add(fi)
+				
+				# cut the face
+				cutted = False
+				for j in range(3):
+					if cut[j] and cut[j-1]:
+						cutted = True
+						# cut only if the intersection segment is in the delimited area
+						if s1 and dot(cut[j-1]-s1[0],-s1[1]) <= 0 and dot(cut[j]-s1[0],-s1[1]) <= 0:	continue
+						if s2 and dot(cut[j-1]-s2[0], s2[1]) <= 0 and dot(cut[j]-s2[0], s2[1]) <= 0:	continue
+						
+						toremove.discard(fi)
+						f = mesh.faces[fi]
+						p1 = insertpoint(mesh, cut[j])
+						p2 = insertpoint(mesh, cut[j-1])
+						# add only the face that are outside the region delimited by planes
+						if dot(mesh.points[f[j]]-cutplane[0], cutplane[1]) < 0 :
+							unregisterface(mesh, conn, fi)
+							mesh.faces[fi] = (p1, p2, f[j-0])
+							registerface(mesh, conn, fi)
+							seen.add(fi)
+							intersections.append((p2,p1))
+						else:
+							unregisterface(mesh, conn, fi)
+							l = len(mesh.faces)
+							mesh.faces[fi] = (p1, f[j-2], f[j-1])
+							mesh.faces.append((p1, f[j-1], p2))
+							mesh.tracks.append(mesh.tracks[fi])
+							registerface(mesh, conn, fi)
+							registerface(mesh, conn, l)
+							seen.update((fi, l))
+							intersections.append((p1,p2))
+						break
+		result.append(intersections)
+	# delete faces
+	removefaces(mesh, toremove)
 	
-	nprint('intersections', intersections)
-	return [(ref,data)  for ref,edge,data in intersections]
+	return result
 
-def c_distance(radius):
-	def process(mesh, bold, segt):
-		return intersect_boldsegt(
-				(mesh.points[bold[0]], mesh.points[bold[1]]), 
-				(mesh.points[segt[0]], mesh.points[segt[1]]), 
-				radius)
-	def compare(mesh, bold1, pt1, bold2, pt2):
-		d1 = distance_segt(
-				(mesh.points[bold1[0]], mesh.points[bold1[1]]), 
-				pt1)
-		d2 = distance_segt(
-				(mesh.points[bold1[0]], mesh.points[bold1[1]]), 
-				pt2)
-		print('  dists', d1, d2)
-		return d1 > d2
-	return process, compare
+def insertpoint(mesh, pt):
+	return mesh.usepointat(pt)
 
-class cycle:
-	def __init__(self, iterable):
-		self.iterable = iterable
-		self.index = -1
-		self.again = True
-	def __iter__(self):	return self
-	def __next__(self):
-		self.index += 1
-		if self.index == len(iterable):
-			if self.again:	self.index = 0
-			else:			raise StopIteration()
-		return self.iterable[self.index]
+def connectivity_edgeface(faces):
+	conn = {}
+	for i,f in enumerate(faces):
+		for e in ((f[0],f[1]), (f[1],f[2]), (f[2],f[0])):
+			conn[e] = i
+	return conn
+
+def registerface(mesh, conn, fi):
+	f = mesh.faces[fi]
+	for e in ((f[0],f[1]), (f[1],f[2]), (f[2],f[0])):
+		conn[e] = fi
 		
-		
+def unregisterface(mesh, conn, fi):
+	f = mesh.faces[fi]
+	for e in ((f[0],f[1]), (f[1],f[2]), (f[2],f[0])):
+		if e in conn:	del conn[e]
 
-def propagintersect(mesh, lines):
-	for face in mesh.faces:
-		for i in range(3):
-			edge = (face[i-2],face[i-1])
-			if edge in lines:
-				front.append((face[i], 
-	return intersections
+def segmentsdict(line):
+	segments = {}
+	for i in range(len(line)-1):
+		segments[(line[i],line[i+1])] = i
+	return segments
+
+# return intersection of an edge with a plane, or None
+def intersection_edge_plane(axis, edge):
+	dist = dot(axis[0]-edge[0], axis[1])
+	compl = dot(axis[0]-edge[1], axis[1])
+	if dist * compl > 0:	return None
+	edgedir = normalize(edge[1]-edge[0])
+	return edge[0] + dist * edgedir / dot(edgedir, axis[1])
 
 
-def intersect_boldsegt(bold, segt, radius):
-	b1,b2 = bold
-	s1,s2 = segt
-	db,ds = normalize(b2-b1), normalize(s2-s1)
+def intersection_axis_face(axis, face):
+	coords = inverse(mat3(face[1]-face[0], face[2]-face[0], axis[1])) * (axis[0] - face[0])
+	if 0 <= coords[0] and 0 <= coords[1] and coords[0]+coords[1] <= 1 and (notint(coords[0]) or notint(coords[1])):
+		#print('  coords', coords, notint(coords[0]), notint(coords[1]))
+		return axis[0] - axis[1]*coords[2]
+	else:
+		return None
 	
-	# compute the intersection with the envelope of the boldsegt
-	pt = ap_froma((b1,db), (s1,ds), radius)
-	if dot(pt-b1,db) < 0:
-		pt = ap_fromp(b1, (s1,ds), radius)
-	elif dot(pt-b2,db) > 0:
-		pt = ap_fromp(b2, (s1,ds), radius)
-	
-	# return if the intersection with the segt axis is on the segt
-	proj = length(pt-s1) / length(s2-s1)
-	if 0 <= proj and proj <= 1:
-		return pt
+def notint(x):
+	return x > 1e-5 and x < 1-1e-4
 
-def distance_segt(segt, pt):
-	d1,d2,d3 = distance(segt[1],pt), distance(segt[1],pt), distance(*segt)
-	if   d1**2 + d3**2 < d2**2:	return d1
-	elif d2**2 + d3**3 < d1**2:	return d2
-	else:	return distance_ap((segt[0], (segt[1]-segt[0])/d3), pt)
-	
-def ap_fromp(orig, axis, dist):
-	''' axis point at distance from point
-		gives the point of axis a2 that is at `dist` distance of axis a1 
-	'''
-	o = orig - axis[0]
-	b = dot(o, axis[1])
-	a = length(o - b*axis[1])
-	return axis[0] + (sqrt(dist**2 - a**2) + b) * axis[1]	
-
-def ap_froma(a1, a2, dist):
-	''' axis point at distance from axis '''
-	# compute a base adapted to the problem
-	x = a1[1]
-	z = normalize(cross(x, a2[1]))
-	y = cross(z,x)
-	o = a2[0]-a1[0]
-	t = (sqrt(dist**2 - dot(o,z)**2) - dot(o,y)) / dot(a2[1],y)
-	return a2[0] + a2[1]*t
-
-def distance_aa(a1, a2):
-	''' distance betwee axis and axis '''
-	return abs(dot(
-			normalize(cross(a1[1], a2[1])), 
-			a1[0] - a2[0],
-			))
-
-def distance_ap(a, p):
-	''' distance between axis and point '''
-	v = p-a[0]
-	return sqrt(length(v)**2 - dot(v,a[1])**2)
-	#return length(v - dot(v,a[1])*a[1])
-
+def removefaces(mesh, faces):
+	''' remove faces whose indices are present in faces, (for huge amount, prefer pass faces as a set) '''
+	newfaces = []
+	newtracks = []
+	for i in range(len(mesh.faces)):
+		if i not in faces:
+			newfaces.append(mesh.faces[i])
+			newtracks.append(mesh.tracks[i])
+	mesh.faces = newfaces
+	mesh.tracks = newtracks
 
 
 if __name__ == '__main__':
-	import sys
-	
-	# test axispointat
-	pt = ap_froma(
-			(vec3(0,1,0), vec3(1,0,0)),
-			(vec3(0,0,1), vec3(0,1,0)),
-			sqrt(2),
-			)
-	assert pt == vec3(0,2,1), pt
-	d = distance_ap((vec3(0,1,0), vec3(1,0,0)), pt)
-	assert abs(d - sqrt(2)) < NUMPREC, d
-	
-	pt = ap_froma(
-			(vec3(0,0,0), vec3(1,0,0)),
-			(vec3(0,0,0), normalize(vec3(1,0.5,0))),
-			2,
-			)
-	assert pt == vec3(4,2,0), pt
-	
-	a1 = (vec3( 0, 0, 0 ), vec3( 0, -0.707107, 0.707107 ))
-	a2 = (vec3( -1, 1, 0 ), vec3( -1, 0, 0 ))
-	ptd = distance_ap(a1, ap_froma(a1, a2, 1.5))
-	assert abs(ptd - 1.5) < NUMPREC, ptd
 	
 	# test intersections
 	from generation import saddle, tube, outline, Outline, makeloops
 	from primitives import Arc
+	import sys
 	import view, text
 	from PyQt5.QtWidgets import QApplication
 	from nprint import nprint
+	from copy import deepcopy
 	
 	app = QApplication(sys.argv)
 	main = scn3D = view.Scene()
 	
 	m = saddle(
-			Outline([vec3(-2,1,0),vec3(-1,1,0),vec3(0,0,0),vec3(1,1,0),vec3(1.5,2,0)], [0,1,2,3]),
+			outline([vec3(-2,1.5,0),vec3(-1,1,0),vec3(0,0,0),vec3(1,1,0),vec3(1.5,2,0)], [0,1,2,3]),
 			#outline([vec3(0,1,-1),vec3(0,0,0),vec3(0,1,1)]),
-			outline(Arc(vec3(0,1,-1),vec3(0,0.5,0),vec3(0,1,1))),
+			#outline(Arc(vec3(0,1,-1),vec3(0,1.5,0),vec3(0,1,1))),
+			outline([Arc(vec3(0,1,-1),vec3(0,1.3,-0.5),vec3(0,1,0)), Arc(vec3(0,1,0),vec3(0,0.7,0.5),vec3(0,1,1))]),
 			)
-	m.options.update({'debug_display': True, 'debug_points': True })
-	scn3D.objs.append(m)
+	m.options.update({'debug_display': True, 'debug_points': False })
+	
 	line = makeloops(list(m.group(1).outlines_unoriented() & m.group(2).outlines_unoriented()))[0]
 	print('line', line)
-	for ref, pt in propagintersect(m, line, *c_distance(1.7)):
-		scn3D.objs.append(text.Text(pt + vec3(0,-0.1,0), str(ref), color=(0,1,0.2)))
+	chamfer(m, line, 0.7)
+	
+	scn3D.add(m)
 	
 	main.show()
 	sys.exit(app.exec())
