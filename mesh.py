@@ -164,18 +164,18 @@ class Mesh:
 	
 	# --- selection methods ---
 	
-	def usepointat(self, point):
+	def usepointat(self, point, neigh=NUMPREC):
 		''' return the index of the first point in the mesh at the location, if none is found, insert it and return the index '''
-		i = self.pointat(point)
+		i = self.pointat(point, neigh=neigh)
 		if i is None:
 			i = len(self.points)
 			self.points.append(point)
 		return i
 	
-	def pointat(self, point):
+	def pointat(self, point, neigh=NUMPREC):
 		''' return the index of the first point at the given location, or None '''
 		for i,p in enumerate(self.points):
-			if distance(p,point) < NUMPREC:	return i
+			if distance(p,point) <= neigh:	return i
 	
 	def pointnear(self, point):
 		''' return the nearest point the the given location '''
@@ -291,21 +291,21 @@ class Mesh:
 		if self.options.get('debug_points', False):
 			for i,p in enumerate(self.points):
 				yield from text.Text(
-					tuple(p*1.08 + vec3(0,0,0.05*random())), 
-					str(i), 
+					p, 
+					' '+str(i), 
 					size=8, 
 					color=(0.2, 0.8, 1),
-					align=('center', 'center'),
+					align=('left', 'center'),
 					).display(scene)
 		
 		if self.options.get('debug_faces', None) == 'indices':
 			for i,f in enumerate(self.faces):
-				p = 1.1 * (self.points[f[0]] + self.points[f[1]] + self.points[f[2]]) /3
-				yield from text.Text(p, str(i), 9, (1, 0.2, 0), align=('center', 'center')).display(scene)
+				p = (self.points[f[0]] + self.points[f[1]] + self.points[f[2]]) /3
+				yield from text.Text(p, '  '+str(i), 9, (1, 0.2, 0), align=('left', 'center')).display(scene)
 		if self.options.get('debug_faces', None) == 'tracks':
 			for i,f in enumerate(self.faces):
-				p = 1.1 * (self.points[f[0]] + self.points[f[1]] + self.points[f[2]]) /3
-				yield from text.Text(p, str(self.tracks[i]), 9, (1, 0.2, 0), align=('center', 'center')).display(scene)
+				p = (self.points[f[0]] + self.points[f[1]] + self.points[f[2]]) /3
+				yield from text.Text(p, '  '+str(self.tracks[i]), 9, (1, 0.2, 0), align=('left', 'center')).display(scene)
 		
 		fn = np.array([tuple(self.facenormal(f)) for f in self.faces])
 		points = np.array([tuple(p) for p in self.points], dtype=np.float32)		
