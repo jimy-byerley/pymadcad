@@ -38,15 +38,19 @@ def chamfer(mesh, line, depth):
 		if s:
 			lps = generation.makeloops(s)
 			if len(lps) == 2:
-				generation.triangulate(mesh, lps[0]+lps[1], group)
+				try:	generation.triangulate(mesh, lps[0]+lps[1], group)
+				except Exception as err:	print(err)
+			else:
+				print('segment', i, 'edges are', lps)
+				print('   ', s)
 
 def cut(mesh, line, offsets):
 	toremove = set()		# faces to remove that match no replacements
 	result = []				# intersection segments for each offset
 
 	# compute cut planes and their intersections
-	grp = len(mesh.groups)
-	mesh.groups.append(None)
+	#grp = len(mesh.groups)
+	#mesh.groups.append(None)
 	segments = []	# planes intersections  (origin, plane normal, axis direction)
 	for i in range(1,len(line)-1):
 		n1, n2 = offsets[i-1], offsets[i]
@@ -63,13 +67,13 @@ def cut(mesh, line, offsets):
 		else:
 			segments.append(None)
 		
-		l = len(mesh.points)
-		d = normalize(d)
-		mesh.points.append(p)
-		mesh.points.append(intersect+d)
-		mesh.points.append(intersect-d)
-		mesh.faces.append((l,l+1,l+2))
-		mesh.tracks.append(grp)
+		#l = len(mesh.points)
+		#d = normalize(d)
+		#mesh.points.append(p)
+		#mesh.points.append(intersect+d)
+		#mesh.points.append(intersect-d)
+		#mesh.faces.append((l,l+1,l+2))
+		#mesh.tracks.append(grp)
 	# complete segments that cannot be computed locally (straight suite of points for example)
 	for i in range(1,len(segments)):
 		if i and not segments[i]:		segments[i] = segments[i-1]
@@ -87,7 +91,7 @@ def cut(mesh, line, offsets):
 		s2 = segments[i-1] if i <= len(segments) else None
 		seen = set()
 		front = [(line[i],line[i-1]), (line[i-1],line[i])]
-		intersections = []
+		intersections = set()
 		while front:
 			frontedge = front.pop()
 			if frontedge not in conn:	continue
@@ -99,6 +103,7 @@ def cut(mesh, line, offsets):
 			# find the intersection of the triangle with the common axis to the two cutplanes (current and next)
 			p = intersection_axis_face((s2[0], s2[2]), mesh.facepoints(fi)) if s2 else None
 			if p:
+				
 				# mark cutplane change
 				unregisterface(mesh, conn, fi)
 				pi = insertpoint(mesh, p)
@@ -112,7 +117,6 @@ def cut(mesh, line, offsets):
 				registerface(mesh, conn, l)
 				registerface(mesh, conn, l+1)
 				front.append(frontedge)
-				
 				'''
 				# mark cutplane change
 				pi = insertpoint(mesh, p)
@@ -148,16 +152,17 @@ def cut(mesh, line, offsets):
 				
 				#scn3D.add(text.Text(
 					#(mesh.points[f[0]] + mesh.points[f[1]] + mesh.points[f[2]]) /3,
-					#str(fi),
+					#'  '+str(fi),
 					#8,
 					#color=(0.1, 1, 0.4),
+					#align=('left', 'center'),
 					#))
 				
 				# point side for propagation
 				goodside = [False]*3
 				for j,pi in enumerate(f):
 					#goodside[j] = 	dot(mesh.points[pi]-cutplane[0], cutplane[1]) > NUMPREC 
-					goodside[j] = 	dot(mesh.points[pi]-cutplane[0], cutplane[1]) >= 0
+					goodside[j] = 	dot(mesh.points[pi]-cutplane[0], cutplane[1]) > -NUMPREC
 				goodx = [False]*3
 				for j,pi in enumerate(f):
 					p = mesh.points[pi]
@@ -175,26 +180,8 @@ def cut(mesh, line, offsets):
 				for j,e in enumerate(((f[0],f[1]), (f[1],f[2]), (f[2],f[0]))):
 					cut[j] = intersection_edge_plane(cutplane, (mesh.points[e[0]], mesh.points[e[1]]))
 				for j in range(3):
-					if cut[j] and cut[j-1] and distance(cut[j], cut[j-1]) < NUMPREC:	cut[j] = None
+					if cut[j-1] and cut[j] and distance(cut[j-1], cut[j]) < NUMPREC:	cut[j] = None
 				
-				# register for propagation
-				#for j in range(3):
-					#if goodside[j] or goodside[j-1]:
-						#if s1 and dot(mesh.points[f[j-1]]-s1[0],-s1[1]) <= NUMPREC and dot(mesh.points[f[j]]-s1[0],-s1[1]) <= NUMPREC:	continue
-						#if s2 and dot(mesh.points[f[j-1]]-s2[0], s2[1]) <= NUMPREC and dot(mesh.points[f[j]]-s2[0], s2[1]) <= NUMPREC:	continue
-						
-						#if s1 and dot(mesh.points[f[j-1]]-s1[0],-s1[1]) < 0 and dot(mesh.points[f[j]]-s1[0],-s1[1]) < 0:	continue
-						#if s2 and dot(mesh.points[f[j-1]]-s2[0], s2[1]) < 0 and dot(mesh.points[f[j]]-s2[0], s2[1]) < 0:	continue
-						#front.append((f[j],f[j-1]))
-				#for j in range(3):
-					#if goodside[j] or goodside[j-1]:
-						#if cut[j]:
-							#if s1 and dot(cut[j]-s1[0], -s1[1]) < 0:	continue
-							#if s2 and dot(cut[j]-s2[0],  s2[1]) < 0:	continue
-						#else:
-							#toremove.add(fi)
-						#front.append((f[j],f[j-1]))
-						
 				if goodside[0] and goodside[1] and goodside[2] and (goodx[0] or goodx[1] or goodx[2]):
 					toremove.add(fi)
 				
@@ -204,22 +191,21 @@ def cut(mesh, line, offsets):
 					if cut[j] and cut[j-1]:
 						cutted = True
 						# cut only if the intersection segment is in the delimited area
-						if s1 and dot(cut[j-1]-s1[0],-s1[1]) <= 0 and dot(cut[j]-s1[0],-s1[1]) <= 0:	continue
-						if s2 and dot(cut[j-1]-s2[0], s2[1]) <= 0 and dot(cut[j]-s2[0], s2[1]) <= 0:	continue
-						
+						if s1 and dot(cut[j-1]-s1[0],-s1[1]) < NUMPREC and dot(cut[j]-s1[0],-s1[1]) < NUMPREC:	continue
+						if s2 and dot(cut[j-1]-s2[0], s2[1]) < NUMPREC and dot(cut[j]-s2[0], s2[1]) < NUMPREC:	continue
+						'''
 						toremove.discard(fi)
 						f = mesh.faces[fi]
 						p1 = insertpoint(mesh, cut[j])
 						p2 = insertpoint(mesh, cut[j-1])
+						unregisterface(mesh, conn, fi)
 						# add only the face that are outside the region delimited by planes
 						if dot(mesh.points[f[j]]-cutplane[0], cutplane[1]) < 0 :
-							unregisterface(mesh, conn, fi)
 							mesh.faces[fi] = (p1, p2, f[j-0])
 							registerface(mesh, conn, fi)
 							seen.add(fi)
-							intersections.append((p2,p1))
+							intersections.add((p2,p1))
 						else:
-							unregisterface(mesh, conn, fi)
 							l = len(mesh.faces)
 							mesh.faces[fi] = (p1, f[j-2], f[j-1])
 							mesh.faces.append((p1, f[j-1], p2))
@@ -227,7 +213,31 @@ def cut(mesh, line, offsets):
 							registerface(mesh, conn, fi)
 							registerface(mesh, conn, l)
 							seen.update((fi, l))
-							intersections.append((p1,p2))
+							intersections.add((p1,p2))
+						'''
+						toremove.discard(fi)
+						f = mesh.faces[fi]
+						p1 = insertpoint(mesh, cut[j])
+						p2 = insertpoint(mesh, cut[j-1])
+						unregisterface(mesh, conn, fi)
+						l = len(mesh.faces)
+						mesh.faces[fi] = (p1, f[j-2], f[j-1])
+						mesh.faces.append((p1, f[j-1], p2))
+						mesh.faces.append((p1, p2, f[j-0]))
+						mesh.tracks.append(mesh.tracks[fi])
+						mesh.tracks.append(mesh.tracks[fi])
+						registerface(mesh, conn, fi)
+						registerface(mesh, conn, l)
+						registerface(mesh, conn, l+1)
+						seen.update((fi, l, l+1))
+						# remove the faces outside
+						if dot(mesh.points[f[j]]-cutplane[0], cutplane[1]) < 0:
+							toremove.add(fi)
+							toremove.add(l)
+							intersections.add((p2,p1))
+						else:
+							toremove.add(l+1)
+							intersections.add((p1,p2))
 						break
 		result.append(intersections)
 	# delete faces
@@ -265,8 +275,12 @@ def segmentsdict(line):
 def intersection_edge_plane(axis, edge):
 	dist = dot(axis[0]-edge[0], axis[1])
 	compl = dot(axis[0]-edge[1], axis[1])
-	if dist * compl > 0:	return None
-	edgedir = normalize(edge[1]-edge[0])
+	if abs(dist) < NUMPREC:		return edge[0]
+	if abs(compl) < NUMPREC:	return edge[1]
+	if dist * compl > 0:	return None		# the segment doesn't reach the plane
+	edgedir = edge[1]-edge[0]
+	if abs(dot(edgedir, axis[1])) < NUMPREC:	return None	# the segment is parallel to the plane
+	edgedir = normalize(edgedir)
 	return edge[0] + dist * edgedir / dot(edgedir, axis[1])
 
 
@@ -313,11 +327,11 @@ if __name__ == '__main__':
 			#outline(Arc(vec3(0,1,-1),vec3(0,1.5,0),vec3(0,1,1))),
 			outline([Arc(vec3(0,1,-1),vec3(0,1.3,-0.5),vec3(0,1,0)), Arc(vec3(0,1,0),vec3(0,0.7,0.5),vec3(0,1,1))]),
 			)
-	m.options.update({'debug_display': True, 'debug_points': False })
+	#m.options.update({'debug_display': True, 'debug_points': True })
 	
 	line = makeloops(list(m.group(1).outlines_unoriented() & m.group(2).outlines_unoriented()))[0]
 	print('line', line)
-	chamfer(m, line, 0.7)
+	chamfer(m, line, 0.6)
 	
 	scn3D.add(m)
 	
