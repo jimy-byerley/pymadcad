@@ -95,7 +95,8 @@ class TextDisplay:
 						(n //self.fontalign[0] -add[1]) / self.fontalign[1],
 						]
 				c += 1
-		align = (processalign(align[0], c), processalign(align[1], l))
+		l += 1
+		align = (processalign(align[0], c), -processalign(align[1], l))
 		points -= [*align, 0, 0]
 			
 		
