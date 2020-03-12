@@ -363,17 +363,17 @@ def triangulate(mesh, outline, group=None):
 		mesh.groups.append('flat')
 	
 	# project outline points in a plane
-	x,y,z = makebase((mesh.points[i] for i in outline))
+	x,y,z = makebase([mesh.points[i] for i in outline])
 	pts = [vec2(dot(mesh.points[p],x),dot(mesh.points[p],y)) for p in outline]
 	# remove possible flat faces
-	i = 0
-	while i < len(pts):
-		surf = perpdot(pts[i]-pts[i-1], pts[i-2]-pts[i-1])
-		if surf == 0:
-			pts.pop(i-1)
-			outline.pop(i-1)
-		else:
-			i += 1
+	#i = 0
+	#while i < len(pts):
+		#surf = perpdot(pts[i]-pts[i-1], pts[i-2]-pts[i-1])
+		#if surf == 0:
+			#pts.pop(i-1)
+			#outline.pop(i-1)
+		#else:
+			#i += 1
 	# make sure the projection respects the outline rotation
 	i = max(range(len(pts)), key=lambda i: pts[i][0])
 	s = perpdot(pts[(i+1)%len(pts)]-pts[i], pts[i-1]-pts[i])
@@ -382,7 +382,7 @@ def triangulate(mesh, outline, group=None):
 		
 	# create faces
 	while len(outline) > 2:
-		best_surf = -NUMPREC
+		best_surf = 0.0
 		index = None
 		l = len(pts)
 		for i in range(l):
@@ -414,12 +414,13 @@ def triangulate(mesh, outline, group=None):
 		outline.pop(index)
 		pts.pop(index)
 
+"""
 def makebase(points):
-	''' create a base that keep the points in the XY plane '''
+	''' create a base that keep the points in the XY plane (iterator version, lack of precision when first points are close) '''
 	points = iter(points)
 	x = y = o = next(points)
 	for p in points:
-		if p != o:
+		if distance(p, o) > NUMPREC:
 			x = p
 			break
 	for p in points:
@@ -430,6 +431,22 @@ def makebase(points):
 	vz = normalize(cross(vx, y-o))
 	vy = cross(vz,vx)
 	return vx,vy,vz
+"""
+def makebase(points):
+	''' create a base that keep the points in the XY plane (list version, use the center of the points) '''
+	center = vec3(0)
+	for p in points:	center += p
+	center /= len(points)
+	for p in points:
+		x = p - center
+		if length(x) > NUMPREC:	break
+	for p in points:
+		y = p - center
+		if length(y) > NUMPREC and distance(x,y) > NUMPREC:	break
+	x = normalize(x)
+	y -= project(y,x)
+	z = cross(x,y)
+	return x,y,z
 
 
 def flatsurface(outline):
