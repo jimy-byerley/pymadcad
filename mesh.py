@@ -59,19 +59,24 @@ class Mesh:
 		elif callable(trans):	pass
 		for i in range(len(self.points)):
 			self.points[i] = transformer(self.points[i])
-			
+	
 	def __add__(self, other):
 		''' append the faces and points of the other mesh '''
+		r = Mesh()
+		r += other
+		return r
+			
+	def __iadd__(self, other):
+		''' append the faces and points of the other mesh '''
 		if isinstance(other, Mesh):		
-			c = Mesh(self.points+other.points, [], [], self.groups+other.groups)
-			c.faces.extend(self.faces)
-			c.tracks.extend(self.tracks)
 			lp = len(self.points)
 			lt = len(self.groups)
+			self.points.extend(other.points)
+			self.groups.extend(other.groups)
 			for face,track in zip(other.faces, other.tracks):
-				c.faces.append((face[0]+lp, face[1]+lp, face[2]+lp))
-				c.tracks.append(track+lt)
-			return c
+				self.faces.append((face[0]+lp, face[1]+lp, face[2]+lp))
+				self.tracks.append(track+lt)
+			return self
 		else:
 			return NotImplemented
 	
