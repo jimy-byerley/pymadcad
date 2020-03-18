@@ -27,6 +27,8 @@ def anglebt(x,y):
 
 def project(vec, dir):
 	return dot(vec, dir) * dir
+	
+def noproject(x,dir):	return x - project(x,dir)
 
 def perpdot(a:vec2, b:vec2) -> float:
 	return -a[1]*b[0] + a[0]*b[1]
@@ -85,13 +87,15 @@ def interpol1(a, b, x):
 	return (1-x)*a + x*b
 
 def interpol2(a, b, x):
-	''' 2nd order polynomial interpolation 
+	''' 3rd order polynomial interpolation 
 		a and b are iterable of successive derivatives of a[0] and b[0]
 	'''
-	return (	2*x*(1-x)  * interpol1(a,b,x)		# linear component
-			+	x**2       * (a[0] + x*a[1])		# tangent
-			+	(1-x)**2   * (b[0] + (x-1)*b[1])	# tangent
+	return (	2*x*(1-x)  * interpol1(a[0],b[0],x)		# linear component
+			+	x**2       * (b[0] + (1-x)*b[1])		# tangent
+			+	(1-x)**2   * (a[0] + x*a[1])	# tangent
 			)
+
+spline = interpol2
 
 
 def dichotomy_index(l, index, key=lambda x:x):
