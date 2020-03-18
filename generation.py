@@ -27,6 +27,31 @@ class Outline:
 		return s
 	# NOTE: voir si il est plus interessant d'utiliser de lignes continues decrites par une suite de points, ou des lignes quelconques decrites par des couples d'indices pour les aretes
 
+'''
+class Line:
+	def __init__(self, points, indices, tracks=None, groups=None):
+		self.points = points
+		self.indices = indices
+		self.tracks = tracks or [0] * (len(points)-1)
+		self.groups = groups or [None] * (max(self.tracks)+1)
+	
+	def length(self):
+		s = 0
+		for i in range(1,len(self.indices)):
+			s += distance(self.points[self.indices[i-1]], self.points[self.indices[i]])
+		return s
+	
+	def edge(self, i):
+		return (self.indices[i+1], self.indices[i-1])
+		
+class Net:
+	def __init__(self, points, lines, tracks = None, groups=None):
+		self.points = points
+		self.lines = lines
+		self.tracks = tracks or [0] * (len(points)-1)
+		self.groups = groups or [None] * (max(self.tracks)+1)
+'''
+		
 
 def outline(*args):
 	if not args:	raise ValueError('outline take at least one arg')
@@ -196,7 +221,9 @@ def matchcurves(line1, line2):
 def simplejunction(mesh, line1, line2):
 	group = len(mesh.groups)
 	mesh.groups.append('junction')
-	match = matchcurves(line1, line2)
+	match = matchcurves(
+				Outline([mesh.points[i] for i in line1]), 
+				Outline([mesh.points[i] for i in line2]))
 	for i in range(1,len(match)):
 		a,b = match[i-1]
 		d,c = match[i]
@@ -273,6 +300,12 @@ def facekeyo(a,b,c):
 	elif a < b:				return (c,a,b)
 	else:					return (b,c,a)
 
+
+def prolongation(mesh, line): 	# TODO
+	''' donne les directions d'extrusion des points de la ligne pour prolonger les faces qui y donnent lieu '''
+	indev()
+
+
 def makeloops(lines, faces=()):
 	''' return a list of the loops that can be formed with lines.
 		lines must be oriented suite of points and loops are returned as suite of points.
@@ -280,25 +313,23 @@ def makeloops(lines, faces=()):
 	lines = list(lines)
 	# get contiguous suite of points
 	loops = []
-	loop = list(lines.pop())
 	while lines:
-		found = False
-		for i,edge in enumerate(lines):
-			edge = lines[i]
-			if edge[-1] == loop[0]:		loop[0:1] = edge
-			elif edge[0] == loop[-1]:	loop[-1:] = edge
-			# for unoriented lines
-			#elif edge[0] == loop[0]:	loop[0:1] = reversed(edge)
-			#elif edge[-1] == loop[-1]:	loop[-1:] = reversed(edge)
-			else:
-				continue
-			lines.pop(i)
-			found = True
-			break
-		if not found:
-			loops.append(loop)
-			loop = list(lines.pop())
-	loops.append(loop)
+		loop = list(lines.pop())
+		found = True
+		while found:
+			found = False
+			for i,edge in enumerate(lines):
+				if edge[-1] == loop[0]:		loop[0:1] = edge
+				elif edge[0] == loop[-1]:	loop[-1:] = edge
+				# for unoriented lines
+				#elif edge[0] == loop[0]:	loop[0:1] = reversed(edge)
+				#elif edge[-1] == loop[-1]:	loop[-1:] = reversed(edge)
+				else:
+					continue
+				lines.pop(i)
+				found = True
+				break
+		loops.append(loop)
 	regularizeloops(loops, faces)
 	
 	return loops
