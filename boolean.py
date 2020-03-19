@@ -140,7 +140,7 @@ def booleanwith(m1, m2, side):
 	''' execute the boolean operation only on m1 '''
 	intersectwith(m1, m2)
 	
-	m1.mergedoubles()
+	m1.mergeclose()
 	
 	used = [False] * len(m1.faces)
 	front = set()
@@ -382,7 +382,6 @@ if __name__ == '__main__':
 	m3.strippoints()
 	print('computation time:', time()-start)
 	
-	print(len(m3.points), len(m3.faces), len(m3.tracks), max(m3.tracks), len(m3.groups))
 	assert m3.isvalid()
 	#assert m3.isenvelope()
 	

@@ -168,7 +168,7 @@ class Pivot:
 								size/4, 
 								resolution=('div', 16),
 						)))
-			cyl.mergedoubles()
+			cyl.mergeclose()
 			l = len(cyl.points)
 			v = junc - center
 			v = normalize(v - project(v,axis[1]))

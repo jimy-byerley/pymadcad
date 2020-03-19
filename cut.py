@@ -1,8 +1,8 @@
 from mathutils import vec3, mat3, dot, cross, project, noproject, sqrt, acos, spline, interpol1, normalize, distance, length, inverse, transpose, NUMPREC, COMPREC
-import generation
+from mesh import Mesh, Wire, lineedges
+import generation as gt
 import text
 import settings
-from mesh import Mesh
 
 # ---- cut methods -----
 
@@ -40,9 +40,9 @@ def chamfer(mesh, line, cutter):
 	for i,s in enumerate(segments):
 		if s:
 			lp = []
-			for part in generation.makeloops(s):
+			for part in gt.makeloops(s):
 				lp.extend(part)
-			generation.triangulate(mesh, lp, group)
+			gt.triangulate(mesh, lp, group)
 
 def bevel3(mesh, line, cutter, interpol=spline, resolution=None):
 	''' create a round profile on the given suite of points, create faces form cylindric surfaces.
@@ -55,10 +55,10 @@ def bevel3(mesh, line, cutter, interpol=spline, resolution=None):
 	
 	parts = []
 	for s in segments:
-		parts.extend(generation.makeloops(s))
-	left,right = generation.makeloops(parts)
+		parts.extend(gt.makeloops(s))
+	left,right = gt.makeloops(parts)
 	right.reverse()
-	match = list(matchcurves((mesh.points, left), (mesh.points, right)))
+	match = list(gt.matchcurves((mesh.points, left), (mesh.points, right)))
 	
 	# create parameters for the round profiles
 	params = []
@@ -134,16 +134,16 @@ def beveltgt(mesh, line, cutter, interpol=spline, resolution=None):
 		
 		dir = mesh.points[a] - mesh.points[b]
 		
-		lps = generation.makeloops(s)
+		lps = gt.makeloops(s)
 		if len(lps) == 1:
-			generation.triangulate(mesh, lp, group)
+			gt.triangulate(mesh, lp, group)
 		else:
 			left,right = lps
 			if dot(dir, mesh.points[left[1]] - mesh.points[left[0]]) > 0:
 				left,right = right,left
 			right.reverse()
-			ll, lr = linelength(mesh.points, left), linelength(mesh.points, right)
-			match = list(matchcurves((mesh.points, left), (mesh.points, right)))
+			ll, lr = Wire(mesh.points, left).length(), Wire(mesh.points, right).length()
+			match = list(gt.curvematch(Wire(mesh.points, left), Wire(mesh.points, right)))
 			tmatch.extend(match)
 			
 			# create parameters for the round profiles
@@ -164,7 +164,7 @@ def beveltgt(mesh, line, cutter, interpol=spline, resolution=None):
 					if tl:	tangents[l] = normalize(cross(plane, tl)) + tangents.get(l, 0)
 					if tr:	tangents[r] = normalize(cross(tr, plane)) + tangents.get(r, 0)
 	
-	mesh += interpsurf(mesh.points, tmatch, tangents, resolution, interpol)
+	mesh += tangentjunction(mesh.points, tmatch, tangents, resolution, interpol)
 			
 def bevel(mesh, line, cutter, interpol=spline, resolution=None):
 	''' create a smooth interpolated profile at the given suite of points
@@ -189,16 +189,17 @@ def bevel(mesh, line, cutter, interpol=spline, resolution=None):
 	for (a,b),s,(nl,nr) in zip(lineedges(line), segments, normals):
 		if not s:	continue
 		
-		lps = generation.makeloops(s)
+		lps = gt.makeloops(s)
 		if len(lps) == 1:
-			generation.triangulate(mesh, lp, group)
+			gt.triangulate(mesh, lp, group)
 		else:
 			left,right = lps
 			if dot(mesh.points[a] - mesh.points[b], mesh.points[left[1]] - mesh.points[left[0]]) > 0:
 				left,right = right,left
 			right.reverse()
-			ll, lr = linelength(mesh.points, left), linelength(mesh.points, right)
-			match = list(matchcurves((mesh.points, left), (mesh.points, right)))
+			ll, lr = Wire(mesh.points, left).length(), Wire(mesh.points, right).length()
+			match = list(gt.curvematch(Wire(mesh.points, left), 
+									   Wire(mesh.points, right) ))
 			tmatch.extend(match)
 			
 			# create parameters for the round profiles
@@ -213,82 +214,26 @@ def bevel(mesh, line, cutter, interpol=spline, resolution=None):
 					tangents[l] = normalize(cross(plane, nl)) + tangents.get(l, 0)
 					tangents[r] = normalize(cross(nr, plane)) + tangents.get(r, 0)
 	
-	mesh += interpsurf(mesh.points, tmatch, tangents, resolution, interpol)
+	mesh += tangentjunction(mesh.points, tmatch, tangents, resolution, interpol)
 
-# TODO: placer dans le module generation, utiliser parametres plus appropriés pour les lignes
-def interpsurf(points, match, tangents, resolution=None, interpol=spline):
+def tangentjunction(points, match, tangents, resolution=None, interpol=spline):
 	''' create a surface between interpolated curves for each match '''
 	group = Mesh(groups=['junction'])
 	# determine the number of segments
-	segts = 0
+	div = 0
 	for l,r in match:
-		tangents[l] = tl = normalize(tangents[l])
-		tangents[r] = tr = normalize(tangents[r])
+		dist = distance(points[l], points[r])
+		tangents[l] = tl = normalize(tangents[l]) * dist
+		tangents[r] = tr = normalize(tangents[r]) * dist
 		angle = min(1, acos(dot(tl,tr)))
 		dist = length(points[l]-points[r])
-		div = settings.curve_resolution(dist, angle, resolution)+2
-		if div > segts:
-			segts = div
-			
-	# create points
-	startpt = len(group.points)
-	for l,r in match:
-		nlink = distance(points[l], points[r])
-		for j in range(segts):
-			x = j/(segts-1)
-			p = interpol(
-				(points[l], nlink*tangents[l]),
-				(points[r], nlink*tangents[r]),
-				x)
-			group.points.append(p)
-	# create faces
-	for i in range(len(match)-1):
-		for j in range(segts-1):
-			s = startpt + i*segts+j
-			group.faces.append((s,         s+segts, s+1))
-			group.faces.append((s+1+segts,   s+1,   s+segts))
-			group.tracks.append(0)
-			group.tracks.append(0)
+		ldiv = settings.curve_resolution(dist, angle, resolution)
+		if ldiv > div:
+			div = ldiv
 	
-	group.mergedoubles()
-	return group
-	
-def matchcurves(line1, line2):
-	yield line1[1][0], line2[1][0]
-	l1, l2 = linelength(*line1), linelength(*line2)
-	i1, i2 = 1, 1
-	x1, x2 = 0, 0
-	while i1 < len(line1[1]) and i2 < len(line2[1]):
-		p1 = distance(line1[0][line1[1][i1-1]], line1[0][line1[1][i1]])
-		p2 = distance(line2[0][line2[1][i2-1]], line2[0][line2[1][i2]])
-		if x1 <= x2 and x2 <= x1+p1   or   x2 <= x1 and x1 <= x2+p2:
-			i1 += 1; x1 += p1
-			i2 += 1; x2 += p2
-		elif x1/l1 < x2/l2:	
-			i1 += 1; x1 += p1
-		else:				
-			i2 += 1; x2 += p2
-		yield line1[1][i1-1], line2[1][i2-1]
-	while i1 < len(line1[1]):
-		i1 += 1
-		yield line1[1][i1-1], line2[1][i2-1]
-	while i2 < len(line2[1]):
-		i2 += 1
-		yield line1[1][i1-1], line2[1][i2-1]
-
-def linelength(points, line):
-	s = 0
-	for e in lineedges(line):
-		s += distance(points[e[0]], points[e[1]])
-	return s
-
-def lineedges(line):
-	line = iter(line)
-	j = next(line)
-	for i in line:
-		yield (j,i)
-		j = i
-	
+	return gt.junctioniter(
+			( ((points[r], tangents[r]), (points[l], tangents[l])) for l,r in match),
+			div, interpol)
 
 # ----- algorithm ------
 
@@ -561,8 +506,9 @@ def facesurf(mesh, fi):
 if __name__ == '__main__':
 	
 	# test intersections
-	from generation import saddle, tube, outline, Outline, makeloops
+	from generation import saddle, tube, makeloops
 	from primitives import Arc
+	from mesh import Web, web
 	import sys
 	import view, text
 	from PyQt5.QtWidgets import QApplication
@@ -573,12 +519,17 @@ if __name__ == '__main__':
 	main = scn3D = view.Scene()
 	
 	m = saddle(
-			outline([vec3(-2,1.5,0),vec3(-1,1,0),vec3(0,0,0),vec3(1,1,0),vec3(1.5,2,0)], [0,1,2,3]),
-			#outline([vec3(0,1,-1),vec3(0,0,0),vec3(0,1,1)]),
-			#outline(Arc(vec3(0,1,-1),vec3(0,1.5,0),vec3(0,1,1))),
-			outline([Arc(vec3(0,1,-1),vec3(0,1.3,-0.5),vec3(0,1,0)), Arc(vec3(0,1,0),vec3(0,0.7,0.5),vec3(0,1,1))]),
+			Web(
+				[vec3(-2,1.5,0),vec3(-1,1,0),vec3(0,0,0),vec3(1,1,0),vec3(1.5,2,0)], 
+				[(0,1), (1,2), (2,3), (3,4)],
+				[0,1,2,3]),
+			#web(vec3(0,1,-1),vec3(0,0,0),vec3(0,1,1)),
+			#web(Arc(vec3(0,1,-1),vec3(0,1.5,0),vec3(0,1,1))),
+			web(
+				Arc(vec3(0,1,-1),vec3(0,1.3,-0.5),vec3(0,1,0)), 
+				Arc(vec3(0,1,0),vec3(0,0.7,0.5),vec3(0,1,1))),
 			)
-	#m.options.update({'debug_display': True, 'debug_points': False })
+	m.check()
 	
 	line = makeloops(list(m.group(1).outlines_unoriented() & m.group(2).outlines_unoriented()))[0]
 	#chamfer(m, line, ('depth', 0.6))
@@ -586,8 +537,9 @@ if __name__ == '__main__':
 	#beveltgt(m, line, ('depth', 0.6))
 	bevel(m, line, ('depth', 0.6))
 	
-	scn3D.add(m)
 	
+	#m.options.update({'debug_display': True, 'debug_points': False })
+	scn3D.add(m)
 	scn3D.look(m.box())
 	main.show()
 	sys.exit(app.exec())

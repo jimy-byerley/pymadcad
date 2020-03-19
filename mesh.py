@@ -11,44 +11,14 @@ import math
 import view
 import text
 
-__all__ = ['Mesh', 'Wire', 'edgekey', 'MeshError']
-
-def ondemand(func):
-	''' Decorator for ondemand computed members of instances. 
-		The class must have a dictionnary member 'computed'. 
-		The result of this decorator is a method that stores its result in the ondemand dictionnary and so 
-		doesn't recompute it each time asked.
-	'''
-	attrname = func.__name__
-	def wrapped(self):
-		if not attrname in self.computed:
-			self.computed[attrname] = func(self)
-		return self.computed[attrname]
-	wrapped.__name__ = func.__name__
-	wrapped.__doc__ = func.__doc__
-	return wrapped
+__all__ = ['Mesh', 'Web', 'Wire', 'MeshError', 'web', 'edgekey', 'lineedges', 'striplist']
 
 class MeshError(Exception):	pass
 
-class Mesh:
-	''' Triangular mesh, used to represent volumes or surfaces.
-		As volumes are represented by their exterior surface, there is no difference between representation of volumes and faces, juste the way we interpret it.
-		
-		Attributes:
-			points		list of vec3 for points
-			faces		list of triplets for faces, the triplet is (a,b,c) such that  cross(b-a, c-a) is the normal oriented to the exterior.
-			tracks		integer giving the group each face belong to
-			groups		custom information for each group
-	'''
+class Container:
+	''' common methods for points container (typically Mesh or Wire) '''
 	
-	# --- standard point container methods ---
-	
-	def __init__(self, points=None, faces=None, tracks=None, groups=None):
-		self.points = points or []
-		self.faces = faces or []
-		self.tracks = tracks or []
-		self.groups = groups or []
-		self.options = {}
+	# --- basic transformations of points ---
 	
 	def transform(self, trans):
 		''' apply the transform to the points of the mesh'''
@@ -59,12 +29,111 @@ class Mesh:
 		elif callable(trans):	pass
 		for i in range(len(self.points)):
 			self.points[i] = transformer(self.points[i])
+			
+	def mergeclose(self, limit=NUMPREC):
+		''' merge points below the specified distance, or below the precision '''
+		merges = {}
+		for j in reversed(range(len(self.points))):
+			for i in range(j):
+				if distance(self.points[i], self.points[j]) < limit and i not in merges:
+					merges[j] = i
+					break
+		self.mergepoints(merges)
+		return merges
+		
+	def stripgroups(self):
+		''' remove groups that are used by no faces, return the reindex list '''
+		used = [False] * len(self.groups)
+		for track in self.tracks:
+			used[track] = True
+		reindex = striplist(self.groups, used)
+		for i,track in enumerate(self.tracks):
+			self.tracks[i] = reindex[track]
+		return reindex
+	
+	def finish(self):
+		''' finish and clean the mesh 
+			note that this operation can cost as much as other transformation operation
+			job done
+				- mergeclose
+				- strippoints
+				- stripgroups
+		'''
+		self.mergeclose()
+		self.strippoints()
+		self.stripgroups()
+		assert self.isvalid()
+	
+	# --- verification methods ---
+		
+	def isvalid(self):
+		try:				self.check()
+		except MeshError:	return False
+		else:				return True
+	
+	# --- selection methods ---
+		
+	def usepointat(self, point, neigh=NUMPREC):
+		''' return the index of the first point in the mesh at the location, if none is found, insert it and return the index '''
+		i = self.pointat(point, neigh=neigh)
+		if i is None:
+			i = len(self.points)
+			self.points.append(point)
+		return i
+	
+	def pointat(self, point, neigh=NUMPREC):
+		''' return the index of the first point at the given location, or None '''
+		for i,p in enumerate(self.points):
+			if distance(p,point) <= neigh:	return i
+	
+	def pointnear(self, point):
+		''' return the nearest point the the given location '''
+		return min(	range(len(self.points)), 
+					lambda i: distance(self.points[i], point))
+					
+	def box(self):
+		''' return the extreme coordinates of the mesh (vec3, vec3) '''
+		if not self.points:		return None
+		max = deepcopy(self.points[0])
+		min = deepcopy(self.points[0])
+		for pt in self.points:
+			for i in range(3):
+				if   pt[i] < min[i]:	min[i] = pt[i]
+				elif pt[i] > max[i]:	max[i] = pt[i]
+		return Box(min, max)
+	
+
+
+class Mesh(Container):
+	''' Triangular mesh, used to represent volumes or surfaces.
+		As volumes are represented by their exterior surface, there is no difference between representation of volumes and faces, juste the way we interpret it.
+		
+		Attributes:
+			points		list of vec3 for points
+			faces		list of triplets for faces, the triplet is (a,b,c) such that  cross(b-a, c-a) is the normal oriented to the exterior.
+			tracks		integer giving the group each face belong to
+			groups		custom information for each group
+			options		custom informations for the entire mesh
+	'''
+	
+	# --- standard point container methods ---
+	
+	def __init__(self, points=None, faces=None, tracks=None, groups=None):
+		self.points = points or []
+		self.faces = faces or []
+		self.tracks = tracks or [0] * len(self.faces)
+		self.groups = groups or [None] * (max(self.tracks, default=0)+1)
+		self.options = {}
+	
 	
 	def __add__(self, other):
 		''' append the faces and points of the other mesh '''
-		r = Mesh()
-		r += other
-		return r
+		if isinstance(other, Mesh):
+			r = deepcopy(self)
+			r.__iadd__(other)
+			return r
+		else:
+			return NotImplemented
 			
 	def __iadd__(self, other):
 		''' append the faces and points of the other mesh '''
@@ -85,18 +154,7 @@ class Mesh:
 		self.faces = [(a,c,b)   for a,b,c in self.faces]
 		
 	# --- mesh optimization ---
-	
-	def mergedoubles(self, limit=NUMPREC):
-		''' merge points below the specified distance, or below the precision '''
-		merges = {}
-		for j in reversed(range(len(self.points))):
-			for i in range(j):
-				if distance(self.points[i], self.points[j]) < limit and i not in merges:
-					merges[j] = i
-					break
-		self.mergepoints(merges)
-		return merges
-	
+		
 	def mergepoints(self, merges):
 		''' merge points with the merge dictionnary {src index: dst index}
 			remaining points are not removed
@@ -125,68 +183,44 @@ class Mesh:
 		for i,f in enumerate(self.faces):
 			self.faces[i] = (reindex[f[0]], reindex[f[1]], reindex[f[2]])
 		return reindex
-	
-	def stripgroups(self):
-		''' remove groups that are used by no faces, return the reindex list '''
-		used = [False] * len(self.groups)
-		for track in self.tracks:
-			used[track] = True
-		reindex = striplist(self.groups, used)
-		for i,track in enumerate(self.tracks):
-			self.tracks[i] = reindex[track]
-		return reindex
-	
+		
+	def issurface(self):
+		reached = set()
+		for face in self.faces:
+			for e in ((face[0], face[1]), (face[1], face[2]), (face[2],face[0])):
+				if e in reached:	return False
+				else:				reached.add(e)
+		return True
 	def isenvelope(self):
 		''' return true if the surfaces are a closed envelope '''
 		return len(self.outlines_oriented()) == 0
 	
-	def isvalid(self):	return not self.invalidity()
-	
-	def invalidity(self):
+	def check(self):
 		''' check that the internal data references are good (indices and list lengths) '''
 		l = len(self.points)
 		for face in self.faces:
 			for p in face:
-				if p >= l:	return "some indices of face points are greater than the number of points", face, l
-			if face[0] == face[1] or face[1] == face[2] or face[2] == face[0]:	return "some faces use the same point multiple times", face
-		if len(self.faces) != len(self.tracks):	return "tracks list doesn't match faces list length",
-		if max(self.tracks) >= len(self.groups): return "some face group indices are greater than the number of groups", max(self.tracks), len(self.groups)
-		return None
+				if p >= l:	raise MeshError("some point indices are greater than the number of points", face, l)
+			if face[0] == face[1] or face[1] == face[2] or face[2] == face[0]:	raise MeshError("some faces use the same point multiple times", face)
+		if len(self.faces) != len(self.tracks):	raise MeshError("tracks list doesn't match faces list length")
+		if max(self.tracks, default=-1) >= len(self.groups): raise MeshError("some face group indices are greater than the number of groups", max(self.tracks), len(self.groups))
 	
 	def finish(self):
 		''' finish and clean the mesh 
 			note that this operation can cost as much as other transformation operation
 			job done
-				- mergedoubles
+				- mergeclose
 				- strippoints
 				- stripgroups
 		'''
-		self.mergedoubles()
+		self.mergeclose()
 		self.strippoints()
 		self.stripgroups()
 		assert self.isvalid()
 	
 	
 	# --- selection methods ---
-	
-	def usepointat(self, point, neigh=NUMPREC):
-		''' return the index of the first point in the mesh at the location, if none is found, insert it and return the index '''
-		i = self.pointat(point, neigh=neigh)
-		if i is None:
-			i = len(self.points)
-			self.points.append(point)
-		return i
-	
-	def pointat(self, point, neigh=NUMPREC):
-		''' return the index of the first point at the given location, or None '''
-		for i,p in enumerate(self.points):
-			if distance(p,point) <= neigh:	return i
-	
-	def pointnear(self, point):
-		''' return the nearest point the the given location '''
-		return min(	range(len(self.points)), 
-					lambda i: distance(self.points[i], point))
-	
+		
 	def outptnear(self, point):
 		''' return the closest point to the given point, that belongs to a group outline '''
 		outpts = set()
@@ -208,18 +242,7 @@ class Mesh:
 	
 	
 	# --- extraction methods ---
-	
-	def box(self):
-		''' return the extreme coordinates of the mesh (vec3, vec3) '''
-		if not self.points:		return None
-		max = deepcopy(self.points[0])
-		min = deepcopy(self.points[0])
-		for pt in self.points:
-			for i in range(3):
-				if   pt[i] < min[i]:	min[i] = pt[i]
-				elif pt[i] > max[i]:	max[i] = pt[i]
-		return Box(min, max)
-	
+		
 	def facenormal(self, face):
 		if isinstance(face, int):	
 			face = self.faces[face]
@@ -442,17 +465,38 @@ def edgekey(a,b):
 	else:		return (b,a)
 	
 
+def lineedges(line):
+	''' yield the successive couples in line '''
+	if isinstance(line, Wire):	
+		line = line.indices
+	line = iter(line)
+	j = next(line)
+	for i in line:
+		yield (j,i)
+		j = i
 
-class Wire:
-	''' Hold datas for creation of surfaces from outlines
-		the wire holds segments, formed by couple of points, tracks associates group number to each segment
-	'''
-	def __init__(self, points, lines, tracks, groups):
-		self.points = points
-		self.lines = lines
-		self.tracks = tracks or [0] * len(self.lines)
-		self.groups = groups or [None] * (max(self.tracks)+1)
+
+class Web(Container):
+	''' set of bipoint lines, used to represent wires
+		this definition is very close to the definition of Mesh, but with edges instead of triangles
 		
+		Attributes:
+			points		list of vec3 for points
+			faces		list of couples for lines, the couple is oriented (meanings of this depends on the usage)
+			tracks		integer giving the group each line belong to
+			groups		custom information for each group
+			options		custom informations for the entire web
+	'''
+
+	# --- standard point container methods ---
+	
+	def __init__(self, points=None, lines=None, tracks = None, groups=None):
+		self.points = points or []
+		self.lines = lines or []
+		self.tracks = tracks or [0] * len(self.lines)
+		self.groups = groups or [None] * (max(self.tracks, default=0)+1)
+		self.options = {}
+	
 	def transform(self, trans):
 		''' apply the transform to the points of the mesh'''
 		if isinstance(trans, quat):		trans = mat3_cast(trans)
@@ -462,13 +506,52 @@ class Wire:
 		elif callable(trans):	pass
 		for i in range(len(self.points)):
 			self.points[i] = transformer(self.points[i])
+			
+	def __add__(self, other):
+		''' append the faces and points of the other mesh '''
+		if isinstance(other, Web):
+			r = deepcopy(self)
+			r.__iadd__(other)
+			return r
+		else:
+			return NotImplemented
+			
+	def __iadd__(self, other):
+		''' append the faces and points of the other mesh '''
+		if isinstance(other, Web):		
+			lp = len(self.points)
+			lt = len(self.groups)
+			self.points.extend(other.points)
+			self.groups.extend(other.groups)
+			for line,track in zip(other.lines, other.tracks):
+				self.lines.append((line[0]+lp, line[1]+lp))
+				self.tracks.append(track+lt)
+			return self
+		else:
+			return NotImplemented
 	
-	def mergepoints(self):
-		for i,e in enumerate(self.lines):
-			self.lines[i] = (
+	def reverse(self):
+		''' reverse direction of all lines '''
+		self.faces = [(b,a)  for a,b in self.lines]
+		
+	# --- mesh optimization ---
+	
+	def mergepoints(self, merges):
+		''' merge points with the merge dictionnary {src index: dst index}
+			remaining points are not removed
+		'''
+		i = 0
+		while i < len(self.lines):
+			e = self.lines[i]
+			self.lines[i] = l = (
 				merges.get(e[0], e[0]),
-				merges.get(e[1], e[1]),	
+				merges.get(e[1], e[1]),
 				)
+			if e[0] == e[1]:
+				self.faces.pop(i)
+				self.tracks.pop(i)
+			else:
+				i += 1
 	
 	def strippoints(self):
 		used = [False] * len(self.points)
@@ -480,12 +563,119 @@ class Wire:
 			self.lines[i] = (reindex[e[0]], reindex[e[1]])
 		return reindex
 		
-	def stripgroups(self):
-		used = [False] * len(self.groups)
-		for track in self.tracks:
-			used[track] = True
-		reindex = striplist(self.groups, used)
-		for i,track in enumerate(self.tracks):
-			self.tracks[i] = reindex[track]
-		return reindex
+	# --- verification methods ---
+			
+	def iswire(self):
+		reached = [0] * len(self.points)
+		for line in self.lines:
+			for p in line:	reached[p] += 1
+		for r in reached:
+			if r > 2:	return False
+		return True
+	def isloop(self):
+		return len(self.extremities) == 0
 	
+	def check(self):
+		''' check that the internal data references are good (indices and list lengths) '''
+		l = len(self.points)
+		for line in self.faces:
+			for p in line:
+				if p >= l:	raise MeshError("some indices are greater than the number of points", line, l)
+			if line[0] == line[1]:	raise MeshError("some lines use the same point multiple times", line)
+		if len(self.faces) != len(self.tracks):	raise MeshError("tracks list doesn't match faces list length")
+		if max(self.tracks) >= len(self.groups): raise MeshError("some line group indices are greater than the number of groups", max(self.tracks), len(self.groups))
+		
+	# --- extraction methods ---
+		
+	def extremities(self):
+		extr = set()
+		for l in self.lines:
+			for p in l:
+				if p in extr:	extr.remove(p)
+				else:			extr.add(p)
+		return extr
+		
+	def __repr__(self):
+		return 'Web(\n  points= {},\n  lines=  {},\n  tracks= {},\n  groups= {},\n  options= {})'.format(
+					reprarray(self.points, 'points'),
+					reprarray(self.lines, 'lines'),
+					reprarray(self.tracks, 'tracks'),
+					reprarray(self.groups, 'groups'),
+					repr(self.options))
+
+
+def web(*args):
+	if not args:	raise TypeError('web take at least one argument')
+	if len(args) == 1:	args = args[0]
+	if isinstance(args, Web):		return args
+	elif isinstance(args, Wire):	return Web(args.points, lineedges(args))
+	elif hasattr(args, 'mesh'):
+		res = args.mesh()
+		if isinstance(res, tuple):
+			pts,grp = res
+			return Web(pts, [(i,i+1) for i in range(len(pts)-1)], groups=[grp])
+		else:
+			return web(res)
+	elif isinstance(args, list) and isinstance(args[0], vec3):
+		return Web(args, [(i,i+1) for i in range(len(args)-1)])
+	elif isinstance(args, tuple) and isinstance(args[0], vec3):
+		return Web(list(args), [(i,i+1) for i in range(len(args)-1)])
+	elif hasattr(args, '__iter__'):
+		pool = Web()
+		for primitive in args:
+			pool += web(primitive)
+		pool.mergeclose()
+		return pool
+	else:
+		raise TypeError('incompatible data type for Web creation')
+
+
+class Wire:
+	''' line as continuous suite of points 
+		used to borrow reference of points from a mesh by keeping their original indices
+		
+		Attributes:
+			points		points buffer
+			indices		indices of the line's points in the buffer
+	'''
+	def __init__(self, points, indices=None):
+		self.points = points
+		if indices is None:	self.indices = list(range(len(points))) #arraylike(lambda i: i, lambda: len(points))
+		else:				self.indices = indices
+	
+	def __len__(self):	return len(self.indices)
+	def __iter__(self):	return (self.points[i] for i in self.indices)
+	def __getitem__(self, i):
+		if isinstance(i, int):		return self.points[self.indices[i]]
+		elif isinstance(i, slice):	return [self.points[j] for j in self.indices[i]]
+		else:						raise TypeError('item index must be int or slice')
+	
+	def length(self):
+		s = 0
+		for i in range(1,len(self.indices)):
+			s += distance(self.points[self.indices[i-1]], self.points[self.indices[i]])
+		return s
+		
+	def isvalid(self):
+		try:				self.check()
+		except MeshError:	return False
+		else:				return True
+	
+	def check(self):
+		l = len(self.points)
+		for i in self.indices:
+			if i >= l:	raise MeshError("some indices are greater than the number of points", i, l)
+
+	def edge(self, i):
+		return (self.indices[i+1], self.indices[i-1])
+	
+	def __iadd__(self, other):
+		if not isinstance(other, Wire):		return NotImplemented
+		if self.points is not other.points:	raise ValueError("lines doesn't refer to the same points buffer")
+		self.indices.extend(other.indices)
+	
+	def __add__(self, other):
+		if not isinstance(other, Wire):		return NotImplemented
+		if self.points is not other.points:	raise ValueError("lines doesn't refer to the same points buffer")
+		return Wire(self.points, self.indices+other.indices)
+		
