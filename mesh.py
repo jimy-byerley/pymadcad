@@ -105,7 +105,7 @@ class Container:
 
 
 class Mesh(Container):
-	''' Triangular mesh, used to represent volumes or surfaces.
+	''' set of triangles, used to represent volumes or surfaces.
 		As volumes are represented by their exterior surface, there is no difference between representation of volumes and faces, juste the way we interpret it.
 		
 		Attributes:
@@ -244,6 +244,7 @@ class Mesh(Container):
 	# --- extraction methods ---
 		
 	def facenormal(self, face):
+		''' normal for each face '''
 		if isinstance(face, int):	
 			face = self.faces[face]
 		p0 = self.points[face[0]]
@@ -252,6 +253,7 @@ class Mesh(Container):
 		return normalize(cross(e1, e2))
 	
 	def vertexnormals(self):
+		''' normal for each point '''
 		l = len(self.points)
 		normals = [vec3(0) for _ in range(l)]
 		for face in self.faces:
@@ -265,10 +267,12 @@ class Mesh(Container):
 		return normals
 	
 	def facepoints(self, index):
+		''' shorthand to get the points of a face (index is an int or a triplet) '''
 		f = self.faces[index]
 		return self.points[f[0]], self.points[f[1]], self.points[f[2]]
 	
 	def edges(self, oriented=True):
+		''' set of unoriented edges present in the mesh '''
 		edges = set()
 		for face in self.faces:
 			edges.add(edgekey(face[0], face[1]))
@@ -311,6 +315,14 @@ class Mesh(Container):
 		return edges
 	
 	outlines = outlines_oriented
+	
+	def surface(self):
+		''' total surface of triangles '''
+		s = 0
+		for f in self.faces:
+			a,b,c = self.facepoints(f)
+			s += length(cross(a-b, a,c))
+		return s
 	
 	
 	# --- renderable interfaces ---
@@ -554,6 +566,7 @@ class Web(Container):
 				i += 1
 	
 	def strippoints(self):
+		''' remove points that are used by no faces, return the reindex list '''
 		used = [False] * len(self.points)
 		for edge in self.lines:
 			for p in edge:
@@ -565,14 +578,17 @@ class Web(Container):
 		
 	# --- verification methods ---
 			
-	def iswire(self):
+	def isline(self):
+		''' true if each point is used at most 2 times by lines '''
 		reached = [0] * len(self.points)
 		for line in self.lines:
 			for p in line:	reached[p] += 1
 		for r in reached:
 			if r > 2:	return False
 		return True
+	
 	def isloop(self):
+		''' true if the wire form a loop '''
 		return len(self.extremities) == 0
 	
 	def check(self):
@@ -588,12 +604,20 @@ class Web(Container):
 	# --- extraction methods ---
 		
 	def extremities(self):
+		''' return the points that are used once only '''
 		extr = set()
 		for l in self.lines:
 			for p in l:
 				if p in extr:	extr.remove(p)
 				else:			extr.add(p)
 		return extr
+	
+	def length(self):
+		''' total length of edges '''
+		s = 0
+		for a,b in lineedges(self):
+			s += distance(self.points[a], self.points[b])
+		return s
 		
 	def __repr__(self):
 		return 'Web(\n  points= {},\n  lines=  {},\n  tracks= {},\n  groups= {},\n  options= {})'.format(
@@ -605,6 +629,10 @@ class Web(Container):
 
 
 def web(*args):
+	''' build a web object from parts 
+		parts can be any of:	Web, Wire, Primitive, [vec3]
+		arguments can be of thos types, or list of those types
+	'''
 	if not args:	raise TypeError('web take at least one argument')
 	if len(args) == 1:	args = args[0]
 	if isinstance(args, Web):		return args

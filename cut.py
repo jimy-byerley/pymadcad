@@ -4,6 +4,10 @@ import generation as gt
 import text
 import settings
 
+__all__ = [	'chamfer', 'bevel', 'beveltgt', 
+			'tangentjunction', 'cut', 'cutsegments', 'planeoffsets',
+			]
+
 # ---- cut methods -----
 
 def cut_width(width, fn1, fn2):

@@ -113,6 +113,7 @@ def extrans(web, transformations, links):
 	return mesh
 	
 def curvematch(line1, line2):
+	''' yield couples of point indices where the curved absciss are the closest '''
 	yield line1.indices[0], line2.indices[0]
 	l1, l2 = line1.length(), line2.length()
 	i1, i2 = 1, 1
