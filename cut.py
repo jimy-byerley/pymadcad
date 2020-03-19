@@ -6,6 +6,7 @@ import settings
 
 __all__ = [	'chamfer', 'bevel', 'beveltgt', 
 			'tangentjunction', 'cut', 'cutsegments', 'planeoffsets',
+			'cut_width', 'cut_distance', 'cut_depth', 'cut_angle',
 			]
 
 # ---- cut methods -----
@@ -285,6 +286,9 @@ def interpretcutter(cutter):
 		raise TypeError("cutter must be a callable or a tuple (name, param)")
 
 def cutsegments(mesh, line, offsets):
+	''' separations between planes.
+		planes are determined by the offsets to the lines
+	'''
 	# compute cut planes and their intersections
 	#grp = len(mesh.groups)
 	#mesh.groups.append(None)
@@ -315,6 +319,8 @@ def cutsegments(mesh, line, offsets):
 	return segments
 
 def cut(mesh, line, offsets, conn=None):
+	''' cut the mesh faces by planes, determined by the offsets to the lines '''
+	
 	toremove = set()		# faces to remove that match no replacements
 	result = []				# intersection segments for each offset
 
