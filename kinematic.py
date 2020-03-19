@@ -3,7 +3,7 @@ from mathutils import fvec3, fmat4, vec3, vec4, mat3, mat4, quat, mat4_cast, qua
 						dot, cross, length, normalize, project, dirbase, \
 						atan2, acos, angle, axis, angleAxis, \
 						Box, transform
-from mesh import Mesh
+from mesh import Mesh, Wire, web
 import generation
 import primitives
 import settings
@@ -163,7 +163,7 @@ class Pivot:
 			center = axis[0] + project(self.position[0], axis[1])
 			cyl = generation.extrusion(
 						axis[1]*size * 0.8, 
-						generation.outline(primitives.Circle(
+						web(primitives.Circle(
 								(center-axis[1]*size*0.4, axis[1]), 
 								size/4, 
 								resolution=('div', 16),
@@ -194,16 +194,16 @@ class Pivot:
 				attach = side + normalize(noproject(junc-center, axis[1]))*radius
 			else:
 				attach = side
-			c1 = generation.flatsurface(generation.outline(primitives.Circle(
+			c1 = generation.flatsurface(Wire(primitives.Circle(
 							(center-axis[1]*size*0.5, -axis[1]), 
 							radius, 
 							resolution=('div', 16),
-							)))
-			c2 = generation.flatsurface(generation.outline(primitives.Circle(
+							).mesh()[0]))
+			c2 = generation.flatsurface(Wire(primitives.Circle(
 							(center+axis[1]*size*0.5, axis[1]), 
 							radius, 
 							resolution=('div', 16),
-							)))
+							).mesh()[0]))
 			indices = [(i-1,i)  for i in range(1,len(c1.points))]
 			s = Scheme([center-side, center+side, center+attach, junc], [], [], [(0,1), (2,3)])
 			s.extend(Scheme(c1.points, c1.faces, [], indices))

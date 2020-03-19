@@ -421,10 +421,8 @@ def makebase(points):
 
 def flatsurface(outline):
 	''' create a surface in the given outline '''
-	if isinstance(outline, Outline):
-		outline = outline.points
-	mesh = Mesh(outline, [], [], [])
-	triangulate(mesh, list(range(len(outline))))
+	mesh = Mesh(outline.points, [], [], [])
+	triangulate(mesh, outline.indices)
 	return mesh
 
 
