@@ -68,8 +68,8 @@ else:
 				mesh.faces.append(tuple(*face[:2]))
 
 		# collect tracks
-		if 'tracks' in faces.dtype.names:
-			mesh.tracks = list(faces['tracks'])
+		if 'group' in faces.dtype.names:
+			mesh.tracks = list(faces['group'])
 		else:
 			mesh.tracks = [0] * len(mesh.faces)
 		
@@ -84,7 +84,7 @@ else:
 						dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4')])
 		faces = np.array(
 					[ (f,t)  for f,t in zip(mesh.faces, mesh.tracks)],
-					dtype=[('vertex_indices', 'u4', (3,)), ('track', 'u2')])
+					dtype=[('vertex_indices', 'u4', (3,)), ('group', 'u2')])
 		ev = PlyElement.describe(vertices, 'vertex')
 		ef = PlyElement.describe(faces, 'face')
 		PlyData([ev,ef], opts.get('text', False)).write(file)
