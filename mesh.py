@@ -224,7 +224,7 @@ class Mesh(Container):
 	def outptnear(self, point):
 		''' return the closest point to the given point, that belongs to a group outline '''
 		outpts = set()
-		for edge in self.outlines_oriented():
+		for edge in self.outlines_oriented():	# TODO changer ou supprimer: outlines_oriented ne donne que les contours independament des groups
 			outpts += edge
 		return min(	range(len(self.points)), 
 					lambda i: distance(self.points[i], point) if i in outpts else math.inf)
@@ -235,7 +235,7 @@ class Mesh(Container):
 		best = math.inf
 		for i,face in enumerate(self.faces):
 			n = self.facenormal(i)
-			dist = abs(dot(point - self.points[face[0]], n))
+			dist = abs(dot(point - self.points[face[0]], n))		# TODO intergrer les limites du triangle
 			if dist < best:
 				track = self.tracks[i]
 		return track
@@ -314,7 +314,27 @@ class Mesh(Container):
 				else:			edges.add(e)
 		return edges
 	
-	outlines = outlines_oriented
+	def outlines(self):
+		''' return a Web of UNORIENTED edges '''
+		return Web(self.points, self.outlines_unoriented())
+		
+	def groupoutlines(self):
+		''' return a Web of UNORIENTED edges delimiting all the mesh groups '''
+		lines = []	# outline
+		tmp = {}	# faces adjacent to edges
+		# insert edges adjacent to two different groups
+		for i,face in enumerate(self.faces):
+			for edge in ((face[0],face[1]),(face[1],face[2]),(face[2],face[0])):
+				e = edgekey(*edge)
+				if e in tmp:
+					if self.tracks[tmp[e]] != self.tracks[i]:
+						lines.append(e)
+					del tmp[e]
+				else:
+					tmp[e] = i
+		# insert edges that border only one face
+		lines.extend(tmp.keys())
+		return Web(self.points, lines)
 	
 	def surface(self):
 		''' total surface of triangles '''
