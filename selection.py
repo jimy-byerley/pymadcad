@@ -1,5 +1,5 @@
 from mathutils import vec3, anglebt
-from mesh import Mesh, Web, edgekey
+from mesh import Mesh, Web, edgekey, connpp, connef
 
 __all__ = ['select', 'stopangle', 'crossover', 'straight', 'short', 'SelExpr']
 
@@ -18,39 +18,35 @@ def select(mesh, edge, stopleft=None, stopright=False, conn=None, web=None) -> W
 		web = mesh
 		mesh = None
 	if conn is None:
-		conn = connectivity(web.lines)
+		conn = connpp(web.lines)
 	if stopleft is None:		stopleft = lambda *args: False
 	if stopright is None:		stopright = lambda *args: False
 	elif stopright is False:	stopright = stopleft
 	# selection by propagation on each side
+	shared = {'mesh':mesh, 'web':web, 'conn':conn}
 	return Web(web.points, list(
-			  selectside(mesh, web, conn, edge, stopleft) 
-			| selectside(mesh, web, conn, (edge[1], edge[0]), stopright)
+			  selectside(shared, edge, stopleft) 
+			| selectside(shared, (edge[1], edge[0]), stopright)
 			))
 
-def selectside(mesh, web, conn, edge, stop):
+def selectside(shared, edge, stop):
 	''' selection by propagation until stop criterion '''
 	front = [edge]
 	seen = set()
+	conn = shared['conn']
 	while front:
 		last,curr = edge = front.pop()
 		e = edgekey(*edge)
 		if e in seen:	continue
 		seen.add(e)
-		for next in conn[curr]:
-			if not stop(mesh,web,conn,last,curr,next):
-				front.append((curr,next))
+		connected = conn[curr]
+		if len(connected) > 1:
+			for next in connected:
+				if not stop(shared,last,curr,next):
+					front.append((curr,next))
+		else:
+			front.append((curr,connected[0]))
 	return seen
-
-def connectivity(lines):
-	''' point to point connectivity '''
-	conn = {}
-	for line in lines:
-		for a,b in ((line[0],line[1]), (line[1],line[0])):
-			if a not in conn:		conn[a] = [b]
-			else:					conn[a].append(b)
-	return conn
-		
 
 
 class SelExpr(object):
@@ -69,30 +65,52 @@ class SelExpr(object):
 # --- stop conditions ---
 
 def stopangle(maxangle):
-	return SelExpr(lambda mesh,web,conn,last,curr,next: anglebt(web.points[curr]-web.points[last], web.points[next]-web.points[curr]) > maxangle)
+	''' stop when angle between consecutive edges is bigger than maxangle '''
+	def stop(shared,last,curr,next): 
+		points = shared['web'].points
+		return anglebt(points[curr]-points[last], points[next]-points[curr]) >= maxangle
+	return SelExpr(stop)
 
 @SelExpr
-def crossover(mesh,web,conn,last,curr,next): 
-	return len(conn[curr]) > 2
+def crossover(shared,last,curr,next): 
+	return len(shared['conn'][curr]) > 2
 
 @SelExpr
-def straight(mesh,web,conn,last,curr,next):
-	start = web.points[curr] - web.points[last]
-	other = min(conn[curr], key=lambda o: anglebt(start, web.points[o] - web.points[curr]))
+def straight(shared,last,curr,next):
+	points = shared['web'].points
+	start = points[curr] - points[last]
+	other = min(shared['conn'][curr], key=lambda o: anglebt(start, points[o] - points[curr]))
 	return other != next
 
 @SelExpr
-def short(mesh,web,conn,last,curr,next):
-	start = web.points[curr] - web.points[last]
+def short(shared,last,curr,next):
+	points = shared['web'].points
+	start = points[curr] - points[last]
 	best = None
 	score = 0
-	for o in conn[curr]:
+	for o in shared['conn'][curr]:
 		if o == last:	continue
-		angle = anglebt(start, web.points[o] - web.points[curr])
+		angle = anglebt(start, points[o] - points[curr])
 		if angle > score:
 			score = angle
 			best = o
 	return best != next
+
+def faceangle(minangle):
+	''' stop when angle between adjacent faces is strictly lower than minangle '''
+	def stop(shared,last,curr,next):
+		mesh = shared['mesh']
+		if 'connef' not in shared:
+			shared['connef'] = connef = connef(context['mesh'])
+		else:
+			connef = shared['connef']
+		if (curr,next) in connef and (next,curr) in connef:
+			nl = mesh.facenormal(connef[(curr,next)])
+			nr = mesh.facenormal(connef[(next,curr)])
+			return anglebt(nl, nr) <= minangle
+		else:
+			return True
+	return SelExpr(stop)
 
 
 if __name__ == '__main__':
@@ -101,7 +119,7 @@ if __name__ == '__main__':
 	import view
 	
 	m = Mesh(
-		[vec3(1,1,0), vec3(-1,1,0), vec3(-1,-1,0), vec3(1,-1,0),    vec3(2,-1,0), vec3(2,1,0),   vec3(-2,1,0), vec3(-2,-1,0)],
+		[vec3(1,1,0), vec3(-1,1,0), vec3(-1,-1,0), vec3(1,-1,0),    vec3(2,-1,0), vec3(2,1,0),    vec3(-2,1,0), vec3(-2,-1,0)],
 		[(0,1,2),(0,2,3), (4,0,3),(0,4,5),  (6,2,1),(2,6,7)],
 		[0,0, 1,1, 2,2],
 		)
@@ -112,10 +130,10 @@ if __name__ == '__main__':
 	print('short\t', select(m, (0,1), short).lines)
 	print('short | straight\t', select(m, (0,1), short | straight).lines)
 	
-	m.options.update({'debug_display':True, 'debug_points':True})
-	app = QApplication(sys.argv)
-	scn3D = view.Scene()
-	scn3D.add(m)
-	scn3D.look(m.box())
-	scn3D.show()
-	sys.exit(app.exec())
+	#m.options.update({'debug_display':True, 'debug_points':True})
+	#app = QApplication(sys.argv)
+	#scn3D = view.Scene()
+	#scn3D.add(m)
+	#scn3D.look(m.box())
+	#scn3D.show()
+	#sys.exit(app.exec())

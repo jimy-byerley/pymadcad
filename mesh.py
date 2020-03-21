@@ -495,7 +495,29 @@ def edgekey(a,b):
 	''' return a key for a non-directional edge '''
 	if a < b:	return (a,b)
 	else:		return (b,a)
+
+def connpp(lines):
+	''' point to point connectivity '''
+	conn = {}
+	for line in lines:
+		if len(line) == 2:
+			for a,b in ((line[0],line[1]), (line[1],line[0])):
+				if a not in conn:		conn[a] = [b]
+				else:					conn[a].append(b)
+		elif len(line) == 3:
+			for a,b in ((line[0],line[1]), (line[1],line[2]), (line[2],line[0])):
+				if a not in conn:		conn[a] = [b]
+				else:					conn[a].append(b)
+	return conn
 	
+def connef(faces):
+	''' connectivity dictionnary, from oriented edge to face '''
+	conn = {}
+	for i,f in enumerate(faces):
+		for e in ((f[0],f[1]), (f[1],f[2]), (f[2],f[0])):
+			conn[e] = i
+	return conn
+		
 
 def lineedges(line):
 	''' yield the successive couples in line '''

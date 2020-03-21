@@ -1,5 +1,5 @@
 from mathutils import vec3, mat3, dot, cross, project, noproject, sqrt, acos, spline, interpol1, normalize, distance, length, inverse, transpose, NUMPREC, COMPREC
-from mesh import Mesh, Wire, lineedges
+from mesh import Mesh, Wire, lineedges, connef
 import generation as gt
 import text
 import settings
@@ -54,9 +54,9 @@ def bevel3(mesh, line, cutter, interpol=spline, resolution=None):
 		cutter is described in function planeoffsets()
 	'''
 	# cut faces
-	conn = connectivity_edgeface(mesh.faces)
+	conn = connef(mesh.faces)
 	segments = cut(mesh, line, planeoffsets(mesh, line, cutter), conn)
-	conn = connectivity_edgeface(mesh.faces)
+	conn = connef(mesh.faces)
 	
 	parts = []
 	for s in segments:
@@ -127,9 +127,9 @@ def beveltgt(mesh, line, cutter, interpol=spline, resolution=None):
 		WARNING: the tangency to cuted faces can lead to weired geometries in case of concave shape
 	'''
 	# cut faces
-	conn = connectivity_edgeface(mesh.faces)
+	conn = connef(mesh.faces)
 	segments = cut(mesh, line, planeoffsets(mesh, line, cutter), conn)
-	conn = connectivity_edgeface(mesh.faces)
+	conn = connef(mesh.faces)
 	group = Mesh(groups=['junction'])
 	tangents = {}
 	tmatch = []
@@ -179,7 +179,7 @@ def bevel(mesh, line, cutter, interpol=spline, resolution=None):
 		WARNING: to use tangents from line adjacents faces can lead to matter add in case of concave shape
 	'''
 	# cut faces
-	conn = connectivity_edgeface(mesh.faces)
+	conn = connef(mesh.faces)
 	normals = []
 	for e in lineedges(line):
 		normals.append((
@@ -326,7 +326,7 @@ def cut(mesh, line, offsets, conn=None):
 
 	# build connectivity
 	if not conn:
-		conn = connectivity_edgeface(mesh.faces)
+		conn = connef(mesh.faces)
 	# segments planes and normals
 	segments = cutsegments(mesh, line, offsets)
 	
@@ -453,7 +453,7 @@ def cut(mesh, line, offsets, conn=None):
 def insertpoint(mesh, pt):
 	return mesh.usepointat(pt)
 
-def connectivity_edgeface(faces):
+def connef(faces):
 	conn = {}
 	for i,f in enumerate(faces):
 		for e in ((f[0],f[1]), (f[1],f[2]), (f[2],f[0])):
