@@ -90,7 +90,7 @@ def bevel3(mesh, line, cutter, interpol=spline, resolution=None):
 	segts = 0
 	for (l,r),(dir,tl,tr) in zip(match, params):
 		angle = min(1, acos(dot(tl,tr)))
-		dist = length(mesh.points[match[i][1]]-mesh.points[match[i][0]])
+		dist = distance(mesh.points[match[i][1]], mesh.points[match[i][0]])
 		div = settings.curve_resolution(dist, angle, resolution)+2
 		if div > segts:
 			segts = div
@@ -98,10 +98,7 @@ def bevel3(mesh, line, cutter, interpol=spline, resolution=None):
 	# create points
 	startpt = len(mesh.points)
 	for (l,r),(dir,tl,tr) in zip(match, params):
-		link = mesh.points[l]-mesh.points[r]
-		nlink = length(link)
-		link /= nlink
-		
+		nlink = distance(mesh.points[l], mesh.points[r])		
 		for j in range(segts):
 			x = j/(segts-1)
 			mesh.points.append(spline(
