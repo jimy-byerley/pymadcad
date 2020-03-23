@@ -1,4 +1,5 @@
-from mathutils import vec3, anglebt
+import math
+from mathutils import vec3, anglebt, cross, dot, length, distance, normalize, noproject
 from mesh import Mesh, Web, edgekey, connpp, connef
 
 __all__ = ['select', 'stopangle', 'crossover', 'straight', 'short', 'SelExpr']
@@ -9,7 +10,7 @@ def select(mesh, edge, stopleft=None, stopright=False, conn=None, web=None) -> W
 		If stopright is not specified (False), stopleft is used for both directions.
 		
 		example:
-			select(m, (12,37), angle(pi/2) | crossover)
+			select(m, (12,37), stopangle(pi/2) | crossover)
 	'''
 	# manage arguments
 	if isinstance(mesh, Mesh) and web is None:
@@ -22,6 +23,8 @@ def select(mesh, edge, stopleft=None, stopright=False, conn=None, web=None) -> W
 	if stopleft is None:		stopleft = lambda *args: False
 	if stopright is None:		stopright = lambda *args: False
 	elif stopright is False:	stopright = stopleft
+	
+	assert edge[0] in conn and edge[1] in conn[edge[0]], "the given edge doesn't exist"
 	# selection by propagation on each side
 	shared = {'mesh':mesh, 'web':web, 'conn':conn}
 	return Web(web.points, list(
@@ -111,7 +114,57 @@ def faceangle(minangle):
 		else:
 			return True
 	return SelExpr(stop)
+	
+# --- edge selection from mesh ---
 
+distance_pp = distance
+
+def distance_pa(pt, axis):
+	return length(noproject(pt-axis[0], axis[1]))
+
+def distance_pe(pt, edge):
+	dir = edge[1]-edge[0]
+	l = length(dir)
+	x = dot(pt-edge[0], dir)/l**2
+	if   x < 0:	return distance(pt,edge[0])
+	elif x > 1:	return distance(pt,edge[1])
+	else:
+		v = pt-edge[0]
+		return length(v - v*dir)/l
+
+def distance_aa(a1, a2):
+	return dot(a1[0]-a2[0], normalize(cross(a1[1], a2[1])))
+
+def distance_ae(axis, edge):
+	d = normalize(edge[1]-edge[0])
+	y = noproject(d, d)
+	s1 = dot(edge[0]-axis[0], y)
+	s2 = dot(edge[1]-axis[0], y)
+	if s1*s2 < 0:
+		z = normalize(cross(axis[1], d))
+		return dot(edge[0]-axis[1], z)
+	elif abs(s1) < abs(s2):
+		return distance_pa(edge[0], axis)
+	else:
+		return distance_pa(edge[1], axis)
+
+def edgenear(web, obj):
+	if isinstance(obj,vec3):	dist = lambda e: distance_pe(obj,e)
+	elif isinstance(obj,tuple):	dist = lambda e: distance_ae(obj,e)
+	else:
+		raise TypeError("obj must be a point or an axis")
+	if isinstance(web, Mesh):	web = web.groupoutlines()
+	best = None
+	score = math.inf
+	for edge in web.lines:
+		d = dist((web.points[edge[0]], web.points[edge[1]]))
+		if d < score:
+			score = d
+			best = edge
+	if isinstance(obj,tuple) and dot(web.points[best[1]]-web.points[best[0]], obj[1]) < 0:
+		best = best[1],best[0]
+	return best
+	
 
 if __name__ == '__main__':
 	import sys
@@ -129,6 +182,7 @@ if __name__ == '__main__':
 	print('straight\t', select(m, (0,1), straight).lines)
 	print('short\t', select(m, (0,1), short).lines)
 	print('short | straight\t', select(m, (0,1), short | straight).lines)
+	print('edgenear', edgenear(m, (vec3(0,2,0), vec3(1,1,0))))
 	
 	#m.options.update({'debug_display':True, 'debug_points':True})
 	#app = QApplication(sys.argv)
