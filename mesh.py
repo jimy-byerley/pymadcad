@@ -220,14 +220,6 @@ class Mesh(Container):
 	
 	
 	# --- selection methods ---
-		
-	def outptnear(self, point):
-		''' return the closest point to the given point, that belongs to a group outline '''
-		outpts = set()
-		for edge in self.outlines_oriented():	# TODO changer ou supprimer: outlines_oriented ne donne que les contours independament des groups
-			outpts += edge
-		return min(	range(len(self.points)), 
-					lambda i: distance(self.points[i], point) if i in outpts else math.inf)
 	
 	def groupnear(self, point):
 		''' return the id of the group for the nearest surface to the given point '''
@@ -500,12 +492,8 @@ def connpp(lines):
 	''' point to point connectivity '''
 	conn = {}
 	for line in lines:
-		if len(line) == 2:
-			for a,b in ((line[0],line[1]), (line[1],line[0])):
-				if a not in conn:		conn[a] = [b]
-				else:					conn[a].append(b)
-		elif len(line) == 3:
-			for a,b in ((line[0],line[1]), (line[1],line[2]), (line[2],line[0])):
+		for i in range(len(line)):
+			for a,b in ((line[i-1],line[i]), (line[i],line[i-1])):
 				if a not in conn:		conn[a] = [b]
 				else:					conn[a].append(b)
 	return conn
