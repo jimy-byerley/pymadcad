@@ -41,7 +41,6 @@ def dirbase(dir, align=vec3(1,0,0)):
 		x = align - project(align, dir)
 	x = normalize(x)
 	y = cross(dir, x)
-	print('base', x,y,dir)
 	return x,y,dir
 
 def scaledir(dir, factor):
