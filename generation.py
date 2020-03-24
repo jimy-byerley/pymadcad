@@ -484,9 +484,9 @@ if __name__ == '__main__':
 			)
 	m4.check()
 	assert m4.issurface()
-	#m3.options.upgrade({'debug_display': True, 'debug_points', True})
+	#m4.options.update({'debug_display': True, 'debug_points': True})
 	m4.transform(vec3(-4,0,0))
-	scn3D.add(m3)
+	scn3D.add(m4)
 	
 	# test closeholes
 	m = m1+m2
