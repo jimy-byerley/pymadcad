@@ -218,13 +218,17 @@ def bevel(mesh, line, cutter, interpol=spline, resolution=None):
 	
 	mesh += tangentjunction(mesh.points, tmatch, tangents, resolution, interpol)
 
+from mathutils import asin, cos
+
 def tangentjunction(points, match, tangents, resolution=None, interpol=spline):
 	''' create a surface between interpolated curves for each match '''
 	group = Mesh(groups=['junction'])
 	# determine the number of segments
 	div = 0
 	for l,r in match:
-		dist = distance(points[l], points[r])
+		v = points[l]-points[r]
+		a = abs(asin(dot(normalize(tangents[l]), normalize(tangents[r]))))
+		dist = distance(points[l], points[r]) / sqrt(2-2*cos(a)) * a
 		tangents[l] = tl = normalize(tangents[l]) * dist
 		tangents[r] = tr = normalize(tangents[r]) * dist
 		angle = min(1, acos(dot(tl,tr)))
@@ -236,6 +240,7 @@ def tangentjunction(points, match, tangents, resolution=None, interpol=spline):
 	return gt.junctioniter(
 			( ((points[r], tangents[r]), (points[l], tangents[l])) for l,r in match),
 			div, interpol)
+
 
 # ----- algorithm ------
 
