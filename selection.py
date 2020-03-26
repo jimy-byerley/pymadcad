@@ -1,6 +1,6 @@
 import math
 from mathutils import vec3, anglebt, cross, dot, length, distance, normalize, noproject
-from mesh import Mesh, Web, edgekey, connpp, connef
+from mesh import Mesh, Web, edgekey, connpp, connef, distance_pp, distance_pa, distance_pe, distance_aa, distance_ae
 
 __all__ = ['select', 'stopangle', 'crossover', 'straight', 'short', 'SelExpr']
 
@@ -117,37 +117,6 @@ def faceangle(minangle):
 	
 # --- edge selection from mesh ---
 
-distance_pp = distance
-
-def distance_pa(pt, axis):
-	return length(noproject(pt-axis[0], axis[1]))
-
-def distance_pe(pt, edge):
-	dir = edge[1]-edge[0]
-	l = length(dir)
-	x = dot(pt-edge[0], dir)/l**2
-	if   x < 0:	return distance(pt,edge[0])
-	elif x > 1:	return distance(pt,edge[1])
-	else:
-		v = pt-edge[0]
-		return length(v - v*dir)/l
-
-def distance_aa(a1, a2):
-	return dot(a1[0]-a2[0], normalize(cross(a1[1], a2[1])))
-
-def distance_ae(axis, edge):
-	d = normalize(edge[1]-edge[0])
-	y = noproject(d, d)
-	s1 = dot(edge[0]-axis[0], y)
-	s2 = dot(edge[1]-axis[0], y)
-	if s1*s2 < 0:
-		z = normalize(cross(axis[1], d))
-		return dot(edge[0]-axis[1], z)
-	elif abs(s1) < abs(s2):
-		return distance_pa(edge[0], axis)
-	else:
-		return distance_pa(edge[1], axis)
-
 def edgenear(web, obj):
 	if isinstance(obj,vec3):	dist = lambda e: distance_pe(obj,e)
 	elif isinstance(obj,tuple):	dist = lambda e: distance_ae(obj,e)
@@ -176,13 +145,13 @@ if __name__ == '__main__':
 		[(0,1,2),(0,2,3), (4,0,3),(0,4,5),  (6,2,1),(2,6,7)],
 		[0,0, 1,1, 2,2],
 		)
-	print('all\t', select(m, (0,1)).lines)
-	print('crossover\t', select(m, (0,1), crossover).lines)
-	print('stopangle\t', select(m, (0,1), stopangle(0.1)).lines)
-	print('straight\t', select(m, (0,1), straight).lines)
-	print('short\t', select(m, (0,1), short).lines)
-	print('short | straight\t', select(m, (0,1), short | straight).lines)
-	print('edgenear', edgenear(m, (vec3(0,2,0), vec3(1,1,0))))
+	print('all (10)\t', select(m, (0,1)).lines)
+	print('crossover (1)\t', select(m, (0,1), crossover).lines)
+	print('stopangle (3)\t', select(m, (0,1), stopangle(0.1)).lines)
+	print('straight (8)\t', select(m, (0,1), straight).lines)
+	print('short (4)\t', select(m, (0,1), short).lines)
+	print('short | straight (1)\t', select(m, (0,1), short | straight).lines)
+	print('edgenear\t', edgenear(m, (vec3(0,2,0), vec3(1,1,0))))
 	
 	#m.options.update({'debug_display':True, 'debug_points':True})
 	#app = QApplication(sys.argv)

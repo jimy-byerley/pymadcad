@@ -6,7 +6,7 @@ from copy import deepcopy
 from random import random
 import numpy as np
 from array import array
-from mathutils import Box, vec3, vec4, mat3, mat4, quat, mat3_cast, cross, dot, normalize, length, distance, anglebt, NUMPREC
+from mathutils import Box, vec3, vec4, mat3, mat4, quat, mat3_cast, cross, dot, normalize, length, distance, project, noproject, anglebt, NUMPREC
 import math
 import view
 import text
@@ -216,7 +216,7 @@ class Mesh(Container):
 		self.mergeclose()
 		self.strippoints()
 		self.stripgroups()
-		assert self.isvalid()
+		self.check()
 	
 	
 	# --- selection methods ---
@@ -312,7 +312,7 @@ class Mesh(Container):
 		
 	def groupoutlines(self):
 		''' return a Web of UNORIENTED edges delimiting all the mesh groups '''
-		lines = []	# outline
+		edges = []	# outline
 		tmp = {}	# faces adjacent to edges
 		# insert edges adjacent to two different groups
 		for i,face in enumerate(self.faces):
@@ -320,13 +320,13 @@ class Mesh(Container):
 				e = edgekey(*edge)
 				if e in tmp:
 					if self.tracks[tmp[e]] != self.tracks[i]:
-						lines.append(e)
+						edges.append(e)
 					del tmp[e]
 				else:
 					tmp[e] = i
 		# insert edges that border only one face
-		lines.extend(tmp.keys())
-		return Web(self.points, lines)
+		edges.extend(tmp.keys())
+		return Web(self.points, edges)
 	
 	def surface(self):
 		''' total surface of triangles '''
@@ -361,11 +361,11 @@ class Mesh(Container):
 		
 		fn = np.array([tuple(self.facenormal(f)) for f in self.faces])
 		points = np.array([tuple(p) for p in self.points], dtype=np.float32)		
-		lines = []
+		edges = []
 		for i in range(0, 3*len(self.faces), 3):
-			lines.append((i, i+1))
-			lines.append((i+1, i+2))
-			lines.append((i, i+2))
+			edges.append((i, i+1))
+			edges.append((i+1, i+2))
+			edges.append((i, i+2))
 		
 		idents = []
 		for i in self.tracks:
@@ -378,7 +378,7 @@ class Mesh(Container):
 			np.hstack((fn, fn, fn)).reshape((len(self.faces)*3,3)),
 			faces = np.array(range(3*len(self.faces)), dtype='u4').reshape(len(self.faces),3),
 			idents = np.array(idents, dtype='u2'),
-			lines = np.array(lines, dtype='u4'),
+			edges = np.array(edges, dtype='u4'),
 			color = self.options.get('color', None),
 			)
 	
@@ -483,48 +483,14 @@ def striplist(list, used):
 	return reindex
 
 
-def edgekey(a,b):
-	''' return a key for a non-directional edge '''
-	if a < b:	return (a,b)
-	else:		return (b,a)
-
-def connpp(lines):
-	''' point to point connectivity '''
-	conn = {}
-	for line in lines:
-		for i in range(len(line)):
-			for a,b in ((line[i-1],line[i]), (line[i],line[i-1])):
-				if a not in conn:		conn[a] = [b]
-				else:					conn[a].append(b)
-	return conn
-	
-def connef(faces):
-	''' connectivity dictionnary, from oriented edge to face '''
-	conn = {}
-	for i,f in enumerate(faces):
-		for e in ((f[0],f[1]), (f[1],f[2]), (f[2],f[0])):
-			conn[e] = i
-	return conn
-		
-
-def lineedges(line):
-	''' yield the successive couples in line '''
-	if isinstance(line, Wire):	
-		line = line.indices
-	line = iter(line)
-	j = next(line)
-	for i in line:
-		yield (j,i)
-		j = i
-
 
 class Web(Container):
-	''' set of bipoint lines, used to represent wires
+	''' set of bipoint edges, used to represent wires
 		this definition is very close to the definition of Mesh, but with edges instead of triangles
 		
 		Attributes:
 			points		list of vec3 for points
-			faces		list of couples for lines, the couple is oriented (meanings of this depends on the usage)
+			faces		list of couples for edges, the couple is oriented (meanings of this depends on the usage)
 			tracks		integer giving the group each line belong to
 			groups		custom information for each group
 			options		custom informations for the entire web
@@ -532,10 +498,10 @@ class Web(Container):
 
 	# --- standard point container methods ---
 	
-	def __init__(self, points=None, lines=None, tracks = None, groups=None):
+	def __init__(self, points=None, edges=None, tracks = None, groups=None):
 		self.points = points or []
-		self.lines = lines or []
-		self.tracks = tracks or [0] * len(self.lines)
+		self.edges = edges or []
+		self.tracks = tracks or [0] * len(self.edges)
 		self.groups = groups or [None] * (max(self.tracks, default=0)+1)
 		self.options = {}
 	
@@ -565,16 +531,16 @@ class Web(Container):
 			lt = len(self.groups)
 			self.points.extend(other.points)
 			self.groups.extend(other.groups)
-			for line,track in zip(other.lines, other.tracks):
-				self.lines.append((line[0]+lp, line[1]+lp))
+			for line,track in zip(other.edges, other.tracks):
+				self.edges.append((line[0]+lp, line[1]+lp))
 				self.tracks.append(track+lt)
 			return self
 		else:
 			return NotImplemented
 	
 	def reverse(self):
-		''' reverse direction of all lines '''
-		self.faces = [(b,a)  for a,b in self.lines]
+		''' reverse direction of all edges '''
+		self.faces = [(b,a)  for a,b in self.edges]
 		
 	# --- mesh optimization ---
 	
@@ -583,9 +549,9 @@ class Web(Container):
 			remaining points are not removed
 		'''
 		i = 0
-		while i < len(self.lines):
-			e = self.lines[i]
-			self.lines[i] = l = (
+		while i < len(self.edges):
+			e = self.edges[i]
+			self.edges[i] = l = (
 				merges.get(e[0], e[0]),
 				merges.get(e[1], e[1]),
 				)
@@ -598,20 +564,20 @@ class Web(Container):
 	def strippoints(self):
 		''' remove points that are used by no faces, return the reindex list '''
 		used = [False] * len(self.points)
-		for edge in self.lines:
+		for edge in self.edges:
 			for p in edge:
 				used[p] = True
 		reindex = striplist(self.points, used)
-		for i,e in enumerate(self.lines):
-			self.lines[i] = (reindex[e[0]], reindex[e[1]])
+		for i,e in enumerate(self.edges):
+			self.edges[i] = (reindex[e[0]], reindex[e[1]])
 		return reindex
 		
 	# --- verification methods ---
 			
 	def isline(self):
-		''' true if each point is used at most 2 times by lines '''
+		''' true if each point is used at most 2 times by edges '''
 		reached = [0] * len(self.points)
-		for line in self.lines:
+		for line in self.edges:
 			for p in line:	reached[p] += 1
 		for r in reached:
 			if r > 2:	return False
@@ -627,7 +593,7 @@ class Web(Container):
 		for line in self.faces:
 			for p in line:
 				if p >= l:	raise MeshError("some indices are greater than the number of points", line, l)
-			if line[0] == line[1]:	raise MeshError("some lines use the same point multiple times", line)
+			if line[0] == line[1]:	raise MeshError("some edges use the same point multiple times", line)
 		if len(self.faces) != len(self.tracks):	raise MeshError("tracks list doesn't match faces list length")
 		if max(self.tracks) >= len(self.groups): raise MeshError("some line group indices are greater than the number of groups", max(self.tracks), len(self.groups))
 		
@@ -636,7 +602,7 @@ class Web(Container):
 	def extremities(self):
 		''' return the points that are used once only '''
 		extr = set()
-		for l in self.lines:
+		for l in self.edges:
 			for p in l:
 				if p in extr:	extr.remove(p)
 				else:			extr.add(p)
@@ -650,9 +616,9 @@ class Web(Container):
 		return s
 		
 	def __repr__(self):
-		return 'Web(\n  points= {},\n  lines=  {},\n  tracks= {},\n  groups= {},\n  options= {})'.format(
+		return 'Web(\n  points= {},\n  edges=  {},\n  tracks= {},\n  groups= {},\n  options= {})'.format(
 					reprarray(self.points, 'points'),
-					reprarray(self.lines, 'lines'),
+					reprarray(self.edges, 'edges'),
 					reprarray(self.tracks, 'tracks'),
 					reprarray(self.groups, 'groups'),
 					repr(self.options))
@@ -729,11 +695,85 @@ class Wire:
 	
 	def __iadd__(self, other):
 		if not isinstance(other, Wire):		return NotImplemented
-		if self.points is not other.points:	raise ValueError("lines doesn't refer to the same points buffer")
+		if self.points is not other.points:	raise ValueError("edges doesn't refer to the same points buffer")
 		self.indices.extend(other.indices)
 	
 	def __add__(self, other):
 		if not isinstance(other, Wire):		return NotImplemented
-		if self.points is not other.points:	raise ValueError("lines doesn't refer to the same points buffer")
+		if self.points is not other.points:	raise ValueError("edges doesn't refer to the same points buffer")
 		return Wire(self.points, self.indices+other.indices)
 		
+# --- common tools ----
+# connectivity:
+		
+def edgekey(a,b):
+	''' return a key for a non-directional edge '''
+	if a < b:	return (a,b)
+	else:		return (b,a)
+
+def connpp(edges):
+	''' point to point connectivity '''
+	conn = {}
+	for line in edges:
+		for i in range(len(line)):
+			for a,b in ((line[i-1],line[i]), (line[i],line[i-1])):
+				if a not in conn:		conn[a] = [b]
+				else:					conn[a].append(b)
+	return conn
+	
+def connef(faces):
+	''' connectivity dictionnary, from oriented edge to face '''
+	conn = {}
+	for i,f in enumerate(faces):
+		for e in ((f[0],f[1]), (f[1],f[2]), (f[2],f[0])):
+			conn[e] = i
+	return conn
+		
+
+def lineedges(line):
+	''' yield the successive couples in line '''
+	if isinstance(line, Wire):	
+		line = line.indices
+	line = iter(line)
+	j = next(line)
+	for i in line:
+		yield (j,i)
+		j = i
+		
+# distances:
+
+distance_pp = distance
+
+def distance_pa(pt, axis):
+	''' point - axis distance '''
+	return length(noproject(pt-axis[0], axis[1]))
+
+def distance_pe(pt, edge):
+	''' point - edge distance '''
+	dir = edge[1]-edge[0]
+	l = length(dir)
+	x = dot(pt-edge[0], dir)/l**2
+	if   x < 0:	return distance(pt,edge[0])
+	elif x > 1:	return distance(pt,edge[1])
+	else:
+		v = pt-edge[0]
+		return length(v - v*dir)/l
+
+def distance_aa(a1, a2):
+	''' axis - axis distance '''
+	return dot(a1[0]-a2[0], normalize(cross(a1[1], a2[1])))
+
+def distance_ae(axis, edge):
+	''' axis - edge distance '''
+	d = normalize(edge[1]-edge[0])
+	y = noproject(d, d)
+	s1 = dot(edge[0]-axis[0], y)
+	s2 = dot(edge[1]-axis[0], y)
+	if s1*s2 < 0:
+		z = normalize(cross(axis[1], d))
+		return dot(edge[0]-axis[1], z)
+	elif abs(s1) < abs(s2):
+		return distance_pa(edge[0], axis)
+	else:
+		return distance_pa(edge[1], axis)
+

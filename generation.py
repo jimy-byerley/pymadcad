@@ -1,5 +1,5 @@
-from mesh import Mesh, edgekey, MeshError, web
-from mathutils import vec2,mat2,vec3,vec4,mat3,mat4, mat3_cast, quat, rotate, translate, dot, cross, perpdot, project, scaledir, transform, normalize, inverse, length, cos, asin, acos, NUMPREC, COMPREC, angleAxis, angle, distance, anglebt, interpol1, spline
+from mesh import Mesh, edgekey, MeshError, web, distance_pa
+from mathutils import vec2,mat2,vec3,vec4,mat3,mat4, mat3_cast, quat, rotate, translate, dot, cross, perpdot, project, noproject, scaledir, transform, normalize, inverse, length, cos, asin, acos, sqrt, NUMPREC, COMPREC, angleAxis, angle, distance, anglebt, interpol1, spline
 from math import atan2
 from primitives import Primitive
 import settings
@@ -21,7 +21,7 @@ def extrusion(displt, web):
 	mesh.points.extend(web.points)
 	mesh.points.extend((p+displt for p in web.points))
 	l = len(web.points)
-	for (a,b),t in zip(web.lines, web.tracks):
+	for (a,b),t in zip(web.edges, web.tracks):
 		mesh.faces.append((a, b,   b+l))
 		mesh.faces.append((a, b+l, a+l))
 		mesh.tracks.append(t)
@@ -53,7 +53,7 @@ def saddle(web1, web2):
 		s = web2.points[0]
 		for p in web2.points:
 			yield translate(mat4(1), p-s)
-	return extrans(web1, trans(), web2.lines)
+	return extrans(web1, trans(), web2.edges)
 
 def tube(web, path, end=True, section=True):
 	''' create a tube surface by extrusing the outline 1 along the outline 2
@@ -105,7 +105,7 @@ def extrans(web, transformations, links):
 	for (a,b) in links:
 		al = a*l
 		bl = b*l
-		for (c,d),t in zip(web.lines, web.tracks):
+		for (c,d),t in zip(web.edges, web.tracks):
 			mesh.faces.append((al+c, al+d, bl+d))
 			mesh.faces.append((al+c, bl+d, bl+c))
 			mesh.tracks.append(t)
@@ -426,7 +426,89 @@ def flatsurface(outline):
 	return mesh
 
 
+def arclen(p1, p2, n1, n2):
+	''' length of an arc between p1 and p2, with associated normals '''
+	c = dot(n1,n2)
+	v = p1-p2
+	return sqrt(dot(v,v) / (2-2*c)) * acos(c)
+			
+def icosurface(pts, ptangents, etangents=None, resolution=None):
+	''' generate a surface ICO (a subdivided triangle) with its points interpolated using interpol2tri 
+		if normals are given instead of point tangents (for ptangents), the surface will fit a sphere
+		else ptangents must be a list of couples (2 edge tangents each point)
+		if etangents is not given, it will be computed perpendicular the edge's point's normals
+	'''
+	# compute normals to points
+	if isinstance(ptangents[0], tuple):
+		normals = [None]*3
+		for i in range(3):
+			normals[i] = normalize(cross(ptangents[i][0], ptangents[i][1]))
+	else:
+		normals = ptangents
+	
+	# compute tangents to side splines
+	if etangents is None:
+		etangents = [None]*3
+		for i in range(3):
+			etangents[i] = normalize(cross(normals[i-2], normals[i-1]))
+	
+	# if normals are given instead of tangents, compute tangents to fit a sphere surface
+	if not isinstance(ptangents[0], tuple):
+		ptangents = [None]*3
+		for i in range(3):
+			n = (pts[i], normals[i])
+			dist = (  distance_pa(pts[i-1], n) 
+					+ distance_pa(pts[i-2], n) )/2
+			angle = anglebt(normals[i], normalize(normals[i-1]+normals[i-2]))
+			etangents[i] *= dist*angle
+			ptangents[i] = (
+				normalize(noproject(pts[i-2]-pts[i], normals[i])) * arclen(pts[i], pts[i-2], normals[i], normals[i-2]),
+				normalize(noproject(pts[i-1]-pts[i], normals[i])) * arclen(pts[i], pts[i-1], normals[i], normals[i-1]),
+				)
+	
+	# evaluate resolution (using a bad approximation of the distance for now)
+	div = max(( settings.curve_resolution(
+					distance(pts[i-1], pts[i-2]), 
+					anglebt(normals[i-1], normals[i-2]), 
+					resolution)
+				for i in range(3) ))
+	
+	# place points
+	mesh = Mesh(groups=['interptri', 'flat'])
+	for i in range(div):
+		u = i/(div-1)				
+		for j in range(div-i):
+			v = j/(div-1)
+			p = interpol2tri(pts, ptangents, etangents, u,v)
+			mesh.points.append(p)
+	# create faces
+	c = 0
+	for i in reversed(range(1,div+1)):
+		for j in range(i-1):
+			s = c+j
+			mesh.faces.append((s, s+i, s+1))
+		for j in range(1,i-1):
+			s = c+j
+			mesh.faces.append((s, s+i-1, s+i))
+		c += i
+	mesh.tracks = [0] * len(mesh.faces)
 
+	return mesh
+
+def interpol2tri(pts, ptangents, etangents, a,b):
+	''' cubic interpolation like interpol2, but interpolates over a triangle (2d parameter space) '''
+	A,B,C = pts
+	ta,tb,tc = ptangents
+	tbc,tca,tab = etangents
+	c = 1-a-b
+	return (	0
+			+	a**2 * (A + b*ta[0] + c*ta[1])
+			+	b**2 * (B + c*tb[0] + a*tb[1])
+			+	c**2 * (C + a*tc[0] + b*tc[1])
+			+	2*(b*a) * ((a*A + b*B)/(a+b+1e-5) + c*tab)
+			+	2*(c*b) * ((b*B + c*C)/(b+c+1e-5) + a*tbc)
+			+	2*(a*c) * ((c*C + a*A)/(c+a+1e-5) + b*tca)
+			)
 
 if __name__ == '__main__':
 	from nprint import nprint
@@ -499,10 +581,8 @@ if __name__ == '__main__':
 	#assert m.issurface()
 	#assert m.isenvelope()
 	m.transform(vec3(0,0,4))
-	#m.options.upgrade({'debug_display': True, 'debug_points', True})
+	#m.options.update({'debug_display': True, 'debug_points': True})
 	scn3D.add(m)
-	
-		
 	
 	# test junction
 	m5 = junction(
@@ -513,11 +593,24 @@ if __name__ == '__main__':
 		)))
 	m5.check()
 	assert m5.issurface()
-	
-	#m4.options.upgrade({'debug_display': True, 'debug_points', True})
+	#m4.options.update({'debug_display': True, 'debug_points': True})
 	scn3D.add(m5)
 	
+	# test icosurface
+	m6 = icosurface(
+		[vec3(0.5,-1,0), vec3(0,1,0), vec3(0,0,1)], 
+		[normalize(vec3(0.5,-1,0)), vec3(0,1,0), vec3(0,0,1)], 
+		#[vec3(1,0,0), vec3(0,1,0), vec3(0,0,1)], 
+		#[1.57*vec3(1,0,0), 1.57*vec3(0,1,0), 1.57*vec3(0,0,1)],  
+		#[1.57*vec3(1,0,0), 1.57*vec3(0,1,0), 1.57*vec3(0,0,1)], 
+		)
+	m6.check()
+	assert m6.issurface()
+	#m6.options.update({'debug_display': True, 'debug_points':True})
+	m6.transform(vec3(0,0,-4))
+	scn3D.add(m6)
 	
-	scn3D.look(m3.box())
+	
+	scn3D.look(m6.box())
 	main.show()
 	sys.exit(app.exec())
