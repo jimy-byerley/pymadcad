@@ -1,7 +1,9 @@
-from mathutils import pi, cos, sin, tan, acos, asin, sqrt, interpol1, vec2, vec3, dot, distance, mat2, transpose, inverse, dirbase, scaledir, translate, mat3_cast, mat4_cast, angleAxis, transform, NUMPREC
+from mathutils import pi, cos, sin, tan, asin, sqrt, interpol1, vec2, vec3, dot, distance, mat2, inverse, dirbase, scaledir, angleAxis, transform
 from mesh import Web
 import settings
 import generation
+
+# TODO: augmenter la surface disponible des dents en permettant un profil skysomorphique (utiliser des operations presques booleenes
 
 
 def geartooth(profile, sector, m=1, resolution=None):
@@ -20,7 +22,6 @@ def geartooth(profile, sector, m=1, resolution=None):
 		b = profile[i]
 		div = int(res * distance(a,b)/total)
 		tooth += [interpol1(a,b, j/(div+1))		for j in range(1,div+2)]
-	changed = [False] * len(tooth)
 	
 	# correct the circular profile by removing intersections with the linear profile
 	r = 1/sector
@@ -40,22 +41,35 @@ def geartooth(profile, sector, m=1, resolution=None):
 		
 		# search intersections
 		for k in range(len(tooth)):
-			t = (-x + tooth[k][0])/r
+			t = (tooth[k][0] - x)/r
 			radial = vec2(sin(t), -cos(t))
 			center = vec2(x, r)
-			p = center + radial * (r+tooth[k][1])
+			p = center + radial * tooth[k][1]
 			for j in range(len(profile)-1):
 				a, b = profile[j] * vec2(1,-1), profile[j+1] * vec2(1,-1)
 				# compute intersection of radial vector with segment
 				u,v = inverse(mat2(radial, b-a)) * (b-center)
 				if 0 <= v and v <= 1:
 					d = u - r
-					if d < tooth[k][1]:
+					if tooth[k][1] > d:
 						tooth[k][1] = d
-						changed[k] = True
+				#dir = a-b
+				#dir = -normalize(vec2(dir[1], -dir[0]))
+				##dir = normalize(radial*10 + vec2(0,-1))
+				##dir = radial
+				#u,v = inverse(mat2(dir, b-a)) * (b-p)
+				#if 0 <= v and v <= 1 and u > 0:
+					#drad = p+u*dir - center
+					##drad = v*a + (1-v)*b - center
+					#d = length(drad) - r
+					#print(tooth[k], (r*atan2(drad[0], -drad[1]) + x, d))
+					#tooth[k] = vec2(r*atan2(drad[0], -drad[1]) + x, d)
 		x += dx
 		i += 1
-	return tooth, changed
+		#if i > 0:	break
+	return tooth
+
+from mathutils import atan2, length, normalize
 
 def racktooth(inclin, h1, h2=None):
 	''' profile for iso normed gear
@@ -93,7 +107,7 @@ def gearprofile(profile, m, z, axis=(vec3(0,0,0), vec3(0,0,1)), align=vec3(1,0,0
 	return web
 	
 
-def gear(profile, m, z, b, spin=0, axis=(vec3(0,0,0), vec3(0,0,1)), align=vec3(1,0,0), resolution=None):
+def surfgear(profile, m, z, b, spin=0, axis=(vec3(0,0,0), vec3(0,0,1)), align=vec3(1,0,0), resolution=None):
 	line = gearprofile(profile, m, z, axis, align)
 	spin = b * tan(spin) * 2*pi/ (z*m)
 	div = settings.curve_resolution(b, spin, resolution) + 2
@@ -104,7 +118,7 @@ def gear(profile, m, z, b, spin=0, axis=(vec3(0,0,0), vec3(0,0,1)), align=vec3(1
 			
 	return generation.extrans(line, trans(), ((i,i+1) for i in range(div-1)))
 
-def screwgear(profile, m, z, b, radius, n=1, axis=(vec3(0,0,0), vec3(0,0,1)), align=vec3(1,0,0), resolution=None):
+def surfscrewgear(profile, m, z, b, radius, n=1, axis=(vec3(0,0,0), vec3(0,0,1)), align=vec3(1,0,0), resolution=None):
 	line = gearprofile(profile, m, z, axis, align)
 	#r = z*m / (2*pi)		# gear primitive radius
 	spin = n*b/(z*radius)	# spin angle for the extrusion
@@ -131,15 +145,16 @@ if __name__ == '__main__':
 	from time import time
 	
 	m = 1
-	z = 8
+	z = 10
 	b = 3
 	
 	start = time()
-	linear = racktooth(radians(20), 0.5, 0.3)
-	angular, changed = geartooth(linear, 2*pi/z)
+	linear = racktooth(radians(20), 0.4, 0.3)
+	angular = geartooth(linear, 2*pi/z)
 	print('computation time', time()-start)
 	
 	if True:
+		# display profile
 		plt.plot([p[0] for p in linear], [p[1] for p in linear], label='rack')
 		plt.plot([p[0] for p in angular], [p[1] for p in angular], '.-', label='gear')
 		plt.axes().set_aspect('equal')
@@ -150,10 +165,10 @@ if __name__ == '__main__':
 		import sys, view
 		from PyQt5.QtWidgets import QApplication
 		
-		
-		#res = gear(angular, m, z, b)
-		#res = gear(angular, m, z, b, spin=radians(30))
-		res = screwgear(angular, m, z, b, 0.6*b, 3)
+		# display gear surfaces
+		res = surfgear(angular, m, z, b)
+		#res = surfgear(angular, m, z, b, spin=radians(30))
+		#res = surfscrewgear(angular, m, z, b, 0.6*b, 3)
 		res.check()
 		assert res.issurface()
 		
