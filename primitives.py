@@ -30,6 +30,10 @@ class Axis(object):
 	
 	def direction(self):
 		return self.dir
+	
+	slv_vars = ('origin', 'dir')
+	def slv_tangent(self, pt):
+		return self.dir
 
 class Segment(object):
 	__slots__ = ('a', 'b')
@@ -37,11 +41,15 @@ class Segment(object):
 		self.a, self.b = a,b
 	def direction(self):
 		return normalize(self.b-self.a)
+		
+	slv_vars = 'a', 'b'
+	def slv_tangent(self, pt):
+		return self.direction()
 	
 	def mesh(self):
 		return [self.a, self.b], 'flat'
 
-class Arc(object):	
+class ArcThrough(object):	
 	__slots__ = ('a', 'b', 'c', 'resolution')
 	
 	def __init__(self, a,b,c, resolution=None):
@@ -62,21 +70,51 @@ class Arc(object):
 	def axis(self):
 		return (self.center(), normalize(cross(self.a-self.b, self.c-self.b)))
 	
+	def tangent(self, pt):
+		c = self.center()
+		return normalize(cross(pt-c, self.a-c))
+	
+	slv_vars = ('a', 'b', 'c')
+	slv_tangent = tangent
+	
 	def mesh(self, resolution=None):
 		center = self.center()
-		r = length(self.a-center)
-		x = normalize(self.a-center)
-		y = self.b-center
-		y = normalize(y - project(y,x))
-		c = self.c-center
-		angle = atan2(dot(c,y), dot(c,x)) % (2*pi)
-		div = settings.curve_resolution(angle*r, angle, self.resolution or resolution)
-		pts = [self.a]
-		for i in range(1,div):
-			a = angle * i/div
-			pts.append(x*r*cos(a) + y*r*sin(a) + center)
-		pts.append(self.c)
-		return pts, 'arc'
+		z = normalize(cross(self.c-self.b, self.a-self.b))
+		return mkarc((center, z), self.a, self.c, resolution or self.resolution)
+
+class ArcCentered(object):
+	__slots__ = ('axis', 'a', 'b', 'resolution')
+	def __init__(self, axis, a, b, resolution=None):
+		self.axis = axis
+		self.a, self.b = a,b
+		self.resolution = resolution
+	
+	def radius(self):
+		return distance(self.center, self.a)
+	
+	def tangent(self, pt):
+		return normalize(pt - self.axis[0])
+	
+	slv_vars = ('axis', 'a', 'b')
+	slv_tangent = tangent
+	
+	def mesh(self, resolution=None):
+		return mkarc(self.axis, self.a, self.b, resolution or self.resolution)
+
+def mkarc(axis, start, end, resolution=None):
+	center, z = axis
+	r = length(start-center)
+	x = normalize(start-center)
+	y = cross(axis[1], x)
+	angle = atan2(dot(end-center,y), dot(end-center,x)) % (2*pi)
+	print('angle', angle)
+	div = settings.curve_resolution(angle*r, angle, resolution)
+	pts = []
+	for i in range(div+1):
+		a = angle * i/div
+		pts.append(x*r*cos(a) + y*r*sin(a) + center)
+	return pts, 'arc'
+	
 
 class TangentEllipsis(object):
 	__slots__ = ('a', 'b', 'c', 'resolution')
@@ -106,6 +144,15 @@ class Circle(object):
 		self.axis, self.radius = axis, radius
 		self.alignment = alignment
 		self.resolution = resolution
+	
+	def center(self, pt):
+		return self.axis[0]
+	
+	def tangent(self, pt):
+		return normalize(cross(pt-self.axis[0], self.axis[1]))
+	
+	slv_vars = ('axis', 'radius')
+	slv_tangent = tangent
 	
 	def mesh(self, resolution=None):
 		center = self.axis[0]

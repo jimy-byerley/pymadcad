@@ -1,114 +1,152 @@
 import primitives
-from mathutils import project, normalize, length, vec3
-from math import asin, cos, sin, degrees, inf
+from mathutils import project, normalize, length, vec3, distance, anglebt, cross, dot, atan2
 
-class Tangent:
-	def __init__(self, c1, c2, p):
-		arc = None
-		if isinstance(c1, (primitives.Segment, primitives.Axis)) and isinstance(c2, primitives.Arc):
-			arc,seg = c2,c1
-		elif isinstance(c2, (primitives.Segment, primitives.Axis)) and isinstance(c1, primitives.Arc):
-			arc,seg = c1,c2
-		if arc:
-			self.arc, self.seg = arc, seg
-			self.p = p
-		else:
-			raise TypeError('currently only a segment and an arc can be tangent')
-		
-	def params(self):
-		return self.p, self.arc.center
-	
-	def corrections(self):
-		arc, seg = self.arc, self.seg
-		AB = seg.b - seg.a
-		AC = arc.center - seg.a
-		AC_AB = project(AC, normalize(AB))
-		v = AC_AB - AC
-		vn = length(v)
-		corr = AC_AB - AB + (arc.radius()-vn)/vn * v
-		return corr, -corr
+class Constraint(object):
+	def __init__(self, *args, **kwargs):
+		for name, arg in zip(self.__slots__, args):
+			setattr(self, name, arg)
+		for name, arg in kwargs.items():
+			setattr(self, name, arg)
+	def fitgrad(self):
+		varset = Varset()
+		for name in self.primitives:
+			varset.register(getattr(self, name))
+		return Derived(varset.state(), varset.grad(), varset.vars)
 
-class Distance:
-	def __init__(self, p1, p2, d):
-		self.distance = d
-		self.p1, self.p2 = p1,p2
-	
-	def params(self):
-		return self.p1,self.p2
-		
-	def corrections(self):
-		v = self.p1 - self.p2
-		d = length(v)
-		corr = (self.distance - d)/d
-		return corr*v, -corr*v
+class Tangent(Constraint):
+	__slots__ = 'c1', 'c2', 'p'
+	primitives = 'c1', 'c2', 'p'
+	def fit(self):
+		return distance(self.c1.slv_tangent(self.p), self.c2.slv_tangent(self.p))**2
 
-class Angle:
-	def __init__(self, s1,s2, angle):	# WARNING: ici on considere que ce sont des segments orientés (trouver une autre representation)
-		self.s1,self.s2 = s1,s2
-		self.angle = angle
-		
-	def params(self):
-		return self.s1.a, self.s1.b, self.s2.a, self.s2.b
-	
-	def corrections(self):
-		z = cross(self.s1.direction(), self.s2.direction())
-		
-		# s1 donne le s2 idéal appellé v2
-		x = x1 = self.s1.b - self.s1.a
-		y = cross(z, x)
-		v2 = cos(self.angle)*x + sin(self.angle)*y
-		# s2 donne le s1 idéal appellé v1
-		x = x2 = self.s2.b - self.s2.a
-		y = cross(z, x)
-		v1 = cos(self.angle)*x - sin(self.angle)*y
-		
-		d1 = v1 - x1
-		d2 = v2 - x2
-		return -d1,d1,-d2,d2
+class Distance(Constraint):
+	__slots__ = 'p1', 'p2', 'd'
+	primitives = 'p1', 'p2'
+	def fit(self):
+		return (distance(self.p1, self.p2) - self.d) **2
+	def fitgrad(self):
+		return derived.compose(dot, Derived(self.p1), Derived(self.p2))
 
-class Parallel(Angle):	# pas tres optimisé pour le moment, mais infaillible
-	def __init__(self, s1,s2):
-		super().__init__(s1,s2, 0)
+class Angle(Constraint):
+	__slots__ = 's1', 's2', 'angle'
+	primitives = 's1', 's2'
+	def fit(self):
+		d1 = self.s1.direction()
+		d2 = self.s2.direction()
+		a = atan2(length(cross(d1,d2)), dot(d1,d2))
+		return (a - self.angle)**2
 
-class Radius:
+def Parallel(s1,s2):
+	return Angle(s1,s2,0)
+
+class Radius(Constraint):
+	__slots__ = 'arc', 'consta', 'constb'
 	def __init__(self, arc, radius):
 		self.arc = arc
 		self.consta = Distance(arc.center, arc.a, radius)
 		self.constb = Distance(arc.center, arc.b, radius)
 	
-	def params(self):
-		return self.arc.center, self.arc.a, self.arc.b
-	
-	def corrections(self):
-		corr1 = self.consta.corrections()
-		corr2 = self.constb.corrections()
-		return corr1[0]+corr2[0], corr1[1], corr2[1]
+	def fit(self):
+		return self.consta.fit(), self.constb.fit()
 
-class Projected:
-	def __init__(self, a,b, projection):
-		self.projection = projection
-		self.a,self.b = a,b
-	
-	def params(self):
-		return self.a, self.b
-	
-	def corrections(self):
-		corr = self.projection - project((self.b - self.a), self.projection.direction())
-		return -corr, corr
+class Projected(Constraint):
+	__slots__ = 'a', 'b', 'proj'
+	def fit(self):
+		return dot(self.a - self.b - self.proj, self.proj)
 
-class PointOn:
-	def __init__(self, point, curve):
-		if not isinstance(curve, Segment):
-			raise TypeError('currently, curve can only be a Segment')
-		self.curve = curve
-		self.point = point
-	
-	def params(self):
-		return self.point, self.curve.a, self.curve.b
-	
-	def corrections(self):
-		indev()
+class PointOn(Constraint):
+	__slots__ = 'point', 'curve'	
+	def fit(self):
+		return distance(self.curve.slv_nearest(self.point), self.point) ** 2
+
+from collections import Counter
+import numpy as np
+from scipy.optimize import minimize
+from nprint import nprint
 		
+def solve(constraints, fixed=(), *args, **kwargs):
+	return Problem(constraints, fixed).solve(*args, **kwargs)
+
+class Problem:
+	def __init__(self, constraints, fixed=()):
+		self.constraints = constraints
+		self.slvvars = []
+		self.identified = Counter()
+		self.dim = 0
+		for cst in constraints:
+			for pname in cst.primitives:
+				primitive = getattr(cst, pname)
+				self.register(primitive)
+		for prim in fixed:
+			self.unregister(prim)
+		for v in self.slvvars:
+			if isinstance(v, tuple):	self.dim += 1
+			else:						self.dim += len(v)
+	
+	def register(self, primitive):
+		if hasattr(primitive, 'slv_vars'):
+			for varname in primitive.slv_vars:
+				v = getattr(primitive, varname)
+				if isinstance(v, (float,int)):
+					self.slvvars.append((primitive, varname))
+				else:
+					self.register(v)
+		else:
+			if id(primitive) not in self.identified:
+				self.slvvars.append(primitive)
+				self.identified[id(primitive)] += 1
+	def unregister(self, primitive):
+		if hasattr(primitive, 'slv_vars'):
+			for varname in primitive.slv_vars:
+				v = getattr(primitive, varname)
+				if isinstance(v, (float,int)):
+					for i,r in enumerate(self.slvvars):
+						if r[0] is primitive and r[1] == varname:
+							self.identified.pop(i)
+							break
+				else:
+					self.unregister(v)
+		else:
+			if id(primitive) in self.identified:
+				del self.identified[id(primitive)]
+				for i,p in enumerate(self.slvvars):
+					if p is primitive:
+						self.slvvars.pop(i)
+						break
+	
+	def state(self):
+		x = np.empty(self.dim, dtype='f4')
+		i = 0
+		for v in self.slvvars:
+			l = len(v)
+			x[i:i+l] = v
+			i += l
+		return x
+	def place(self, x):
+		i = 0
+		for v in self.slvvars:
+			l = len(v)
+			for j in range(l):	v[j] = x[i+j]
+			i += l
+	def fit(self):
+		return sum((c.fit() for c in self.constraints))
+	def evaluate(self, x):
+		self.place(x)
+		return self.fit()
+	
+	def solve(self, precision=1e-4, maxiter=None, method='BFGS', afterset=None):
+		nprint(self.slvvars)
+		res = minimize(self.evaluate, self.state(), 
+				tol=precision, method=method, callback=afterset, 
+				options={'eps':precision/2})
+		if not res.success:
+			print(res)
+			raise SolveError(res.message)
+		self.place(res.x)
+		if self.fit() > precision:
+			raise SolveError('no solution found')
+		return res
+
 '''
 def solve_old(constraints, precision=1e-4, afterset=None, fixed=()):
 	corrections = {}
@@ -164,8 +202,8 @@ def geoparams(constraints):
 				knownparams.add(k)
 				yield param
 '''
-	
-def solve(constraints, precision=1e-4, afterset=None, fixed=(), maxiter=0):
+
+def solve2(constraints, precision=1e-4, afterset=None, fixed=(), maxiter=0):
 	params = []
 	corrections = []
 	corrnorms = []
@@ -254,10 +292,10 @@ def solve(constraints, precision=1e-4, afterset=None, fixed=(), maxiter=0):
 
 
 if __name__ == '__main__':
-	from primitives import Point, Segment, Arc
+	from primitives import Point, Segment, ArcCentered
 	from math import radians
 	
-	print('equilateral triangle')
+	print('\nequilateral triangle')
 	A = Point(0, 0, 0)
 	B = Point(1, 0, 0)
 	C = Point(0, 1, 0)
@@ -270,27 +308,29 @@ if __name__ == '__main__':
 		Distance(A,C, 1),
 		Distance(B,C, 1),
 		]
-	solve(csts, afterset=lambda: print(A,B,C), fixed={id(A)})
+	solve(csts, fixed=[A], afterset=lambda x: print(repr((A,B,C))))
+	print('final', repr((A,B,C)))
 
-	print('tangent arc')
+	print('\ntangent arc')
 	A = Point(0, 0, 0)
 	B = Point(1, 0, 0)
 	C = Point(0, 1, 0)
 	AB = Segment(A,B)
 	AC = Segment(A,C)
 	O = Point(0.8,0.8,0)
-	BC = Arc(O, B,C)
+	BC = ArcCentered(O, B,C)
 	
 	csts = [
 		Distance(A,B, 1),
 		Distance(A,C, 1),
-		#Distance(B,C, 1),
+		Distance(B,C, 1),	# resolution en cas de probleme sous-contraint: enlever cette ligne
 		Tangent(AB,BC,B),
 		Tangent(AC,BC,C),
 		]
-	solve(csts, afterset=lambda: print(A,B,C,O), fixed={id(A)})
+	solve(csts, fixed=[A], afterset=lambda x: print(repr((A,B,C,O))))
+	print('final', repr((A,B,C,O)))
 	
-	print('angle')
+	print('\nangle')
 	A = Point(0, 0, 0)
 	B = Point(1, 0, 0)
 	C = Point(0, 1, 0)
@@ -298,14 +338,14 @@ if __name__ == '__main__':
 	AB = Segment(A,B)
 	AC = Segment(A,C)
 	CD = Segment(C,D)
-	BD = Segment(C,D)
+	BD = Segment(B,D)
 	
 	csts = [
 		Distance(A,B, 1),
 		Distance(A,C, 1),
 		Angle(AB,AC, radians(120)),
-		Angle(CD,Segment(D,B), radians(90)),
-		Parallel(AB,CD),
+		Angle(CD,BD, radians(90)),
+		#Parallel(AB,CD),
 		]
-	solve(csts, afterset=lambda: print(A,B,C,D), fixed={id(A)})
-	
+	solve(csts, fixed=[A], afterset=lambda x: print(repr((A,B,C,D))))
+	print('final', repr((A,B,C,D)))

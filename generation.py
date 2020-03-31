@@ -515,7 +515,7 @@ if __name__ == '__main__':
 	from math import pi
 	from mesh import web, Web, Wire
 	import view
-	from primitives import Arc, Segment
+	from primitives import ArcThrough, Segment
 	import sys
 	from PyQt5.QtWidgets import QApplication
 	
@@ -534,7 +534,7 @@ if __name__ == '__main__':
 	# test revolution
 	m2 = revolution(pi, (vec3(0,0,0), vec3(0,1,0)), web(
 			Segment(vec3(1,1,0), vec3(0.9,0.5,0)), 
-			Arc(vec3(0.9,0.5,0), vec3(0.7,0,0), vec3(0.9,-0.5,0)), 
+			ArcThrough(vec3(0.9,0.5,0), vec3(0.7,0,0), vec3(0.9,-0.5,0)), 
 			Segment(vec3(0.9,-0.5,0), vec3(1,-1,0)),
 			))
 	m2.check()
