@@ -17,7 +17,7 @@ class Tangent(Constraint):
 	__slots__ = 'c1', 'c2', 'p'
 	primitives = 'c1', 'c2', 'p'
 	def fit(self):
-		return distance(self.c1.slv_tangent(self.p), self.c2.slv_tangent(self.p))**2
+		return length(cross(self.c1.slv_tangent(self.p), self.c2.slv_tangent(self.p))) **2
 
 class Distance(Constraint):
 	__slots__ = 'p1', 'p2', 'd'
@@ -41,21 +41,24 @@ def Parallel(s1,s2):
 
 class Radius(Constraint):
 	__slots__ = 'arc', 'consta', 'constb'
+	primitives = 'arc',
 	def __init__(self, arc, radius):
 		self.arc = arc
-		self.consta = Distance(arc.center, arc.a, radius)
-		self.constb = Distance(arc.center, arc.b, radius)
+		self.consta = Distance(arc.axis[0], arc.a, radius)
+		self.constb = Distance(arc.axis[0], arc.b, radius)
 	
 	def fit(self):
-		return self.consta.fit(), self.constb.fit()
+		return self.consta.fit() + self.constb.fit()
 
 class Projected(Constraint):
 	__slots__ = 'a', 'b', 'proj'
+	primitives = 'a', 'b'
 	def fit(self):
 		return dot(self.a - self.b - self.proj, self.proj)
 
 class PointOn(Constraint):
 	__slots__ = 'point', 'curve'	
+	primitives = 'point', 'curve'
 	def fit(self):
 		return distance(self.curve.slv_nearest(self.point), self.point) ** 2
 
@@ -91,6 +94,9 @@ class Problem:
 					self.slvvars.append((primitive, varname))
 				else:
 					self.register(v)
+		elif isinstance(primitive, tuple):
+			for p in primitive:
+				self.register(p)
 		else:
 			if id(primitive) not in self.identified:
 				self.slvvars.append(primitive)
@@ -106,6 +112,9 @@ class Problem:
 							break
 				else:
 					self.unregister(v)
+		elif isinstance(primitive, tuple):
+			for p in primitive:
+				self.unregister(p)
 		else:
 			if id(primitive) in self.identified:
 				del self.identified[id(primitive)]
@@ -134,18 +143,19 @@ class Problem:
 		self.place(x)
 		return self.fit()
 	
-	def solve(self, precision=1e-4, maxiter=None, method='BFGS', afterset=None):
+	def solve(self, precision=1e-4, method='BFGS', afterset=None):
 		nprint(self.slvvars)
 		res = minimize(self.evaluate, self.state(), 
 				tol=precision, method=method, callback=afterset, 
 				options={'eps':precision/2})
-		if not res.success:
+		if res.fun <= precision:
+			self.place(res.x)
+			return res
+		elif not res.success:
 			print(res)
 			raise SolveError(res.message)
-		self.place(res.x)
-		if self.fit() > precision:
+		else:
 			raise SolveError('no solution found')
-		return res
 
 '''
 def solve_old(constraints, precision=1e-4, afterset=None, fixed=()):
@@ -318,7 +328,8 @@ if __name__ == '__main__':
 	AB = Segment(A,B)
 	AC = Segment(A,C)
 	O = Point(0.8,0.8,0)
-	BC = ArcCentered(O, B,C)
+	Z = vec3(0,0,1)
+	BC = ArcCentered((O,Z), B,C)
 	
 	csts = [
 		Distance(A,B, 1),
@@ -327,7 +338,7 @@ if __name__ == '__main__':
 		Tangent(AB,BC,B),
 		Tangent(AC,BC,C),
 		]
-	solve(csts, fixed=[A], afterset=lambda x: print(repr((A,B,C,O))))
+	solve(csts, fixed=[A,Z], afterset=lambda x: print(repr((A,B,C,O))))
 	print('final', repr((A,B,C,O)))
 	
 	print('\nangle')
