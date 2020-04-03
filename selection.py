@@ -2,7 +2,7 @@ import math
 from mathutils import vec3, anglebt, cross, dot, length, distance, normalize, noproject
 from mesh import Mesh, Web, edgekey, connpp, connef, distance_pp, distance_pa, distance_pe, distance_aa, distance_ae
 
-__all__ = ['select', 'stopangle', 'crossover', 'straight', 'short', 'SelExpr']
+__all__ = ['select', 'stopangle', 'crossover', 'straight', 'short', 'SelExpr', 'edgenear']
 
 def select(mesh, edge, stopleft=None, stopright=False, conn=None, web=None) -> Web:
 	''' Select edges by propagation across group outlines, until the stop criterion is verified
@@ -19,7 +19,7 @@ def select(mesh, edge, stopleft=None, stopright=False, conn=None, web=None) -> W
 		web = mesh
 		mesh = None
 	if conn is None:
-		conn = connpp(web.lines)
+		conn = connpp(web.edges)
 	if stopleft is None:		stopleft = lambda *args: False
 	if stopright is None:		stopright = lambda *args: False
 	elif stopright is False:	stopright = stopleft
@@ -27,21 +27,25 @@ def select(mesh, edge, stopleft=None, stopright=False, conn=None, web=None) -> W
 	assert edge[0] in conn and edge[1] in conn[edge[0]], "the given edge doesn't exist"
 	# selection by propagation on each side
 	shared = {'mesh':mesh, 'web':web, 'conn':conn}
-	return Web(web.points, list(
-			  selectside(shared, edge, stopleft) 
-			| selectside(shared, (edge[1], edge[0]), stopright)
-			))
+	seen = set()
+	selectside(shared, edge, stopleft, seen, True) 
+	selectside(shared, edge, stopleft, seen, False) 
+	return Web(web.points, list(seen))
 
-def selectside(shared, edge, stop):
+def selectside(shared, edge, stop, seen=None, revert=None):
 	''' selection by propagation until stop criterion '''
 	front = [edge]
-	seen = set()
+	if seen is None:	seen = set()
 	conn = shared['conn']
 	while front:
-		last,curr = edge = front.pop()
-		e = edgekey(*edge)
-		if e in seen:	continue
-		seen.add(e)
+		last,curr = front.pop()
+		#e = edgekey(*edge)
+		#if e in seen:	continue
+		#seen.add(e)
+		if   (last,curr) in seen:	continue
+		elif (curr,last) in seen:	continue
+		if revert:	seen.add((curr,last))
+		else:		seen.add((last,curr))
 		connected = conn[curr]
 		if len(connected) > 1:
 			for next in connected:
@@ -75,7 +79,7 @@ def stopangle(maxangle):
 	return SelExpr(stop)
 
 @SelExpr
-def crossover(shared,last,curr,next): 
+def crossover(shared,last,curr,next):
 	return len(shared['conn'][curr]) > 2
 
 @SelExpr
@@ -125,7 +129,7 @@ def edgenear(web, obj):
 	if isinstance(web, Mesh):	web = web.groupoutlines()
 	best = None
 	score = math.inf
-	for edge in web.lines:
+	for edge in web.edges:
 		d = dist((web.points[edge[0]], web.points[edge[1]]))
 		if d < score:
 			score = d
@@ -145,12 +149,12 @@ if __name__ == '__main__':
 		[(0,1,2),(0,2,3), (4,0,3),(0,4,5),  (6,2,1),(2,6,7)],
 		[0,0, 1,1, 2,2],
 		)
-	print('all (10)\t', select(m, (0,1)).lines)
-	print('crossover (1)\t', select(m, (0,1), crossover).lines)
-	print('stopangle (3)\t', select(m, (0,1), stopangle(0.1)).lines)
-	print('straight (8)\t', select(m, (0,1), straight).lines)
-	print('short (4)\t', select(m, (0,1), short).lines)
-	print('short | straight (1)\t', select(m, (0,1), short | straight).lines)
+	print('all (10)\t', select(m, (0,1)).edges)
+	print('crossover (1)\t', select(m, (0,1), crossover).edges)
+	print('stopangle (3)\t', select(m, (0,1), stopangle(0.1)).edges)
+	print('straight (8)\t', select(m, (0,1), straight).edges)
+	print('short (4)\t', select(m, (0,1), short).edges)
+	print('short | straight (1)\t', select(m, (0,1), short | straight).edges)
 	print('edgenear\t', edgenear(m, (vec3(0,2,0), vec3(1,1,0))))
 	
 	#m.options.update({'debug_display':True, 'debug_points':True})
