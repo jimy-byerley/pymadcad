@@ -1,5 +1,5 @@
 from mesh import Mesh, edgekey, MeshError, web, distance_pa
-from mathutils import vec2,mat2,vec3,vec4,mat3,mat4, mat3_cast, quat, rotate, translate, dot, cross, perpdot, project, noproject, scaledir, transform, normalize, inverse, length, cos, asin, acos, sqrt, NUMPREC, COMPREC, angleAxis, angle, distance, anglebt, interpol1, spline
+from mathutils import vec2,mat2,dvec2,dmat2,vec3,vec4,mat3,mat4, mat3_cast, quat, rotate, translate, dot, cross, perpdot, project, noproject, scaledir, transform, normalize, inverse, length, cos, asin, acos, sqrt, NUMPREC, COMPREC, angleAxis, angle, distance, anglebt, interpol1, spline
 from math import atan2
 from primitives import Primitive
 import settings
@@ -295,7 +295,7 @@ def makeloops(lines, faces=()):
 				found = True
 				break
 		loops.append(loop)
-	regularizeloops(loops, faces)
+	#regularizeloops(loops, faces)
 	
 	return loops
 
@@ -304,6 +304,7 @@ def regularizeloops(loops, faces=()):
 		if faces are provided, this function also make sure loops are not enclosing faces 
 		preserves the orientation of each loop
 	'''
+	print('regularize', loops)
 	# cut the loops when there is subloops inside it
 	for i,loop in enumerate(loops):
 		# merge with loops that share points with current loops
@@ -323,7 +324,6 @@ def regularizeloops(loops, faces=()):
 				# avoid creating loops that enclose faces
 				tri = (loop[j], loop[j+1], loop[k-1])
 				if tri in faces or (tri[1],tri[2],tri[0]) in faces or (tri[2],tri[0],tri[1]) in faces:
-					print('disarmed')
 					j += 1
 					continue
 				cut = loop[j:k+1]
@@ -370,22 +370,24 @@ def triangulate(mesh, outline, group=None):
 		
 	# create faces
 	while len(outline) > 2:
-		best_surf = 0.0
+		best_surf = -NUMPREC
 		index = None
 		l = len(pts)
 		for i in range(l):
 			o = pts[i]
 			u = pts[(i+1)%l] - o
 			v = pts[(i-1)%l] - o
-			surf = perpdot(u,v) #/ (length(u)+length(v)+length(u-v))		# ratio surface/perimeter -> leads to equilateral triangles
+			#surf = perpdot(u,v) 
+			#surf = perpdot(u,v) / (length(u)+length(v)+length(u-v))		# ratio surface/perimeter -> leads to equilateral triangles
+			surf = anglebt(u,v)
 			# greatest surface
 			if surf < best_surf:	continue
 			# check hat there is not point of the outline inside the triangle
-			decomp = inverse(mat2(u,v))
+			decomp = inverse(dmat2(u,v))
 			inside = False
 			for j,p in enumerate(pts):
 				if j != i and j != (i-1)%l and j != (i+1)%l:
-					uc,vc = decomp * (p-o)
+					uc,vc = decomp * dvec2(p-o)
 					if 0 < uc and 0 < vc and uc+vc < 1:
 						inside = True
 						break
@@ -396,6 +398,7 @@ def triangulate(mesh, outline, group=None):
 		
 		# create face using this vertex
 		if index is None: 
+			print(surf, best_surf)
 			raise MeshError("no more feasible triangles in "+str(outline))
 		mesh.faces.append((outline[(index-1)%l], outline[index], outline[(index+1)%l]))
 		mesh.tracks.append(group)
