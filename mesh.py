@@ -30,8 +30,9 @@ class Container:
 		for i in range(len(self.points)):
 			self.points[i] = transformer(self.points[i])
 			
-	def mergeclose(self, limit=NUMPREC):
+	def mergeclose(self, limit=None):
 		''' merge points below the specified distance, or below the precision '''
+		if limit is None:	limit = self.precision()
 		merges = {}
 		for j in reversed(range(len(self.points))):
 			for i in range(j):
@@ -72,6 +73,19 @@ class Container:
 		else:				return True
 	
 	# --- selection methods ---
+	
+	def maxnum(self):
+		''' maximum numeric value of the mesh, use this to get an hint on its size or to evaluate the numeric precision '''
+		m = 0
+		for p in self.points:
+			for v in p:
+				a = abs(v)
+				if a > m:	m = a
+		return m
+	
+	def precision(self, propag=3):
+		''' numeric precision of operations on this mesh, allowed by the floating point precision '''
+		return self.maxnum() * NUMPREC * (2**propag)
 		
 	def usepointat(self, point, neigh=NUMPREC):
 		''' return the index of the first point in the mesh at the location, if none is found, insert it and return the index '''
@@ -263,7 +277,7 @@ class Mesh(Container):
 		f = self.faces[index]
 		return self.points[f[0]], self.points[f[1]], self.points[f[2]]
 	
-	def edges(self, oriented=True):
+	def edges(self):
 		''' set of unoriented edges present in the mesh '''
 		edges = set()
 		for face in self.faces:
@@ -378,7 +392,7 @@ class Mesh(Container):
 			np.hstack((fn, fn, fn)).reshape((len(self.faces)*3,3)),
 			faces = np.array(range(3*len(self.faces)), dtype='u4').reshape(len(self.faces),3),
 			idents = np.array(idents, dtype='u2'),
-			edges = np.array(edges, dtype='u4'),
+			lines = np.array(edges, dtype='u4'),
 			color = self.options.get('color', None),
 			)
 	
@@ -590,11 +604,11 @@ class Web(Container):
 	def check(self):
 		''' check that the internal data references are good (indices and list lengths) '''
 		l = len(self.points)
-		for line in self.faces:
+		for line in self.edges:
 			for p in line:
 				if p >= l:	raise MeshError("some indices are greater than the number of points", line, l)
 			if line[0] == line[1]:	raise MeshError("some edges use the same point multiple times", line)
-		if len(self.faces) != len(self.tracks):	raise MeshError("tracks list doesn't match faces list length")
+		if len(self.edges) != len(self.tracks):	raise MeshError("tracks list doesn't match edge list length")
 		if max(self.tracks) >= len(self.groups): raise MeshError("some line group indices are greater than the number of groups", max(self.tracks), len(self.groups))
 		
 	# --- extraction methods ---
@@ -718,7 +732,7 @@ def connpp(edges):
 		for i in range(len(line)):
 			for a,b in ((line[i-1],line[i]), (line[i],line[i-1])):
 				if a not in conn:		conn[a] = [b]
-				else:					conn[a].append(b)
+				elif b not in conn[a]:	conn[a].append(b)
 	return conn
 	
 def connef(faces):
