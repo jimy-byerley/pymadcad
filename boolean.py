@@ -2,8 +2,9 @@
 	Defines boolean operations for triangular meshes
 '''
 from copy import copy,deepcopy
-from mathutils import vec3, mat3, dot, cross, inverse, normalize, length, distance, NUMPREC, COMPREC
-from mesh import Mesh, edgekey
+from mathutils import dvec3, dmat3, vec3, mat3, dot, cross, noproject, inverse, sqrt, normalize, length, distance, NUMPREC, COMPREC
+from mesh import Mesh, edgekey, connef
+from time import time
 
 __all__ = ['intersect', 'boolean', 'intersection', 'union', 'difference']
 		
@@ -19,7 +20,7 @@ def intersection_coords(face_1, face_2, face_orig, edge_start, edge_end):
 		u,v are the face coordinates (such as 0 <= u+v <= 1,  u,v positive   if the point is in the face)
 		w such the edge coordinate (0 <= w <= 1,  if the point is in the edge)
 	'''
-	return inverse(mat3(face_1, face_2, edge_end-edge_start)) * (edge_end - face_orig)
+	return inverse(dmat3(face_1, face_2, edge_end-edge_start)) * dvec3(edge_end - face_orig)
 
 def notint(x):
 	return x > NUMPREC and x < COMPREC
@@ -29,147 +30,110 @@ def intersection_edge_face(face, edge):
 	#if 0 < coords[0] and 0 < coords[1] and coords[0]+coords[1] < 1 and 0 < coords[2] and coords[2] < 1 and (notint(coords[0]) or notint(coords[1])):
 	if 0 <= coords[0] and 0 <= coords[1] and coords[0]+coords[1] <= 1 and 0 <= coords[2] and coords[2] <= 1 and (notint(coords[0]) or notint(coords[1])):
 		#print(coords, '\t\t', face, edge)
-		return edge[0] + (edge[1]-edge[0])*coords[2]
+		#return edge[0] + (edge[1]-edge[0])*coords[2]
+		return coords[0]*(face[1]-face[0]) + coords[1]*(face[2]-face[0]) + face[0]
 	else:
 		return None
 
+def pierce_face(mesh, fi, p, prec, conn=None):
+	f = mesh.faces[fi]
+	l = len(mesh.faces)
+	pi = mesh.usepointat(p, prec)
+	mesh.faces[fi] = (f[0], f[1], pi)
+	mesh.faces.append((f[1], f[2], pi))
+	mesh.faces.append((f[2], f[0], pi))
+	mesh.tracks.append(mesh.tracks[fi])
+	mesh.tracks.append(mesh.tracks[fi])
+	if conn:
+		registerface(mesh, conn, fi)
+		registerface(mesh, conn, l)
+		registerface(mesh, conn, l+1)
+	return pi
 
-def face_intersection_border(f1, f2):
-	p1 = intersection_edge_face(f1, (f2[0], f2[1]))
-	p2 = intersection_edge_face(f1, (f2[0], f2[2]))
-	if   not p1 or (p1 and p2 and distance(p1,p2) < NUMPREC):	p1 = intersection_edge_face(f1, (f2[2], f2[1]))
-	elif not p2 or (p1 and p2 and distance(p1,p2) < NUMPREC):	p2 = intersection_edge_face(f1, (f2[2], f2[1]))
-	return p1, p2
+def removefaces(mesh, crit):
+	''' remove faces whose indices are present in faces, (for huge amount, prefer pass faces as a set) '''
+	newfaces = []
+	newtracks = []
+	for i in range(len(mesh.faces)):
+		if not crit(i):
+			newfaces.append(mesh.faces[i])
+			newtracks.append(mesh.tracks[i])
+	mesh.faces = newfaces
+	mesh.tracks = newtracks
 
-def append_nonempty_face(mesh, face, group):
-	p0 = mesh.points[face[0]]
-	e1 = mesh.points[face[1]] - p0
-	e2 = mesh.points[face[2]] - p0
-	# test si la face et vide (aretes colinéaires)
-	if length(cross(e1, e2)) > NUMPREC:
-		mesh.faces.append(face)
-		mesh.tracks.append(group)
-	#else:
-		#print('reject', face)
+def facesurf(mesh, fi):
+	o,x,y = mesh.facepoints(fi)
+	return length(cross(x-o, y-o))
 
-def faceintersection(mesh, fi, f2, f2i):
-	pts = mesh.facepoints(fi)
-	i1 = face_intersection_border(pts, f2)
-	if not i1[0] or not i1[1] or distance(i1[0],i1[1]) < NUMPREC:
-		i2 = face_intersection_border(f2, pts)
-		if not (i1[0] or i2[0] or i2[1]) or not (i1[1] or i2[1] or i2[0]):
-			msg = 'one only point'
-		else:
-			msg = 'one point from the second face'
-		p1 = i1[0] or i2[0] or i2[1] or i1[1]
-		p2 = i1[1] or i2[1] or i2[0] or i1[0]
-		# fix problem of p1 == p2 with a p3 available elsewhere
-		for p in (i1[1], i2[1], i2[0], i1[0]):
-			if p and distance(p1,p) > NUMPREC:	
-				p2 = p
-				break
-	else:
-		msg = 'two intersections into face'
-		p1, p2 = i1
-	if p1 and p2:
-		return (p1, p2)
+def registerface(mesh, conn, fi):
+	f = mesh.faces[fi]
+	for e in ((f[0],f[1]), (f[1],f[2]), (f[2],f[0])):
+		conn[e] = fi
 
-
-def cutface(mesh, fi, edge):
-	''' cut the face with an edge [vec3, vec3] '''
-	pts = mesh.facepoints(fi)
-	p1,p2 = edge
-	# remove the former face
-	fp = mesh.faces.pop(fi)
-	group = mesh.tracks.pop(fi)
-	# insert the intersection points
-	p1i = mesh.usepointat(p1)
-	p2i = mesh.usepointat(p2)
-	
-	
-	n = cross(pts[1]-pts[0], pts[2]-pts[0])
-	d = normalize(cross(p2-p1, n))	# projection direction orthogonal to the axis bt p1 and p2
-	s = [dot(pt-p1, d) for pt in pts]	# signs of projections
-	
-	#print('config', fp, s[0]*s[2], s[1]*s[0], s[1]*s[2])
-	
-	# turn the face to get the proper configuration where fp[1] and fp[2] are apart of the crossing axis (p1, p2)
-	# choose the edge at the middle of which the axis is the nearer
-	if   s[2]*s[0] <= s[2]*s[1] and s[2]*s[0] <= s[0]*s[1]:	fp = (fp[1], fp[2], fp[0])
-	elif s[1]*s[0] <= s[1]*s[2] and s[1]*s[0] <= s[0]*s[2]:	fp = (fp[2], fp[0], fp[1])
-
-	# exchange the points of the intersection in order to avoid crossing triangle 
-	p0 = mesh.points[fp[0]]
-	a = cross(n, mesh.points[fp[2]] - mesh.points[fp[1]])	# perpendicular axis to base, oriented to triangle center
-	if dot(p1-p2, a) < 0:	# p1 is nearer to the base than p2
-		p2i,p1i = p1i,p2i
-		
-	#print('choice', fp, p1i, p2i)
-	
-	# the links created must have the same normal orientation than the former one
-	for face in [
-		(p1i, fp[0], fp[1]),
-		(p1i, fp[1], p2i),
-		(p2i, fp[1], fp[2]),
-		(p2i, fp[2], p1i),
-		(p1i, fp[2], fp[0]),
-		]:
-		append_nonempty_face(mesh, face, group)
-	return (p1i, p2i)
-			
 def intersectwith(m1, m2):
-	''' cut m1 at the intersection with m2 '''
-	intersections = []
-	c = 0
-	# work with separated faces
-	for f2 in range(len(m2.faces)):
-		f1 = 0
-		for _ in range(len(m1.faces)):	# m1 length varies over the iterations of m2
-			face1, face2 = m1.faces[f1], m2.faces[f2]
-			edge = faceintersection(m1, f1, m2.facepoints(f2), f2)
-			if edge:
-				cut = cutface(m1, f1, edge)
-				intersections.append((*cut, f2))
-				c += 1
-				#print('cut', cut)
-			else:
-				f1 += 1
-	return intersections
+	prec = m1.precision()
+	surfprec = prec * m1.maxnum()
+	# cut m1 faces with intersections with m2 edges
+	for e in m2.edges():
+		for fi,f in enumerate(m1.faces):
+			p = intersection_edge_face(m1.facepoints(fi), (m2.points[e[0]], m2.points[e[1]]))
+			if p:	pierce_face(m1, fi, p, prec)
+	# cut m1 edges with intersections with m2 faces
+	for i in range(len(m2.faces)):
+		for fi in range(len(m1.faces)):
+			if facesurf(m1, fi) <= surfprec:	continue
+			f = m1.faces[fi]
+			fc = [fi,fi,fi]
+			for ei,e in enumerate(((f[0],f[1]), (f[1],f[2]), (f[2],f[0]))):
+				p = intersection_edge_face(m2.facepoints(i), (m1.points[e[0]], m1.points[e[1]]))
+				if p:
+					pierce_face(m1, fc[ei], p, prec)
+					if fc[ei] == fi:
+						fc[1] = len(m1.faces)-2
+						fc[2] = len(m1.faces)-1
+	
+	removefaces(m1, lambda fi: facesurf(m1,fi) <= surfprec)
+	return m1
 
 def booleanwith(m1, m2, side):
 	''' execute the boolean operation only on m1 '''
+	start = time()
 	intersectwith(m1, m2)
+	print('intersectwith', time()-start)
+	start = time()
+	prec = m1.precision()
+	surfprec = prec * m1.maxnum()
 	
-	m1.mergeclose()
+	m1.mergeclose()	# TODO voir pourquoi
 	
 	used = [False] * len(m1.faces)
 	front = set()
 	notto = set()
-
+	
 	# search for intersections
 	for f2 in m2.faces:
 		o = m2.points[f2[0]]
 		x = m2.points[f2[1]] - o
 		y = m2.points[f2[2]] - o
 		n = cross(x,y)
-		decomp = inverse(mat3(x, y, n))
+		decomp = inverse(dmat3(x, y, n))
+		triprec = NUMPREC / (1-abs(dot(x,y))/length(x)/length(y))
 		for i,f1 in enumerate(m1.faces):
-			onplane = []
-			summit = 0
-			for p in f1:
-				d = decomp * (m1.points[p] - o)
-				if -NUMPREC <= d[0] and -NUMPREC <= d[1] and d[0] + d[1] <= 1+NUMPREC and abs(d[2]) < NUMPREC:
-				#if 0 <= d[0] and 0 <= d[1] and d[0] + d[1] <= 1 and abs(d[2]) < NUMPREC:
-					onplane.append(p)
-				else:
-					summit = p
-			if len(onplane) == 2:
-				proj = dot(n, m1.points[summit] - o)	* (-1 if side else 1)
-				if proj > NUMPREC:
-					used[i] = True
-					notto.add(edgekey(onplane[0], onplane[1]))
-					front.add(edgekey(onplane[0], summit))
-					front.add(edgekey(onplane[1], summit))
+			onplane = [False]*3
+			for j in range(3):
+				v = m1.points[f1[j]] - o
+				d = decomp * dvec3(v)
+				if -triprec <= d[0] and -triprec <= d[1] and d[0] + d[1] <= 1+triprec and abs(d[2]) <= prec:
+					onplane[j] = True
+			for j in range(3):
+				if onplane[j] and onplane[j-1]:
+					a,b,summit = f1[j-1], f1[j], f1[j-2]
+					proj = dot(n, m1.points[summit] - o)	* (-1 if side else 1)
+					if proj > prec:
+						used[i] = True
+						notto.add(edgekey(a, b))
+						front.add(edgekey(a, summit))
+						front.add(edgekey(b, summit))
 	
 	if not front:
 		if side:	
@@ -178,9 +142,10 @@ def booleanwith(m1, m2, side):
 		return notto
 	
 	# display frontier
+	#import text
 	#for edge in notto:
 		#p = (m1.points[edge[0]] + m1.points[edge[1]]) /2
-		#scn3D.objs.append(text.Text(tuple(p), str(edge), 9, (1, 1, 0)))
+		#scn3D.add(text.Text(p, str(edge), 9, (1, 1, 0)))
 	
 	# propagation
 	front -= notto
@@ -212,6 +177,10 @@ def booleanwith(m1, m2, side):
 			or propagate(i, (face[1], face[2], face[0])))
 	
 	# selection of faces
+	#for i,u in enumerate(used):
+		#if not u:
+			#p = m1.facepoints(i)
+			#scn3D.add(text.Text((p[0]+p[1]+p[2])/3, 'X', 9, (1,0,1)))
 	m1.faces =  [f for u,f in zip(used, m1.faces) if u]
 	m1.tracks = [t for u,t in zip(used, m1.tracks) if u]
 	
@@ -232,7 +201,7 @@ def booleanwith(m1, m2, side):
 	destinations = set()	# points to keep
 	def getdests(a,b,c):
 		o = m1.points[b]
-		if length(cross(m1.points[a]-o, m1.points[c]-o)) > NUMPREC:
+		if length(cross(m1.points[a]-o, m1.points[c]-o)) > prec:
 			destinations.add(b)
 	processangles(getdests)
 	
@@ -240,13 +209,14 @@ def booleanwith(m1, m2, side):
 	merges = {}
 	def getmerges(a,b,c):
 		o = m1.points[b]
-		if length(cross(m1.points[a]-o, m1.points[c]-o)) < NUMPREC:
+		if length(cross(m1.points[a]-o, m1.points[c]-o)) < prec:
 			dst = a if a in destinations else c
 			if dst not in merges or merges[dst] != b:
 				merges[b] = dst
-				while merges[b] in merges:
-					merges[b] = merges[merges[b]]
 	processangles(getmerges)
+	for k,v in merges.items():
+		while v in merges:
+			merges[k] = v = merges[merges[k]]
 
 	# display merges
 	#for src,dst in merges.items():
@@ -254,6 +224,7 @@ def booleanwith(m1, m2, side):
 		#scn3D.objs.append(text.Text(m1.points[dst], str(dst), 9, (1, 0, 1)))
 	
 	m1.mergepoints(merges)
+	print('booleanwith', time()-start)
 	
 	return notto
 
@@ -275,7 +246,7 @@ def boolean(m1, m2, selector):
 			return mc1 + mc2
 		else:
 			mc1 = deepcopy(m1)
-			booleanwith(mc1, selector[0])
+			booleanwith(mc1, m2, selector[0])
 			return mc1
 	elif selector[1] is not None:
 		return boolean(m2, m1, (selector[1], selector[0]))
@@ -379,12 +350,20 @@ if __name__ == '__main__':
 	#scn3D.objs.append(m1)
 	start = time()
 	m3 = boolean(m1, m2, (True, False))
-	m3.strippoints()
+	#m3.strippoints()
 	print('computation time:', time()-start)
+	
+	print('face15', facesurf(m3, 15))
 	
 	assert m3.isvalid()
 	#assert m3.isenvelope()
 	
+	# debug purpose
+	#m3.options.update({'debug_display':True, 'debug_points':True, 'debug_faces':'indices'})
+	#m2.options.update({'debug_display':True})
+	#m3.groups = [None]*len(m3.faces)
+	#m3.tracks = list(range(len(m3.faces)))
+	# display
 	scn3D.add(m3)
 	
 	main.show()
