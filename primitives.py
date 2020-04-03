@@ -1,5 +1,5 @@
 from math import sqrt
-from mathutils import vec3, mat3, normalize, anglebt, project, cos, sin, atan2, pi, length, cross, vec2, mat2, determinant, inverse, dot, atan, acos, dirbase
+from mathutils import vec3, mat3, normalize, anglebt, project, cos, sin, atan2, pi, length, distance, cross, vec2, mat2, determinant, inverse, dot, atan, acos, dirbase
 import settings
 
 class Primitive(object):
@@ -86,14 +86,17 @@ class ArcCentered(object):
 	__slots__ = ('axis', 'a', 'b', 'resolution')
 	def __init__(self, axis, a, b, resolution=None):
 		self.axis = axis
-		self.a, self.b = a,b
+		self.a, self.b = a, b
 		self.resolution = resolution
 	
+	def center(self):
+		return self.axis[0]
+	
 	def radius(self):
-		return distance(self.center, self.a)
+		return (distance(self.axis[0], self.a) + distance(self.axis[0], self.b)) /2
 	
 	def tangent(self, pt):
-		return normalize(pt - self.axis[0])
+		return cross(normalize(pt - self.axis[0]), self.axis[1])
 	
 	slv_vars = ('axis', 'a', 'b')
 	slv_tangent = tangent
@@ -106,12 +109,13 @@ def mkarc(axis, start, end, resolution=None):
 	r = length(start-center)
 	x = normalize(start-center)
 	y = cross(axis[1], x)
+	#print(dot(end-center,y), dot(end-center,x))
 	angle = atan2(dot(end-center,y), dot(end-center,x)) % (2*pi)
-	print('angle', angle)
-	div = settings.curve_resolution(angle*r, angle, resolution)
+	#angle = acos(dot(x, normalize(end-center)))
+	div = settings.curve_resolution(angle*r, angle, resolution) +2
 	pts = []
-	for i in range(div+1):
-		a = angle * i/div
+	for i in range(div):
+		a = angle * i/(div-1)
 		pts.append(x*r*cos(a) + y*r*sin(a) + center)
 	return pts, 'arc'
 	
