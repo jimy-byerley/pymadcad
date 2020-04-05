@@ -7,13 +7,16 @@ from math import pi, atan2
 from copy import deepcopy
 
 '''
+vec2 = dvec2
+mat2 = dmat2
 vec3 = dvec3
 mat3 = dmat3
 vec4 = dvec4
 mat4 = dmat4
 quat = dquat
 
-NUMPREC = 1e-12
+NUMPREC = 1e-10
+COMPREC = 1-NUMPREC
 '''
 
 # numerical precision of floats used (float32 here, so 7 decimals, so 1e-6 when exponent is 1)
