@@ -97,12 +97,13 @@ def intersectwith(m1, m2):
 
 def booleanwith(m1, m2, side):
 	''' execute the boolean operation only on m1 '''
+	prec = m1.precision()
+	surfprec = prec * m1.maxnum()
+	
 	start = time()
 	intersectwith(m1, m2)
 	print('intersectwith', time()-start)
 	start = time()
-	prec = m1.precision()
-	surfprec = prec * m1.maxnum()
 	
 	m1.mergeclose()	# TODO voir pourquoi
 	
@@ -134,7 +135,6 @@ def booleanwith(m1, m2, side):
 						notto.add(edgekey(a, b))
 						front.add(edgekey(a, summit))
 						front.add(edgekey(b, summit))
-	
 	if not front:
 		if side:	
 			m1.faces = []
@@ -186,11 +186,21 @@ def booleanwith(m1, m2, side):
 	
 	
 	# simplify the intersection (only at the intersection are useless points)
-	frontier = list(notto)
-	frontier.sort(key=lambda e: e[0])
+	m1.mergepoints(line_simplification(m1, notto))
+
+	print('booleanwith', time()-start)
+	
+	return notto
+
+def line_simplification(mesh, line):	# TODO mettre dans un module en commun avec cut.py
+	''' simplify the points that has no angle, merging these to some that have '''
+	prec = mesh.precision()
+	
+	line = list(line)
+	line.sort(key=lambda e: e[0])
 	def processangles(process):
-		for i,ei in enumerate(frontier):
-			for j,ej in enumerate(frontier):
+		for i,ei in enumerate(line):
+			for j,ej in enumerate(line):
 				if i == j:	continue
 				if   ej[0] == ei[1]:	process(ei[0], ei[1], ej[1])
 				elif ej[0] == ei[0]:	process(ei[1], ei[0], ej[1])
@@ -200,16 +210,16 @@ def booleanwith(m1, m2, side):
 	# get the points to keep
 	destinations = set()	# points to keep
 	def getdests(a,b,c):
-		o = m1.points[b]
-		if length(cross(m1.points[a]-o, m1.points[c]-o)) > prec:
+		o = mesh.points[b]
+		if length(cross(mesh.points[a]-o, mesh.points[c]-o)) > prec:
 			destinations.add(b)
 	processangles(getdests)
 	
 	# find the points to merge
 	merges = {}
 	def getmerges(a,b,c):
-		o = m1.points[b]
-		if length(cross(m1.points[a]-o, m1.points[c]-o)) < prec:
+		o = mesh.points[b]
+		if length(cross(mesh.points[a]-o, mesh.points[c]-o)) < prec:
 			dst = a if a in destinations else c
 			if dst not in merges or merges[dst] != b:
 				merges[b] = dst
@@ -223,10 +233,8 @@ def booleanwith(m1, m2, side):
 		#scn3D.objs.append(text.Text(m1.points[src], str(src)+' -> '+str(dst), 9, (1, 1, 0)))
 		#scn3D.objs.append(text.Text(m1.points[dst], str(dst), 9, (1, 0, 1)))
 	
-	m1.mergepoints(merges)
-	print('booleanwith', time()-start)
-	
-	return notto
+	return merges
+
 
 def boolean(m1, m2, selector):
 	''' execute boolean operation on volumes 
@@ -266,20 +274,6 @@ def difference(a,b):
 		It is a boolean with selector (False, True)
 	'''
 	return boolean(a,b,(False, True))
-
-def usefulpts(mesh):
-	''' return the points that are useless for the shape of the mesh (eg. those common to triangles of a flat face) '''
-	normals = [None]*len(mesh.points)
-	keep = [False]*len(mesh.points)
-	for i,f in enumerate(mesh.faces):
-		p = mesh.facepoints(i)
-		n = normalize(cross(p[1]-p[0], p[2]-p[0]))
-		for p in f:
-			if normals[p] is None:
-				normals[p] = n
-			elif not keep[p] and distance(normals[p], n) > NUMPREC:
-				keep[p] = True
-	return keep
 
 
 
@@ -345,12 +339,10 @@ if __name__ == '__main__':
 	#intersectwith(m3, m2)
 	#booleanwith(m1, m2, False)
 	#booleanwith(m2, m3, True)
-		
-	#scn3D.objs.append(m2)
-	#scn3D.objs.append(m1)
+	
 	start = time()
 	m3 = boolean(m1, m2, (True, False))
-	#m3.strippoints()
+	m3.strippoints()
 	print('computation time:', time()-start)
 	
 	print('face15', facesurf(m3, 15))
@@ -365,6 +357,7 @@ if __name__ == '__main__':
 	#m3.tracks = list(range(len(m3.faces)))
 	# display
 	scn3D.add(m3)
+	#scn3D.add(m2)
 	
 	main.show()
 	sys.exit(app.exec())

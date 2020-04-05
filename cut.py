@@ -464,13 +464,83 @@ def cut(mesh, line, offsets, conn=None):
 				if cutted or (goodside[0] and goodx[0] or goodside[1] and goodx[1] or goodside[2] and goodx[2]):
 					for j in range(3):
 						front.append((f[j],f[j-1]))
-					
+		
 		result.append(intersections)
+			
+	# simplify cuts
+	merges = {}
+	for i,grp in enumerate(result):
+		reindex = line_simplification(mesh, grp, conn)
+		lines = []
+		for a,b in grp:
+			c,d = reindex.get(a,a), reindex.get(b,b)
+			if c != d:	lines.append((c,d))
+		result[i] = lines
+		merges.update(reindex)
+	# apply merges, but keeping the empty faces, to keep the toremove list valid
+	for i,f in enumerate(mesh.faces):
+		mesh.faces[i] = (
+			merges.get(f[0],f[0]),
+			merges.get(f[1],f[1]),
+			merges.get(f[2],f[2]),
+			)
 	
 	# delete inside faces and empty ones
 	surfprec = mesh.precision() * mesh.maxnum()
 	removefaces(mesh, lambda fi: fi in toremove or facesurf(mesh,fi) <= surfprec)
+	
 	return result
+
+import boolean
+
+def line_simplification(mesh, line, conn):	# TODO mettre dans un module en commun avec cut.py
+	''' simplify the points that has no angle, merging these to some that have '''
+	prec = mesh.precision()
+	
+	line = list(line)
+	line.sort(key=lambda e: e[0])
+	def processangles(process):
+		for i,ei in enumerate(line):
+			for j,ej in enumerate(line):
+				if i == j:	continue
+				if   ej[0] == ei[1]:	process(ei[0], ei[1], ej[1])
+				elif ej[0] == ei[0]:	process(ei[1], ei[0], ej[1])
+				elif ej[1] == ei[1]:	process(ei[0], ei[1], ej[0])
+				elif ej[1] == ei[0]:	process(ei[1], ei[0], ej[0])
+	
+	# get the points to keep
+	destinations = set()	# points to keep
+	def getdests(a,b,c):
+		o = mesh.points[b]
+		if length(cross(mesh.points[a]-o, mesh.points[c]-o)) > prec:
+			destinations.add(b)
+	processangles(getdests)
+	
+	# find the points to merge
+	merges = {}
+	def getmerges(a,b,c):
+		faces = (
+			conn.get((a,b)), conn.get((b,c)),
+			conn.get((c,b)), conn.get((b,a)),
+			)
+		if faces == [None]*4:	print(a,b,c)
+		if (	(faces[0] is None or faces[1] is None or length(cross(mesh.facenormal(faces[0]), mesh.facenormal(faces[1]))) <= 4*NUMPREC)
+			and	(faces[2] is None or faces[3] is None or length(cross(mesh.facenormal(faces[2]), mesh.facenormal(faces[3]))) <= 4*NUMPREC)
+			):	# <---- difference avec boolean.line_simplification
+			dst = a if a in destinations else c
+			if dst not in merges or merges[dst] != b:
+				merges[b] = dst
+	processangles(getmerges)
+	for k,v in merges.items():
+		while v in merges:
+			merges[k] = v = merges[merges[k]]
+
+	# display merges
+	#for src,dst in merges.items():
+		#scn3D.objs.append(text.Text(m1.points[src], str(src)+' -> '+str(dst), 9, (1, 1, 0)))
+		#scn3D.objs.append(text.Text(m1.points[dst], str(dst), 9, (1, 0, 1)))
+	
+	return merges
 
 
 def insertpoint(mesh, pt, prec):
