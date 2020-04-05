@@ -34,8 +34,9 @@ def select(mesh, edge, stopleft=None, stopright=False, conn=None, web=None) -> W
 
 def selectside(shared, edge, stop, seen=None, revert=None):
 	''' selection by propagation until stop criterion '''
-	front = [edge]
+	front = [edge if not revert else (edge[1],edge[0])]
 	if seen is None:	seen = set()
+	else:				seen.discard(edge)
 	conn = shared['conn']
 	while front:
 		last,curr = front.pop()
