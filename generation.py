@@ -271,7 +271,7 @@ def prolongation(mesh, line): 	# TODO
 
 
 
-def makeloops(lines, faces=()):
+def makeloops(lines, faces=(), oriented=True):
 	''' return a list of the loops that can be formed with lines.
 		lines must be oriented suite of points and loops are returned as suite of points.
 	'''
@@ -287,8 +287,8 @@ def makeloops(lines, faces=()):
 				if edge[-1] == loop[0]:		loop[0:1] = edge
 				elif edge[0] == loop[-1]:	loop[-1:] = edge
 				# for unoriented lines
-				#elif edge[0] == loop[0]:	loop[0:1] = reversed(edge)
-				#elif edge[-1] == loop[-1]:	loop[-1:] = reversed(edge)
+				elif not oriented and edge[0] == loop[0]:	loop[0:1] = reversed(edge)
+				elif not oriented and edge[-1] == loop[-1]:	loop[-1:] = reversed(edge)
 				else:
 					continue
 				lines.pop(i)

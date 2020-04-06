@@ -70,14 +70,30 @@ def registerface(mesh, conn, fi):
 	for e in ((f[0],f[1]), (f[1],f[2]), (f[2],f[0])):
 		conn[e] = fi
 
+from mesh import connpp
+import generation
 def intersectwith(m1, m2):
 	prec = m1.precision()
-	surfprec = prec * m1.maxnum()
+	#surfprec = prec * m1.maxnum()
+	surfprec = prec
+	cuts = {}
+	
 	# cut m1 faces with intersections with m2 edges
+	conn2 = connef(m2.faces)
 	for e in m2.edges():
 		for fi,f in enumerate(m1.faces):
 			p = intersection_edge_face(m1.facepoints(fi), (m2.points[e[0]], m2.points[e[1]]))
-			if p:	pierce_face(m1, fi, p, prec)
+			if p:	
+				pi = pierce_face(m1, fi, p, prec)
+				i = conn2.get(e)
+				if i is not None:
+					if i in cuts:	cuts[i].append(pi)
+					else:			cuts[i] = [pi]
+				i = conn2.get((e[1],e[0]))
+				if i is not None:
+					if i in cuts:	cuts[i].append(pi)
+					else:			cuts[i] = [pi]
+	
 	# cut m1 edges with intersections with m2 faces
 	for i in range(len(m2.faces)):
 		for fi in range(len(m1.faces)):
@@ -87,54 +103,55 @@ def intersectwith(m1, m2):
 			for ei,e in enumerate(((f[0],f[1]), (f[1],f[2]), (f[2],f[0]))):
 				p = intersection_edge_face(m2.facepoints(i), (m1.points[e[0]], m1.points[e[1]]))
 				if p:
-					pierce_face(m1, fc[ei], p, prec)
+					pi = pierce_face(m1, fc[ei], p, prec)
+					if i in cuts:	cuts[i].append(pi)
+					else:			cuts[i] = [pi]
 					if fc[ei] == fi:
 						fc[1] = len(m1.faces)-2
 						fc[2] = len(m1.faces)-1
 	
 	removefaces(m1, lambda fi: facesurf(m1,fi) <= surfprec)
-	return m1
+	
+	# find edges at the intersection
+	frontier = []
+	conn1 = connpp(m1.faces)
+	for f2,pts in cuts.items():
+		for p in pts:
+			#p = merges.get(p,p)
+			if p in conn1:
+				for neigh in conn1[p]:
+					if neigh in pts:
+						frontier.append((edgekey(p,neigh), f2))
+	#print(generation.makeloops(frontier, oriented=False))
+	
+	return frontier
 
 def booleanwith(m1, m2, side):
 	''' execute the boolean operation only on m1 '''
 	prec = m1.precision()
-	surfprec = prec * m1.maxnum()
 	
 	start = time()
-	intersectwith(m1, m2)
+	frontier = intersectwith(m1, m2)
 	print('intersectwith', time()-start)
 	start = time()
 	
-	m1.mergeclose()	# TODO voir pourquoi
-	
+	conn1 = connef(m1.faces)
 	used = [False] * len(m1.faces)
+	notto = set((e[0] for e in frontier))
 	front = set()
-	notto = set()
-	
-	# search for intersections
-	for f2 in m2.faces:
-		o = m2.points[f2[0]]
-		x = m2.points[f2[1]] - o
-		y = m2.points[f2[2]] - o
-		n = cross(x,y)
-		decomp = inverse(dmat3(x, y, n))
-		triprec = NUMPREC / (1-abs(dot(x,y))/length(x)/length(y))
-		for i,f1 in enumerate(m1.faces):
-			onplane = [False]*3
-			for j in range(3):
-				v = m1.points[f1[j]] - o
-				d = decomp * dvec3(v)
-				if -triprec <= d[0] and -triprec <= d[1] and d[0] + d[1] <= 1+triprec and abs(d[2]) <= prec:
-					onplane[j] = True
-			for j in range(3):
-				if onplane[j] and onplane[j-1]:
-					a,b,summit = f1[j-1], f1[j], f1[j-2]
-					proj = dot(n, m1.points[summit] - o)	* (-1 if side else 1)
-					if proj > prec:
-						used[i] = True
-						notto.add(edgekey(a, b))
-						front.add(edgekey(a, summit))
-						front.add(edgekey(b, summit))
+	# get front and mark frontier faces as used
+	for e,f2 in frontier:
+		for edge in (e, (e[1],e[0])):
+			if edge in conn1:
+				fi = conn1[edge]
+				for p in m1.faces[fi]:
+					if p not in edge:	summit = p
+				o = m1.points[edge[0]]
+				proj = dot(m1.points[summit] - m1.points[edge[0]], m2.facenormal(f2))  * (-1 if side else 1)
+				if proj > prec:
+					used[fi] = True
+					front.add(edgekey(edge[0], summit))
+					front.add(edgekey(edge[1], summit))
 	if not front:
 		if side:	
 			m1.faces = []
@@ -223,10 +240,12 @@ def line_simplification(mesh, line):	# TODO mettre dans un module en commun avec
 			dst = a if a in destinations else c
 			if dst not in merges or merges[dst] != b:
 				merges[b] = dst
+				while dst in merges:
+					merges[b] = dst = merges[dst]
 	processangles(getmerges)
 	for k,v in merges.items():
 		while v in merges:
-			merges[k] = v = merges[merges[k]]
+			merges[k] = v = merges[v]
 
 	# display merges
 	#for src,dst in merges.items():
