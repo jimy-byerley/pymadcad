@@ -19,39 +19,14 @@ class PositionMap:
 		self.cellsize = cellsize
 		self.dict = {}
 		if iterable:	self.update(iterable)
-	'''
-	def keysfor(self, space):
-		cell = self.cellsize
-		# point
-		if isinstance(space, vec3):
-			yield tuple(ivec3(pt/cell))
-		# segment
-		elif isinstance(space, tuple) and len(space) == 2:
-			p = deepcopy(space[0])
-			v = space[1]-space[0]
-			l = length(v)
-			v /= l
-			yield tuple(ivec3(p/cell))
-			while dot(p-space[0],v) < l:
-				prox = [(cell - p[i]%cell)/v[i] if v[i] else 0		for i in range(3)]
-				i = 0
-				if prox[1] < prox[i]:	i=1
-				if prox[1] < prox[i]:	i=2
-				p += v*prox[i]
-				yield tuple(ivec3(p/cell))
-		# triangle
-		elif isinstance(space, tuple) and len(space) == 3:
-			indev
-		else:
-			raise TypeError("PositionMap only supports keys of type:  points, segments, triangles")
-	'''
-	
+
 	def keysfor(self, space):
 		''' rasterize the primitive, yielding the successive position keys '''
 		cell = self.cellsize
 		# point
 		if isinstance(space, vec3):
 			yield tuple(ivec3(glm.floor(space/cell)))
+		
 		# segment
 		elif isinstance(space, tuple) and len(space) == 2:
 			# permutation of coordinates to get the direction the closer to Z
@@ -67,12 +42,13 @@ class PositionMap:
 			dy = v[1]/v[2]
 			dx = v[0]/v[2]
 			o = space[0]
+			fy = lambda z:	o[1] + dy*(z-o[2])
+			fx = lambda z:	o[0] + dx*(z-o[2])
 			
 			# z selection
 			if v[2] > 0:	zmin,zmax = space[0][2], space[1][2]
 			else:			zmin,zmax = space[1][2], space[0][2]
 			zmin -= zmin%cell
-			fy = lambda z:	o[1] + dy*(z-o[2])
 			for i in range(max(1,ceil((zmax-zmin)/cell))):
 				z = zmin+cell*i+cell2
 				
@@ -80,7 +56,6 @@ class PositionMap:
 				if dy > 0:	ymin,ymax = fy(z-cell2), fy(z+cell2)
 				else:		ymin,ymax = fy(z+cell2), fy(z-cell2)
 				ymin -= ymin%cell
-				fx = lambda z:	o[0] + dx*(z-o[2])
 				for j in range(max(1,ceil((ymax-ymin)/cell))):
 					y = ymin + j*cell + cell2
 					
@@ -93,8 +68,7 @@ class PositionMap:
 						
 						p = (x,y,z)
 						yield tuple([floor(p[i]/cell)		for i in order])
-			
-			
+		
 		# triangle
 		elif isinstance(space, tuple) and len(space) == 3:
 			# permutation of coordinates to get the normal the closer to Z
@@ -113,15 +87,16 @@ class PositionMap:
 			cell2 = cell/2
 			pmin = reduce(glm.min, space)
 			pmax = reduce(glm.max, space)
+			xmin,xmax = pmin[0],pmax[0]
+			pmin -= pmin%cell
+			pmax += cell - pmax%cell
 			
 			# x selection
-			xmin,xmax = pmin[0],pmax[0]
 			xmin -= xmin%cell
-			xpts = [xmin+cell*i+cell2	for i in range(max(1,ceil((xmax-xmin)/cell)))]
+			for i in range(max(1,ceil((xmax-xmin)/cell))):
+				x = xmin + cell*i + cell2
 			
-			# y selection
-			ypts = []
-			for x in xpts:
+				# y selection
 				cand = []
 				for i in range(3):
 					# NOTE: cet interval ajoute parfois des cases inutiles apres les sommets
@@ -131,27 +106,26 @@ class PositionMap:
 						cand.append( space[i][1] + d * (x+cell2-space[i][0]) )
 				ymin,ymax = min(cand), max(cand)
 				ymin -= ymin%cell
-				ypts.extend(( (x,ymin+cell*i+cell2)	for i in range(max(1,ceil((ymax-ymin)/cell))) ))
+				for j in range(max(1,ceil((ymax-ymin)/cell))):
+					y = ymin + cell*j + cell2
 				
-			# z selection
-			zpts = []
-			for x,y in ypts:
-				f = lambda x,y:	o[2] + dx*(x-o[0]) + dy*(y-o[1])
-				cand = []
-				cand.append( f(x-cell2, y-cell2) )
-				cand.append( f(x+cell2, y-cell2) )
-				cand.append( f(x-cell2, y+cell2) )
-				cand.append( f(x+cell2, y+cell2) )
-				zmin,zmax = min(cand), max(cand)
-				zmin -= zmin%cell
-				zpts.extend(( (x,y,zmin+cell*i+cell2)	for i in range(max(1,ceil((zmax-zmin)/cell))) ))
-			
-			# remove box from corners that goes out of the area
-			pmin -= pmin%cell
-			pmax += cell - pmax%cell
-			for p in zpts:
-				if pmin[0]<p[0] and pmin[1]<p[1] and pmin[2]<p[2] and p[0]<pmax[0] and p[1]<pmax[1] and p[2]<pmax[2]:
-					yield tuple([floor(p[order[i]]/cell)	for i in range(3)])
+					# z selection
+					f = lambda x,y:	o[2] + dx*(x-o[0]) + dy*(y-o[1])
+					cand = []
+					cand.append( f(x-cell2, y-cell2) )
+					cand.append( f(x+cell2, y-cell2) )
+					cand.append( f(x-cell2, y+cell2) )
+					cand.append( f(x+cell2, y+cell2) )
+					zmin,zmax = min(cand), max(cand)
+					zmin -= zmin%cell
+					for k in range(max(1,ceil((zmax-zmin)/cell))):
+						z = zmin + cell*k + cell2
+						
+						# remove box from corners that goes out of the area
+						p = (x,y,z)
+						if pmin[0]<p[0] and pmin[1]<p[1] and pmin[2]<p[2] and p[0]<pmax[0] and p[1]<pmax[1] and p[2]<pmax[2]:
+							yield tuple([floor(p[order[i]]/cell)	for i in range(3)])
+		
 		else:
 			raise TypeError("PositionMap only supports keys of type:  points, segments, triangles")
 	
