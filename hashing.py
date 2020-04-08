@@ -13,8 +13,9 @@ class PositionMap:
 			cellsize   - the boxing parameter (DON'T CHANGE IT IF NON-EMPTY)
 			dict       - the hashmap from box to objects lists
 	'''
-	__slots__ = 'cellsize', 'dict'
+	__slots__ = 'cellsize', 'dict', 'options'
 	def __init__(self, cellsize, iterable=None):
+		self.options = {}
 		self.cellsize = cellsize
 		self.dict = {}
 		if iterable:	self.update(iterable)
@@ -50,59 +51,55 @@ class PositionMap:
 		cell = self.cellsize
 		# point
 		if isinstance(space, vec3):
-			yield tuple(ivec3(space/cell))
+			yield tuple(ivec3(glm.floor(space/cell)))
 		# segment
 		elif isinstance(space, tuple) and len(space) == 2:
+			# permutation of coordinates to get the direction the closer to Z
+			n = glm.abs(space[1]-space[0])
+			if   n[1] >= n[0] and n[1] >= n[2]:	order = (2,0,1)
+			elif n[0] >= n[1] and n[0] >= n[2]:	order = (1,2,0)
+			else:								order = (0,1,2)
+			space = [ vec3(p[order[0]], p[order[1]], p[order[2]])	for p in space]
 			
-			p = deepcopy(space[0])
-			v = normalize(space[1]-space[0])
-			yield tuple(ivec3(p/cell))
-			while dot(space[1]-p,v) >= 0:
-				#prox = [(cell - p[i]%cell)/v[i] if v[i] else 0		for i in range(3)]
-				prox = glm.abs((cell - p%cell)/v)
-				i = 0
-				if prox[1] < prox[i]:	i=1
-				if prox[1] < prox[i]:	i=2
-				a = v*prox[i]
-				yield tuple(ivec3((p+a/2)/cell))
-				p += a
-			'''
-			keys = set()
-			p = deepcopy(space[0])
-			v = space[1]-p
-			n = int(ceil(norminf(v/cell)))
-			v /= n
-			keys.add(tuple(ivec3((p-v)/cell)))
-			for i in range(n):
-				p += v
-				keys.add(tuple(ivec3(p/cell)))
-			yield from keys
-			'''
+			# prepare variables
+			cell2 = cell/2
+			v = space[1]-space[0]
+			dy = v[1]/v[2]
+			dx = v[0]/v[2]
+			o = space[0]
+			
+			# z selection
+			if v[2] > 0:	zmin,zmax = space[0][2], space[1][2]
+			else:			zmin,zmax = space[1][2], space[0][2]
+			zmin -= zmin%cell
+			fy = lambda z:	o[1] + dy*(z-o[2])
+			for i in range(max(1,ceil((zmax-zmin)/cell))):
+				z = zmin+cell*i+cell2
+				
+				# y selection
+				if dy > 0:	ymin,ymax = fy(z-cell2), fy(z+cell2)
+				else:		ymin,ymax = fy(z+cell2), fy(z-cell2)
+				ymin -= ymin%cell
+				fx = lambda z:	o[0] + dx*(z-o[2])
+				for j in range(max(1,ceil((ymax-ymin)/cell))):
+					y = ymin + j*cell + cell2
+					
+					# x selection
+					if dx > 0:	xmin,xmax = fx(z-cell2), fx(z+cell2)
+					else:		xmin,xmax = fx(z+cell2), fx(z-cell2)
+					xmin -= xmin%cell
+					for k in range(max(1,ceil((xmax-xmin)/cell))):
+						x = xmin + k*cell + cell2
+						
+						p = (x,y,z)
+						yield tuple([floor(p[i]/cell)		for i in order])
+			
+			
 		# triangle
 		elif isinstance(space, tuple) and len(space) == 3:
-			'''
-			keys = set()
-			pa = deepcopy(space[0])
-			pb = deepcopy(space[0])
-			n = int(ceil(min(
-					norminf(space[0]-space[1]),
-					norminf(space[1]-space[2]),
-					norminf(space[2]-space[0]),
-					)/ cell)) * 2
-			va = (space[1]-pa)/n
-			vb = (space[2]-pb)/n
-			keys.add(tuple(ivec3(pa/cell)))
-			for i in range(n):
-				pa += va
-				pb += vb
-				keys.update(self.keysfor((pa, pb)))
-				#yield tuple(ivec3(pa/cell))
-				#yield tuple(ivec3(pb/cell))
-			yield from keys
-			'''
 			# permutation of coordinates to get the normal the closer to Z
 			n = glm.abs(cross(space[1]-space[0], space[2]-space[0]))
-			if n[1] >= n[0] and n[1] >= n[2]:	order = (2,0,1)
+			if   n[1] >= n[0] and n[1] >= n[2]:	order = (2,0,1)
 			elif n[0] >= n[1] and n[0] >= n[2]:	order = (1,2,0)
 			else:								order = (0,1,2)
 			space = [ vec3(p[order[0]], p[order[1]], p[order[2]])	for p in space]
@@ -127,9 +124,11 @@ class PositionMap:
 			for x in xpts:
 				cand = []
 				for i in range(3):
-					if (space[i-1][0]-x+cell2)*(space[i][0]-x-cell2) <= 0 or (space[i-1][0]-x-cell2)*(space[i][0]-x+cell2) <= 0:	# NOTE: cet interval ajoute parfois des cases inutiles apres les sommets
-						cand.append( space[i][1] + v[i][1]/(v[i][0] if v[i][0] else inf) * (x-cell2-space[i][0]) )
-						cand.append( space[i][1] + v[i][1]/(v[i][0] if v[i][0] else inf) * (x+cell2-space[i][0]) )
+					# NOTE: cet interval ajoute parfois des cases inutiles apres les sommets
+					if (space[i-1][0]-x+cell2)*(space[i][0]-x-cell2) <= 0 or (space[i-1][0]-x-cell2)*(space[i][0]-x+cell2) <= 0:
+						d = v[i][1]/(v[i][0] if v[i][0] else inf)
+						cand.append( space[i][1] + d * (x-cell2-space[i][0]) )
+						cand.append( space[i][1] + d * (x+cell2-space[i][0]) )
 				ymin,ymax = min(cand), max(cand)
 				ymin -= ymin%cell
 				ypts.extend(( (x,ymin+cell*i+cell2)	for i in range(max(1,ceil((ymax-ymin)/cell))) ))
@@ -194,6 +193,7 @@ class PositionMap:
 		)
 	def display(self, scene):
 		web = Web()
+		if 'color' in self.options:		web.options['color'] = self.options['color']
 		base = vec3(self.cellsize)
 		for k in self.dict:
 			l = len(web.points)
@@ -273,12 +273,23 @@ if __name__ == '__main__':
 						],
 					[(0,1,2), (3,4,5), (6,7,8), (9,10,11)],
 					)
-	m = PositionMap(0.7, [
+	lines = Web([
+					vec3(5,0,0), vec3(5,0,4),
+					vec3(0,5,0), vec3(0,6,4),
+					vec3(-6,-8,9), vec3(-2,-5,2), 
+					],
+				[(0,1),(2,3),(4,5)],
+				)
+	m = PositionMap(1, [
 		(triangles.facepoints(0), 'x'),
 		(triangles.facepoints(1), 'y'),
 		(triangles.facepoints(2), 'z'),
 		(triangles.facepoints(3), 'truc'),
+		((vec3(5,0,0), vec3(5,0,4)), 'a'),
+		((vec3(0,5,0), vec3(0,6,4)), 'b'),
+		((vec3(-6,-8,9), vec3(-2,-5,2)), 'c'),
 		])
+	m.options['color'] = (0.7, 0.9, 1)
 	
 	from mathutils import Box,fvec3
 	import view
@@ -288,6 +299,7 @@ if __name__ == '__main__':
 	scn = view.Scene()
 	scn.add(m)
 	scn.add(triangles)
+	scn.add(lines)
 	scn.look(Box(center=fvec3(0,0,3), width=fvec3(4)))
 	scn.show()
 	sys.exit(app.exec())
