@@ -164,8 +164,8 @@ class Scene(QGLWidget):
 		
 		w, h = self.size().width(), self.size().height()
 		self.aspectratio = w/h
-		self.ident_frame.viewport = (0, 0, w, h)
 		self.ctx.viewport = (0, 0, w, h)
+		self.ident_frame.viewport = (0, 0, w, h)
 		#self.screen = self.ctx.detect_framebuffer(self.defaultFramebufferObject())
 		#self.ident_map = bytearray(w*h*IDENT_SIZE)
 		self.ident_map = np.empty((h,w), dtype='u2')
@@ -180,7 +180,7 @@ class Scene(QGLWidget):
 		# setup the render pass
 		self.view_matrix = self.manipulator.matrix()	# column major matrix for opengl
 		self.proj_matrix = self.projection.matrix(self.aspectratio)		# column major matrix for opengl
-					
+		
 		# set the default flags for the scene
 		self.ctx.multisample = True
 		self.ctx.enable_only(mgl.BLEND | mgl.DEPTH_TEST)
@@ -303,7 +303,7 @@ class Scene(QGLWidget):
 			self.mode[0]()
 		else:
 			h,w = self.ident_frame.viewport[2:]
-			clicked = self.objat((x,y))
+			clicked = self.objat((x,y), 10)
 			if clicked: 
 				grp,rdr = self.stack[clicked[0]]
 				self.tool = rdr.control(self, grp, clicked[1], (x, y))
@@ -341,21 +341,19 @@ class Scene(QGLWidget):
 			self.refreshed = True
 			#Image.fromarray(self.ident_map).show()
 	
-	def objat(self, coords):
+	def objat(self, coords, radius=0):
 		''' return a tuple (obji, groupi) of the idents of the object and its group at the given screen coordinates '''
 		self.refreshmaps()
-		
-		ident = int(self.ident_map[-coords[1],coords[0]])
-		if ident:
-			obji = dichotomy_index(self.ident_steps, ident)
-			if obji == len(self.ident_steps):
-				print('problem: object ident points out of idents list')
-			while obji > 0 and self.ident_steps[obji-1] == ident:	obji -= 1
-			if obji > 0:	groupi = ident - self.ident_steps[obji-1] - 1
-			else:			groupi = ident - 1
-			return obji, groupi
-		else:
-			return None
+		for rx,ry in snail(radius):
+			ident = int(self.ident_map[-coords[1]-ry,coords[0]+rx])
+			if ident > 0:
+				obji = dichotomy_index(self.ident_steps, ident)
+				if obji == len(self.ident_steps):
+					print('problem: object ident points out of idents list')
+				while obji > 0 and self.ident_steps[obji-1] == ident:	obji -= 1
+				if obji > 0:	groupi = ident - self.ident_steps[obji-1] - 1
+				else:			groupi = ident - 1
+				return obji, groupi
 	
 	def sight(self, coords):
 		''' sight axis from the camera center to the point matching the given pixel coordinates '''
@@ -401,6 +399,15 @@ class Scene(QGLWidget):
 		self.manipulator.distance = length(box.width) / (2*tan(fov/2))
 		self.manipulator.update()
 
+def snail(radius):
+	x = 0
+	y = 0
+	for r in range(radius):
+		for x in range(-r,r):		yield (x,-r)
+		for y in range(-r,r):		yield (r, y)
+		for x in reversed(range(-r,r)):	yield (x, r)
+		for y in reversed(range(-r,r)):	yield (-r,y)
+
 
 class View(QWidget):
 	# add some buttons and menus to customize the view
@@ -437,7 +444,7 @@ class SolidDisplay:
 		self.color = fvec3(color or settings.display['solid_color'])
 		self.linecolor = settings.display['line_color']
 		
-		self.flags = np.zeros(len(idents), dtype='u1')
+		self.flags = np.zeros(len(positions), dtype='u1')
 		self.flags_updated = True
 		self.idents = idents
 		self.displays = set()
@@ -578,64 +585,135 @@ class SolidDisplay:
 			self.vb_flags.write(self.flags[self.idents])
 			self.flags_updated = False
 
+class WireDisplay:
+	''' wireframe with group selection '''
+	renderindex = 1
+	def __init__(self, scene, points, edges, idents=None, color=None, transform=None):
+		ctx = scene.ctx
+		self.transform = fmat4(transform or 1)
+		self.color = fvec3(color or settings.display['line_color'])
+		
+		self.idents = idents
+		self.flags = np.zeros(len(points), dtype='u1')
+		self.flags_updated = True
+		
+		scene.ctx.disable(scene.ctx.PROGRAM_POINT_SIZE)
+		def load(scene):
+			shader = scene.ctx.program(
+						vertex_shader=open('shaders/wire.vert').read(),
+						fragment_shader=open('shaders/wire.frag').read(),
+						)
+			shader['select_color'] = settings.display['select_color_line']
+			return shader
+		self.shader = scene.ressource('shader_wire', load)
+		
+		self.vb_positions = ctx.buffer(np.array(points, dtype='f4', copy=False))
+		self.vb_flags = ctx.buffer(self.flags)
+		self.vb_edges = ctx.buffer(np.array(edges, dtype='u4', copy=False))
+		self.va_edges = ctx.vertex_array(
+				self.shader,
+				[	(self.vb_positions, '3f', 'v_position'),
+					(self.vb_flags, 'u1', 'v_flags')],
+				self.vb_edges,
+				)
+		if idents:
+			self.vb_idents = ctx.buffer(np.array(idents, dtype=IDENT_TYPE, copy=False))
+			self.va_idents = ctx.vertex_array(
+				scene.subident_shader,
+				[	(self.vb_positions, '3f', 'v_position'),
+					(self.vb_idents, IDENT_TYPE, 'item_ident')],
+				self.vb_edges,
+				)
+			self.nidents = int(max(idents)+1)
+		else:
+			self.va_idents = None
+	
+	def render(self, scene):
+		self.update(scene)
+		
+		self.shader['color'].write(self.color)
+		self.shader['view'].write(scene.view_matrix * self.transform)
+		self.shader['proj'].write(scene.proj_matrix)
+		self.va_edges.render(mgl.LINES)
+	
+	def identify(self, scene, startident):
+		if self.va_idents:
+			scene.subident_shader['start_ident'] = startident
+			scene.subident_shader['view'].write(scene.view_matrix * self.transform)
+			scene.subident_shader['proj'].write(scene.proj_matrix)
+			self.va_idents.render(mgl.LINES)
+			return self.nidents
+			
+	def control(self, scene, grp, ident, evt):
+		self.select(ident, not self.select(ident))
+		return None
+	
+	def select(self, idents, state=None):
+		mask = 0b1
+		if state is None:	return self.flags[idents] & mask
+		if state:	self.flags[idents] |= mask
+		else:		self.flags[idents] &= ~mask
+		self.flags_updated = True
+		
+	def update(self, scene):
+		if self.flags_updated:
+			self.vb_flags.write(self.flags[self.idents])
+			self.flags_updated = False
+
+
 
 if __name__ == '__main__':
 	import sys
 	from PyQt5.QtWidgets import QApplication
-	
-	class Mesh:
-		def __init__(self, points, faces, facenormals):
-			self.points, self.faces, self.facenormals = points, faces, facenormals
-		def display(self, scene):
-			return SolidDisplay(scene,
-				self.points[self.faces].reshape((self.faces.shape[0]*3,3)),
-				np.hstack((self.facenormals, self.facenormals, self.facenormals)).reshape((self.faces.shape[0]*3,3)),
-				np.array(range(3*self.faces.shape[0]), dtype=np.uint32).reshape(self.faces.shape),
-				idents = np.array(range(self.faces.shape[0]), dtype='u2'),
-				)
+	from mesh import Mesh, Web, Wire
 	
 	m = Mesh(
-		np.array([
-			1.0, -1.0, -1.0,
-            1.0, -1.0, 1.0,
-            -1.0, -1.0, 1.0,
-            -1.0, -1.0, -1.0,
-            1.0, 1.0, -1.0,
-            1.0, 1.0, 1.0,
-            -1.0, 1.0, 1.0,
-            -1.0, 1.0, -1.0]).reshape((8,3)),
-		np.array([
-            0, 1, 2,
-            0, 2, 3,
-            4, 7, 6,
-            4, 6, 5,
-            0, 4, 5,
-            0, 5, 1,
-            1, 5, 6,
-            1, 6, 2,
-            2, 6, 7,
-            2, 7, 3,
-            4, 0, 3,
-            4, 3, 7], dtype='u4').reshape((12,3)),
-		np.array([
-			 0, -1,  0,
-			 0, -1,  0,
-			 0,  1,  0,
-			 0,  1,  0,
-			 1,  0,  0,
-			 1,  0,  0,
-			-1,  0,  0,
-			-1,  0,  0,
-			 0,  0,  1,
-			 0,  0,  1,
-			 0,  0, -1,
-			 0,  0, -1,
-			 ]).reshape((12,3)),
+		[
+			vec3(1.0, -1.0, -1.0),
+            vec3(1.0, -1.0, 1.0),
+            vec3(-1.0, -1.0, 1.0),
+            vec3(-1.0, -1.0, -1.0),
+            vec3(1.0, 1.0, -1.0),
+            vec3(1.0, 1.0, 1.0),
+            vec3(-1.0, 1.0, 1.0),
+            vec3(-1.0, 1.0, -1.0)],
+		[
+            (0, 1, 2),
+            (0, 2, 3),
+            (4, 7, 6),
+            (4, 6, 5),
+            (0, 4, 5),
+            (0, 5, 1),
+            (1, 5, 6),
+            (1, 6, 2),
+            (2, 6, 7),
+            (2, 7, 3),
+            (4, 0, 3),
+            (4, 3, 7)],
+		list(range(12)),
 		)
+	
+	w = Web(
+		[	
+			vec3(0,0,0),
+			vec3(1,0,0),vec3(0,1,0),vec3(0,0,1),
+			vec3(0,1,1),vec3(1,0,1),vec3(1,1,0),
+			vec3(1,1,1)],
+		[	
+			(0,1),(0,2),(0,3),
+			(1,6),(2,6),
+			(1,5),(3,5),
+			(2,4),(3,4),
+			(4,7),(5,7),(6,7),
+			],
+		list(range(12)),
+		)
+	w.transform(vec3(0,0,2))
 
 	app = QApplication(sys.argv)
 	scn = Scene()
 	scn.add(m)
+	scn.add(w)
 	scn.look(Box(center=fvec3(0), width=fvec3(1)))
 	
 	scn.show()

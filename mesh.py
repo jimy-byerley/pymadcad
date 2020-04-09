@@ -85,7 +85,10 @@ class Container:
 	
 	def precision(self, propag=3):
 		''' numeric precision of operations on this mesh, allowed by the floating point precision '''
-		return self.maxnum() * NUMPREC * (2**propag)
+		m = self.maxnum()
+		unit = NUMPREC * (2**propag)
+		#return m, m*unit, (m*unit)**2, (m*unit)**3
+		return m * unit
 		
 	def usepointat(self, point, neigh=NUMPREC):
 		''' return the index of the first point in the mesh at the location, if none is found, insert it and return the index '''
@@ -367,11 +370,11 @@ class Mesh(Container):
 		if self.options.get('debug_faces', None) == 'indices':
 			for i,f in enumerate(self.faces):
 				p = (self.points[f[0]] + self.points[f[1]] + self.points[f[2]]) /3
-				yield from text.Text(p, '  '+str(i), 9, (1, 0.2, 0), align=('left', 'center')).display(scene)
+				yield from text.Text(p, str(i), 9, (1, 0.2, 0), align=('center', 'center')).display(scene)
 		if self.options.get('debug_faces', None) == 'tracks':
 			for i,f in enumerate(self.faces):
 				p = (self.points[f[0]] + self.points[f[1]] + self.points[f[2]]) /3
-				yield from text.Text(p, '  '+str(self.tracks[i]), 9, (1, 0.2, 0), align=('left', 'center')).display(scene)
+				yield from text.Text(p, str(self.tracks[i]), 9, (1, 0.2, 0), align=('center', 'center')).display(scene)
 		
 		fn = np.array([tuple(self.facenormal(f)) for f in self.faces])
 		points = np.array([tuple(p) for p in self.points], dtype=np.float32)		
@@ -393,74 +396,65 @@ class Mesh(Container):
 			faces = np.array(range(3*len(self.faces)), dtype='u4').reshape(len(self.faces),3),
 			idents = np.array(idents, dtype='u2'),
 			lines = np.array(edges, dtype='u4'),
-			color = self.options.get('color', None),
+			points = np.array(range(len(self.faces)*3), dtype='u4'),
+			color = self.options.get('color'),
 			)
 	
 	def display_groups(self, scene):
 		facenormals = [self.facenormal(f)  for f in self.faces]
-		# buffers for display
-		points = array('f')
-		normals = array('f')
-		faces = array('L')
-		edges = array('L')
-		tracks = array('H')
-		# function to register new points
+		
+		points = []
+		normals = []
+		idents = []
+		edges = []
+		faces = []
 		def usept(pi,xi,yi, fi, used):
 			o = self.points[pi]
 			x = self.points[xi] - o
 			y = self.points[yi] - o
 			contrib = anglebt(x,y)
-			if pi in used:
+			if used[pi] >= 0:
 				i = used[pi]
 				# contribute to the points normals
-				normals[3*i+0] += facenormals[fi][0] * contrib
-				normals[3*i+1] += facenormals[fi][1] * contrib
-				normals[3*i+2] += facenormals[fi][2] * contrib
+				normals[i] += facenormals[fi] * contrib
 				return i
 			else:
-				points.append(self.points[pi][0])
-				points.append(self.points[pi][1])
-				points.append(self.points[pi][2])
-				normals.append(facenormals[fi][0] * contrib)
-				normals.append(facenormals[fi][1] * contrib)
-				normals.append(facenormals[fi][2] * contrib)
-				tracks.append(self.tracks[fi])
-				j = used[pi] = len(points) // 3 -1
-				return j
+				i = used[pi] = len(points)
+				points.append(self.points[pi])
+				normals.append(facenormals[fi] * contrib)
+				idents.append(self.tracks[fi])
+				return i
 		
 		# get the faces for each group
 		for group in range(len(self.groups)):
 			# reset the points extraction for each group
-			indices = {}
+			used = [-1]*len(self.points)
 			frontier = set()
 			# get faces and exterior edges
 			for i,face in enumerate(self.faces):
-				if self.tracks[i] == group and face[0] != face[1] and face[1] != face[2] and face[2] != face[0]:
-					faces.append(usept(face[0],face[1],face[2], i, indices))
-					faces.append(usept(face[1],face[2],face[0], i, indices))
-					faces.append(usept(face[2],face[0],face[1], i, indices))
+				if self.tracks[i] == group:
+					faces.append((
+						usept(face[0],face[1],face[2], i, used),
+						usept(face[1],face[2],face[0], i, used),
+						usept(face[2],face[0],face[1], i, used)))
 					for edge in ((face[0], face[1]), (face[1], face[2]), (face[2],face[0])):
 						e = edgekey(*edge)
 						if e in frontier:	frontier.remove(e)
 						else:				frontier.add(e)
 			# render exterior edges
-			for edge in frontier:
-				edges.append(indices[edge[0]])
-				edges.append(indices[edge[1]])
+			for e in frontier:
+				edges.append((used[e[0]], used[e[1]]))
 		
-		for i in range(0,len(normals),3):
-			n = normalize(vec3(normals[i:i+3]))
-			normals[i+0] = n[0]
-			normals[i+1] = n[1]
-			normals[i+2] = n[2]
+		for i in range(0,len(normals)):
+			normals[i] = normalize(normals[i])
 		
 		return view.SolidDisplay(scene,
-			np.array(points).reshape((len(points)//3,3)),
-			np.array(normals).reshape((len(normals)//3,3)),
-			faces = np.array(faces).reshape((len(faces)//3,3)),
-			lines = np.array(edges).reshape((len(edges)//2,2)),
-			idents = np.array(tracks, dtype=view.IDENT_TYPE),
-			color = self.options.get('color', None),
+			glmarray(points),
+			glmarray(normals),
+			faces,
+			edges,
+			idents=idents,
+			color = self.options.get('color'),
 			),
 	
 	def display(self, scene):
@@ -518,16 +512,6 @@ class Web(Container):
 		self.tracks = tracks or [0] * len(self.edges)
 		self.groups = groups or [None] * (max(self.tracks, default=0)+1)
 		self.options = {}
-	
-	def transform(self, trans):
-		''' apply the transform to the points of the mesh'''
-		if isinstance(trans, quat):		trans = mat3_cast(trans)
-		if isinstance(trans, vec3):		transformer = lambda v: v + trans
-		elif isinstance(trans, mat3):	transformer = lambda v: trans * v
-		elif isinstance(trans, mat4):	transformer = lambda v: vec3(trans * vec4(v,1))
-		elif callable(trans):	pass
-		for i in range(len(self.points)):
-			self.points[i] = transformer(self.points[i])
 			
 	def __add__(self, other):
 		''' append the faces and points of the other mesh '''
@@ -636,7 +620,37 @@ class Web(Container):
 					reprarray(self.tracks, 'tracks'),
 					reprarray(self.groups, 'groups'),
 					repr(self.options))
+					
+	def display(self, scene):
+		points = []
+		idents = []
+		edges = []
+		def usept(pi, ident, used):
+			if used[pi] >= 0:	
+				return used[pi]
+			else:
+				used[pi] = i = len(points)
+				points.append(self.points[pi])
+				idents.append(ident)
+				return i
+		
+		for group in range(len(self.groups)):
+			used = [-1]*len(self.points)
+			for edge,track in zip(self.edges, self.tracks):
+				if track != group:	continue
+				edges.append((usept(edge[0], track, used), usept(edge[1], track, used)))
+				
+		return view.WireDisplay(scene,
+				glmarray(points), 
+				edges,
+				idents,
+				color=self.options.get('color')),
 
+def glmarray(array, dtype='f4'):
+	buff = np.empty((len(array), len(array[0])), dtype=dtype)
+	for i,e in enumerate(array):
+		buff[i][:] = e
+	return buff
 
 def web(*args):
 	''' build a web object from parts 
@@ -716,6 +730,9 @@ class Wire:
 		if not isinstance(other, Wire):		return NotImplemented
 		if self.points is not other.points:	raise ValueError("edges doesn't refer to the same points buffer")
 		return Wire(self.points, self.indices+other.indices)
+	
+	def display(self, scene):
+		indev
 		
 # --- common tools ----
 # connectivity:
