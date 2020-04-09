@@ -126,6 +126,85 @@ def intersectwith(m1, m2):
 	
 	return frontier
 
+import hashing
+	
+def intersectwith(m1, m2):
+	prec = m1.precision()
+	#surfprec = prec * m1.maxnum()
+	surfprec = prec
+	cuts = {}	# cut points for each face from m2
+	
+	cellsize = hashing.meshcellsize(m1)
+	print('cellsize', cellsize)
+		
+	print('* hashing')
+	conn2 = connef(m2.faces)
+	prox1 = hashing.PositionMap(cellsize)
+	for fi in range(len(m1.faces)):	
+		#print('    ',fi)
+		prox1.add(m1.facepoints(fi), fi)
+	
+	# cut m1 faces with intersections with m2 edges
+	print('* edge vs faces')
+	for e in m2.edges():
+		neigh = list(set( prox1.get((m2.points[e[0]], m2.points[e[1]])) ))
+		#print(e,neigh)
+		for fi in neigh:
+			p = intersection_edge_face(m1.facepoints(fi), (m2.points[e[0]], m2.points[e[1]]))
+			if p:	
+				pi = pierce_face(m1, fi, p, prec)
+				# keep cuts and prox1 up to date
+				neigh.append(len(m1.faces)-1)
+				neigh.append(len(m1.faces)-2)
+				prox1.add(m1.facepoints(len(m1.faces)-1), len(m1.faces)-1)
+				prox1.add(m1.facepoints(len(m1.faces)-2), len(m1.faces)-2)
+				i = conn2.get(e)
+				if i is not None:
+					if i in cuts:	cuts[i].append(pi)
+					else:			cuts[i] = [pi]
+				i = conn2.get((e[1],e[0]))
+				if i is not None:
+					if i in cuts:	cuts[i].append(pi)
+					else:			cuts[i] = [pi]
+		
+	# cut m1 edges with intersections with m2 faces
+	print('* faces vs faces')
+	for i in range(len(m2.faces)):
+		neigh = list(set(prox1.get(m2.facepoints(i))))
+		#print(i,neigh)
+		for fi in neigh:
+			if facesurf(m1, fi) <= surfprec:	continue
+			f = m1.faces[fi]
+			fc = [fi,fi,fi]
+			for ei,e in enumerate(((f[0],f[1]), (f[1],f[2]), (f[2],f[0]))):
+				p = intersection_edge_face(m2.facepoints(i), (m1.points[e[0]], m1.points[e[1]]))
+				if p:
+					pi = pierce_face(m1, fc[ei], p, prec)
+					if fc[ei] == fi:
+						fc[1] = len(m1.faces)-2
+						fc[2] = len(m1.faces)-1
+					# keep cuts and prox1 up to date
+					prox1.add(m1.facepoints(len(m1.faces)-1), len(m1.faces)-1)
+					prox1.add(m1.facepoints(len(m1.faces)-2), len(m1.faces)-2)
+					if i in cuts:	cuts[i].append(pi)
+					else:			cuts[i] = [pi]
+	
+	removefaces(m1, lambda fi: facesurf(m1,fi) <= surfprec)
+	
+	# find edges at the intersection
+	frontier = set()
+	conn1 = connpp(m1.faces)
+	for f2,pts in cuts.items():
+		for p in pts:
+			if p in conn1:
+				for neigh in conn1[p]:
+					if neigh in pts:
+						frontier.add((edgekey(p,neigh), f2))
+	#print(generation.makeloops([e for e,f2 in frontier], oriented=False))
+	#nprint(frontier)
+	
+	return frontier
+
 def booleanwith(m1, m2, side):
 	''' execute the boolean operation only on m1 '''
 	prec = m1.precision()
@@ -364,19 +443,26 @@ if __name__ == '__main__':
 	m3.strippoints()
 	print('computation time:', time()-start)
 	
-	print('face15', facesurf(m3, 15))
+	#print('face15', facesurf(m3, 15))
 	
-	assert m3.isvalid()
+	m3.check()
 	#assert m3.isenvelope()
 	
 	# debug purpose
-	#m3.options.update({'debug_display':True, 'debug_points':True, 'debug_faces':'indices'})
-	#m2.options.update({'debug_display':True})
+	m3.options.update({'debug_display':True, 'debug_points':True, 'debug_faces':'indices'})
+	m2.options.update({'debug_display':True, 'debug_points':True})
 	#m3.groups = [None]*len(m3.faces)
 	#m3.tracks = list(range(len(m3.faces)))
 	# display
 	scn3D.add(m3)
 	#scn3D.add(m2)
+	
+	#for k in list(_proxa.dict):
+		#if k not in _proxb.dict:
+			#del _proxa.dict[k]
+	#_proxa.options.update({'color':(1,0.9,0.1)})
+	#scn3D.add(_proxa)
+	#scn3D.add(_proxb)
 	
 	main.show()
 	sys.exit(app.exec())
