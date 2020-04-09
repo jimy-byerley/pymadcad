@@ -5,6 +5,10 @@ from glm import *
 del version, license
 from math import pi, atan2
 from copy import deepcopy
+max = __builtins__['max']
+min = __builtins__['min']
+any = __builtins__['any']
+all = __builtins__['all']
 
 '''
 vec2 = dvec2
@@ -15,7 +19,7 @@ vec4 = dvec4
 mat4 = dmat4
 quat = dquat
 
-NUMPREC = 1e-10
+NUMPREC = 1e-13
 COMPREC = 1-NUMPREC
 '''
 
@@ -23,6 +27,13 @@ COMPREC = 1-NUMPREC
 NUMPREC = 1e-6
 COMPREC = 1-NUMPREC
 
+def norminf(x):
+	return max(glm.abs(x))
+
+def norm1(x):
+	return sum(glm.abs(x))
+
+norm2 = length
 
 def anglebt(x,y):
 	n = length(x)*length(y)
