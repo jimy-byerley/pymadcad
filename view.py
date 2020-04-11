@@ -344,8 +344,8 @@ class Scene(QGLWidget):
 	def objat(self, coords, radius=0):
 		''' return a tuple (obji, groupi) of the idents of the object and its group at the given screen coordinates '''
 		self.refreshmaps()
-		for rx,ry in snail(radius):
-			ident = int(self.ident_map[-coords[1]-ry,coords[0]+rx])
+		for x,y in snailaround(coords, (self.ident_map.shape[1], self.ident_map.shape[0]), radius):
+			ident = int(self.ident_map[-y, x])
 			if ident > 0:
 				obji = dichotomy_index(self.ident_steps, ident)
 				if obji == len(self.ident_steps):
@@ -400,6 +400,7 @@ class Scene(QGLWidget):
 		self.manipulator.update()
 
 def snail(radius):
+	''' generator of coordinates snailing around 0,0 '''
 	x = 0
 	y = 0
 	for r in range(radius):
@@ -407,6 +408,15 @@ def snail(radius):
 		for y in range(-r,r):		yield (r, y)
 		for x in reversed(range(-r,r)):	yield (x, r)
 		for y in reversed(range(-r,r)):	yield (-r,y)
+
+def snailaround(pt, box, radius):
+	''' generator of coordinates snailing around pt, coordinates that goes out of the box are skipped '''
+	cx,cy = pt
+	mx,my = box
+	for rx,ry in snail(radius):
+		x,y = cx+rx, cy+ry
+		if 0 <= x and x < mx and 0 <= y and y < my:
+			yield x,y
 
 
 class View(QWidget):
@@ -528,7 +538,8 @@ class SolidDisplay:
 			self.vb_points = ctx.buffer(np.array(points, dtype='u4', copy=False))
 			self.va_points = ctx.vertex_array(
 					self.lineshader,
-					[(self.vb_positions, '3f', 'v_position')],
+					[	(self.vb_positions, '3f', 'v_position'),
+						(self.vb_flags, 'u1', 'v_flags')],
 					self.vb_points,
 					)
 		else:
