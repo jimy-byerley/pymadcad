@@ -36,7 +36,7 @@ class Container:
 		merges = {}
 		for j in reversed(range(len(self.points))):
 			for i in range(j):
-				if distance(self.points[i], self.points[j]) < limit and i not in merges:
+				if distance(self.points[i], self.points[j]) <= limit:
 					merges[j] = i
 					break
 		self.mergepoints(merges)
@@ -218,6 +218,7 @@ class Mesh(Container):
 		for face in self.faces:
 			for p in face:
 				if p >= l:	raise MeshError("some point indices are greater than the number of points", face, l)
+				if p < 0:	raise MeshError("point indices must be positive", face)
 			if face[0] == face[1] or face[1] == face[2] or face[2] == face[0]:	raise MeshError("some faces use the same point multiple times", face)
 		if len(self.faces) != len(self.tracks):	raise MeshError("tracks list doesn't match faces list length")
 		if max(self.tracks, default=-1) >= len(self.groups): raise MeshError("some face group indices are greater than the number of groups", max(self.tracks), len(self.groups))
@@ -591,6 +592,7 @@ class Web(Container):
 		for line in self.edges:
 			for p in line:
 				if p >= l:	raise MeshError("some indices are greater than the number of points", line, l)
+				if p < 0:	raise MeshError("point indices must be positive", line)
 			if line[0] == line[1]:	raise MeshError("some edges use the same point multiple times", line)
 		if len(self.edges) != len(self.tracks):	raise MeshError("tracks list doesn't match edge list length")
 		if max(self.tracks) >= len(self.groups): raise MeshError("some line group indices are greater than the number of groups", max(self.tracks), len(self.groups))
