@@ -29,6 +29,8 @@ def intersection_edge_face(face, edge):
 	coords = intersection_coords(face[1]-face[0], face[2]-face[0], face[0], edge[1], edge[0])
 	#if 0 < coords[0] and 0 < coords[1] and coords[0]+coords[1] < 1 and 0 < coords[2] and coords[2] < 1 and (notint(coords[0]) or notint(coords[1])):
 	if 0 <= coords[0] and 0 <= coords[1] and coords[0]+coords[1] <= 1 and 0 <= coords[2] and coords[2] <= 1 and (notint(coords[0]) or notint(coords[1])):
+	#if NUMPREC < coords[0] and NUMPREC < coords[1] and coords[0]+coords[1] < 1 and 0 < coords[2] and coords[2] < 1 and (notint(coords[0]) or notint(coords[1])):
+	#if -NUMPREC <= coords[0] and -NUMPREC <= coords[1] and coords[0]+coords[1] <= 1+NUMPREC and 0 <= coords[2] and coords[2] <= 1 and (notint(coords[0]) or notint(coords[1])):
 		#print(coords, '\t\t', face, edge)
 		#return edge[0] + (edge[1]-edge[0])*coords[2]
 		return coords[0]*(face[1]-face[0]) + coords[1]*(face[2]-face[0]) + face[0]
@@ -51,7 +53,7 @@ def pierce_face(mesh, fi, p, prec, conn=None):
 	return pi
 
 def removefaces(mesh, crit):
-	''' remove faces whose indices are present in faces, (for huge amount, prefer pass faces as a set) '''
+	''' remove faces that satisfy a criterion '''
 	newfaces = []
 	newtracks = []
 	for i in range(len(mesh.faces)):
@@ -64,6 +66,11 @@ def removefaces(mesh, crit):
 def facesurf(mesh, fi):
 	o,x,y = mesh.facepoints(fi)
 	return length(cross(x-o, y-o))
+	
+def faceheight(mesh, fi):
+	f = mesh.facepoints(fi)
+	if distance(f[0], f[2]) > distance(f[0], f[1]):		f = (f[0],f[2],f[1])
+	return length(noproject(f[2]-f[0], normalize(f[1]-f[0])))
 
 def registerface(mesh, conn, fi):
 	f = mesh.faces[fi]
@@ -72,9 +79,8 @@ def registerface(mesh, conn, fi):
 
 from mesh import connpp
 import generation
-def intersectwith(m1, m2):
-	prec = m1.precision()
-	#surfprec = prec * m1.maxnum()
+def intersectwith(m1, m2, prec=None):
+	if not prec:	prec = m1.precision()
 	surfprec = prec
 	cuts = {}
 	
@@ -127,16 +133,20 @@ def intersectwith(m1, m2):
 	return frontier
 
 import hashing
+
+def facekeyo(a,b,c):
+	if a < b and b < c:		return (a,b,c)
+	elif a < b:				return (c,a,b)
+	else:					return (b,c,a)
 	
-def intersectwith(m1, m2):
-	prec = m1.precision()
-	#surfprec = prec * m1.maxnum()
-	surfprec = prec
-	cuts = {}	# cut points for each face from m2
-	
+def intersectwith(m1, m2, prec=None):
+	if not prec:	prec = m1.precision()
+	prec *= 4
 	cellsize = hashing.meshcellsize(m1)
 	print('cellsize', cellsize)
-		
+	
+	cuts = {}	# cut points for each face from m2
+	
 	print('* hashing')
 	conn2 = connef(m2.faces)
 	prox1 = hashing.PositionMap(cellsize)
@@ -154,10 +164,11 @@ def intersectwith(m1, m2):
 			if p:	
 				pi = pierce_face(m1, fi, p, prec)
 				# keep cuts and prox1 up to date
-				neigh.append(len(m1.faces)-1)
-				neigh.append(len(m1.faces)-2)
-				prox1.add(m1.facepoints(len(m1.faces)-1), len(m1.faces)-1)
-				prox1.add(m1.facepoints(len(m1.faces)-2), len(m1.faces)-2)
+				l = len(m1.faces)
+				neigh.append(l-1)
+				neigh.append(l-2)
+				prox1.add(m1.facepoints(l-1), l-1)
+				prox1.add(m1.facepoints(l-2), l-2)
 				i = conn2.get(e)
 				if i is not None:
 					if i in cuts:	cuts[i].append(pi)
@@ -173,23 +184,31 @@ def intersectwith(m1, m2):
 		neigh = list(set(prox1.get(m2.facepoints(i))))
 		#print(i,neigh)
 		for fi in neigh:
-			if facesurf(m1, fi) <= surfprec:	continue
+			if faceheight(m1,fi) <= prec:	continue
 			f = m1.faces[fi]
 			fc = [fi,fi,fi]
 			for ei,e in enumerate(((f[0],f[1]), (f[1],f[2]), (f[2],f[0]))):
 				p = intersection_edge_face(m2.facepoints(i), (m1.points[e[0]], m1.points[e[1]]))
 				if p:
 					pi = pierce_face(m1, fc[ei], p, prec)
+					l = len(m1.faces)
 					if fc[ei] == fi:
-						fc[1] = len(m1.faces)-2
-						fc[2] = len(m1.faces)-1
+						fc[1] = l-2
+						fc[2] = l-1
 					# keep cuts and prox1 up to date
-					prox1.add(m1.facepoints(len(m1.faces)-1), len(m1.faces)-1)
-					prox1.add(m1.facepoints(len(m1.faces)-2), len(m1.faces)-2)
+					prox1.add(m1.facepoints(l-1), l-1)
+					prox1.add(m1.facepoints(l-2), l-2)
 					if i in cuts:	cuts[i].append(pi)
 					else:			cuts[i] = [pi]
 	
-	removefaces(m1, lambda fi: facesurf(m1,fi) <= surfprec)
+	# set of faces, to detect identical opposed faces
+	faces = set()
+	for f in m1.faces:	faces.add(facekeyo(*f))
+	def crit(fi):
+		a,b,c = m1.faces[fi]
+		verdict = faceheight(m1,fi) <= prec or facekeyo(a,c,b) in faces
+		return verdict
+	removefaces(m1, crit)
 	
 	# find edges at the intersection
 	frontier = set()
@@ -200,17 +219,16 @@ def intersectwith(m1, m2):
 				for neigh in conn1[p]:
 					if neigh in pts:
 						frontier.add((edgekey(p,neigh), f2))
-	#print(generation.makeloops([e for e,f2 in frontier], oriented=False))
-	#nprint(frontier)
+	#nprint(generation.makeloops([e for e,f2 in frontier], oriented=False))
 	
 	return frontier
 
-def booleanwith(m1, m2, side):
+def booleanwith(m1, m2, side, prec=None):
 	''' execute the boolean operation only on m1 '''
-	prec = m1.precision()
-	
+	if not prec:	prec = m1.precision()
+	# NOTE: le probleme arrive aussi sans hashage
 	start = time()
-	frontier = intersectwith(m1, m2)
+	frontier = intersectwith(m1, m2, prec)
 	print('intersectwith', time()-start)
 	start = time()
 	
@@ -225,7 +243,6 @@ def booleanwith(m1, m2, side):
 				fi = conn1[edge]
 				for p in m1.faces[fi]:
 					if p not in edge:	summit = p
-				o = m1.points[edge[0]]
 				proj = dot(m1.points[summit] - m1.points[edge[0]], m2.facenormal(f2))  * (-1 if side else 1)
 				if proj > prec:
 					used[fi] = True
@@ -242,6 +259,10 @@ def booleanwith(m1, m2, side):
 	#for edge in notto:
 		#p = (m1.points[edge[0]] + m1.points[edge[1]]) /2
 		#scn3D.add(text.Text(p, str(edge), 9, (1, 1, 0)))
+	#from mesh import Web
+	#w = Web([1.01*p for p in m1.points], [e for e,f2 in frontier])
+	#w.options['color'] = (1,0.9,0.2)
+	#scn3D.add(w)
 	
 	# propagation
 	front -= notto
@@ -251,20 +272,20 @@ def booleanwith(m1, m2, side):
 		if key not in notto:
 			frontchanged[0] = True
 			front.add(key)
-	
+	c = 0
 	def propagate(fi,f):
 		key = edgekey(f[0], f[1])
 		if key in front:
 			assert key not in notto
-			assert not used[i]
 			front.remove(key)
 			trypropagate(f[1], f[2])
 			trypropagate(f[2], f[0])
-			used[fi] = True
+			used[fi] = c
 			return True
 		return False
 	# propagation loop
 	while frontchanged[0]:
+		c += 1
 		frontchanged[0] = False
 		for i,face in enumerate(m1.faces):
 			(used[i]
@@ -273,31 +294,31 @@ def booleanwith(m1, m2, side):
 			or propagate(i, (face[1], face[2], face[0])))
 	
 	# selection of faces
+	#import text
 	#for i,u in enumerate(used):
-		#if not u:
+		#if u:
 			#p = m1.facepoints(i)
-			#scn3D.add(text.Text((p[0]+p[1]+p[2])/3, 'X', 9, (1,0,1)))
+			#scn3D.add(text.Text((p[0]+p[1]+p[2])/3, str(u), 9, (1,0,1)))
 	m1.faces =  [f for u,f in zip(used, m1.faces) if u]
 	m1.tracks = [t for u,t in zip(used, m1.tracks) if u]
 	
-	
 	# simplify the intersection (only at the intersection are useless points)
-	m1.mergepoints(line_simplification(m1, notto))
-
+	m1.mergepoints(line_simplification(m1, notto, prec))
+	
 	print('booleanwith', time()-start)
 	
 	return notto
 
-def line_simplification(mesh, line):	# TODO mettre dans un module en commun avec cut.py
+def line_simplification(mesh, line, prec=None):	# TODO mettre dans un module en commun avec cut.py
 	''' simplify the points that has no angle, merging these to some that have '''
-	prec = mesh.precision()
+	if not prec:	prec = mesh.precision()
+	print('simplify', prec)
 	
 	line = list(line)
-	line.sort(key=lambda e: e[0])
 	def processangles(process):
 		for i,ei in enumerate(line):
 			for j,ej in enumerate(line):
-				if i == j:	continue
+				if j >= i:	break
 				if   ej[0] == ei[1]:	process(ei[0], ei[1], ej[1])
 				elif ej[0] == ei[0]:	process(ei[1], ei[0], ej[1])
 				elif ej[1] == ei[1]:	process(ei[0], ei[1], ej[0])
@@ -312,47 +333,64 @@ def line_simplification(mesh, line):	# TODO mettre dans un module en commun avec
 	processangles(getdests)
 	
 	# find the points to merge
+	#merges = {}
+	#def getmerges(a,b,c):
+		#if b in destinations:	return
+		#o = mesh.points[b]
+		#if length(cross(mesh.points[a]-o, mesh.points[c]-o)) <= prec:
+			#dst = a if a in destinations or a in merges else c
+			#if merges.get(dst) != b:
+				#merges[b] = dst
+				##while dst in merges:
+					##merges[b] = dst = merges[dst]
+	#processangles(getmerges)
+	#for k,v in merges.items():
+		#while v in merges and merges[v] != k:
+			#merges[k] = v = merges[v]
+	
 	merges = {}
-	def getmerges(a,b,c):
-		o = mesh.points[b]
-		if length(cross(mesh.points[a]-o, mesh.points[c]-o)) < prec:
-			dst = a if a in destinations else c
-			if dst not in merges or merges[dst] != b:
-				merges[b] = dst
-				while dst in merges:
-					merges[b] = dst = merges[dst]
-	processangles(getmerges)
-	for k,v in merges.items():
-		while v in merges:
-			merges[k] = v = merges[v]
-
+	effect = True
+	while effect:
+		effect = False
+		for i,e in enumerate(line):
+			for a,b in (e, (e[1],e[0])):
+				if not (a in merges or a in destinations) and (b in destinations or b in merges):
+					merges[a] = b if b in destinations else merges[b]
+					effect = True
+					break
+	
 	# display merges
+	#import text
 	#for src,dst in merges.items():
-		#scn3D.objs.append(text.Text(m1.points[src], str(src)+' -> '+str(dst), 9, (1, 1, 0)))
-		#scn3D.objs.append(text.Text(m1.points[dst], str(dst), 9, (1, 0, 1)))
+		#scn3D.add(text.Text(mesh.points[src], str(src)+' -> '+str(dst), 9, (1, 1, 0)))
+		#scn3D.add(text.Text(mesh.points[dst], str(dst), 9, (1, 0, 1)))
 	
 	return merges
 
 
-def boolean(m1, m2, selector):
+def boolean(m1, m2, selector, prec=None):
 	''' execute boolean operation on volumes 
 		selector decides which part of each mesh to keep
 		- False keep the exterior part (part exclusive to the other mesh)
 		- True keep the common part
 	'''
+	if not prec:	prec = max(m1.precision(), m2.precision())
+	
 	if selector[0] is not None:
 		if selector[1] is not None:
 			mc1, mc2 = deepcopy((m1,m2))
-			booleanwith(mc1, m2, selector[0])
-			booleanwith(mc2, m1, selector[1])
+			booleanwith(mc1, m2, selector[0], prec)
+			booleanwith(mc2, m1, selector[1], prec)
 			if selector[0] and not selector[1]:
 				mc1.faces = [(f[0], f[2], f[1]) for f in mc1.faces]
 			if not selector[0] and selector[1]:
 				mc2.faces = [(f[0], f[2], f[1]) for f in mc2.faces]
-			return mc1 + mc2
+			res = mc1 + mc2
+			res.mergeclose()
+			return res
 		else:
 			mc1 = deepcopy(m1)
-			booleanwith(mc1, m2, selector[0])
+			booleanwith(mc1, m2, selector[0], prec)
 			return mc1
 	elif selector[1] is not None:
 		return boolean(m2, m1, (selector[1], selector[0]))
@@ -361,17 +399,17 @@ def union(a,b):
 	''' return a mesh for the union of the volumes. 
 		It is a boolean with selector (False,False) 
 	'''
-	return boolean(a,b,(False, False))
+	return boolean(a,b, (False,False))
 def intersection(a,b):	
 	''' return a mesh for the common volume. 
 		It is a boolean with selector (True, True) 
 	'''
-	return boolean(a,b,(True, True))
+	return boolean(a,b, (True,True))
 def difference(a,b):	
 	''' return a mesh for the volume of a less the common volume with b
 		It is a boolean with selector (False, True)
 	'''
-	return boolean(a,b,(False, True))
+	return boolean(a,b, (False,True))
 
 
 
@@ -440,6 +478,7 @@ if __name__ == '__main__':
 	
 	start = time()
 	m3 = boolean(m1, m2, (True, False))
+	m3.mergeclose()
 	m3.strippoints()
 	print('computation time:', time()-start)
 	
@@ -449,7 +488,7 @@ if __name__ == '__main__':
 	#assert m3.isenvelope()
 	
 	# debug purpose
-	m3.options.update({'debug_display':True, 'debug_points':True, 'debug_faces':'indices'})
+	m3.options.update({'debug_display':True, 'debug_points':True, 'debug_faces':False})
 	m2.options.update({'debug_display':True, 'debug_points':True})
 	#m3.groups = [None]*len(m3.faces)
 	#m3.tracks = list(range(len(m3.faces)))
