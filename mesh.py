@@ -789,8 +789,7 @@ def distance_pe(pt, edge):
 	if   x < 0:	return distance(pt,edge[0])
 	elif x > 1:	return distance(pt,edge[1])
 	else:
-		v = pt-edge[0]
-		return length(v - v*dir)/l
+		return length(noproject(pt-edge[0], dir/l))
 
 def distance_aa(a1, a2):
 	''' axis - axis distance '''
@@ -798,15 +797,16 @@ def distance_aa(a1, a2):
 
 def distance_ae(axis, edge):
 	''' axis - edge distance '''
-	d = normalize(edge[1]-edge[0])
-	y = noproject(d, d)
+	x = axis[1]
+	z = normalize(cross(x, edge[1]-edge[0]))
+	y = cross(z,x)
 	s1 = dot(edge[0]-axis[0], y)
 	s2 = dot(edge[1]-axis[0], y)
 	if s1*s2 < 0:
-		z = normalize(cross(axis[1], d))
 		return dot(edge[0]-axis[1], z)
 	elif abs(s1) < abs(s2):
 		return distance_pa(edge[0], axis)
 	else:
 		return distance_pa(edge[1], axis)
+
 
