@@ -75,7 +75,7 @@ class TextDisplay:
 		self.shader = scene.ressource('shader_font', load)
 		
 		# place triangles
-		points = np.empty((6*len(text), 4), 'f4')
+		points = np.empty((len(pointsdef)*len(text), 4), 'f4')
 		l = 0
 		c = 0
 		for i,char in enumerate(text):
@@ -84,6 +84,8 @@ class TextDisplay:
 				l += 1
 			elif char == '\t':
 				c += 4 - c%4	# TODO: use a tab size in settings
+			elif char == ' ':
+				c += 1
 			else:
 				n = ord(char)
 				#placement = char_placement(2*size, *self.fontalign, n)
