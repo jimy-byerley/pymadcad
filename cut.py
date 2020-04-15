@@ -195,26 +195,25 @@ def bevel(mesh, line, cutter, interpol=spline, resolution=None):
 		if len(lps) == 1:
 			gt.triangulate(mesh, lps[0], len(mesh.groups))
 		elif len(lps) == 2:
+			# match left and right lines
 			left,right = lps
 			if dot(mesh.points[a] - mesh.points[b], mesh.points[left[1]] - mesh.points[left[0]]) > 0:
 				left,right = right,left
 			right.reverse()
-			ll, lr = Wire(mesh.points, left).length(), Wire(mesh.points, right).length()
 			match = list(gt.curvematch(Wire(mesh.points, left), 
 									   Wire(mesh.points, right) ))
 			tmatch.extend(match)
 			
 			# create parameters for the round profiles
-			x = 0
-			for i in range(len(match)-1):
-				x += distance(mesh.points[match[i+1][0]], mesh.points[match[i][0]]) / ll
-				
-				for j in (0,1):
-					l,r = match[i+j]
-					o = interpol1(mesh.points[a], mesh.points[b], x)
-					plane = normalize(cross(mesh.points[r]-o, mesh.points[l]-o))
-					tangents[l] = normalize(cross(plane, nl)) + tangents.get(l, 0)
-					tangents[r] = normalize(cross(nr, plane)) + tangents.get(r, 0)
+			ll, lr = Wire(mesh.points, left).length(), Wire(mesh.points, right).length()
+			x = 0.
+			for i in range(len(match)):
+				if i:	x += distance(mesh.points[match[i-1][0]], mesh.points[match[i][0]]) / ll
+				l,r = match[i]
+				o = interpol1(mesh.points[a], mesh.points[b], x)
+				plane = normalize(cross(mesh.points[r]-o, mesh.points[l]-o))
+				tangents[l] = normalize(cross(plane, nl)) + tangents.get(l, 0)
+				tangents[r] = normalize(cross(nr, plane)) + tangents.get(r, 0)
 		else:
 			print('error in bevel: bevel sides are', lps)
 	
@@ -313,12 +312,12 @@ def cutsegments(mesh, line, offsets):
 		# display cut planes in the mesh (debug)
 		#grp = len(mesh.groups)
 		#mesh.groups.append(None)
-		#l = len(mesh.points)
+		#m = len(mesh.points)
 		#d = normalize(d)
 		#mesh.points.append(p)
 		#mesh.points.append(intersect+d)
 		#mesh.points.append(intersect-d)
-		#mesh.faces.append((l,l+1,l+2))
+		#mesh.faces.append((m,m+1,m+2))
 		#mesh.tracks.append(grp)
 	return segments
 
