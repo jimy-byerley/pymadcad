@@ -69,8 +69,8 @@ def facesurf(mesh, fi):
 	
 def faceheight(mesh, fi):
 	f = mesh.facepoints(fi)
-	if distance(f[0], f[2]) > distance(f[0], f[1]):		f = (f[0],f[2],f[1])
-	return length(noproject(f[2]-f[0], normalize(f[1]-f[0])))
+	heights = [length(noproject(f[i-2]-f[i], normalize(f[i-1]-f[i])))	for i in range(3)]
+	return min(heights)
 
 def registerface(mesh, conn, fi):
 	f = mesh.faces[fi]
@@ -141,7 +141,7 @@ def facekeyo(a,b,c):
 	
 def intersectwith(m1, m2, prec=None):
 	if not prec:	prec = m1.precision()
-	prec *= 4
+	#prec *= 4
 	cellsize = hashing.meshcellsize(m1)
 	print('cellsize', cellsize)
 	
@@ -204,10 +204,11 @@ def intersectwith(m1, m2, prec=None):
 	# set of faces, to detect identical opposed faces
 	faces = set()
 	for f in m1.faces:	faces.add(facekeyo(*f))
+	# remove empty faces, or faces that has an identical opposed twin
+	# empty faces are detected using triangle's height because triangle surface is bad when we got very ong empty triangles
 	def crit(fi):
 		a,b,c = m1.faces[fi]
-		verdict = faceheight(m1,fi) <= prec or facekeyo(a,c,b) in faces
-		return verdict
+		return faceheight(m1,fi) <= prec or facesurf(m1,fi) <= prec or facekeyo(a,c,b) in faces
 	removefaces(m1, crit)
 	
 	# find edges at the intersection
@@ -259,10 +260,10 @@ def booleanwith(m1, m2, side, prec=None):
 	#for edge in notto:
 		#p = (m1.points[edge[0]] + m1.points[edge[1]]) /2
 		#scn3D.add(text.Text(p, str(edge), 9, (1, 1, 0)))
-	#from mesh import Web
-	#w = Web([1.01*p for p in m1.points], [e for e,f2 in frontier])
-	#w.options['color'] = (1,0.9,0.2)
-	#scn3D.add(w)
+	from mesh import Web
+	w = Web([1.01*p for p in m1.points], [e for e,f2 in frontier])
+	w.options['color'] = (1,0.9,0.2)
+	scn3D.add(w)
 	
 	# propagation
 	front -= notto
@@ -294,11 +295,11 @@ def booleanwith(m1, m2, side, prec=None):
 			or propagate(i, (face[1], face[2], face[0])))
 	
 	# selection of faces
-	#import text
-	#for i,u in enumerate(used):
-		#if u:
-			#p = m1.facepoints(i)
-			#scn3D.add(text.Text((p[0]+p[1]+p[2])/3, str(u), 9, (1,0,1)))
+	import text
+	for i,u in enumerate(used):
+		if u:
+			p = m1.facepoints(i)
+			scn3D.add(text.Text((p[0]+p[1]+p[2])/3, str(u), 9, (1,0,1)))
 	m1.faces =  [f for u,f in zip(used, m1.faces) if u]
 	m1.tracks = [t for u,t in zip(used, m1.tracks) if u]
 	
@@ -308,6 +309,8 @@ def booleanwith(m1, m2, side, prec=None):
 	print('booleanwith', time()-start)
 	
 	return notto
+	
+from mathutils import anglebt
 
 def line_simplification(mesh, line, prec=None):	# TODO mettre dans un module en commun avec cut.py
 	''' simplify the points that has no angle, merging these to some that have '''
@@ -331,22 +334,6 @@ def line_simplification(mesh, line, prec=None):	# TODO mettre dans un module en 
 		if length(cross(mesh.points[a]-o, mesh.points[c]-o)) > prec:
 			destinations.add(b)
 	processangles(getdests)
-	
-	# find the points to merge
-	#merges = {}
-	#def getmerges(a,b,c):
-		#if b in destinations:	return
-		#o = mesh.points[b]
-		#if length(cross(mesh.points[a]-o, mesh.points[c]-o)) <= prec:
-			#dst = a if a in destinations or a in merges else c
-			#if merges.get(dst) != b:
-				#merges[b] = dst
-				##while dst in merges:
-					##merges[b] = dst = merges[dst]
-	#processangles(getmerges)
-	#for k,v in merges.items():
-		#while v in merges and merges[v] != k:
-			#merges[k] = v = merges[v]
 	
 	merges = {}
 	effect = True
@@ -488,10 +475,10 @@ if __name__ == '__main__':
 	#assert m3.isenvelope()
 	
 	# debug purpose
-	m3.options.update({'debug_display':True, 'debug_points':True, 'debug_faces':False})
+	m3.options.update({'debug_display':True, 'debug_points':True, 'debug_faces':'indices'})
 	m2.options.update({'debug_display':True, 'debug_points':True})
-	#m3.groups = [None]*len(m3.faces)
-	#m3.tracks = list(range(len(m3.faces)))
+	m3.groups = [None]*len(m3.faces)
+	m3.tracks = list(range(len(m3.faces)))
 	# display
 	scn3D.add(m3)
 	#scn3D.add(m2)
