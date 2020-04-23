@@ -30,12 +30,12 @@ class Container:
 		for i in range(len(self.points)):
 			self.points[i] = transformer(self.points[i])
 			
-	def mergeclose(self, limit=None):
+	def mergeclose(self, limit=None, start=0):
 		''' merge points below the specified distance, or below the precision '''
 		if limit is None:	limit = self.precision()
 		merges = {}
-		for j in reversed(range(len(self.points))):
-			for i in range(j):
+		for j in reversed(range(start, len(self.points))):
+			for i in range(start, j):
 				if distance(self.points[i], self.points[j]) <= limit:
 					merges[j] = i
 					break
@@ -63,7 +63,7 @@ class Container:
 		self.mergeclose()
 		self.strippoints()
 		self.stripgroups()
-		assert self.isvalid()
+		self.check()
 	
 	# --- verification methods ---
 		
@@ -155,13 +155,20 @@ class Mesh(Container):
 	def __iadd__(self, other):
 		''' append the faces and points of the other mesh '''
 		if isinstance(other, Mesh):		
-			lp = len(self.points)
-			lt = len(self.groups)
-			self.points.extend(other.points)
-			self.groups.extend(other.groups)
-			for face,track in zip(other.faces, other.tracks):
-				self.faces.append((face[0]+lp, face[1]+lp, face[2]+lp))
-				self.tracks.append(track+lt)
+			if self.points is other.points:
+				self.faces.extend(other.faces)
+			else:
+				lp = len(self.points)
+				self.points.extend(other.points)
+				for a,b,c in other.faces:
+					self.faces.append((a+lp, b+lp, c+lp))
+			if self.groups is other.groups:
+				self.tracks.extend(other.tracks)
+			else:
+				lt = len(self.groups)
+				self.groups.extend(other.groups)
+				for track in other.tracks:
+					self.tracks.append(track+lt)
 			return self
 		else:
 			return NotImplemented
@@ -525,14 +532,21 @@ class Web(Container):
 			
 	def __iadd__(self, other):
 		''' append the faces and points of the other mesh '''
-		if isinstance(other, Web):		
-			lp = len(self.points)
-			lt = len(self.groups)
-			self.points.extend(other.points)
-			self.groups.extend(other.groups)
-			for line,track in zip(other.edges, other.tracks):
-				self.edges.append((line[0]+lp, line[1]+lp))
-				self.tracks.append(track+lt)
+		if isinstance(other, Web):
+			if self.points is other.points:
+				self.edges.extend(other.edges)
+			else:
+				lp = len(self.points)
+				self.points.extend(other.points)
+				for a,b in other.edges:
+					self.edges.append((a+lp, b+lp))
+			if self.groups is other.groups:
+				self.tracks.extend(other.tracks)
+			else:
+				self.groups.extend(other.groups)
+				lt = len(self.groups)
+				for track in other.tracks:
+					self.tracks.append(track+lt)
 			return self
 		else:
 			return NotImplemented
@@ -550,12 +564,12 @@ class Web(Container):
 		i = 0
 		while i < len(self.edges):
 			e = self.edges[i]
-			self.edges[i] = l = (
+			self.edges[i] = e = (
 				merges.get(e[0], e[0]),
 				merges.get(e[1], e[1]),
 				)
 			if e[0] == e[1]:
-				self.faces.pop(i)
+				self.edges.pop(i)
 				self.tracks.pop(i)
 			else:
 				i += 1
@@ -662,7 +676,7 @@ def web(*args):
 	if not args:	raise TypeError('web take at least one argument')
 	if len(args) == 1:	args = args[0]
 	if isinstance(args, Web):		return args
-	elif isinstance(args, Wire):	return Web(args.points, lineedges(args))
+	elif isinstance(args, Wire):	return Web(args.points, list(lineedges(args)))
 	elif hasattr(args, 'mesh'):
 		res = args.mesh()
 		if isinstance(res, tuple):
@@ -734,7 +748,7 @@ class Wire:
 		return Wire(self.points, self.indices+other.indices)
 	
 	def display(self, scene):
-		indev
+		yield from web(self).display(scene)
 		
 # --- common tools ----
 # connectivity:
@@ -763,15 +777,16 @@ def connef(faces):
 	return conn
 		
 
-def lineedges(line):
+def lineedges(line, closed=False):
 	''' yield the successive couples in line '''
 	if isinstance(line, Wire):	
 		line = line.indices
 	line = iter(line)
-	j = next(line)
+	j = first = next(line)
 	for i in line:
 		yield (j,i)
 		j = i
+	if closed:	yield (i,first)
 		
 # distances:
 
