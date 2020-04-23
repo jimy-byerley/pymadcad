@@ -220,11 +220,34 @@ def intersectwith(m1, m2, prec=None):
 				for neigh in conn1[p]:
 					if neigh in pts:
 						frontier.add((edgekey(p,neigh), f2))
-	#nprint(generation.makeloops([e for e,f2 in frontier], oriented=False))
+	from nprint import nprint
+	nprint(generation.makeloops([e for e,f2 in frontier], oriented=False))
 	
 	return frontier
 
-def booleanwith(m1, m2, side, prec=None):
+def intersectwith2(m1, m2, prec=None):
+	if not prec:	prec = m1.precision()
+	cuts = []	# cut points for each face from m2
+	
+	print('* hashing')
+	conn2 = connef(m2.faces)
+	prox2 = hashing.PositionMap(cellsize)
+	for f2 in range(len(m2.faces)):	
+		#print('    ',fi)
+		prox2.add(m2.facepoints(f2), f2)
+	
+	for f1 in range(len(m1.faces)):
+		outline = list(m1.faces[f1])
+		neigh = list(set( prox2.get((m2.points[e[0]], m2.points[e[1]])) ))
+		for f2 in neigh:
+			intersect = intersect_triangles(m1.facepoints(f1), m1.facepoints(f2), prec)
+			if intersect:
+				ia, ib = intersect
+				if ia[0] == 0 and ib[0] == 0:
+					indev
+	
+
+def booleanwith2(m1, m2, side, prec=None):
 	''' execute the boolean operation only on m1 '''
 	if not prec:	prec = m1.precision()
 	# NOTE: le probleme arrive aussi sans hashage
@@ -263,7 +286,6 @@ def booleanwith(m1, m2, side, prec=None):
 	from mesh import Web
 	w = Web([1.01*p for p in m1.points], [e for e,f2 in frontier])
 	w.options['color'] = (1,0.9,0.2)
-	scn3D.add(w)
 	
 	# propagation
 	front -= notto
@@ -294,6 +316,7 @@ def booleanwith(m1, m2, side, prec=None):
 			or propagate(i, (face[2], face[0], face[1]))
 			or propagate(i, (face[1], face[2], face[0])))
 	
+	scn3D.add(w)
 	# selection of faces
 	import text
 	for i,u in enumerate(used):
@@ -302,56 +325,133 @@ def booleanwith(m1, m2, side, prec=None):
 			scn3D.add(text.Text((p[0]+p[1]+p[2])/3, str(u), 9, (1,0,1)))
 	m1.faces =  [f for u,f in zip(used, m1.faces) if u]
 	m1.tracks = [t for u,t in zip(used, m1.tracks) if u]
+		
+	# simplify the intersection (only at the intersection contains useless points)
+	# remove edges from empty triangles	
+	edges = m1.edges()
+	lines = []
+	for e in notto:
+		if e in edges:
+			lines.append(e)
+	m1.mergepoints(line_simplification(m1, lines, prec))
 	
-	# simplify the intersection (only at the intersection are useless points)
-	m1.mergepoints(line_simplification(m1, notto, prec))
 	
 	print('booleanwith', time()-start)
 	
 	return notto
-	
-from mathutils import anglebt
 
-def line_simplification(mesh, line, prec=None):	# TODO mettre dans un module en commun avec cut.py
-	''' simplify the points that has no angle, merging these to some that have '''
-	if not prec:	prec = mesh.precision()
-	print('simplify', prec)
 	
-	line = list(line)
-	def processangles(process):
-		for i,ei in enumerate(line):
-			for j,ej in enumerate(line):
-				if j >= i:	break
-				if   ej[0] == ei[1]:	process(ei[0], ei[1], ej[1])
-				elif ej[0] == ei[0]:	process(ei[1], ei[0], ej[1])
-				elif ej[1] == ei[1]:	process(ei[0], ei[1], ej[0])
-				elif ej[1] == ei[0]:	process(ei[1], ei[0], ej[0])
+def booleanwith(m1, m2, side, prec=None):
+	''' execute the boolean operation only on m1 '''
+	if not prec:	prec = m1.precision()
+	# NOTE: le probleme arrive aussi sans hashage
+	start = time()
+	frontier = intersectwith(m1, m2, prec)
+	print('intersectwith', time()-start)
+	start = time()
 	
-	# get the points to keep
-	destinations = set()	# points to keep
-	def getdests(a,b,c):
-		o = mesh.points[b]
-		if length(cross(mesh.points[a]-o, mesh.points[c]-o)) > prec:
-			destinations.add(b)
-	processangles(getdests)
+	conn1 = connef(m1.faces)
+	used = [False] * len(m1.faces)
+	notto = set((e[0] for e in frontier))
+	front = []
+	# get front and mark frontier faces as used
+	for e,f2 in frontier:
+		for edge in (e, (e[1],e[0])):
+			if edge in conn1:
+				fi = conn1[edge]
+				f = m1.faces[fi]
+				for i in range(3):
+					if f[i] not in edge:
+						proj = dot(m1.points[f[i]] - m1.points[f[i-1]], m2.facenormal(f2))  * (-1 if side else 1)
+						if proj > prec:
+							used[fi] = True
+							front.append((f[i], f[i-1]))
+							front.append((f[i-2], f[i]))
+						break
+	if not front:
+		if side:	
+			m1.faces = []
+			m1.tracks = []
+		return notto
 	
-	merges = {}
-	effect = True
-	while effect:
-		effect = False
-		for i,e in enumerate(line):
-			for a,b in (e, (e[1],e[0])):
-				if not (a in merges or a in destinations) and (b in destinations or b in merges):
-					merges[a] = b if b in destinations else merges[b]
-					effect = True
-					break
-	
-	# display merges
+	# display frontier
 	#import text
-	#for src,dst in merges.items():
-		#scn3D.add(text.Text(mesh.points[src], str(src)+' -> '+str(dst), 9, (1, 1, 0)))
-		#scn3D.add(text.Text(mesh.points[dst], str(dst), 9, (1, 0, 1)))
+	#for edge in notto:
+		#p = (m1.points[edge[0]] + m1.points[edge[1]]) /2
+		#scn3D.add(text.Text(p, str(edge), 9, (1, 1, 0)))
+	if debug_propagation:
+		from mesh import Web
+		w = Web([1.01*p for p in m1.points], [e for e,f2 in frontier])
+		w.options['color'] = (1,0.9,0.2)
+		scn3D.add(w)
 	
+	# propagation
+	front = [e for e in front if edgekey(*e) not in notto]
+	c = 1
+	while front:
+		newfront = []
+		for edge in front:
+			if edge in conn1:
+				fi = conn1[edge]
+				if not used[fi]:
+					used[fi] = c
+					f = m1.faces[fi]
+					for i in range(3):
+						if edgekey(f[i-1],f[i]) not in notto:	
+							newfront.append((f[i],f[i-1]))
+		c += 1
+		front = newfront
+	# selection of faces
+	if debug_propagation:
+		import text
+		for i,u in enumerate(used):
+			if u:
+				p = m1.facepoints(i)
+				scn3D.add(text.Text((p[0]+p[1]+p[2])/3, str(u), 9, (1,0,1), align=('center', 'center')))
+	m1.faces =  [f for u,f in zip(used, m1.faces) if u]
+	m1.tracks = [t for u,t in zip(used, m1.tracks) if u]
+		
+		
+	if not debug_propagation:
+		# simplify the intersection (only at the intersection contains useless points)
+		# remove edges from empty triangles	
+		edges = m1.edges()
+		lines = []
+		for e in notto:
+			if e in edges:
+				lines.append(e)
+		m1.mergepoints(line_simplification(m1, lines, prec))
+	
+	
+	print('booleanwith', time()-start)
+	
+	return notto
+
+debug_propagation = False
+
+def line_simplification(mesh, edges, prec=None):
+	if not prec:	prec = mesh.precision()
+	pts = mesh.points
+	
+	# simplify points when it forms tringles with too small height
+	merges = {}
+	def process(a,b,c,i):
+		height = length(noproject(pts[b]-pts[a], normalize(pts[c]-pts[a])))
+		if height > prec:
+			return True
+		else:
+			merges[b] = a
+	
+	for k,line in enumerate(generation.makeloops(edges, oriented=False)):
+		s = 0
+		for i in range(2, len(line)):
+			if process(line[s], line[i-1], line[i], k):	s = i-1
+		if line[0]==line[-1]: process(line[s], line[0], line[1], k)
+		
+	# remove redundancies in merges (there can't be loops in merges)
+	for k,v in merges.items():
+		while v in merges and merges[v] != v:
+			merges[k] = v = merges[v]
 	return merges
 
 
@@ -456,12 +556,12 @@ if __name__ == '__main__':
 	#
 	#m2.transform(vec3(2, 0.5, 0.5))
 	
-	#m3 = deepcopy(m1)
+	m3 = deepcopy(m1)
 	#intersectwith(m1, m2)
 	#intersectwith(m2, m1)
 	#intersectwith(m3, m2)
-	#booleanwith(m1, m2, False)
-	#booleanwith(m2, m3, True)
+	#booleanwith(m1, m2, True)
+	#booleanwith(m2, m3, False)
 	
 	start = time()
 	m3 = boolean(m1, m2, (True, False))
@@ -472,16 +572,18 @@ if __name__ == '__main__':
 	#print('face15', facesurf(m3, 15))
 	
 	m3.check()
-	#assert m3.isenvelope()
+	assert m3.isenvelope()
 	
 	# debug purpose
-	m3.options.update({'debug_display':True, 'debug_points':True, 'debug_faces':'indices'})
-	m2.options.update({'debug_display':True, 'debug_points':True})
-	m3.groups = [None]*len(m3.faces)
-	m3.tracks = list(range(len(m3.faces)))
+	m3.options.update({'debug_display':True, 'debug_points':False, 'debug_faces':False})
+	m2.options.update({'debug_display':True, 'debug_points':False})
+	#m1.options.update({'debug_display':True, 'debug_points':False})
+	#m3.groups = [None]*len(m3.faces)
+	#m3.tracks = list(range(len(m3.faces)))
 	# display
 	scn3D.add(m3)
 	#scn3D.add(m2)
+	#scn3D.add(m1)
 	
 	#for k in list(_proxa.dict):
 		#if k not in _proxb.dict:

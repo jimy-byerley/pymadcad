@@ -42,10 +42,14 @@ def anglebt(x,y):
 def project(vec, dir):
 	return dot(vec, dir) * dir
 	
-def noproject(x,dir):	return x - project(x,dir)
+def noproject(x,dir):	
+	return x - project(x,dir)
 
 def perpdot(a:vec2, b:vec2) -> float:
 	return -a[1]*b[0] + a[0]*b[1]
+
+def perp(v:vec2) -> vec2:
+	return vec2(-v[1], v[0])
 	
 def dirbase(dir, align=vec3(1,0,0)):
 	''' returns a base using the given direction as z axis (and the nearer vector to align as x) '''

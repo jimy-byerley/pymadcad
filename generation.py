@@ -295,9 +295,20 @@ def makeloops(lines, faces=(), oriented=True):
 				found = True
 				break
 		loops.append(loop)
-	#regularizeloops(loops, faces)
-	
+	# cut at loop intersections (sub loops or crossing loops)
+	reach = Counter()
+	for loop in loops:
+		for p in loop:
+			reach[p] += 1
+	for loop in loops:
+		for i in range(1,len(loop)-1):
+			if reach[loop[i]] > 1:
+				loops.append(loop[i:])
+				loop[i+1:] = []
+				break
 	return loops
+
+from collections import Counter
 
 def regularizeloops(loops, faces=()):
 	''' cut the loops when tere is subloops inside it.
@@ -306,12 +317,12 @@ def regularizeloops(loops, faces=()):
 	'''
 	print('regularize', loops)
 	# cut the loops when there is subloops inside it
-	for i,loop in enumerate(loops):
+	for i,loop in enumerate(loops):	
 		# merge with loops that share points with current loops
 		for j in range(len(loop)):
 			k = i+1
 			while k < len(loops):
-				if loops[k][0] == loop[j]:	loop[j:j+1] = loops.pop(k)
+				if loops[k][0] == loop[j] and loops[k][-1] == loop[j]:	loop[j:j+1] = loops.pop(k)
 				else:	k += 1
 		# cut loop in subloops
 		j = 1
