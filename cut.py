@@ -365,6 +365,7 @@ def cut(mesh, line, offsets, conn=None):
 			if frontedge not in conn:	continue
 			fi = conn[frontedge]
 			if fi in seen:	continue
+			if faceheight(mesh, fi) <= prec:	continue
 			
 			f = mesh.faces[fi]
 			# find the intersection of the triangle with the common axis to the two cutplanes (current and next)
@@ -372,7 +373,7 @@ def cut(mesh, line, offsets, conn=None):
 			if p and distance(p, mesh.points[f[0]]) > prec and distance(p, mesh.points[f[1]]) > prec and distance(p, mesh.points[f[2]]) > prec:
 				# mark cutplane change
 				# empty faces can be generated, but they are necessary to keep the connectivity working
-				pi = insertpoint(mesh, p, prec)
+				pi = mesh.usepointat(p, prec)
 				l = len(mesh.faces)
 				unregisterface(mesh, conn, fi)				
 				mesh.faces[fi] = (f[0], f[1], pi)
@@ -406,21 +407,13 @@ def cut(mesh, line, offsets, conn=None):
 					goodx[j] = ( (not s1 or dot(p-s1[0], -s1[1]) >= -prec)
 							 and (not s2 or dot(p-s2[0],  s2[1]) >= -prec) )
 				
-				#if goodside[0] and goodx[0] or goodside[1] and goodx[1] or goodside[2] and goodx[2]:
-				#if goodside[0] or goodside[1] or goodside[2]:
-				#if goodx[0] or goodx[1] or goodx[2]:
-					#for j in range(3):
-						#front.append((f[j],f[j-1]))
-				#else:
-					#continue
-				
 				if not (goodside[0] or goodside[1] or goodside[2]):
 					continue
 				
 				# intersections of triangle's edges with the plane
 				cut = [None]*3
 				for j,e in enumerate(((f[0],f[1]), (f[1],f[2]), (f[2],f[0]))):
-					cut[j] = intersection_edge_plane(cutplane, (mesh.points[e[0]], mesh.points[e[1]]))
+					cut[j] = intersection_edge_plane(cutplane, (mesh.points[e[0]], mesh.points[e[1]]), prec)
 				for j in range(3):
 					if cut[j-1] and cut[j] and distance(cut[j-1], cut[j]) < prec:	cut[j] = None
 				
@@ -435,10 +428,11 @@ def cut(mesh, line, offsets, conn=None):
 						# cut only if the intersection segment is in the delimited area
 						if s1 and dot(cut[j-1]-s1[0],-s1[1]) < prec and dot(cut[j]-s1[0],-s1[1]) < prec:	continue
 						if s2 and dot(cut[j-1]-s2[0], s2[1]) < prec and dot(cut[j]-s2[0], s2[1]) < prec:	continue
+						
 						# cut the face (create face even for non kept side, necessary for propagation)
 						toremove.discard(fi)
-						p1 = insertpoint(mesh, cut[j], prec)
-						p2 = insertpoint(mesh, cut[j-1], prec)
+						p1 = mesh.usepointat(cut[j], prec)
+						p2 = mesh.usepointat(cut[j-1], prec)
 						unregisterface(mesh, conn, fi)
 						l = len(mesh.faces)
 						mesh.faces[fi] = (p1, f[j-2], f[j-1])
@@ -469,7 +463,7 @@ def cut(mesh, line, offsets, conn=None):
 	# simplify cuts
 	merges = {}
 	for i,grp in enumerate(result):
-		reindex = line_simplification(mesh, grp, conn)
+		reindex = line_simplification(mesh, grp, conn, prec)
 		lines = []
 		for a,b in grp:
 			c,d = reindex.get(a,a), reindex.get(b,b)
@@ -485,14 +479,13 @@ def cut(mesh, line, offsets, conn=None):
 			)
 	
 	# delete inside faces and empty ones
-	surfprec = mesh.precision() * mesh.maxnum()
-	removefaces(mesh, lambda fi: fi in toremove or facesurf(mesh,fi) <= surfprec)
+	#surfprec = mesh.precision() * mesh.maxnum()
+	#removefaces(mesh, lambda fi: fi in toremove or facesurf(mesh,fi) <= surfprec)
+	removefaces(mesh, lambda fi: fi in toremove or faceheight(mesh,fi) <= prec)
 	
 	return result
 
-import boolean
-
-def line_simplification(mesh, line, conn):	# TODO mettre dans un module en commun avec cut.py
+def line_simplification(mesh, line, conn):	
 	''' simplify the points that has no angle, merging these to some that have '''
 	prec = mesh.precision()
 	
@@ -540,6 +533,70 @@ def line_simplification(mesh, line, conn):	# TODO mettre dans un module en commu
 		#scn3D.objs.append(text.Text(m1.points[dst], str(dst), 9, (1, 0, 1)))
 	
 	return merges
+	
+import generation
+	
+def line_simplification(mesh, edges, conn, prec=None):
+	if not prec:	prec = mesh.precision()
+	pts = mesh.points
+	
+	# simplify points when adjacent triangles are coplanar
+	merges = {}
+	def process(s,a,b,c,i):
+		height = length(noproject(pts[b]-pts[a], normalize(pts[c]-pts[a])))
+		faces = (
+			conn.get((a,b)), conn.get((b,c)),
+			conn.get((b,a)), conn.get((c,b)),
+			)
+		# of some faces are not present or faces are coplanar, don't merge
+		#if (	(not faces[0] or not faces[1] or dot(pts[c]-pts[b], mesh.facenormal(faces[0])) > prec and dot(pts[a]-pts[b], mesh.facenormal(faces[1])) > prec )
+			#and (not faces[2] or not faces[3] or dot(pts[c]-pts[b], mesh.facenormal(faces[2])) > prec and dot(pts[a]-pts[b], mesh.facenormal(faces[3])) > prec )):
+		if (	(not faces[0] or not faces[1] or length(cross(mesh.facenormal(faces[0]), mesh.facenormal(faces[1]))) > 8*NUMPREC )
+			and (not faces[2] or not faces[3] or length(cross(mesh.facenormal(faces[2]), mesh.facenormal(faces[3]))) > 8*NUMPREC )):
+			return b
+		# if coplanar then merge
+		else:
+			merges[b] = s
+			return s
+	
+	for k,line in enumerate(generation.makeloops(edges, oriented=False)):
+		s = line[0]
+		for i in range(2, len(line)):
+			s = process(s, line[i-2], line[i-1], line[i], k)
+		if line[0]==line[-1]: process(s, line[0], line[1], k)
+		
+	# remove redundancies in merges (there can't be loops in merges)
+	for k,v in merges.items():
+		while v in merges and merges[v] != v:
+			merges[k] = v = merges[v]
+	return merges
+
+def line_simplification(mesh, edges, conn, prec=None):	# TODO mettre dans un module en commun avec cut.py
+	if not prec:	prec = mesh.precision()
+	pts = mesh.points
+	
+	# simplify points when it forms triangles with too small height
+	merges = {}
+	def process(a,b,c):
+		# merge with current merge point if height is not sufficient, use it as new merge point
+		height = length(noproject(pts[c]-pts[b], normalize(pts[c]-pts[a])))
+		if height > prec:
+			return b
+		else:
+			merges[b] = a
+			return a
+	
+	for k,line in enumerate(generation.makeloops(edges, oriented=False)):
+		s = line[0]
+		for i in range(2, len(line)):
+			s = process(s, line[i-1], line[i])
+		if line[0]==line[-1]: process(s, line[0], line[1])
+		
+	# remove redundancies in merges (there can't be loops in merges)
+	for k,v in merges.items():
+		while v in merges and merges[v] != v:
+			merges[k] = v = merges[v]
+	return merges
 
 
 def insertpoint(mesh, pt, prec):
@@ -562,14 +619,14 @@ def segmentsdict(line):
 	return segments
 
 # return intersection of an edge with a plane, or None
-def intersection_edge_plane(axis, edge):
+def intersection_edge_plane(axis, edge, prec):
 	dist = dot(axis[0]-edge[0], axis[1])
 	compl = dot(axis[0]-edge[1], axis[1])
-	if abs(dist) < NUMPREC:		return edge[0]
-	if abs(compl) < NUMPREC:	return edge[1]
+	if abs(dist) <= prec:		return edge[0]
+	if abs(compl) <= prec:	return edge[1]
 	if dist * compl > 0:	return None		# the segment doesn't reach the plane
 	edgedir = edge[1]-edge[0]
-	if abs(dot(edgedir, axis[1])) < NUMPREC:	return None	# the segment is parallel to the plane
+	if abs(dot(edgedir, axis[1])) <= NUMPREC:	return None	# the segment is parallel to the plane
 	edgedir = normalize(edgedir)
 	return edge[0] + dist * edgedir / dot(edgedir, axis[1])
 
@@ -600,6 +657,11 @@ def facesurf(mesh, fi):
 def faceangle(mesh, fi):
 	o,x,y = mesh.facepoints(fi)
 	return length(cross(normalize(x-o), normalize(y-o)))
+	
+def faceheight(mesh, fi):
+	f = mesh.facepoints(fi)
+	heights = [length(noproject(f[i-2]-f[i], normalize(f[i-1]-f[i])))	for i in range(3)]
+	return min(heights)
 
 
 if __name__ == '__main__':

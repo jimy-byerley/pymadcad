@@ -67,7 +67,7 @@ def facesurf(mesh, fi):
 	o,x,y = mesh.facepoints(fi)
 	return length(cross(x-o, y-o))
 	
-def faceheight(mesh, fi):
+def faceheight(mesh, fi):	# TODO: mettre en commun avec cut
 	f = mesh.facepoints(fi)
 	heights = [length(noproject(f[i-2]-f[i], normalize(f[i-1]-f[i])))	for i in range(3)]
 	return min(heights)
@@ -225,27 +225,339 @@ def intersectwith(m1, m2, prec=None):
 	
 	return frontier
 
-def intersectwith2(m1, m2, prec=None):
+def intersectwith(m1, m2, prec=None):
 	if not prec:	prec = m1.precision()
-	cuts = []	# cut points for each face from m2
+	frontier = []	# cut points for each face from m2
 	
-	print('* hashing')
-	conn2 = connef(m2.faces)
+	cellsize = hashing.meshcellsize(m2)
+	print('  cellsize', cellsize)
 	prox2 = hashing.PositionMap(cellsize)
 	for f2 in range(len(m2.faces)):	
-		#print('    ',fi)
 		prox2.add(m2.facepoints(f2), f2)
 	
-	for f1 in range(len(m1.faces)):
-		outline = list(m1.faces[f1])
-		neigh = list(set( prox2.get((m2.points[e[0]], m2.points[e[1]])) ))
+	for f1,f in enumerate(m1.faces):
+		neigh = set( prox2.get((m1.facepoints(f1))) )
+		print(neigh)
 		for f2 in neigh:
-			intersect = intersect_triangles(m1.facepoints(f1), m1.facepoints(f2), prec)
-			if intersect:
-				ia, ib = intersect
-				if ia[0] == 0 and ib[0] == 0:
-					indev
+			if faceheight(m1,f1) > prec:
+				intersect = intersect_triangles(m1.facepoints(f1), m2.facepoints(f2), prec)
+				if intersect:
+					# cut the face
+					l = len(m1.faces)
+					ia, ib = intersect
+					if distance(ia[2],ib[2]) <= prec:	continue
+					p1 = m1.usepointat(ia[2], prec)
+					p2 = m1.usepointat(ib[2], prec)
+					if p1 in f and p2 in f:	
+						frontier.append((edgekey(p1,p2), f2))
+					else:
+						print('cut', f1, m1.faces[f1])
+						a,b,c = m1.facepoints(f1)
+						#e = cutface(m1, f1, (ia[2], ib[2]), prec)
+						#frontier.append((edgekey(*e), f2))
+						e = cutface(m1, f1, (p1,p2), prec)
+						frontier.append((edgekey(p1,p2), f2))
+						break
+					
+	# set of faces, to detect identical opposed faces
+	faces = set()
+	for f in m1.faces:	faces.add(facekeyo(*f))
+	# remove empty faces, or faces that has an identical opposed twin
+	# empty faces are detected using triangle's height because triangle surface is bad when we got very ong empty triangles
+	def crit(fi):
+		a,b,c = m1.faces[fi]
+		return faceheight(m1,fi) <= prec or facesurf(m1,fi) <= prec or facekeyo(a,c,b) in faces
+	removefaces(m1, crit)
 	
+	return frontier
+	
+def intersectwith(m1, m2, prec=None):
+	if not prec:	prec = m1.precision()
+	frontier = []	# cut points for each face from m2
+	
+	cellsize = hashing.meshcellsize(m1)
+	print('  cellsize', cellsize)
+	prox1 = hashing.PositionMap(cellsize)
+	for f1 in range(len(m1.faces)):	
+		prox1.add(m1.facepoints(f1), f1)
+	
+	for f2 in range(len(m2.faces)):
+		neigh = set( prox1.get(m2.facepoints(f2)) )
+		for f1 in neigh:
+			if faceheight(m1,f1) > prec:
+				intersect = intersect_triangles(m1.facepoints(f1), m2.facepoints(f2), prec)
+				if intersect:
+					# cut the face
+					l = len(m1.faces)
+					ia, ib = intersect
+					if distance(ia[2],ib[2]) <= prec:	continue
+					p1 = m1.usepointat(ia[2], prec)
+					p2 = m1.usepointat(ib[2], prec)
+					f = m1.faces[f1]
+					if p1 in f and p2 in f:	
+						frontier.append((edgekey(p1,p2), f2))
+					else:
+						a,b,c = m1.facepoints(f1)
+						e = cutface(m1, f1, (p1,p2), prec)
+						frontier.append((edgekey(p1,p2), f2))
+						for nf in range(l,len(m1.faces)):
+							prox1.add(m1.facepoints(nf), nf)
+					
+	# set of faces, to detect identical opposed faces
+	#faces = set()
+	#for f in m1.faces:	faces.add(facekeyo(*f))
+	# remove empty faces, or faces that has an identical opposed twin
+	# empty faces are detected using triangle's height because triangle surface is bad when we got very ong empty triangles
+	def crit(fi):
+		a,b,c = m1.faces[fi]
+		return faceheight(m1,fi) <= prec #or facesurf(m1,fi) <= prec or facekeyo(a,c,b) in faces
+	removefaces(m1, crit)
+	
+	return frontier
+
+def cutface(mesh, fi, edge, prec):
+	''' cut the face with an edge [vec3, vec3] '''
+	pts = mesh.facepoints(fi)
+	f = mesh.faces[fi]
+	group = mesh.tracks[fi]
+	p1i,p2i = edge
+	p1, p2 = mesh.points[p1i], mesh.points[p2i]
+	mesh.faces[fi] = (0,0,0)
+	
+	n = cross(pts[1]-pts[0], pts[2]-pts[0])
+	d = normalize(cross(p2-p1, n))	# projection direction orthogonal to the axis bt p1 and p2
+	s = [dot(pt-p1, d) for pt in pts]	# signs of projections
+	c = [s[i]*s[i-1]  for i in range(3)]
+	
+	# rare case: the cutting segment is on an edge
+	if min(s) >= -prec:
+		# find edge on which we are
+		i = 0
+		if s[1] > s[i]:	i = 1
+		if s[2] > s[i]:	i = 2
+		# reorient the cutting edge
+		if dot(p1-p2, mesh.points[f[i-1]] - mesh.points[f[i-2]]) < 0:
+			p2i,p1i = p1i,p2i
+		mesh.faces.append((f[i], p1i, f[i-1]))
+		mesh.faces.append((f[i], p2i, p1i))
+		mesh.faces.append((f[i], f[i-2], p2i))
+		mesh.tracks.extend([group]*3)
+	# most common case: the cutting segment is somewhere and there is at least points apart
+	else:
+		#print('config', f, c)
+		
+		# turn the face to get the proper configuration where f[1] and f[2] are apart of the crossing axis (p1, p2)
+		# choose the edge at the middle of which the axis is the nearer
+		if   c[0] <= c[2] and c[0] <= c[1]:	f = (f[1], f[2], f[0])
+		elif c[1] <= c[2] and c[1] <= c[0]:	f = (f[2], f[0], f[1])
+
+		# exchange the points of the intersection in order to avoid crossing triangle
+		a = cross(n, mesh.points[f[2]] - mesh.points[f[1]])	# perpendicular axis to base, oriented to triangle center
+		if dot(p1-p2, a) < 0:	# p1 is nearer to the base than p2
+			p2i,p1i = p1i,p2i
+			
+		#print('choice', f, p1i, p2i)
+		
+		# the links created must have the same normal orientation than the former one
+		mesh.faces[fi] = (0,0,0)
+		mesh.faces.append((p1i, f[0], f[1]))
+		mesh.faces.append((p1i, f[1], p2i))
+		mesh.faces.append((p2i, f[1], f[2]))
+		mesh.faces.append((p2i, f[2], p1i))
+		mesh.faces.append((p1i, f[2], f[0]))
+		mesh.tracks.extend([group]*5)
+	return (p1i, p2i)
+
+from mathutils import dvec3, cross, normalize, length, dot, abs, ivec3, sign, dvec2, fvec3, vec3
+	
+# routines to simplify intersections
+def max_v(x):
+	m = x[0]
+	im = 0
+	for i in range(1,len(x)):
+		if x[i]>m:
+			m = x[i]
+			im = i
+	return m, im
+
+def min_v(x):
+	m = x[0]
+	im = 0
+	for i in range(1,len(x)):
+		if x[i]<m:
+			m = x[i]
+			im = i
+	return m, im
+
+def conv_v(t,x):
+	if not isinstance(x,t):	return t(x)
+	else:					return x
+
+# main intersection routine
+def intersect_triangles(f0, f1, precision):
+    ''' Intersects 2 triangles and outputs intersections vertices
+
+        f0 = first face (tuple of 3 vertices given in clock wise orientation. vertices are glm.vec3 or glm.dvec3)
+        f1 = second face
+
+        output = None if no intersection
+                 2 intersection vertices given as : 
+                 ((fi, ej, xj), (fk, em, xm)) where
+                     fi, fj = face id
+                     ej, em = edges id on faces
+                     xj = intersection point (same precision as input vertices) 
+                     
+        restrictions : vertices on faces must be spatially different. identical vertices on triangles are not managed
+    '''
+    # computation in double precision
+    dr=dvec3
+    do=vec3
+    fA = (conv_v(dr,f0[0]), conv_v(dr,f0[1]), conv_v(dr,f0[2]))
+    fB = (conv_v(dr,f1[0]), conv_v(dr,f1[1]), conv_v(dr,f1[2]))
+
+    # gets the normal to the fisrt face
+    A1A2=fA[1]-fA[0]
+    A1A3=fA[2]-fA[0]
+    nA1=cross(A1A2, A1A3)
+    nA=normalize(nA1)
+
+    # gets the normal to the second face
+    B1B2=fB[1]-fB[0]
+    B1B3=fB[2]-fB[0]
+    nB1=cross(B1B2, B1B3)
+    nB=normalize(nB1)
+
+    # gets the direction of the intersection between the plan containing fA and the one containing fB 
+    d1=cross(nA, nB)
+    ld1=length(d1)
+    if ld1 < precision :
+        #print("coplanar or parallel faces")
+        return None
+        
+    # normalize d1
+    d=d1/ld1
+
+    # projection direction on to d from fA and fB
+    tA=cross(nA, d)
+    tB=cross(nB, d)
+
+    # project fA summits onto d (in pfA)
+    # xA being the coordinates of fA onto d
+    pA1=fA[0]-dot(fA[0]-fB[0], nB)/dot(tA,nB)*tA
+    xA=dvec3(0., dot(A1A2, d), dot(A1A3, d))
+    pfA=(pA1, pA1+xA[1]*d, pA1+xA[2]*d)
+
+    # project fB summits onto d
+    xB=dvec3(dot(fB[0]-fA[0], d), dot(fB[1]-fA[0], d), dot(fB[2]-fA[0], d))
+    pfB=(pA1+xB[0]*d, pA1+xB[1]*d, pA1+xB[2]*d)
+
+    # project fA and fB summits on transversal direction tA tB
+    yA=dvec3(0.)
+    yB=dvec3(0.)
+    for i in range(0,3):
+        yA[i]=dot((fA[i]-pfA[i]), tA)
+        yB[i]=dot((fB[i]-pfB[i]), tB)
+
+    # dimensioning for fA and fB
+    sA=max(max(abs(xA)), max(abs(yA)))
+    sB=max(max(abs(xB)), max(abs(yB)))
+    
+    # identify signs of yA and yB
+    sYA=ivec3(0)
+    sYB=ivec3(0)
+    for i in range(0,3):
+        if abs(yA[i])/sA<precision :
+            sYA[i]=0
+            yA[i]=0.
+        else : 
+            sYA[i]=sign(yA[i])
+        if abs(yB[i])/sB<precision :
+            sYB[i]=0
+            yB[i]=0.
+        else : 
+            sYB[i]=sign(yB[i])
+
+    # check if triangles have no intersections with line D
+    if abs(sum(sYA))==3 or abs(sum(sYB))==3 : 
+        #print("plans intersects but no edges intersection")
+        return None
+
+    # we know that triangles do intersect the line D
+    # edges of intersection on A and B with the convention : edge i of face X connects fX[i] and fX[(i+1)%3] 
+    eIA=[]
+    eIB=[]
+    for i in range(0,3):
+        if sYA[i]*sYA[(i+1)%3]<0 and abs(sYA[i])+abs(sYA[(i+1)%3])>0 : 
+            eIA.append(i)
+        elif sYA[i]==0 :
+            if abs(sYA[(i+1)%3])>0 : 
+                eIA.append(i)
+            else :
+                eIA.append((i-1)%3)
+        if sYB[i]*sYB[(i+1)%3]<0 and abs(sYB[i])+abs(sYB[(i+1)%3])>0 : 
+            eIB.append(i)
+        elif sYB[i]==0:
+            if abs(sYB[(i+1)%3])>0 : 
+                eIB.append(i)
+            else :
+                eIB.append((i-1)%3)
+    if len(eIA)==1 :
+        eIA.append(eIA[0])
+    if len(eIB)==1 :
+        eIB.append(eIB[0])
+                
+    # intersections coordinates onto line D
+    xIA=dvec2(0.)
+    xIB=dvec2(0.)
+    for i in range(0,2):
+        xIA[i]=(yA[(eIA[i]+1)%3]*xA[eIA[i]]-yA[eIA[i]]*xA[(eIA[i]+1)%3])/(yA[(eIA[i]+1)%3]-yA[eIA[i]])
+        xIB[i]=(yB[(eIB[i]+1)%3]*xB[eIB[i]]-yB[eIB[i]]*xB[(eIB[i]+1)%3])/(yB[(eIB[i]+1)%3]-yB[eIB[i]])
+
+    # intervals of intersections
+    xPIA=max_v(xIA)
+    xMIA=min_v(xIA)
+    xPIB=max_v(xIB)
+    xMIB=min_v(xIB)
+
+    # one intersection at the border of the intervals
+    if abs(xPIA[0]-xMIB[0])/(0.5*(sB+sA))<precision : 
+        # edge of max from A matches min of B
+        #print("edges intersection PA-MB")
+        return (0, eIA[xPIA[1]], conv_v(do, pA1+xIA[xPIA[1]]*d)), (1, eIB[xMIB[1]], conv_v(do,pA1+xIB[xMIB[1]]*d))
+        
+    if abs(xPIB[0]-xMIA[0])/(0.5*(sB+sA))<precision : 
+        # edge of max from B matches min of A
+        #print("edges intersection PB-MA")
+        return (0, eIA[xMIA[1]], conv_v(do, pA1+xIA[xMIA[1]]*d)), (1, eIB[xPIB[1]], conv_v(do,pA1+xIB[xPIB[1]]*d))
+
+    # no intersection
+    if xPIB[0]-precision<xMIA[0] or xPIA[0]-precision<xMIB[0]:
+        #print("plans intersects but no edges intersection")
+        return None
+        
+    # one interval is included into the other one
+    if xMIB[0]-precision<xMIA[0] and xPIA[0]-precision<xPIB[0]:
+        # edges of A cross face B
+        #print("edges of A intersect B")
+        return (0, eIA[xMIA[1]], conv_v(do, pA1+xIA[xMIA[1]]*d)), (0, eIA[xPIA[1]], conv_v(do, pA1+xIA[xPIA[1]]*d))
+    if xMIA[0]-precision<xMIB[0] and xPIB[0]-precision<xPIA[0]:
+        # edges of B cross face A
+        #print("edges of B intersect A")
+        return (1, eIB[xMIB[1]], conv_v(do, pA1+xIB[xMIB[1]]*d)), (1, eIB[xPIB[1]], conv_v(do, pA1+xIB[xPIB[1]]*d))
+
+    # intervals cross each other
+    if xMIB[0]>xMIA[0]-precision and xPIA[0]-precision<xPIB[0]:
+        # M edge of B crosses face A and P edge of A crosses face B
+        #print("M edge of B intersects A and P edge of A intersects B")
+        return (0, eIA[xPIA[1]], conv_v(do, pA1+xIA[xPIA[1]]*d)), (1, eIB[xMIB[1]], conv_v(do, pA1+xIB[xMIB[1]]*d))
+    if xMIA[0]>xMIB[0]-precision and xPIB[0]-precision<xPIA[0]:
+        # M edge of A crosses face B and P edge of B crosses face A
+        #print("M edge of A intersects B and P edge of B intersects A")
+        return (0, eIA[xMIA[1]], conv_v(do, pA1+xIA[xMIA[1]]*d)), (1, eIB[xPIB[1]], conv_v(do, pA1+xIB[xPIB[1]]*d))
+
+    print("intersect_triangles: unexpected case : ", fA, fB)
+    return None
+
 
 def booleanwith2(m1, m2, side, prec=None):
 	''' execute the boolean operation only on m1 '''
@@ -379,11 +691,11 @@ def booleanwith(m1, m2, side, prec=None):
 	#for edge in notto:
 		#p = (m1.points[edge[0]] + m1.points[edge[1]]) /2
 		#scn3D.add(text.Text(p, str(edge), 9, (1, 1, 0)))
-	if debug_propagation:
-		from mesh import Web
-		w = Web([1.01*p for p in m1.points], [e for e,f2 in frontier])
-		w.options['color'] = (1,0.9,0.2)
-		scn3D.add(w)
+	#if debug_propagation:
+		#from mesh import Web
+		#w = Web([1.01*p for p in m1.points], [e for e,f2 in frontier])
+		#w.options['color'] = (1,0.9,0.2)
+		#scn3D.add(w)
 	
 	# propagation
 	front = [e for e in front if edgekey(*e) not in notto]
@@ -402,51 +714,49 @@ def booleanwith(m1, m2, side, prec=None):
 		c += 1
 		front = newfront
 	# selection of faces
-	if debug_propagation:
-		import text
-		for i,u in enumerate(used):
-			if u:
-				p = m1.facepoints(i)
-				scn3D.add(text.Text((p[0]+p[1]+p[2])/3, str(u), 9, (1,0,1), align=('center', 'center')))
+	#if debug_propagation:
+		#import text
+		#for i,u in enumerate(used):
+			#if u:
+				#p = m1.facepoints(i)
+				#scn3D.add(text.Text((p[0]+p[1]+p[2])/3, str(u), 9, (1,0,1), align=('center', 'center')))
 	m1.faces =  [f for u,f in zip(used, m1.faces) if u]
 	m1.tracks = [t for u,t in zip(used, m1.tracks) if u]
-		
-		
-	if not debug_propagation:
-		# simplify the intersection (only at the intersection contains useless points)
-		# remove edges from empty triangles	
-		edges = m1.edges()
-		lines = []
-		for e in notto:
-			if e in edges:
-				lines.append(e)
-		m1.mergepoints(line_simplification(m1, lines, prec))
 	
+	# simplify the intersection (only at the intersection contains useless points)
+	# remove edges from empty triangles	
+	edges = m1.edges()
+	lines = []
+	for e in notto:
+		if e in edges:
+			lines.append(e)
+	m1.mergepoints(line_simplification(m1, lines, prec))
 	
 	print('booleanwith', time()-start)
 	
 	return notto
 
-debug_propagation = False
-
 def line_simplification(mesh, edges, prec=None):
 	if not prec:	prec = mesh.precision()
 	pts = mesh.points
 	
-	# simplify points when it forms tringles with too small height
+	# simplify points when it forms triangles with too small height
 	merges = {}
-	def process(a,b,c,i):
-		height = length(noproject(pts[b]-pts[a], normalize(pts[c]-pts[a])))
+	def process(a,b,c):
+		# merge with current merge point if height is not sufficient, use it as new merge point
+		height = length(noproject(pts[c]-pts[b], normalize(pts[c]-pts[a])))
 		if height > prec:
-			return True
+			#scn3D.add(text.Text(pts[b], str(height), 8, (1,0,1), align=('left', 'center')))
+			return b
 		else:
 			merges[b] = a
+			return a
 	
 	for k,line in enumerate(generation.makeloops(edges, oriented=False)):
-		s = 0
+		s = line[0]
 		for i in range(2, len(line)):
-			if process(line[s], line[i-1], line[i], k):	s = i-1
-		if line[0]==line[-1]: process(line[s], line[0], line[1], k)
+			s = process(s, line[i-1], line[i])
+		if line[0]==line[-1]: process(s, line[0], line[1])
 		
 	# remove redundancies in merges (there can't be loops in merges)
 	for k,v in merges.items():
@@ -561,23 +871,23 @@ if __name__ == '__main__':
 	#intersectwith(m2, m1)
 	#intersectwith(m3, m2)
 	#booleanwith(m1, m2, True)
-	#booleanwith(m2, m3, False)
+	#intersectwith(m2, m3, False)
 	
-	start = time()
+	#start = time()
 	m3 = boolean(m1, m2, (True, False))
 	m3.mergeclose()
 	m3.strippoints()
-	print('computation time:', time()-start)
+	#print('computation time:', time()-start)
 	
 	#print('face15', facesurf(m3, 15))
 	
 	m3.check()
-	assert m3.isenvelope()
+	#assert m3.isenvelope()
 	
 	# debug purpose
 	m3.options.update({'debug_display':True, 'debug_points':False, 'debug_faces':False})
-	m2.options.update({'debug_display':True, 'debug_points':False})
-	#m1.options.update({'debug_display':True, 'debug_points':False})
+	m2.options.update({'debug_display':True, 'debug_points':True, 'debug_faces':'indices'})
+	m1.options.update({'debug_display':True, 'debug_points':False, 'debug_faces':'indices'})
 	#m3.groups = [None]*len(m3.faces)
 	#m3.tracks = list(range(len(m3.faces)))
 	# display
@@ -585,12 +895,7 @@ if __name__ == '__main__':
 	#scn3D.add(m2)
 	#scn3D.add(m1)
 	
-	#for k in list(_proxa.dict):
-		#if k not in _proxb.dict:
-			#del _proxa.dict[k]
-	#_proxa.options.update({'color':(1,0.9,0.1)})
-	#scn3D.add(_proxa)
-	#scn3D.add(_proxb)
+	#scn3D.add(debug_vox)
 	
 	main.show()
 	sys.exit(app.exec())
