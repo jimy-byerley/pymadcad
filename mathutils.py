@@ -10,7 +10,7 @@ min = __builtins__['min']
 any = __builtins__['any']
 all = __builtins__['all']
 
-'''
+
 vec2 = dvec2
 mat2 = dmat2
 vec3 = dvec3
@@ -21,11 +21,10 @@ quat = dquat
 
 NUMPREC = 1e-13
 COMPREC = 1-NUMPREC
-'''
 
 # numerical precision of floats used (float32 here, so 7 decimals, so 1e-6 when exponent is 1)
-NUMPREC = 1e-6
-COMPREC = 1-NUMPREC
+#NUMPREC = 1e-6
+#COMPREC = 1-NUMPREC
 
 def norminf(x):
 	return max(glm.abs(x))
