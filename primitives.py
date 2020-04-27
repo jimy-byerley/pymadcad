@@ -1,5 +1,5 @@
 from math import sqrt
-from mathutils import vec3, mat3, normalize, anglebt, project, cos, sin, atan2, pi, length, distance, cross, vec2, mat2, determinant, inverse, dot, atan, acos, dirbase
+from mathutils import vec3, mat3, normalize, anglebt, project, noproject, cos, sin, atan2, pi, length, distance, cross, vec2, mat2, determinant, inverse, dot, atan, acos, dirbase
 import settings
 
 class Primitive(object):
@@ -106,9 +106,11 @@ class ArcCentered(object):
 
 def mkarc(axis, start, end, resolution=None):
 	center, z = axis
-	r = length(start-center)
-	x = normalize(start-center)
+	v = noproject(start-center, axis[1])
+	r = length(v)
+	x = v/r
 	y = cross(axis[1], x)
+	print(x,y,z)
 	#print(dot(end-center,y), dot(end-center,x))
 	angle = atan2(dot(end-center,y), dot(end-center,x)) % (2*pi)
 	#angle = acos(dot(x, normalize(end-center)))

@@ -10,7 +10,7 @@ __all__ = [
 	'extrans', 'extrusion', 'revolution', 'saddle', 'tube',
 	'curvematch', 'join', 'junction', 'junctioniter',
 	'matchexisting', 'matchclosest', 'dividematch',
-	'triangulate', 'flatsurface', 'makeloops', 'loopholes', 'closeenvelope', 
+	'triangulate', 'flatsurface', 'closeenvelope', 
 	]
 
 
@@ -275,46 +275,7 @@ def prolongation(mesh, line): 	# TODO
 
 
 
-def makeloops(lines, faces=(), oriented=True):	# TODO: mettre en commun avec boolean et cut
-	''' return a list of the loops that can be formed with lines.
-		lines must be oriented suite of points and loops are returned as suite of points.
-	'''
-	lines = list(lines)
-	# get contiguous suite of points
-	loops = []
-	while lines:
-		loop = list(lines.pop())
-		found = True
-		while found:
-			found = False
-			for i,edge in enumerate(lines):
-				if edge[-1] == loop[0]:		loop[0:1] = edge
-				elif edge[0] == loop[-1]:	loop[-1:] = edge
-				# for unoriented lines
-				elif not oriented and edge[0] == loop[0]:	loop[0:1] = reversed(edge)
-				elif not oriented and edge[-1] == loop[-1]:	loop[-1:] = reversed(edge)
-				else:
-					continue
-				lines.pop(i)
-				found = True
-				break
-		loops.append(loop)
-	# cut at loop intersections (sub loops or crossing loops)
-	reach = Counter()
-	for loop in loops:
-		for p in loop:
-			reach[p] += 1
-	for loop in loops:
-		for i in range(1,len(loop)-1):
-			if reach[loop[i]] > 1:
-				loops.append(loop[i:])
-				loop[i+1:] = []
-				break
-	return loops
-
-from collections import Counter
-
-def regularizeloops(loops, faces=()):
+def regularizeloops(loops, faces=()):	# NOTE A REVOIR
 	''' cut the loops when tere is subloops inside it.
 		if faces are provided, this function also make sure loops are not enclosing faces 
 		preserves the orientation of each loop
@@ -353,12 +314,7 @@ def regularizeloops(loops, faces=()):
 				loops.append(cut)
 				loops[i] = loop = loop[:j]+loop[k:]
 
-def loopholes(mesh):
-	''' return the loop delimiting holes of a mesh '''
-	return makeloops(mesh.outlines_oriented(), mesh.faces)
-	
-
-def closeenvelope(mesh):
+def closeenvelope(mesh):	# TODO: refaire
 	''' create surfaces to close the loop holes in the envelope '''
 	for hole in loopholes(mesh):
 		hole.pop()
@@ -445,7 +401,7 @@ def flatsurface(outline):
 
 
 def arclen(p1, p2, n1, n2):
-	''' length of an arc between p1 and p2, with associated normals '''
+	''' approximated length of an arc between p1 and p2, with associated normals '''
 	c = dot(n1,n2)
 	v = p1-p2
 	return sqrt(dot(v,v) / (2-2*c)) * acos(c)
@@ -548,7 +504,7 @@ if __name__ == '__main__':
 			))
 	m1.check()
 	assert m1.issurface()
-	
+		
 	# test revolution
 	m2 = revolution(pi, (vec3(0,0,0), vec3(0,1,0)), web(
 			Segment(vec3(1,1,0), vec3(0.9,0.5,0)), 

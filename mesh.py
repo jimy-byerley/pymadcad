@@ -11,7 +11,7 @@ import math
 import view
 import text
 
-__all__ = ['Mesh', 'Web', 'Wire', 'MeshError', 'web', 'edgekey', 'lineedges', 'striplist']
+__all__ = ['Mesh', 'Web', 'Wire', 'MeshError', 'web', 'edgekey', 'lineedges', 'striplist', 'suites', 'line_simplification']
 
 class MeshError(Exception):	pass
 
@@ -84,11 +84,8 @@ class Container:
 		return m
 	
 	def precision(self, propag=3):
-		''' numeric precision of operations on this mesh, allowed by the floating point precision '''
-		m = self.maxnum()
-		unit = NUMPREC * (2**propag)
-		#return m, m*unit, (m*unit)**2, (m*unit)**3
-		return m * unit
+		''' numeric coordinate precision of operations on this mesh, allowed by the floating point precision '''
+		return self.maxnum() * NUMPREC * (2**propag)
 		
 	def usepointat(self, point, neigh=NUMPREC):
 		''' return the index of the first point in the mesh at the location, if none is found, insert it and return the index '''
@@ -139,7 +136,7 @@ class Mesh(Container):
 		self.points = points or []
 		self.faces = faces or []
 		self.tracks = tracks or [0] * len(self.faces)
-		self.groups = groups or [None] * (max(self.tracks, default=0)+1)
+		self.groups = groups or [None] * (max(self.tracks, default=-1)+1)
 		self.options = {}
 	
 	
@@ -514,11 +511,11 @@ class Web(Container):
 
 	# --- standard point container methods ---
 	
-	def __init__(self, points=None, edges=None, tracks = None, groups=None):
+	def __init__(self, points=None, edges=None, tracks=None, groups=None):
 		self.points = points or []
 		self.edges = edges or []
 		self.tracks = tracks or [0] * len(self.edges)
-		self.groups = groups or [None] * (max(self.tracks, default=0)+1)
+		self.groups = groups or [None] * (max(self.tracks, default=-1)+1)
 		self.options = {}
 			
 	def __add__(self, other):
@@ -543,8 +540,8 @@ class Web(Container):
 			if self.groups is other.groups:
 				self.tracks.extend(other.tracks)
 			else:
-				self.groups.extend(other.groups)
 				lt = len(self.groups)
+				self.groups.extend(other.groups)
 				for track in other.tracks:
 					self.tracks.append(track+lt)
 			return self
@@ -628,6 +625,9 @@ class Web(Container):
 		for a,b in lineedges(self):
 			s += distance(self.points[a], self.points[b])
 		return s
+	
+	def segments(self):
+		return [Wire(self.points, loop)		for loop in suites(self.edges, oriented=False)]
 		
 	def __repr__(self):
 		return 'Web(\n  points= {},\n  edges=  {},\n  tracks= {},\n  groups= {},\n  options= {})'.format(
@@ -663,6 +663,7 @@ class Web(Container):
 				color=self.options.get('color')),
 
 def glmarray(array, dtype='f4'):
+	''' create a numpy array from a list of glm vec '''
 	buff = np.empty((len(array), len(array[0])), dtype=dtype)
 	for i,e in enumerate(array):
 		buff[i][:] = e
@@ -757,6 +758,12 @@ def edgekey(a,b):
 	''' return a key for a non-directional edge '''
 	if a < b:	return (a,b)
 	else:		return (b,a)
+	
+def facekeyo(a,b,c):
+	''' return a key for an oriented face '''
+	if a < b and b < c:		return (a,b,c)
+	elif a < b:				return (c,a,b)
+	else:					return (b,c,a)
 
 def connpp(edges):
 	''' point to point connectivity '''
@@ -787,7 +794,78 @@ def lineedges(line, closed=False):
 		yield (j,i)
 		j = i
 	if closed:	yield (i,first)
+	
+def line_simplification(web, prec=None):
+	''' return a dictionnary of merges to simplify edges when there is points aligned '''
+	if not prec:	prec = web.precision()
+	pts = web.points
+	
+	# simplify points when it forms triangles with too small height
+	merges = {}
+	def process(a,b,c):
+		# merge with current merge point if height is not sufficient, use it as new merge point
+		height = length(noproject(pts[c]-pts[b], normalize(pts[c]-pts[a])))
+		if height > prec:
+			#scn3D.add(text.Text(pts[b], str(height), 8, (1,0,1), align=('left', 'center')))
+			return b
+		else:
+			merges[b] = a
+			return a
+	
+	for k,line in enumerate(suites(web.edges, oriented=False)):
+		s = line[0]
+		for i in range(2, len(line)):
+			s = process(s, line[i-1], line[i])
+		if line[0]==line[-1]: process(s, line[0], line[1])
 		
+	# remove redundancies in merges (there can't be loops in merges)
+	for k,v in merges.items():
+		while v in merges and merges[v] != v:
+			merges[k] = v = merges[v]
+	return merges
+	
+
+def suites(lines, oriented=True, cut=True):
+	''' return a list of the suites that can be formed with lines.
+		lines is an iterable of edges
+		* oriented      specifies that (a,b) and (c,b) will not be assembled
+		* cut           cut suites when they are crossing each others
+		return a list of the sequences that can be formed
+	'''
+	lines = list(lines)
+	# get contiguous suite of points
+	loops = []
+	while lines:
+		loop = list(lines.pop())
+		found = True
+		while found:
+			found = False
+			for i,edge in enumerate(lines):
+				if edge[-1] == loop[0]:		loop[0:1] = edge
+				elif edge[0] == loop[-1]:	loop[-1:] = edge
+				# for unoriented lines
+				elif not oriented and edge[0] == loop[0]:	loop[0:1] = reversed(edge)
+				elif not oriented and edge[-1] == loop[-1]:	loop[-1:] = reversed(edge)
+				else:
+					continue
+				lines.pop(i)
+				found = True
+				break
+		loops.append(loop)
+	# cut at loop intersections (sub loops or crossing loops)
+	if cut:
+		reach = {}
+		for loop in loops:
+			for p in loop:
+				reach[p] = reach.get(p,0) + 1
+		for loop in loops:
+			for i in range(1,len(loop)-1):
+				if reach[loop[i]] > 1:
+					loops.append(loop[i:])
+					loop[i+1:] = []
+					break
+	return loops
+
 # distances:
 
 distance_pp = distance

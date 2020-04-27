@@ -1,5 +1,5 @@
 from mathutils import vec3, mat3, dmat3, dvec3, dot, cross, project, noproject, anglebt, sqrt, cos, acos, asin, spline, interpol1, normalize, distance, length, inverse, transpose, NUMPREC, COMPREC
-from mesh import Mesh, Wire, lineedges, connef
+from mesh import Mesh, Web, Wire, lineedges, connef, suites, line_simplification
 import generation as gt
 import text
 import settings
@@ -45,7 +45,7 @@ def chamfer(mesh, line, cutter):
 	for i,s in enumerate(segments):
 		if s:
 			lp = []
-			for part in gt.makeloops(s):
+			for part in suites(s):
 				lp.extend(part)
 			gt.triangulate(mesh, lp, group)
 
@@ -60,8 +60,8 @@ def bevel3(mesh, line, cutter, interpol=spline, resolution=None):
 	
 	parts = []
 	for s in segments:
-		parts.extend(gt.makeloops(s))
-	left,right = gt.makeloops(parts)
+		parts.extend(suites(s))
+	left,right = suies(parts)
 	right.reverse()
 	match = list(gt.matchcurves((mesh.points, left), (mesh.points, right)))
 	
@@ -136,7 +136,7 @@ def beveltgt(mesh, line, cutter, interpol=spline, resolution=None):
 		
 		dir = mesh.points[a] - mesh.points[b]
 		
-		lps = gt.makeloops(s)
+		lps = suites(s)
 		if len(lps) == 1:
 			gt.triangulate(mesh, lp, group)
 		else:
@@ -191,7 +191,7 @@ def bevel(mesh, line, cutter, interpol=spline, resolution=None):
 	for (a,b),s,(nl,nr) in zip(lineedges(line), segments, normals):
 		if not s:	continue
 		
-		lps = gt.makeloops(s)
+		lps = suites(s)
 		if len(lps) == 1:
 			gt.triangulate(mesh, lps[0], len(mesh.groups))
 		elif len(lps) == 2:
@@ -463,7 +463,7 @@ def cut(mesh, line, offsets, conn=None):
 	# simplify cuts
 	merges = {}
 	for i,grp in enumerate(result):
-		reindex = line_simplification(mesh, grp, conn, prec)
+		reindex = line_simplification(Web(mesh.points, grp), prec)
 		lines = []
 		for a,b in grp:
 			c,d = reindex.get(a,a), reindex.get(b,b)
@@ -479,124 +479,9 @@ def cut(mesh, line, offsets, conn=None):
 			)
 	
 	# delete inside faces and empty ones
-	#surfprec = mesh.precision() * mesh.maxnum()
-	#removefaces(mesh, lambda fi: fi in toremove or facesurf(mesh,fi) <= surfprec)
 	removefaces(mesh, lambda fi: fi in toremove or faceheight(mesh,fi) <= prec)
 	
 	return result
-
-def line_simplification(mesh, line, conn):	
-	''' simplify the points that has no angle, merging these to some that have '''
-	prec = mesh.precision()
-	
-	line = list(line)
-	line.sort(key=lambda e: e[0])
-	def processangles(process):
-		for i,ei in enumerate(line):
-			for j,ej in enumerate(line):
-				if i == j:	continue
-				if   ej[0] == ei[1]:	process(ei[0], ei[1], ej[1])
-				elif ej[0] == ei[0]:	process(ei[1], ei[0], ej[1])
-				elif ej[1] == ei[1]:	process(ei[0], ei[1], ej[0])
-				elif ej[1] == ei[0]:	process(ei[1], ei[0], ej[0])
-	
-	# get the points to keep
-	destinations = set()	# points to keep
-	def getdests(a,b,c):
-		o = mesh.points[b]
-		if length(cross(mesh.points[a]-o, mesh.points[c]-o)) > prec:
-			destinations.add(b)
-	processangles(getdests)
-	
-	# find the points to merge
-	merges = {}
-	def getmerges(a,b,c):
-		faces = (
-			conn.get((a,b)), conn.get((b,c)),
-			conn.get((c,b)), conn.get((b,a)),
-			)
-		if faces == [None]*4:	print(a,b,c)
-		if (	(faces[0] is None or faces[1] is None or length(cross(mesh.facenormal(faces[0]), mesh.facenormal(faces[1]))) <= 4*NUMPREC)
-			and	(faces[2] is None or faces[3] is None or length(cross(mesh.facenormal(faces[2]), mesh.facenormal(faces[3]))) <= 4*NUMPREC)
-			):	# <---- difference avec boolean.line_simplification
-			dst = a if a in destinations else c
-			if dst not in merges or merges[dst] != b:
-				merges[b] = dst
-	processangles(getmerges)
-	for k,v in merges.items():
-		while v in merges:
-			merges[k] = v = merges[merges[k]]
-
-	# display merges
-	#for src,dst in merges.items():
-		#scn3D.objs.append(text.Text(m1.points[src], str(src)+' -> '+str(dst), 9, (1, 1, 0)))
-		#scn3D.objs.append(text.Text(m1.points[dst], str(dst), 9, (1, 0, 1)))
-	
-	return merges
-	
-import generation
-	
-def line_simplification(mesh, edges, conn, prec=None):
-	if not prec:	prec = mesh.precision()
-	pts = mesh.points
-	
-	# simplify points when adjacent triangles are coplanar
-	merges = {}
-	def process(s,a,b,c,i):
-		height = length(noproject(pts[b]-pts[a], normalize(pts[c]-pts[a])))
-		faces = (
-			conn.get((a,b)), conn.get((b,c)),
-			conn.get((b,a)), conn.get((c,b)),
-			)
-		# of some faces are not present or faces are coplanar, don't merge
-		#if (	(not faces[0] or not faces[1] or dot(pts[c]-pts[b], mesh.facenormal(faces[0])) > prec and dot(pts[a]-pts[b], mesh.facenormal(faces[1])) > prec )
-			#and (not faces[2] or not faces[3] or dot(pts[c]-pts[b], mesh.facenormal(faces[2])) > prec and dot(pts[a]-pts[b], mesh.facenormal(faces[3])) > prec )):
-		if (	(not faces[0] or not faces[1] or length(cross(mesh.facenormal(faces[0]), mesh.facenormal(faces[1]))) > 8*NUMPREC )
-			and (not faces[2] or not faces[3] or length(cross(mesh.facenormal(faces[2]), mesh.facenormal(faces[3]))) > 8*NUMPREC )):
-			return b
-		# if coplanar then merge
-		else:
-			merges[b] = s
-			return s
-	
-	for k,line in enumerate(generation.makeloops(edges, oriented=False)):
-		s = line[0]
-		for i in range(2, len(line)):
-			s = process(s, line[i-2], line[i-1], line[i], k)
-		if line[0]==line[-1]: process(s, line[0], line[1], k)
-		
-	# remove redundancies in merges (there can't be loops in merges)
-	for k,v in merges.items():
-		while v in merges and merges[v] != v:
-			merges[k] = v = merges[v]
-	return merges
-
-def line_simplification(mesh, edges, conn, prec=None):	# TODO mettre dans un module en commun avec cut.py
-	if not prec:	prec = mesh.precision()
-	pts = mesh.points
-	
-	# simplify points when it forms triangles with too small height
-	merges = {}
-	def process(a,b,c):
-		# merge with current merge point if height is not sufficient, use it as new merge point
-		height = length(noproject(pts[c]-pts[b], normalize(pts[c]-pts[a])))
-		if height > prec:
-			return b
-		else:
-			merges[b] = a
-			return a
-	
-	for k,line in enumerate(generation.makeloops(edges, oriented=False)):
-		s = line[0]
-		for i in range(2, len(line)):
-			s = process(s, line[i-1], line[i])
-		if line[0]==line[-1]: process(s, line[0], line[1])
-		
-	# remove redundancies in merges (there can't be loops in merges)
-	for k,v in merges.items():
-		while v in merges and merges[v] != v:
-			merges[k] = v = merges[v]
-	return merges
 
 
 def insertpoint(mesh, pt, prec):
@@ -650,13 +535,13 @@ def removefaces(mesh, crit):
 	mesh.faces = newfaces
 	mesh.tracks = newtracks
 
-def facesurf(mesh, fi):
-	o,x,y = mesh.facepoints(fi)
-	return length(cross(x-o, y-o))
+#def facesurf(mesh, fi):
+	#o,x,y = mesh.facepoints(fi)
+	#return length(cross(x-o, y-o))
 
-def faceangle(mesh, fi):
-	o,x,y = mesh.facepoints(fi)
-	return length(cross(normalize(x-o), normalize(y-o)))
+#def faceangle(mesh, fi):
+	#o,x,y = mesh.facepoints(fi)
+	#return length(cross(normalize(x-o), normalize(y-o)))
 	
 def faceheight(mesh, fi):
 	f = mesh.facepoints(fi)
@@ -667,7 +552,7 @@ def faceheight(mesh, fi):
 if __name__ == '__main__':
 	
 	# test intersections
-	from generation import saddle, tube, makeloops
+	from generation import saddle, tube
 	from primitives import ArcThrough
 	from mesh import Web, web
 	import sys
@@ -692,7 +577,7 @@ if __name__ == '__main__':
 			)
 	m.check()
 	
-	line = makeloops(list(m.group(1).outlines_unoriented() & m.group(2).outlines_unoriented()))[0]
+	line = suites(list(m.group(1).outlines_unoriented() & m.group(2).outlines_unoriented()))[0]
 	#chamfer(m, line, ('depth', 0.6))
 	#bevel3(m, line, ('depth', 0.2))
 	#beveltgt(m, line, ('depth', 0.6))
