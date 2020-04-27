@@ -43,7 +43,11 @@ def revolution(angle, axis, web, resolution=None):
 	# use extrans
 	def trans():
 		for i in range(steps):
-			yield translate(rotate(translate(mat4(1), -axis[0]), i/(steps-1)*angle, axis[1]), axis[0])
+			#yield translate(rotate(translate(mat4(1), -axis[0]), i/(steps-1)*angle, axis[1]), axis[0])
+			r = mat3_cast(angleAxis(i/(steps-1)*angle, axis[1]))
+			m = mat4(r)
+			m[3] = vec4(axis[0] - r*axis[0], 1)
+			yield m
 	return extrans(web, trans(), ((i,i+1) for i in range(steps-1)))
 
 def saddle(web1, web2):
@@ -271,7 +275,7 @@ def prolongation(mesh, line): 	# TODO
 
 
 
-def makeloops(lines, faces=(), oriented=True):
+def makeloops(lines, faces=(), oriented=True):	# TODO: mettre en commun avec boolean et cut
 	''' return a list of the loops that can be formed with lines.
 		lines must be oriented suite of points and loops are returned as suite of points.
 	'''
