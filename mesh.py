@@ -825,7 +825,7 @@ def line_simplification(web, prec=None):
 	return merges
 	
 
-def suites(lines, oriented=True, cut=True):
+def suites(lines, oriented=True, cut=True, loop=False):
 	''' return a list of the suites that can be formed with lines.
 		lines is an iterable of edges
 		* oriented      specifies that (a,b) and (c,b) will not be assembled
@@ -834,37 +834,38 @@ def suites(lines, oriented=True, cut=True):
 	'''
 	lines = list(lines)
 	# get contiguous suite of points
-	loops = []
+	suites = []
 	while lines:
-		loop = list(lines.pop())
+		suite = list(lines.pop())
 		found = True
 		while found:
 			found = False
 			for i,edge in enumerate(lines):
-				if edge[-1] == loop[0]:		loop[0:1] = edge
-				elif edge[0] == loop[-1]:	loop[-1:] = edge
+				if edge[-1] == suite[0]:		suite[0:1] = edge
+				elif edge[0] == suite[-1]:		suite[-1:] = edge
 				# for unoriented lines
-				elif not oriented and edge[0] == loop[0]:	loop[0:1] = reversed(edge)
-				elif not oriented and edge[-1] == loop[-1]:	loop[-1:] = reversed(edge)
+				elif not oriented and edge[0] == suite[0]:		suite[0:1] = reversed(edge)
+				elif not oriented and edge[-1] == suite[-1]:	suite[-1:] = reversed(edge)
 				else:
 					continue
 				lines.pop(i)
 				found = True
 				break
-		loops.append(loop)
-	# cut at loop intersections (sub loops or crossing loops)
+			if loop and suite[-1] == suite[0]:	break
+		suites.append(suite)
+	# cut at suite intersections (sub suites or crossing suites)
 	if cut:
 		reach = {}
-		for loop in loops:
-			for p in loop:
+		for suite in suites:
+			for p in suite:
 				reach[p] = reach.get(p,0) + 1
-		for loop in loops:
-			for i in range(1,len(loop)-1):
-				if reach[loop[i]] > 1:
-					loops.append(loop[i:])
-					loop[i+1:] = []
+		for suite in suites:
+			for i in range(1,len(suite)-1):
+				if reach[suite[i]] > 1:
+					suites.append(suite[i:])
+					suite[i+1:] = []
 					break
-	return loops
+	return suites
 
 # distances:
 
