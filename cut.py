@@ -1,8 +1,8 @@
-from mathutils import vec3, mat3, dmat3, dvec3, dot, cross, project, noproject, anglebt, sqrt, cos, acos, asin, spline, interpol1, normalize, distance, length, inverse, transpose, NUMPREC, COMPREC
-from mesh import Mesh, Web, Wire, lineedges, connef, suites, line_simplification
-import generation as gt
-import text
-import settings
+from .mathutils import vec3, mat3, dmat3, dvec3, dot, cross, project, noproject, anglebt, sqrt, cos, acos, asin, spline, interpol1, normalize, distance, length, inverse, transpose, NUMPREC, COMPREC
+from .mesh import Mesh, Web, Wire, lineedges, connef, suites, line_simplification
+from . import generation as gt
+from . import text
+from . import settings
 
 __all__ = [	'chamfer', 'bevel', 'beveltgt', 
 			'tangentjunction', 'cut', 'cutsegments', 'planeoffsets',
@@ -549,43 +549,3 @@ def faceheight(mesh, fi):
 	return min(heights)
 
 
-if __name__ == '__main__':
-	
-	# test intersections
-	from generation import saddle, tube
-	from primitives import ArcThrough
-	from mesh import Web, web
-	import sys
-	import view, text
-	from PyQt5.QtWidgets import QApplication
-	from nprint import nprint
-	from copy import deepcopy
-	
-	app = QApplication(sys.argv)
-	main = scn3D = view.Scene()
-	
-	m = saddle(
-			Web(
-				[vec3(-2,1.5,0),vec3(-1,1,0),vec3(0,0,0),vec3(1,1,0),vec3(1.5,2,0)], 
-				[(0,1), (1,2), (2,3), (3,4)],
-				[0,1,2,3]),
-			#web(vec3(0,1,-1),vec3(0,0,0),vec3(0,1,1)),
-			#web(ArcThrough(vec3(0,1,-1),vec3(0,1.5,0),vec3(0,1,1))),
-			web(
-				ArcThrough(vec3(0,1,-1),vec3(0,1.3,-0.5),vec3(0,1,0)), 
-				ArcThrough(vec3(0,1,0),vec3(0,0.7,0.5),vec3(0,1,1))),
-			)
-	m.check()
-	
-	line = suites(list(m.group(1).outlines_unoriented() & m.group(2).outlines_unoriented()))[0]
-	#chamfer(m, line, ('depth', 0.6))
-	#bevel3(m, line, ('depth', 0.2))
-	#beveltgt(m, line, ('depth', 0.6))
-	bevel(m, line, ('depth', 0.6))
-	
-	
-	#m.options.update({'debug_display': True, 'debug_points': False })
-	scn3D.add(m)
-	scn3D.look(m.box())
-	main.show()
-	sys.exit(app.exec())

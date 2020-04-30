@@ -1,14 +1,16 @@
-import settings
 import numpy.core as np
+from PIL import Image
 import moderngl as mgl
+from copy import copy, deepcopy
 from math import tan, sin, cos, pi, exp
-from mathutils import vec3, fvec3, fvec4, fmat3, fmat4, row, column, length, perspective, translate, project, inverse, dichotomy_index, Box
+
+from .mathutils import vec3, fvec3, fvec4, fmat3, fmat4, row, column, length, perspective, translate, project, inverse, dichotomy_index, Box
+from . import settings
+
 from PyQt5.QtCore import Qt
 from PyQt5.QtOpenGL import QGLWidget, QGLFormat
 from PyQt5.QtWidgets import QWidget
-from PIL import Image
-from copy import copy, deepcopy
-
+# new open gl widget (bug)
 from PyQt5.QtWidgets import QOpenGLWidget
 from PyQt5.QtGui import QSurfaceFormat
 
@@ -670,63 +672,3 @@ class WireDisplay:
 		if self.flags_updated:
 			self.vb_flags.write(self.flags[self.idents])
 			self.flags_updated = False
-
-
-
-if __name__ == '__main__':
-	import sys
-	from PyQt5.QtWidgets import QApplication
-	from mesh import Mesh, Web, Wire
-	
-	m = Mesh(
-		[
-			vec3(1.0, -1.0, -1.0),
-            vec3(1.0, -1.0, 1.0),
-            vec3(-1.0, -1.0, 1.0),
-            vec3(-1.0, -1.0, -1.0),
-            vec3(1.0, 1.0, -1.0),
-            vec3(1.0, 1.0, 1.0),
-            vec3(-1.0, 1.0, 1.0),
-            vec3(-1.0, 1.0, -1.0)],
-		[
-            (0, 1, 2),
-            (0, 2, 3),
-            (4, 7, 6),
-            (4, 6, 5),
-            (0, 4, 5),
-            (0, 5, 1),
-            (1, 5, 6),
-            (1, 6, 2),
-            (2, 6, 7),
-            (2, 7, 3),
-            (4, 0, 3),
-            (4, 3, 7)],
-		list(range(12)),
-		)
-	
-	w = Web(
-		[	
-			vec3(0,0,0),
-			vec3(1,0,0),vec3(0,1,0),vec3(0,0,1),
-			vec3(0,1,1),vec3(1,0,1),vec3(1,1,0),
-			vec3(1,1,1)],
-		[	
-			(0,1),(0,2),(0,3),
-			(1,6),(2,6),
-			(1,5),(3,5),
-			(2,4),(3,4),
-			(4,7),(5,7),(6,7),
-			],
-		list(range(12)),
-		)
-	w.transform(vec3(0,0,2))
-
-	app = QApplication(sys.argv)
-	scn = Scene()
-	scn.add(m)
-	scn.add(w)
-	scn.look(Box(center=fvec3(0), width=fvec3(1)))
-	
-	scn.show()
-	sys.exit(app.exec())
-	

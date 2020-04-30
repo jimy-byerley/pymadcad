@@ -6,10 +6,10 @@ from copy import deepcopy
 from random import random
 import numpy as np
 from array import array
-from mathutils import Box, vec3, vec4, mat3, mat4, quat, mat3_cast, cross, dot, normalize, length, distance, project, noproject, anglebt, NUMPREC
 import math
-import view
-import text
+from .mathutils import Box, vec3, vec4, mat3, mat4, quat, mat3_cast, cross, dot, normalize, length, distance, project, noproject, anglebt, NUMPREC
+from . import view
+from . import text
 
 __all__ = ['Mesh', 'Web', 'Wire', 'MeshError', 'web', 'edgekey', 'lineedges', 'striplist', 'suites', 'line_simplification']
 

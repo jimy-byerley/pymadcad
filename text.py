@@ -1,8 +1,8 @@
 from PIL import Image, ImageFont, ImageDraw
 import numpy.core as np
-from mathutils import fvec3, ceil, sqrt
-import settings
 import moderngl as mgl
+from .mathutils import fvec3, ceil, sqrt
+from . import settings
 
 # TODO: utiliser les methodes et attributs ImgeFont.size, .getmetrics(), etc pour avoir les hauteur et largeur de police
 

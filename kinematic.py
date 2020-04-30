@@ -1,15 +1,16 @@
-from mathutils import (fvec3, fmat4, vec3, vec4, mat3, mat4, quat, mat4_cast, quat_cast,
+import numpy.core as np
+import moderngl as mgl
+
+from .mathutils import (fvec3, fmat4, vec3, vec4, mat3, mat4, quat, mat4_cast, quat_cast,
 						column, translate, inverse, isnan,
 						dot, cross, length, normalize, project, dirbase,
 						atan2, acos, angle, axis, angleAxis,
 						Box, transform)
-from mesh import Mesh, Wire, web
-import generation
-import primitives
-import settings
-import constraints
-import numpy.core as np
-import moderngl as mgl
+from .mesh import Mesh, Wire, web
+from . import generation
+from . import primitives
+from . import settings
+from . import constraints
 
 
 '''
@@ -441,7 +442,7 @@ class WireDisplay:
 
 
 from PyQt5.QtCore import QEvent	
-import view, text
+from . import view, text
 from copy import copy
 
 class ToolMove:

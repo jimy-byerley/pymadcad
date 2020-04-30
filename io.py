@@ -1,6 +1,7 @@
-from mesh import Mesh, Wire
-import generation
 import numpy as np
+from .mathutils import vec3
+from .mesh import Mesh, Wire
+from . import generation
 
 class FileFormatError(Exception):	pass
 
@@ -137,25 +138,3 @@ else:
 	
 	# no write function available at this time
 	#def obj_write(mesh, file, **opts):
-
-
-if __name__ == '__main__':
-	from mathutils import vec3
-	from mesh import Web
-	original = generation.extrusion(vec3(0,0,0.5), Web(
-			[vec3(1,1,0), vec3(-1,1,0), vec3(-1,-1,0), vec3(1,-1,0)],
-			[(0,1), (1,2), (2,3), (3,0)],
-			[0,1,2,3],
-			))
-	
-	# test ply
-	write(original, 'tests/test_io.ply')
-	ply = read('tests/test_io.ply')
-	ply.check()
-	assert ply.issurface()
-	
-	# test stl
-	write(original, 'tests/test_io.stl')
-	stl = read('tests/test_io.stl')
-	stl.check()
-	assert stl.issurface()

@@ -1,6 +1,6 @@
 from math import sqrt
-from mathutils import vec3, mat3, normalize, anglebt, project, noproject, cos, sin, atan2, pi, length, distance, cross, vec2, mat2, determinant, inverse, dot, atan, acos, dirbase
-import settings
+from .mathutils import vec3, mat3, normalize, anglebt, project, noproject, cos, sin, atan2, pi, length, distance, cross, vec2, mat2, determinant, inverse, dot, atan, acos, dirbase
+from . import settings
 
 class Primitive(object):
 	__slots__ = ('annotations',)
