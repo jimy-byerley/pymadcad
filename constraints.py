@@ -1,5 +1,9 @@
 import primitives
-from mathutils import project, normalize, length, vec3, distance, anglebt, cross, dot, atan2
+from mathutils import project, normalize, length, vec3, distance, anglebt, cross, dot, noproject, atan2
+from collections import Counter
+import numpy as np
+from scipy.optimize import minimize
+from nprint import nprint
 
 class Constraint(object):
 	def __init__(self, *args, **kwargs):
@@ -40,15 +44,16 @@ def Parallel(s1,s2):
 	return Angle(s1,s2,0)
 
 class Radius(Constraint):
-	__slots__ = 'arc', 'consta', 'constb'
+	__slots__ = 'arc', 'radius' #'consta', 'constb'
 	primitives = 'arc',
 	def __init__(self, arc, radius):
 		self.arc = arc
-		self.consta = Distance(arc.axis[0], arc.a, radius)
-		self.constb = Distance(arc.axis[0], arc.b, radius)
+		self.radius = radius
 	
 	def fit(self):
-		return self.consta.fit() + self.constb.fit()
+		ra = length(noproject(self.arc.a - self.arc.axis[0], self.arc.axis[1]))
+		rb = length(noproject(self.arc.b - self.arc.axis[0], self.arc.axis[1]))
+		return (ra - self.radius) **2 + (rb - self.radius) **2
 
 class Projected(Constraint):
 	__slots__ = 'a', 'b', 'proj'
@@ -56,16 +61,21 @@ class Projected(Constraint):
 	def fit(self):
 		return dot(self.a - self.b - self.proj, self.proj)
 
+class OnPlane(Constraint):
+	__slots__ = 'axis', 'pts'
+	primitives = 'pts',
+	def fit(self):
+		s = 0
+		for p in self.pts:
+			s += dot(p-self.axis[0], self.axis[1]) **2
+		return s
+
 class PointOn(Constraint):
 	__slots__ = 'point', 'curve'	
 	primitives = 'point', 'curve'
 	def fit(self):
 		return distance(self.curve.slv_nearest(self.point), self.point) ** 2
 
-from collections import Counter
-import numpy as np
-from scipy.optimize import minimize
-from nprint import nprint
 		
 def solve(constraints, fixed=(), *args, **kwargs):
 	return Problem(constraints, fixed).solve(*args, **kwargs)
@@ -124,7 +134,7 @@ class Problem:
 						break
 	
 	def state(self):
-		x = np.empty(self.dim, dtype='f4')
+		x = np.empty(self.dim, dtype='f8')
 		i = 0
 		for v in self.slvvars:
 			l = len(v)
