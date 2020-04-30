@@ -13,7 +13,7 @@ from time import time
 __all__ = ['intersect', 'boolean', 'intersection', 'union', 'difference']
 		
 
-def pierce_face(mesh, fi, p, prec, conn=None):
+def pierce_face(mesh, fi, p, prec):
 	f = mesh.faces[fi]
 	l = len(mesh.faces)
 	pi = mesh.usepointat(p, prec)
@@ -77,6 +77,128 @@ def intersectwith(m1, m2, prec=None):
 	
 	return frontier
 
+from mathutils import NUMPREC
+from mesh import suites
+import generation
+def intersectwith2(m1, m2, prec=None):
+	if not prec:	prec = m1.precision()
+	frontier = []	# cut points for each face from m2
+	
+	prox2 = hashing.PositionMap(hashing.meshcellsize(m2))
+	for f2 in range(len(m2.faces)):
+		prox2.add(m2.facepoints(f2), f2)
+	
+	# get flat regions
+	grp = [-1]*len(m1.faces)
+	surfs = []
+	conn = connef(m1.faces)
+	g = 0
+	for i in range(len(m1.faces)):
+		if grp[i] == -1:
+			surf = []
+			front = [i]
+			normal = m1.facenormal(i)
+			track = m1.tracks[i]
+			while front:
+				fi = front.pop()
+				if grp[fi] == -1 and m1.tracks[fi] == track and distance(m1.facenormal(fi), normal) < NUMPREC:
+					surf.append(fi)
+					grp[fi] = g
+					f = m1.faces[fi]
+					for edge in ((f[1],f[0]), (f[2],f[1]), (f[0],f[2])):
+						if edge in conn:	front.append(conn[edge])
+			surfs.append(surf)
+			g += 1
+	
+	mn = Mesh(m1.points, groups=m1.groups)
+	for surf in surfs:
+		# get region ORIENTED outlines - aka the outline of the n-gon
+		outline = set()
+		for f1 in surf:
+			f = m1.faces[f1]
+			for edge in ((f[1],f[0]), (f[2],f[1]), (f[0],f[2])):
+				if edge in outline:	outline.remove(edge)
+				else:				outline.add((edge[1], edge[0]))
+		outline = suites(outline)[0]
+		# enrich outlines with intersections
+		segts = []
+		for f1 in surf:
+			f = m1.faces[f1]
+			for f2 in set( prox2.get(m1.facepoints(f1)) ):
+				intersect = intersect_triangles(m1.facepoints(f1), m2.facepoints(f2), prec)
+				if intersect:
+					ia, ib = intersect
+					if distance(ia[2],ib[2]) <= prec:	continue
+					p1 = m1.usepointat(ia[2], prec)
+					p2 = m1.usepointat(ib[2], prec)
+					print((p1,p2))
+					inserted = False
+					if ia[0] == 0:	
+						e = f[ia[1]], f[(ia[1]+1)%3]
+						for j in range(len(outline)):
+							if outline[j-1] == e[0] and outline[j] == e[1]:
+								outline.insert(j, p1)
+								outline.insert(j, p2)
+								outline.insert(j, p2)
+								outline.insert(j, p1)
+								inserted = True
+								break
+					if ib[0] == 0:	
+						e = f[ib[1]], f[(ib[1]+1)%3]
+						for j in range(len(outline)):
+							if outline[j-1] == e[0] and outline[j] == e[1]:
+								outline.insert(j, p2)
+								#if not inserted:
+								outline.insert(j, p1)
+								outline.insert(j, p1)
+								outline.insert(j, p2)
+								inserted = True
+								break
+					if not inserted:
+						segts.append((p1,p2))
+						segts.append((p2,p1))
+					frontier.append(((p1,p2), f2))
+		first = None
+		start = None
+		for i in range(1,len(outline)):
+			if outline[i] == outline[i-1]:
+				if start:	
+					segts.append(outline[start:i])
+					first = i
+				start = i
+		if start is not None:	segts.append(outline[start:]+outline[:first])
+		else:					segts.append(outline)
+		print('segts', segts)
+		# retriangulate, suites will split outlines with the intersections added
+		for suite in suites(segts, oriented=True, loop=True, cut=False):
+			print('suite', suite, len(mn.faces))
+			generation.triangulate(mn, suite, m1.tracks[surf[0]])
+	m1.faces = mn.faces
+	m1.tracks = mn.tracks
+	print('frontier', frontier)
+	return frontier
+
+def cutloop(pts, loop, edges):
+	used = Counter(loop)
+	while edges:
+		# find an edge to insert
+		retain = None
+		for i,edge in enumerate(edges):
+			if edge[0] in used:		retain = edge
+			elif edge[1] in used:	retain = (edge[1],edge[0])
+			else:	continue
+			edges.pop(i)
+			break
+		if retain:
+			i = loop.index(retain[0])
+			loop.insert(i, retain[1])
+			loop.insert(i, p)
+			used[retain[1]] += 1
+		else:
+			# no edge is connected, create one with the rest
+			pass	
+	return loop
+
 def cutface(mesh, fi, edge, prec):
 	''' cut the face with an edge [vec3, vec3] '''
 	pts = mesh.facepoints(fi)
@@ -91,7 +213,7 @@ def cutface(mesh, fi, edge, prec):
 	s = [dot(pt-p1, d) for pt in pts]	# signs of projections
 	c = [s[i]*s[i-1]  for i in range(3)]
 	
-	# rare case: the cutting segment is on an edge
+	# rare case: the cutting segment is on an edge and can break the side test
 	if min(s) >= -prec:
 		# find edge on which we are
 		i = 0
@@ -121,7 +243,6 @@ def cutface(mesh, fi, edge, prec):
 		#print('choice', f, p1i, p2i)
 		
 		# the links created must have the same normal orientation than the former one
-		mesh.faces[fi] = (0,0,0)
 		mesh.faces.append((p1i, f[0], f[1]))
 		mesh.faces.append((p1i, f[1], p2i))
 		mesh.faces.append((p2i, f[1], f[2]))
@@ -511,20 +632,20 @@ if __name__ == '__main__':
 	m3 = deepcopy(m1)
 	#intersectwith(m1, m2)
 	#intersectwith(m2, m1)
-	#intersectwith(m3, m2)
+	intersectwith(m3, m2)
 	#booleanwith(m1, m2, True)
 	#intersectwith(m2, m3, False)
 	
 	#start = time()
-	m3 = boolean(m1, m2, (True, False))
+	#m3 = boolean(m1, m2, (True, False))
 	m3.mergeclose()
-	m3.strippoints()
+	#m3.strippoints()
 	#print('computation time:', time()-start)
 	
 	#print('face15', facesurf(m3, 15))
 	
 	m3.check()
-	assert m3.isenvelope()
+	#assert m3.isenvelope()
 	
 	# debug purpose
 	m3.options.update({'debug_display':True, 'debug_points':False, 'debug_faces':False})
