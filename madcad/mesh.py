@@ -10,6 +10,7 @@ import math
 from .mathutils import Box, vec3, vec4, mat3, mat4, quat, mat3_cast, cross, dot, normalize, length, distance, project, noproject, anglebt, NUMPREC
 from . import view
 from . import text
+from . import hashing
 
 __all__ = ['Mesh', 'Web', 'Wire', 'MeshError', 'web', 'edgekey', 'lineedges', 'striplist', 'suites', 'line_simplification']
 
@@ -33,6 +34,7 @@ class Container:
 	def mergeclose(self, limit=None, start=0):
 		''' merge points below the specified distance, or below the precision '''
 		if limit is None:	limit = self.precision()
+		'''
 		merges = {}
 		for j in reversed(range(start, len(self.points))):
 			for i in range(start, j):
@@ -40,6 +42,14 @@ class Container:
 					merges[j] = i
 					break
 		self.mergepoints(merges)
+		return merges
+		'''
+		merges = {}
+		points = hashing.PointSet(limit)
+		for i in range(start, len(self.points)):
+			merges[i] = points.add(self.points[i])
+		self.mergepoints(merges)
+		self.points = points.points
 		return merges
 		
 	def stripgroups(self):

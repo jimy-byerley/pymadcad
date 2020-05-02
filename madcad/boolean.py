@@ -38,12 +38,24 @@ def removefaces(mesh, crit):
 def faceheight(mesh, fi):	# TODO: mettre en commun avec cut
 	f = mesh.facepoints(fi)
 	heights = [length(noproject(f[i-2]-f[i], normalize(f[i-1]-f[i])))	for i in range(3)]
+	#heights = [length(cross(f[i-2]-f[i], f[i-1]-f[i]))/length(f[i-1]-f[i])	for i in range(3)]
 	return min(heights)
+
+from math import inf
+def faceheight(f):
+	m = inf
+	for i in range(3):
+		l = length(f[i-2]-f[i])
+		if not l:	return 0
+		h = length(cross(f[i-2]-f[i], f[i-1]-f[i])) / l
+		if h < m:	m = h
+	return m
 
 def intersectwith(m1, m2, prec=None):
 	if not prec:	prec = m1.precision()
 	frontier = []	# cut points for each face from m2
 	
+	points = hashing.PointSet.manage(m1.points, prec)
 	cellsize = hashing.meshcellsize(m1)
 	print('  cellsize', cellsize)
 	prox1 = hashing.PositionMap(cellsize)
@@ -51,29 +63,33 @@ def intersectwith(m1, m2, prec=None):
 		prox1.add(m1.facepoints(f1), f1)
 	
 	for f2 in range(len(m2.faces)):
-		neigh = set( prox1.get(m2.facepoints(f2)) )
+		f2p = m2.facepoints(f2)
+		neigh = set( prox1.get(f2p) )
 		for f1 in neigh:
-			if faceheight(m1,f1) > prec:
-				intersect = intersect_triangles(m1.facepoints(f1), m2.facepoints(f2), prec)
+			f1p = m1.facepoints(f1)
+			if faceheight(f1p) > prec:
+				intersect = intersect_triangles(f1p, f2p, prec)
 				if intersect:
 					# cut the face
 					l = len(m1.faces)
 					ia, ib = intersect
 					if distance(ia[2],ib[2]) <= prec:	continue
-					p1 = m1.usepointat(ia[2], prec)
-					p2 = m1.usepointat(ib[2], prec)
+					#p1 = m1.usepointat(ia[2], prec)
+					#p2 = m1.usepointat(ib[2], prec)
+					p1 = points.add(ia[2])
+					p2 = points.add(ib[2])
 					f = m1.faces[f1]
 					if p1 in f and p2 in f:	
 						frontier.append((edgekey(p1,p2), f2))
 					else:
-						a,b,c = m1.facepoints(f1)
+						a,b,c = f1p
 						e = cutface(m1, f1, (p1,p2), prec)
 						frontier.append((edgekey(p1,p2), f2))
 						for nf in range(l,len(m1.faces)):
 							prox1.add(m1.facepoints(nf), nf)
 	
 	# remove empty triangles
-	removefaces(m1, lambda fi: faceheight(m1,fi) <= prec)
+	removefaces(m1, lambda fi: faceheight(m1.facepoints(fi)) <= prec)
 	
 	return frontier
 

@@ -1,19 +1,14 @@
-from mathutils import *
-from mesh import *
-from primitives import *
-from constraints import *
-from generation import *
-from kinematic import *
-from selection import *
-from boolean import *
-from cut import *
+from madcad import *
+from madcad.constraints import *
+from madcad.mesh import suites
+from madcad.selection import *
 
-import view
+from madcad import view
 import sys
 from PyQt5.QtWidgets import QApplication
 app = QApplication(sys.argv)
 main = scn3D = view.Scene()
-import boolean
+from madcad import boolean
 boolean.scn3D = scn3D
 
 

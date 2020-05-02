@@ -1,5 +1,6 @@
 from .mathutils import vec3, ivec3, noproject, norminf, normalize, dot, glm, cross, length, NUMPREC
-from .mesh import Web
+from . import core
+from . import mesh
 from functools import reduce
 from math import floor, ceil, sqrt, inf
 
@@ -21,7 +22,12 @@ class PositionMap:
 		if iterable:	self.update(iterable)
 
 	def keysfor(self, space):
-		''' rasterize the primitive, yielding the successive position keys '''
+		''' rasterize the primitive, yielding the successive position keys 
+			currently allowed primitives are 
+				points -	vec3
+				segments -  (vec3,vec3)
+				triangles - (vec3,vec3,vec3)
+		'''
 		cell = self.cellsize
 		# point
 		if isinstance(space, vec3):
@@ -109,7 +115,6 @@ class PositionMap:
 						cand.append( space[i][1] + d * (x+cell2-space[i][0]) )
 				ymin,ymax = max(pmin[1],min(cand)), min(pmax[1],max(cand))
 				ymin -= ymin%cell
-				#print(cand)
 				for j in range(max(1,ceil((ymax-ymin)/cell))):
 					y = ymin + cell*j + cell2
 				
@@ -129,6 +134,25 @@ class PositionMap:
 						if pmin[0]<p[0] and pmin[1]<p[1] and pmin[2]<p[2] and p[0]<pmax[0] and p[1]<pmax[1] and p[2]<pmax[2]:
 							yield tuple([floor(p[i]/cell)	for i in reorder])
 		
+		else:
+			raise TypeError("PositionMap only supports keys of type:  points, segments, triangles")
+	
+	def keysfor(self, space):
+		''' rasterize the primitive, yielding the successive position keys 
+			currently allowed primitives are 
+				points -	vec3
+				segments -  (vec3,vec3)
+				triangles - (vec3,vec3,vec3)
+		'''
+		# point
+		if isinstance(space, vec3):
+			return tuple(ivec3(glm.floor(space/cell))),
+		# segment
+		elif isinstance(space, tuple) and len(space) == 2:
+			return core.rasterize_segment(space, self.cellsize)
+		# triangle
+		elif isinstance(space, tuple) and len(space) == 3:
+			return core.rasterize_triangle(space, self.cellsize)
 		else:
 			raise TypeError("PositionMap only supports keys of type:  points, segments, triangles")
 	
@@ -154,7 +178,7 @@ class PositionMap:
 			if k in self.dict:
 				yield from self.dict[k]
 	
-	_display = Web(
+	_display = (
 		[	
 			vec3(0,0,0),
 			vec3(1,0,0),vec3(0,1,0),vec3(0,0,1),
@@ -169,12 +193,12 @@ class PositionMap:
 			],
 		)
 	def display(self, scene):
-		web = Web()
+		web = mesh.Web()
 		if 'color' in self.options:		web.options['color'] = self.options['color']
 		base = vec3(self.cellsize)
 		for k in self.dict:
 			l = len(web.points)
-			web += Web([base*(p+k)  for p in self._display.points], self._display.edges, groups=[k])
+			web += mesh.Web([base*(p+k)  for p in self._display[0]], self._display[1], groups=[k])
 		return web.display(scene)
 
 def meshcellsize(mesh):
@@ -198,9 +222,17 @@ class PointSet:
 	'''
 	__slots__ = 'points', 'cellsize', 'dict'
 	def __init__(self, cellsize, iterable=None):
+		self.cellsize = cellsize
 		self.points = []
 		self.dict = {}
 		if iterable:	self.update(iterable)
+	@staticmethod
+	def manage(points, cellsize):
+		s = PointSet(cellsize)
+		s.points = points
+		for i in reversed(range(len(points))):
+			s.dict[s.keyfor(points[i])] = i
+		return s
 	
 	def keyfor(self, pt):
 		return tuple(ivec3(pt/self.cellsize))
@@ -213,8 +245,11 @@ class PointSet:
 	def add(self, pt):
 		key = self.keyfor(pt)
 		if key not in self.dict:
-			self.dict[key] = len(self.points)
+			self.dict[key] = l = len(self.points)
 			self.points.append(pt)
+			return l
+		else:
+			return self.dict[key]
 	def remove(self, pt):
 		key = self.keyfor(p)
 		if key in self.dict:	del self.dict[k]

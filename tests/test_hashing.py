@@ -20,7 +20,7 @@ lines = Web([
 				],
 			[(0,1),(2,3),(4,5)],
 			)
-m = PositionMap(1.2247448494095845, [
+m = PositionMap(1, [
 	(triangles.facepoints(0), 'x'),
 	(triangles.facepoints(1), 'y'),
 	(triangles.facepoints(2), 'z'),
