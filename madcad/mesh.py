@@ -35,6 +35,7 @@ class Container:
 		''' merge points below the specified distance, or below the precision '''
 		if limit is None:	limit = self.precision()
 		'''
+		# O(n**2 /2) implementation
 		merges = {}
 		for j in reversed(range(start, len(self.points))):
 			for i in range(start, j):
@@ -44,6 +45,7 @@ class Container:
 		self.mergepoints(merges)
 		return merges
 		'''
+		# O(n) implementation thanks to hashing
 		merges = {}
 		points = hashing.PointSet(limit)
 		for i in range(start, len(self.points)):
@@ -71,7 +73,7 @@ class Container:
 				- stripgroups
 		'''
 		self.mergeclose()
-		self.strippoints()
+		#self.strippoints()	# not needed since the new merclose implementation
 		self.stripgroups()
 		self.check()
 	
@@ -214,6 +216,11 @@ class Mesh(Container):
 		for i,f in enumerate(self.faces):
 			self.faces[i] = (reindex[f[0]], reindex[f[1]], reindex[f[2]])
 		return reindex
+	
+	def flip(self):
+		''' flip all faces, getting the normals opposite '''
+		for i,f in enumerate(self.faces):
+			self.faces[i] = (f[0],f[2],f[1])
 		
 	def issurface(self):
 		reached = set()
