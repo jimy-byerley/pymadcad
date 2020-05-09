@@ -3,10 +3,12 @@
 '''
 from copy import copy,deepcopy
 from time import time
+from math import inf
 from .mathutils import (
 		vec3, mat3, dvec2, dvec3, dmat3, ivec3, 
-		sign, dot, cross, noproject, inverse, sqrt, normalize, length, distance,
+		sign, dot, cross, noproject, inverse, sqrt, normalize, length, distance
 		)
+from . import core
 from .mesh import Mesh, Web, edgekey, connef, line_simplification
 from . import hashing
 
@@ -35,13 +37,6 @@ def removefaces(mesh, crit):
 	mesh.faces = newfaces
 	mesh.tracks = newtracks
 
-def faceheight(mesh, fi):	# TODO: mettre en commun avec cut
-	f = mesh.facepoints(fi)
-	heights = [length(noproject(f[i-2]-f[i], normalize(f[i-1]-f[i])))	for i in range(3)]
-	#heights = [length(cross(f[i-2]-f[i], f[i-1]-f[i]))/length(f[i-1]-f[i])	for i in range(3)]
-	return min(heights)
-
-from math import inf
 def faceheight(f):
 	m = inf
 	for i in range(3):
@@ -55,7 +50,7 @@ def intersectwith(m1, m2, prec=None):
 	if not prec:	prec = m1.precision()
 	frontier = []	# cut points for each face from m2
 	
-	points = hashing.PointSet.manage(m1.points, prec)
+	points = hashing.PointSet(prec, manage=m1.points)
 	cellsize = hashing.meshcellsize(m1)
 	print('  cellsize', cellsize)
 	prox1 = hashing.PositionMap(cellsize)
@@ -68,14 +63,12 @@ def intersectwith(m1, m2, prec=None):
 		for f1 in neigh:
 			f1p = m1.facepoints(f1)
 			if faceheight(f1p) > prec:
-				intersect = intersect_triangles(f1p, f2p, prec)
+				intersect = core.intersect_triangles(f1p, f2p, prec)
 				if intersect:
 					# cut the face
 					l = len(m1.faces)
 					ia, ib = intersect
 					if distance(ia[2],ib[2]) <= prec:	continue
-					#p1 = m1.usepointat(ia[2], prec)
-					#p2 = m1.usepointat(ib[2], prec)
 					p1 = points.add(ia[2])
 					p2 = points.add(ib[2])
 					f = m1.faces[f1]
@@ -93,10 +86,103 @@ def intersectwith(m1, m2, prec=None):
 	
 	return frontier
 
+from . import triangulation
+from .mesh import distance_pe
+def intersectwith(m1, m2, prec=None):
+	if not prec:	prec = m1.precision()
+	frontier = []	# cut points for each face from m2
+	
+	prox2 = hashing.PositionMap(hashing.meshcellsize(m2))
+	for f2 in range(len(m2.faces)):
+		prox2.add(m2.facepoints(f2), f2)
+	
+	# get flat regions
+	grp = [-1]*len(m1.faces)
+	surfs = []
+	conn = connef(m1.faces)
+	g = 0
+	for i in range(len(m1.faces)):
+		if grp[i] == -1:
+			surf = []
+			front = [i]
+			normal = m1.facenormal(i)
+			if normal != normal:	continue
+			track = m1.tracks[i]
+			while front:
+				fi = front.pop()
+				if grp[fi] == -1 and m1.tracks[fi] == track and distance(m1.facenormal(fi), normal) <= NUMPREC:
+					surf.append(fi)
+					grp[fi] = g
+					f = m1.faces[fi]
+					for edge in ((f[1],f[0]), (f[2],f[1]), (f[0],f[2])):
+						if edge in conn:	front.append(conn[edge])
+			surfs.append(surf)
+			g += 1
+	print('grp', grp)
+	print('surfs', surfs)
+	
+	mn = Mesh(m1.points, groups=m1.groups)
+	for surf in surfs:
+		# get region ORIENTED outlines - aka the outline of the n-gon
+		outline = set()
+		for f1 in surf:
+			f = m1.faces[f1]
+			for edge in ((f[1],f[0]), (f[2],f[1]), (f[0],f[2])):
+				if edge in outline:	outline.remove(edge)
+				else:				outline.add((edge[1], edge[0]))
+		original = deepcopy(outline)
+		# enrich outlines with intersections
+		segts = []
+		for f1 in surf:
+			f = m1.faces[f1]
+			for f2 in set( prox2.get(m1.facepoints(f1)) ):
+				intersect = intersect_triangles(m1.facepoints(f1), m2.facepoints(f2), prec)
+				if intersect:
+					ia, ib = intersect
+					if distance(ia[2],ib[2]) <= prec:	continue
+					p1 = m1.usepointat(ia[2], prec)
+					p2 = m1.usepointat(ib[2], prec)
+					#print('cut', (p1,p2))
+					if ia[0] == 0:	
+						o = f[ia[1]], f[(ia[1]+1)%3]
+						if o in original:
+							e = find(outline, lambda e: distance_pe(m1.points[p1], (m1.points[e[0]], m1.points[e[1]])) <= prec)
+							outline.remove(e)
+							outline.add((e[0],p1))
+							outline.add((p1,e[1]))
+					if ib[0] == 0:	
+						o = f[ib[1]], f[(ib[1]+1)%3]
+						if o in original:
+							e = find(outline, lambda e: distance_pe(m1.points[p2], (m1.points[e[0]], m1.points[e[1]])) <= prec)
+							outline.remove(e)
+							outline.add((e[0],p2))
+							outline.add((p2,e[1]))
+					segts.append((p1,p2))
+					segts.append((p2,p1))
+					frontier.append(((p1,p2), f2))
+		segts.extend(outline)
+		#print('triangulate', segts)
+		tri = triangulation.triangulation_sweepline(Web(m1.points, segts))
+		# get proper orientation
+		if dot(tri.facenormal(0), m1.facenormal(surf[0])) < 0:
+			tri.flip()
+		track = m1.tracks[surf[0]]
+		tri.tracks = [track] * len(tri.faces)
+		tri.groups = m1.groups
+		mn += tri
+	m1.faces = mn.faces
+	m1.tracks = mn.tracks
+	print('frontier', frontier)
+	return frontier
+
+def find(iterator, predicate):
+	for e in iterator:
+		if predicate(e):	return e
+
 from .mathutils import NUMPREC
 from .mesh import suites
 from . import generation
-def intersectwith2(m1, m2, prec=None):
+def intersectwith3(m1, m2, prec=None):
 	if not prec:	prec = m1.precision()
 	frontier = []	# cut points for each face from m2
 	
@@ -172,19 +258,19 @@ def intersectwith2(m1, m2, prec=None):
 								break
 					if not inserted:
 						segts.append((p1,p2))
-						segts.append((p2,p1))
+						#segts.append((p2,p1))
 					frontier.append(((p1,p2), f2))
-		first = None
-		start = None
-		for i in range(1,len(outline)):
-			if outline[i] == outline[i-1]:
-				if start:	
-					segts.append(outline[start:i])
-					first = i
-				start = i
-		if start is not None:	segts.append(outline[start:]+outline[:first])
-		else:					segts.append(outline)
-		print('segts', segts)
+		#first = None
+		#start = None
+		#for i in range(1,len(outline)):
+			#if outline[i] == outline[i-1]:
+				#if start:	
+					#segts.append(outline[start:i])
+					#first = i
+				#start = i
+		#if start is not None:	segts.append(outline[start:]+outline[:first])
+		#else:					segts.append(outline)
+		#print('segts', segts)
 		# retriangulate, suites will split outlines with the intersections added
 		for suite in suites(segts, oriented=True, loop=True, cut=False):
 			print('suite', suite, len(mn.faces))
@@ -208,11 +294,11 @@ def cutloop(pts, loop, edges):
 		if retain:
 			i = loop.index(retain[0])
 			loop.insert(i, retain[1])
-			loop.insert(i, p)
-			used[retain[1]] += 1
+			loop.insert(i, retain[0])
+			used[retain[0]] += 1
 		else:
-			# no edge is connected, create one with the rest
-			pass	
+			# no edge is connected, create one to connect
+			indev
 	return loop
 
 def cutface(mesh, fi, edge, prec):
@@ -489,15 +575,15 @@ def booleanwith(m1, m2, side, prec=None):
 		return notto
 	
 	# display frontier
-	#import text
+	#from . import text
 	#for edge in notto:
 		#p = (m1.points[edge[0]] + m1.points[edge[1]]) /2
 		#scn3D.add(text.Text(p, str(edge), 9, (1, 1, 0)))
-	#if debug_propagation:
-		#from mesh import Web
-		#w = Web([1.01*p for p in m1.points], [e for e,f2 in frontier])
-		#w.options['color'] = (1,0.9,0.2)
-		#scn3D.add(w)
+	if debug_propagation:
+		from .mesh import Web
+		w = Web([1.01*p for p in m1.points], [e for e,f2 in frontier])
+		w.options['color'] = (1,0.9,0.2)
+		scn3D.add(w)
 	
 	# propagation
 	front = [e for e in front if edgekey(*e) not in notto]
@@ -516,12 +602,12 @@ def booleanwith(m1, m2, side, prec=None):
 		c += 1
 		front = newfront
 	# selection of faces
-	#if debug_propagation:
-		#import text
-		#for i,u in enumerate(used):
-			#if u:
-				#p = m1.facepoints(i)
-				#scn3D.add(text.Text((p[0]+p[1]+p[2])/3, str(u), 9, (1,0,1), align=('center', 'center')))
+	if debug_propagation:
+		from . import text
+		for i,u in enumerate(used):
+			if u:
+				p = m1.facepoints(i)
+				scn3D.add(text.Text((p[0]+p[1]+p[2])/3, str(u), 9, (1,0,1), align=('center', 'center')))
 	m1.faces =  [f for u,f in zip(used, m1.faces) if u]
 	m1.tracks = [t for u,t in zip(used, m1.tracks) if u]
 	
