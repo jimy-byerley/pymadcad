@@ -221,18 +221,16 @@ class PointSet:
 			dict       - the hashmap from box to point indices
 	'''
 	__slots__ = 'points', 'cellsize', 'dict'
-	def __init__(self, cellsize, iterable=None):
+	def __init__(self, cellsize, iterable=None, manage=None):
 		self.cellsize = cellsize
-		self.points = []
 		self.dict = {}
-		if iterable:	self.update(iterable)
-	@staticmethod
-	def manage(points, cellsize):
-		s = PointSet(cellsize)
-		s.points = points
-		for i in reversed(range(len(points))):
-			s.dict[s.keyfor(points[i])] = i
-		return s
+		if manage is not None:
+			self.points = manage
+			for i in reversed(range(len(self.points))):
+				self.dict[self.keyfor(self.points[i])] = i
+		else:
+			self.points = []
+			if iterable:	self.update(iterable)
 	
 	def keyfor(self, pt):
 		return tuple(ivec3(pt/self.cellsize))
