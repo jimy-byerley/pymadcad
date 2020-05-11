@@ -655,6 +655,16 @@ class Web(Container):
 					repr(self.options))
 					
 	def display(self, scene):
+		if self.options.get('debug_points', False):
+			for i,p in enumerate(self.points):
+				yield from text.Text(
+					p, 
+					' '+str(i), 
+					size=8, 
+					color=(0.2, 0.8, 1),
+					align=('left', 'center'),
+					).display(scene)
+		
 		points = []
 		idents = []
 		edges = []
@@ -673,11 +683,11 @@ class Web(Container):
 				if track != group:	continue
 				edges.append((usept(edge[0], track, used), usept(edge[1], track, used)))
 				
-		return view.WireDisplay(scene,
+		yield view.WireDisplay(scene,
 				glmarray(points), 
 				edges,
 				idents,
-				color=self.options.get('color')),
+				color=self.options.get('color'))
 
 def glmarray(array, dtype='f4'):
 	''' create a numpy array from a list of glm vec '''
