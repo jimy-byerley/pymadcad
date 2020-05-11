@@ -118,8 +118,8 @@ def intersectwith(m1, m2, prec=None):
 						if edge in conn:	front.append(conn[edge])
 			surfs.append(surf)
 			g += 1
-	print('grp', grp)
-	print('surfs', surfs)
+	#print('grp', grp)
+	#print('surfs', surfs)
 	
 	mn = Mesh(m1.points, groups=m1.groups)
 	for surf in surfs:
@@ -174,6 +174,8 @@ def intersectwith(m1, m2, prec=None):
 	m1.tracks = mn.tracks
 	print('frontier', frontier)
 	return frontier
+
+from collections import Counter
 
 def find(iterator, predicate):
 	for e in iterator:
@@ -552,7 +554,7 @@ def booleanwith(m1, m2, side, prec=None):
 	
 	conn1 = connef(m1.faces)
 	used = [False] * len(m1.faces)
-	notto = set((e[0] for e in frontier))
+	notto = set((edgekey(*e[0]) for e in frontier))
 	front = []
 	# get front and mark frontier faces as used
 	for e,f2 in frontier:
@@ -610,7 +612,7 @@ def booleanwith(m1, m2, side, prec=None):
 				scn3D.add(text.Text((p[0]+p[1]+p[2])/3, str(u), 9, (1,0,1), align=('center', 'center')))
 	m1.faces =  [f for u,f in zip(used, m1.faces) if u]
 	m1.tracks = [t for u,t in zip(used, m1.tracks) if u]
-	
+	'''
 	# simplify the intersection (only at the intersection contains useless points)
 	# remove edges from empty triangles	
 	edges = m1.edges()
@@ -619,10 +621,12 @@ def booleanwith(m1, m2, side, prec=None):
 		if e in edges:
 			lines.append(e)
 	m1.mergepoints(line_simplification(Web(m1.points, lines), prec))
-	
+	'''
 	print('booleanwith', time()-start)
 	
 	return notto
+
+debug_propagation = False
 
 def intersect(m1, m2):
 	''' cut the faces of m1 and m2 at their intersections '''
