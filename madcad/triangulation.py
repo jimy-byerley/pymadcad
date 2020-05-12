@@ -1,12 +1,19 @@
 from math import inf
-from .mathutils import glm,vec2,dvec2,dmat2, perp, perpdot, length, distance, normalize, inverse, isnan, norminf, NUMPREC
+from .mathutils import (glm,
+					vec2, dvec2, dmat2, vec3,
+					dot, cross, noproject, perp, perpdot, length, distance, normalize, inverse, isnan, norminf, sqrt,
+					dirbase, 
+					NUMPREC)
 from .mesh import Mesh, Web, Wire, MeshError
+from nprint import nformat
+
+
+class TriangulationError(Exception):	pass
 
 
 def triangulation(outline, prec=NUMPREC):
-	try:				m = triangulation_outline(outline, prec)
-	except MeshError:	m = triangulation_skeleton(outline, prec)
-	return m
+	''' triangulate using the prefered method '''
+	return triangulation_sweepline(outline, prec=prec)
 
 
 def skeleting(outline: Wire, skeleting: callable, prec=NUMPREC) -> [vec2]:
@@ -131,7 +138,6 @@ def triangulation_skeleton(outline: Wire, prec=NUMPREC) -> Mesh:
 	m.mergepoints(merges)
 	return m
 
-from math import exp
 def priority(u,v):
 	''' priority criterion for 2D triangles, depending on its shape
 	'''
@@ -142,6 +148,7 @@ def priority(u,v):
 def triangulation_outline(outline: Wire, normal=None) -> Mesh:
 	''' return a mesh with the triangles formed in the outline
 		the returned mesh uses the same buffer of points than the input
+		complexity:  O(n**2) mat2 operations
 	'''
 	try:				proj = planeproject(outline, normal)
 	except ValueError:	return Mesh()
@@ -150,8 +157,9 @@ def triangulation_outline(outline: Wire, normal=None) -> Mesh:
 		l = len(hole)
 		u = proj[(i+1)%l] - proj[i]
 		v = proj[(i-1)%l] - proj[i]
-		triangle = tri = (hole[(i-1)%l], hole[i], hole[(i+1)%l])
-				
+		triangle = (hole[(i-1)%l], hole[i], hole[(i+1)%l])
+		
+		if triangle[0] == triangle[1] or triangle[1] == triangle[2]:	return 0
 		if perpdot(u,v) < -NUMPREC:		return -inf
 		sc = priority(u,v)
 		# check that there is not point of the outline inside the triangle
@@ -171,8 +179,8 @@ def triangulation_outline(outline: Wire, normal=None) -> Mesh:
 	while len(hole) > 2:
 		l = len(hole)
 		i = max(range(l), key=lambda i:scores[i])
-		assert scores[i] != -inf, "no more feasible triangles (algorithm failure)"
-		#if scores[i] == -inf:	
+		if scores[i] == -inf:
+			raise TriangulationError("no more feasible triangles (algorithm failure or bad input outline)", hole)
 			#print('warning: no more feasible triangles', hole)
 			#break
 		triangles.append((hole[(i-1)%l], hole[i], hole[(i+1)%l]))
@@ -185,7 +193,6 @@ def triangulation_outline(outline: Wire, normal=None) -> Mesh:
 	
 	return Mesh(outline.points, triangles)
 
-from .mathutils import dirbase, cross, noproject
 def planeproject(pts, normal=None):
 	''' project an outline in a plane, to get its points as vec2 '''
 	x,y,z = guessbase(pts, normal)
@@ -223,9 +230,6 @@ def guessbase(pts, normal=None, thres=10*NUMPREC):
 	except StopIteration:
 		raise ValueError('unable to extract 2 directions')
 
-from .mathutils import dot, vec3, Box
-from nprint import nprint
-
 def vmaxi(v):
 	''' index of maximum coordinate of a vec3 '''
 	i = 0
@@ -243,11 +247,8 @@ def vsorti(v):
 	return (i,j,k)
 	
 
-from math import sqrt, nan
-from nprint import nformat
-
 def sweepline_loops(lines: Web, normal=None):
-	''' sweep line algorithm to retreive loops from a Web
+	''' sweep line algorithm to retreive monotone loops from a Web
 		the web edges should not be oriented, and thus the resulting face has no orientation
 		complexity: O(n*ln2(n))
 	'''
@@ -336,15 +337,15 @@ def sweepline_loops(lines: Web, normal=None):
 			
 		# finalize closed clusters, merge clusters that reach the same points
 		for i,(l0,l1) in enumerate(clusters):	
+			# remove the closed cluster
 			if l0[1] == l1[1]:
 				#debprint('    pop', l0,l1)
-				# remove the closed cluster
 				clusters.pop(i)
 				loops[i].insert(0, l0[1])
 				finalized.append(loops.pop(i))
 				break
+			# merge the two neighboring clusters
 			if i>0 and clusters[i-1][0][1] == l1[1] and pts[l1[1]][0] > p0[0]:
-				# merge the two neighboring clusters
 				merge = clusters.pop(i)
 				clusters[i-1] = (merge[0], clusters[i-1][1])
 				loops[i].append(l1[1])
@@ -404,7 +405,7 @@ def sweepline_loops(lines: Web, normal=None):
 				break
 		
 		if not found:
-		# if it's a new corner
+			# if it's a new corner, create a cluster
 			if coedge and edge[1] != coedge[1]:
 				p0 = pts[edge[0]]
 				# find the place to insert the cluster
@@ -418,13 +419,13 @@ def sweepline_loops(lines: Web, normal=None):
 				loops.insert(j, [edge[0]])
 				#debprint('    new cluster', j)
 				#debprint(nformat(clusters))
+			# if it's an ambiguous edge without use for now, restack it
 			elif pts[edge[1]][0] == pts[edge[0]][0]:
 				#debprint('    restack')
 				stack.insert(-1, edge)
 				if coedge:	stack.insert(-1, coedge)
 			else:
-				pass
-				raise Exception("algorithm failure, can be due to the given outline")
+				raise TriangulationError("algorithm failure, can be due to the given outline", edge, coedge)
 	
 	# close clusters' ends
 	for i,cluster in enumerate(clusters):

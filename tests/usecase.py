@@ -22,7 +22,7 @@ dext = 100
 h = 30
 rvis = dext/3
 dvis = 3
-hvis = 5
+hvis = 3
 
 B = vec3(dint/2, 0, 0)
 S = vec3(dint/2, 0, h)
@@ -99,19 +99,24 @@ place.mergeclose()
 vis = extrusion(vec3(0,0,-2*h), web(Circle((C+vec3(0,0,h),-Z), dvis)))
 place = union(place, vis)
 big = Mesh()
-for i in range(3):
+for i in range(6):
 	pl = deepcopy(place)
 	pl.transform(angleAxis(i/6*2*pi, Z))
 	big += pl
 #big = place
 #place.transform(angleAxis(2*pi/3, Z))
 part = difference(cone, big)
-print(part)
+#from madcad import boolean
+#boolean.debug_propagation = True
+#boolean.intersectwith(cone, big)
+#boolean.booleanwith(big, cone, True)
+#part = big
+nprint(part)
 
 #part.finish()
 #part.groups = [None]*len(part.faces)
 #part.tracks = list(range(len(part.faces)))
-part.options = {'debug_display':True, 'debug_points':False, 'debug_faces':'indices'}
+#part.options = {'debug_display':True, 'debug_points':False, 'debug_faces':False}
 #place.options = {'debug_display':True, 'debug_points':False, 'debug_faces':False}
 #vis.options.update({'debug_display':True, 'debug_points':False, 'debug_faces':False})
 scn3D.add(part)

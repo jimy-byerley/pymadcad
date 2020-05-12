@@ -2,7 +2,8 @@ from time import time
 from copy import deepcopy
 from nprint import nprint
 from madcad import vec3,mat4, rotate, Mesh
-from madcad.boolean import difference, boolean, booleanwith, intersectwith
+from madcad.boolean import difference, booleanwith, intersectwith
+from madcad import boolean
 
 from madcad import view, text
 import sys
@@ -55,20 +56,17 @@ m2.transform(rotate(mat4(1), 0.7, vec3(1,1,0)))
 #
 #m2.transform(vec3(2, 0.5, 0.5))
 
-m3 = deepcopy(m1)
-#intersectwith(m3, m1)
-booleanwith(m3, m2, True)
+#boolean.debug_propagation = True
+#boolean.scn3D = scn3D
+#m3 = deepcopy(m1)
+#intersectwith(m3, m2)
+#booleanwith(m3, m2, True)
 
-#start = time()
-#m3 = boolean(m1, m2, (True, False))
-#m3.mergeclose()
-#m3.strippoints()
-#print('computation time:', time()-start)
-
-#print('face15', facesurf(m3, 15))
-
+m3 = boolean.boolean(m1, m2, (True, False))
+m3.mergeclose()
+m3.strippoints()
 m3.check()
-#assert m3.isenvelope()
+assert m3.isenvelope()
 
 # debug purpose
 m3.options.update({'debug_display':True, 'debug_points':True, 'debug_faces':False})

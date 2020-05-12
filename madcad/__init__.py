@@ -17,7 +17,7 @@ from . import (
 		# interdependent functionnalities
 		generation, boolean, cut, primitives, constraints, kinematic, 
 		# near-independant modules
-		io, hashing,
+		io, hashing, triangulation,
 	)
 # gui
 from . import view, text
@@ -33,6 +33,7 @@ from .constraints import SolveError, Tangent, Distance, Angle, Parallel, Radius,
 from .kinematic import Solid, InSolid, Pivot, Plane
 from .selection import select
 from .io import read, write
+from .triangulation import TriangulationError
 
 from .text import Text
 from .view import Scene
