@@ -132,7 +132,7 @@ def intersectwith(m1, m2, prec=None):
 				else:				outline.add((edge[1], edge[0]))
 		original = deepcopy(outline)
 		# enrich outlines with intersections
-		segts = []
+		segts = Web(m1.points, groups=m2.faces)
 		for f1 in surf:
 			f = m1.faces[f1]
 			for f2 in set( prox2.get(m1.facepoints(f1)) ):
@@ -157,15 +157,20 @@ def intersectwith(m1, m2, prec=None):
 							outline.remove(e)
 							outline.add((e[0],p2))
 							outline.add((p2,e[1]))
-					segts.append((p1,p2))
-					segts.append((p2,p1))
-					frontier.append(((p1,p2), f2))
-		segts.extend(outline)
-		#print('triangulate', segts)
-		tri = triangulation.triangulation_sweepline(Web(m1.points, segts))
-		# get proper orientation
-		if dot(tri.facenormal(0), m1.facenormal(surf[0])) < 0:
-			tri.flip()
+					segts.edges.append((p1,p2))
+					segts.tracks.append(f2)
+		# simplify cut edges
+		segts.mergepoints(line_simplification(segts, prec))
+		frontier.extend(zip(segts.edges, segts.tracks))
+		segts.edges.extend(segts.edges)
+		segts.edges.extend(outline)
+		segts.tracks = [0] * len(segts.edges)
+		# retriangulate the cutted surface
+		normal = m1.facenormal(surf[0])
+		tri = triangulation.triangulation_sweepline(segts, normal, prec)
+		# get proper orientation - should be given by the normal passing
+		#if dot(tri.facenormal(0), normal) < 0:
+			#tri.flip()
 		track = m1.tracks[surf[0]]
 		tri.tracks = [track] * len(tri.faces)
 		tri.groups = m1.groups
