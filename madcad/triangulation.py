@@ -136,7 +136,8 @@ def priority(u,v):
 	''' priority criterion for 2D triangles, depending on its shape
 	'''
 	#return perpdot(u,v) / (length(u)+length(v)+length(u-v))**2
-	return dot(u,v)
+	#return dot(u,v)
+	return dot(u,v) / (length(u)*length(v))
 
 def triangulation_outline(outline: Wire, normal=None) -> Mesh:
 	''' return a mesh with the triangles formed in the outline
@@ -242,7 +243,7 @@ def vsorti(v):
 	return (i,j,k)
 	
 
-from math import sqrt
+from math import sqrt, nan
 from nprint import nformat
 
 def sweepline_loops(lines: Web, normal=None):
@@ -251,6 +252,7 @@ def sweepline_loops(lines: Web, normal=None):
 		complexity: O(n*ln2(n))
 	'''
 	debprint = lambda *args, **kwargs: None
+	#debprint = print
 	if len(lines.edges) < 3:	return Mesh()
 	loops = []
 	finalized = []
@@ -262,13 +264,16 @@ def sweepline_loops(lines: Web, normal=None):
 				p = lines.points[i]
 				pts[i] = vec2(dot(p,x), dot(p,y))
 				debprint('y', dot(p,y))
-			if i == 951:
-				debprint = print
+			#if i == 951:
+				#debprint = print
 	# affine function y = a*x + b   for edges
 	def affiney(e, x):
 		a, b = pts[e[0]], pts[e[1]]
 		v = b-a
-		return a[1] + (v[1]/v[0] if v[0] else 0) * (x - a[0])
+		if v[0]:	d = v[1]/v[0]
+		elif v[1] > 0:	d = -inf
+		else:			d = inf
+		return a[1] + d * (x - a[0])
 	
 	# direction of direct rotation of the outline, orthogonal to the sweepline direction
 	debprint('sortdim', x, 'y', y)
@@ -283,7 +288,7 @@ def sweepline_loops(lines: Web, normal=None):
 	for i,(a,b) in enumerate(edges):
 		if pts[a][0] < pts[b][0]:	edges[i] = b,a
 	stack = sorted(edges,
-				key=lambda e: (pts[e[0]][0], -abs(orthoproj(pts[e[1]]-pts[e[0]])) )
+				key=lambda e: (pts[e[0]][0], abs(orthoproj(pts[e[1]]-pts[e[0]])) )
 				)
 	debprint('stack')
 	for e in stack:
@@ -399,8 +404,8 @@ def sweepline_loops(lines: Web, normal=None):
 				break
 			# interior hole that touch the outline
 			elif (coedge and l0[0] == l1[0] and l0[0] == edge[0]
-					and affiney(l0, p1[0]) < p1[1]
-					and affiney(l1, p1[0]) > p1[1]):
+					and affiney(l0, p1[0]) <= p1[1]
+					and affiney(l1, p1[0]) >= p1[1]):
 				clusters[i] = (l0, coedge)
 				clusters.insert(i, (edge, l1))
 				loops.insert(i, [edge[0]])
@@ -408,7 +413,7 @@ def sweepline_loops(lines: Web, normal=None):
 				found = True
 				break
 			# interior hole
-			elif (coedge 
+			elif (coedge #and pts[l0[1]][0] <= p0[0] and pts[l1[1]][0] <= p0[0]
 					and affiney(l0, p0[0]) < p0[1]
 					and affiney(l1, p0[0]) > p0[1]):
 				clusters[i] = (l0, coedge)
