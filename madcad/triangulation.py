@@ -251,21 +251,23 @@ def sweepline_loops(lines: Web, normal=None):
 		the web edges should not be oriented, and thus the resulting face has no orientation
 		complexity: O(n*ln2(n))
 	'''
-	debprint = lambda *args, **kwargs: None
+	# selective debug function
+	#debprint = lambda *args, **kwargs: None
 	#debprint = print
+
 	if len(lines.edges) < 3:	return Mesh()
 	loops = []
 	finalized = []
 	x,y,z = guessbase(lines.points, normal)
+	#debprint('sortdim', x, 'y', y)
+	# projection of the lines points on x and y
 	pts = {}
 	for e in lines.edges:
 		for i in e:
 			if i not in pts:
 				p = lines.points[i]
 				pts[i] = vec2(dot(p,x), dot(p,y))
-				debprint('y', dot(p,y))
-			#if i == 951:
-				#debprint = print
+	
 	# affine function y = a*x + b   for edges
 	def affiney(e, x):
 		a, b = pts[e[0]], pts[e[1]]
@@ -275,8 +277,6 @@ def sweepline_loops(lines: Web, normal=None):
 		else:			d = inf
 		return a[1] + d * (x - a[0])
 	
-	# direction of direct rotation of the outline, orthogonal to the sweepline direction
-	debprint('sortdim', x, 'y', y)
 	def orthoproj(v):
 		l = sqrt(v[0]**2 + v[1]**2)
 		return v[1] / l if l else 0
@@ -290,9 +290,7 @@ def sweepline_loops(lines: Web, normal=None):
 	stack = sorted(edges,
 				key=lambda e: (pts[e[0]][0], abs(orthoproj(pts[e[1]]-pts[e[0]])) )
 				)
-	debprint('stack')
-	for e in stack:
-		debprint(e, (pts[e[0]][0], orthoproj(pts[e[1]]-pts[e[0]])))
+	
 	# remove absciss ambiguity (for edges that share points with the same absciss)
 	# for each edge, all following edges with the same absciss and contains its start point will have the same startpoint
 	for i in reversed(range(len(stack))):
@@ -306,15 +304,16 @@ def sweepline_loops(lines: Web, normal=None):
 				if n != j:	stack.insert(n, stack.pop(j))
 				n -= 1
 	#deprint('stack', stack)
-	debprint('stack')
-	for e in stack:
-		debprint(e, (pts[e[0]][0], orthoproj(pts[e[1]]-pts[e[0]])))
+	#debprint('stack')
+	#for e in stack:
+		#debprint(e, (pts[e[0]][0], orthoproj(pts[e[1]]-pts[e[0]])))
 	
 	# build cluster by cluster -  each cluster is a monotone sub-polygon
 	clusters = []
 	while stack:		
 		edge = stack.pop()
 		p0, p1 = pts[edge[0]], pts[edge[1]]
+		
 		# get the pair edge if there is one starting at the same point
 		m = None
 		sc = -1
@@ -328,68 +327,47 @@ def sweepline_loops(lines: Web, normal=None):
 					m = i
 			i -= 1
 		if m is not None:	
+			# edge must be above coedge
 			coedge = stack.pop(m)
 			if orthoproj(pts[edge[1]]-pts[edge[0]]) < orthoproj(pts[coedge[1]]-pts[coedge[0]]):
 				edge, coedge = coedge, edge
 		else:
 			coedge = None
 			
-		i = 0
-		while i < len(clusters):
-			l0,l1 = clusters[i]
-			
+		# finalize closed clusters, merge clusters that reach the same points
+		for i,(l0,l1) in enumerate(clusters):	
 			if l0[1] == l1[1]:
-				debprint('    pop', l0,l1)
+				#debprint('    pop', l0,l1)
 				# remove the closed cluster
 				clusters.pop(i)
 				loops[i].insert(0, l0[1])
 				finalized.append(loops.pop(i))
-				continue
-				#break
+				break
 			if i>0 and clusters[i-1][0][1] == l1[1] and pts[l1[1]][0] > p0[0]:
 				# merge the two neighboring clusters
-				debprint('clusters', nformat(clusters))
 				merge = clusters.pop(i)
 				clusters[i-1] = (merge[0], clusters[i-1][1])
 				loops[i].append(l1[1])
 				loops[i-1][0:0] = loops.pop(i)
-				debprint('    merged', loops[i-1])
-				debprint('clusters', nformat(clusters))
-				continue
-				#break
-			i += 1
+				#debprint('    merged', loops[i-1])
+				#debprint('clusters', nformat(clusters))
+				break
 		
 		#print('stack', stack)
-		debprint('*', edge, coedge, pts[edge[0]][0], -abs(orthoproj(pts[edge[1]]-pts[edge[0]])))
+		#debprint('*', edge, coedge, pts[edge[0]][0], -abs(orthoproj(pts[edge[1]]-pts[edge[0]])))
 		
 		# search in which cluster we are
 		found = False
-		i = 0
-		while i < len(clusters):
-			l0,l1 = clusters[i]
+		for i,(l0,l1) in enumerate(clusters):
+			#debprint('   ', l0,l1,edge[0])
 			
-			#if l0[1] == l1[1]:
-				#print('    pop', l0,l1)
-				## remove the closed cluster
-				#clusters.pop(i)
-				#loops[i].insert(0, l0[1])
-				#finalized.append(loops.pop(i))
-				## merge the two neighboring clusters
-				#if i > 0:
-					#merge = clusters.pop(i)
-					#clusters[i-1] = (merge[0], clusters[i-1][1])
-					#loops[i-1].extend(loops.pop(i))
-					#debprint('clusters', nformat(clusters))
-				#continue
-			
-			debprint('   ', l0,l1,edge[0])
 			# continuation of already existing edge of the cluster
 			if edge[0] == l0[1]:
 				loops[i].insert(0, l0[1])
 				clusters[i] = (edge, l1)
 				if coedge:
 					stack.append(coedge)
-				debprint('      continuation', edge)
+				#debprint('      continuation', edge)
 				#if coedge:	nprint(clusters)
 				found = True
 				break
@@ -398,7 +376,7 @@ def sweepline_loops(lines: Web, normal=None):
 				clusters[i] = (l0, coedge or edge)
 				if coedge:
 					stack.append(edge)
-				debprint('      continuation', coedge or edge)
+				#debprint('      continuation', coedge or edge)
 				#if coedge:	nprint(clusters)
 				found = True
 				break
@@ -409,7 +387,7 @@ def sweepline_loops(lines: Web, normal=None):
 				clusters[i] = (l0, coedge)
 				clusters.insert(i, (edge, l1))
 				loops.insert(i, [edge[0]])
-				debprint('      root hole', edge[0])
+				#debprint('      root hole', edge[0])
 				found = True
 				break
 			# interior hole
@@ -420,11 +398,11 @@ def sweepline_loops(lines: Web, normal=None):
 				clusters.insert(i, (edge, l1))
 				loops[i].append(coedge[0])
 				loops.insert(i, [edge[0], l1[0]])
-				debprint('      hole for ',i, edge)
-				debprint('clusters', nformat(clusters))
+				#debprint('      hole for ',i, edge)
+				#debprint('clusters', nformat(clusters))
 				found = True
 				break
-			i += 1
+		
 		if not found:
 		# if it's a new corner
 			if coedge and edge[1] != coedge[1]:
@@ -438,10 +416,10 @@ def sweepline_loops(lines: Web, normal=None):
 						break
 				clusters.insert(j, (coedge, edge))
 				loops.insert(j, [edge[0]])
-				debprint('    new cluster', j)
-				debprint(nformat(clusters))
+				#debprint('    new cluster', j)
+				#debprint(nformat(clusters))
 			elif pts[edge[1]][0] == pts[edge[0]][0]:
-				debprint('    restack')
+				#debprint('    restack')
 				stack.insert(-1, edge)
 				if coedge:	stack.insert(-1, coedge)
 			else:
@@ -455,8 +433,8 @@ def sweepline_loops(lines: Web, normal=None):
 		if l0[1] != l1[1]:
 			loops[i].append(l1[1])
 	finalized.extend(loops)
-	for loop in finalized:
-		debprint('triangulate', loop)
+	#for loop in finalized:
+		#debprint('triangulate', loop)
 	
 	return finalized
 
