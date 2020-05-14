@@ -5,7 +5,7 @@ setup(
 	# package declaration
 	name='pymadcad',
 	version='0.1',
-	install_requires=['pyglm>=1.2', 'moderngl>=5.6', 'numpy>=1.1', 'PIL>=5.4', 'PyQt5>=5'],
+	install_requires=['pyglm>=1.2', 'moderngl>=5.6', 'numpy>=1.1', 'scipy>=0.17', 'PIL>=5.4', 'PyQt5>=5'],
 	extras_require={
 		'PLY': ['plyfile>=0.7'],
 		'STL': ['numpy-stl>=2'],
