@@ -1,7 +1,7 @@
 from PIL import Image, ImageFont, ImageDraw
 import numpy.core as np
 import moderngl as mgl
-from .mathutils import fvec3, ceil, sqrt
+from .mathutils import fvec3, fvec4, fmat4, ceil, sqrt
 from . import settings
 
 # TODO: utiliser les methodes et attributs ImgeFont.size, .getmetrics(), etc pour avoir les hauteur et largeur de police
@@ -53,9 +53,10 @@ pointsdef = [
 class TextDisplay:
 	renderindex = 3
 	
-	def __init__(self, scene, position, text, size, color, align=(0,0)):
+	def __init__(self, scene, position, text, size, color, align=(0,0), transform=fmat4(1)):
+		self.transform = fmat4(*transform)
 		self.position = fvec3(position)
-		self.color = color
+		self.color = fvec3(color)
 		self.size = size
 		
 		# load font
@@ -111,8 +112,8 @@ class TextDisplay:
 			)
 	
 	def render(self, scene):		
-		self.shader['color'] = self.color
-		self.shader['position'].write(self.position)
+		self.shader['color'].write(self.color)
+		self.shader['position'].write(fvec3(self.transform * fvec4(self.position,1)))
 		self.shader['view'].write(scene.view_matrix)
 		self.shader['proj'].write(scene.proj_matrix)
 		self.shader['ratio'].value = (
