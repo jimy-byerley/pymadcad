@@ -3,7 +3,7 @@ import moderngl as mgl
 
 from .mathutils import (fvec3, fmat4, vec3, vec4, mat3, mat4, quat, mat4_cast, quat_cast,
 						column, translate, inverse, isnan,
-						dot, cross, length, normalize, project, dirbase,
+						dot, cross, length, normalize, project, dirbase, distance,
 						atan2, acos, angle, axis, angleAxis,
 						Box, transform)
 from .mesh import Mesh, Wire, web
@@ -29,7 +29,7 @@ csts = [
 	]
 '''
 
-
+'''
 class Torsor:
 	__slots__ = ('momentum', 'resulting', 'position')
 	def __init__(self, momentum, resulting, position):
@@ -43,7 +43,7 @@ class Torsor:
 def comomentum(t1, t2):
 	t2 = t2.locate(t1.position)
 	return dot(t1.momentum, t2.resulting) + dot(t2.momentum, t1.resulting)
-
+'''
 
 
 class Solid:
@@ -80,30 +80,9 @@ class InSolid:	# TODO test
 		center = sum(reference)/len(reference)
 		for p in self.reference:	p -= center
 	
-	def params(self):
+	def primitives(self):
 		return (self.solid.position, self.solid.orientation, *self.points)
-	
-	def corrections(self):
-		center, rot = self.pose()
-		corr = [rot*ref + center - pt    for pt,ref in zip(self.points, self.reference)]
-		s = (center-self.solid.position, rot-self.solid.orientation, *corr)
-		print('  insolid',s)
-		return s
-	'''
-	def pose(self):
-		center = sum(self.points)/len(self.points)
-		rot = quat()
-		for pt,ref in zip(self.points, self.reference):
-			v, r = normalize(pt-ref), normalize(ref)
-			c = cross(v,r)
-			if not isnan(c):
-				angle = acos(dot(v,r))
-				print('  dot', dot(v,r), angle, c)
-				rot += angleAxis(angle, c/sin(angle))
-		rot = normalize(rot)
-		#print('  pose', center, rot)
-		return self.solid.position+center, self.solid.orientation+rot
-	'''
+
 	def pose(self):
 		center = sum(self.points)/len(self.points)
 		rot = vec3(0)
@@ -126,28 +105,14 @@ class Pivot:
 		self.axis = (a1, a2 or a1)
 		self.position = position or (self.axis[0][0], self.axis[1][0])
 	
-	def params(self):
+	def primitives(self):
 		return self.solids[0].position, self.solids[0].orientation, self.solids[1].position, self.solids[1].orientation
-
-	def corrections(self):
-		#print('  --')
+	
+	def fit(self):
 		orients = (quat(self.solids[0].orientation), quat(self.solids[1].orientation))
 		a1 = (orients[0] * self.axis[0][0] + self.solids[0].position,  orients[0] * self.axis[0][1])
 		a2 = (orients[1] * self.axis[1][0] + self.solids[1].position,  orients[1] * self.axis[1][1])
-		normal = normalize(a1[1] + a2[1])
-		rot = cross(a1[1],a2[1])
-		gap = a1[0] - a2[0]
-		#print('  a1', a1)
-		#print('  a2', a2)
-		
-		r = (orients[0]*self.axis[0][0], orients[1]*self.axis[1][0])
-		s = (-gap,
-			  rot + GAPROT*project(cross(r[0],-gap) / (dot(r[0],r[0]) + 1e-15), normal),
-			  gap,
-			 -rot + GAPROT*project(cross(r[1],gap) / (dot(r[1],r[1]) + 1e-15), normal),
-			)
-		#print('  pivot', s)
-		return s
+		return distance(a1[0],a2[0])**2 - dot(a1[1],a2[1])
 	
 	def freedom(self):
 		orient = quat(self.solids[0].orientation)
@@ -216,7 +181,8 @@ class Plane:
 		self.solids = (s1, s2)
 		self.axis = (a1, a2 or a1)
 		self.position = position or (self.axis[0][0], self.axis[1][0])
-	def params(self):
+	
+	def primitives(self):
 		return self.solids[0].position, self.solids[0].orientation, self.solids[1].position, self.solids[1].orientation
 		
 	def corrections(self):
@@ -248,6 +214,14 @@ class Plane:
 	
 	#def freedom(self):
 		#return (self.solids[0].orientation, self.axis[0][1]), (self.solids[0].position, dirbase(self.axis[0][1])[:2])
+	
+	def fit(self):
+		orients = (quat(self.solids[0].orientation), quat(self.solids[1].orientation))
+		a1 = (orients[0] * self.axis[0][0] + self.solids[0].position,  orients[0] * self.axis[0][1])
+		a2 = (orients[1] * self.axis[1][0] + self.solids[1].position,  orients[1] * self.axis[1][1])
+		normal = normalize(a1[1] + a2[1])
+		return dot(a1[0]-a2[0], normal) **2 - dot(a1[1], a2[1])
+		
 	
 	def scheme(self, solid, size, junc):
 		if   solid is self.solids[0]:		(center, normal), position = self.axis[0], self.position[0]
@@ -342,9 +316,9 @@ class Scheme:
 class WireDisplay:
 	renderindex = 1
 	
-	def __init__(self, scene, points, transpfaces, opaqfaces, lines, color=None, transform=None):
+	def __init__(self, scene, points, transpfaces, opaqfaces, lines, color=None, transform=fmat4(1)):
 		ctx = scene.ctx
-		self.transform = fmat4(transform or 1)
+		self.transform = fmat4(*transform)
 		self.color = fvec3(color or settings.display['wire_color'])
 		
 		def load(scene):
@@ -445,18 +419,19 @@ from PyQt5.QtCore import QEvent
 from . import view, text
 from copy import copy
 
-class ToolMove:
+class Kinemanip:
 	renderindex = 0
 	
 	def __init__(self, scene, csts, root):
 		self.csts, self.root = csts, root
-		self.fixed = {id(self.root.position), id(self.root.orientation)}
+		self.fixed = [self.root]
 		
 		# build displays for params, keeping there indices to access their pose later
 		self.params = []
 		for cst in csts:
 			self.params.extend(cst.solids)
 		self.displays = []
+		self.problem = constraints.Problem(self.csts, self.fixed)
 	
 	def display(self, scene):
 		for param in self.params:
@@ -472,36 +447,36 @@ class ToolMove:
 	def start(self, solid, scene, ident, pt):
 		if solid is self.root:	return
 		
-		point = scene.ptat(pt)
-		print(point)
-		
-		self.startpt = point
-		self.startpos = copy(solid.position)
+		self.startpt = scene.ptat(pt)
+		self.ptoffset = solid.position - self.startpt
 		self.actsolid = solid
 		self.moved = False
+		scene.tool = self.move
 		
-		#self.placement = Near(solid, point, vec3(inverse(solid.transform()) * vec4(point,1)))
-		#self.csts.append(self.placement)
 		return self.move
 	
 	def move(self, scene, evt):
+		# solving using the conjugated gradient algorithm, that seems more 
+		# - CPU efficient for situations starting near to the solution 
+		# - RAM efficient for larg kinematic problems (with tons of variables)
+		method = 'CG'
+		
 		if evt.type() == QEvent.MouseMove:
+			# unlock moving solid
 			if self.actsolid is not self.root:
 				self.lock(self.actsolid, False)
 				self.moved = True
-			
-			pt = scene.ptfrom((evt.x(), evt.y()), self.startpt)
-			self.actsolid.position = pt - self.startpt + self.startpos
-			
-			try:	constraints.solve(self.csts, fixed=self.fixed, precision=1e-3, maxiter=50)
-			except constraints.SolveError as err:
-				print(err)
-			#for p in self.params:
-				#print(id(p), p.position, p.orientation)
-			
-			i = 0
+			# displace the moved object
+			#pt = scene.ptfrom((evt.x(), evt.y()), self.startpt)
+			#self.actsolid.position = pt - self.startpt + self.startpos
+			self.startpt = scene.ptfrom((evt.x(), evt.y()), self.startpt)
+			self.actsolid.position = self.startpt - self.ptoffset
+			# solve
+			try:	self.problem.solve(precision=1e-3, method=method)
+			except constraints.SolveError as err:	print(err)
+			# assign new positions to displays
 			for param,grp in zip(self.params, self.displays):
-				trans = param.transform()
+				trans = fmat4(*param.transform())
 				for disp in grp:
 					if isinstance(disp, (view.SolidDisplay, WireDisplay)):
 						disp.transform = trans
@@ -510,148 +485,128 @@ class ToolMove:
 		else:
 			if not self.moved:
 				self.lock(self.actsolid, True)
-				scene.update()
-			#self.csts.pop()
+			else:
+				try:	self.problem.solve(precision=1e-6, method=method)
+				except constraints.SolveError as err:	print(err)
 			scene.tool = None
+		
+		scene.update()
 	
 	def lock(self, solid, lock):
 		if lock:
-			self.fixed.add(id(self.actsolid.position))
-			self.fixed.add(id(self.actsolid.orientation))
+			# add solid's variables to fixed
+			self.fixed.append(solid.position)
+			self.fixed.append(solid.orientation)
+			# grey display for locked solid
 			for param,grp in zip(self.params, self.displays):
 				if param is self.actsolid:
 					for disp in grp:
 						disp.color = fvec3(0.5, 0.5, 0.5)
 		else:
-			self.fixed.discard(id(self.actsolid.position))
-			self.fixed.discard(id(self.actsolid.orientation))
+			# remove solid's variables from fixed
+			i = len(self.fixed)
+			while i > 0:
+				i -= 1
+				if   self.fixed[i] is self.actsolid.position:		self.fixed.pop(i)
+				elif self.fixed[i] is self.actsolid.orientation:	self.fixed.pop(i)
+			# reset solid color
 			for param,grp in zip(self.params, self.displays):
 				if param is self.actsolid:
 					for disp in grp:
 						disp.color = fvec3(settings.display['schematics_color'])
-	
 
-def test_constraints():
-	# test kinematic solver
-	from constraints import solve
-	
-	s0 = Solid()
-	
-	print('\ntest simple pivot')
-	s1 = Solid(pose=(vec3(0), 2*vec3(1,1,0)))
-	csts = [Pivot(s0,s1, (vec3(0,0,0), vec3(0,1,0)))]
-	solve(csts,
-			fixed={id(s0.position), id(s0.orientation)}, 
-			afterset=lambda: print(s0.orientation, s1.orientation))
-	
-	print('\ntest simple plane')
-	s1 = Solid(pose=(vec3(0), 2*vec3(1,1,0)))
-	csts = [Plane(s0,s1, (vec3(0,0,0), vec3(0,1,0)))]
-	solve(csts,
-			fixed={id(s0.position), id(s0.orientation)}, 
-			afterset=lambda: print(s0.orientation, s1.orientation))
-	
-	print('\ntest plane and pivot')
-	s1 = Solid()
-	s2 = Solid(pose=(vec3(2,0,1.5), 2*vec3(1,1,0)))
-	csts = [
-		Plane(s0,s1, (vec3(0), vec3(0,0,1))),  
-		Pivot(s1,s2, (vec3(0,0,1), vec3(0,1,0)), (vec3(0,0,-1), vec3(0,1,0))),
-		]
-	solve(csts,
-			fixed={id(s0.position), id(s0.orientation), id(s2.position)}, 
-			afterset=lambda: print(' ', s1.position, '\t', s1.orientation, '\n ', s2.position, '\t', s2.orientation),
-			maxiter=1000,
-			precision=1e-4)
+def store(dst, src):
+	for i in range(len(dst)):
+		dst[i] = src[i]
 
+class Kinemanip:
+	''' Display that holds a kinematic structure and allow the user to move it
 	'''
-	print('\n test pivots and shared point')
-	s0 = Solid()
-	s1 = Solid()
-	s2 = Solid()
-	A = vec3(0.1, 0.2, 0.3)
-	csts = [
-		Pivot(s0,s1, (vec3(1,0,0),vec3(0,1,0))),
-		Pivot(s0,s2, (vec3(-1,0,0),vec3(0,1,0))),
-		InSolid(s1, [A], [vec3(0,0,1)]),
-		InSolid(s2, [A], [vec3(0,0,1)]),
-		]
-	solve(csts, 
-			fixed={id(s0.position), id(s0.orientation)}, 
-			afterset=lambda: print(s1.orientation, s2.orientation))
+	renderindex = 0
 	
-	l12 = Pivot((0,x))
-	l23 = Pivot((A,x))
-	csts = [
-		Solid(
-	'''
-
-def test_display():
-	print('\n test display')
-	s1 = Solid()
-	s2 = Solid(pose=(vec3(0,0,0.5), vec3(1,0,0)))
-	s3 = Solid()
-	A = vec3(2,0,0)
-	B = vec3(0,2,0)
-	C = vec3(0,-1,1)
-	x = vec3(1,0,0)
-	y = vec3(0,1,0)
-	csts = [Pivot(s1,s2, (A,x)), Pivot(s1,s2, (B,y)), Plane(s2,s3, (C,y), position=(C,C))]
-	sc1 = mkwiredisplay(s1, csts, 1, color=(1, 1, 1))
-	sc2 = mkwiredisplay(s2, csts, 1)
-	sc3 = mkwiredisplay(s3, csts, 1)
+	def __init__(self, scene, csts, root):
+		self.csts, self.root = csts, root
+		self.locked = {id(root): root}
+		self.primitives = {}
+		self.reproblem()
 	
-	import sys
-	from PyQt5.QtWidgets import QApplication
-	from view import Scene
+	def display(self, scene):
+		for cst in self.csts:
+			for prim in cst.solids:
+				if id(prim) not in self.primitives:
+					displays = list(prim.display(scene))
+					self.primitives[id(prim)] = (prim, displays)
+					for disp in displays:
+						disp.control = lambda scene, grp, ident, evt, solid=prim:	self.start(solid, scene, ident, evt)	# lambda default argument uncapture the variable
+						yield disp
 	
-	app = QApplication(sys.argv)
-	scn = Scene()
-	scn.objs.append(sc1)
-	scn.objs.append(sc2)
-	scn.objs.append(sc3)
-	
-	scn.show()
-	sys.exit(app.exec())
-
-def test_manip():
-	s0 = Solid()
-	s1 = Solid()
-	s2 = Solid(pose=(vec3(2,0,1.5), 2*vec3(1,1,0)))
-	s3 = Solid()
-	s4 = Solid()
-	s5 = Solid()
-	csts = [
-		Plane(s0,s1, (vec3(0), vec3(0,0,1))),  
-		Pivot(s1,s2, (vec3(0,0,1), vec3(1,0,0)), (vec3(0,0,-1), normalize(vec3(1,1,0)))),
-		#Pivot(s2,s3, (vec3(0,0,2), normalize(vec3(1,1,0))), (vec3(0,0,0), vec3(1,0,0))),
+	def render(self, scene):	pass
+	def identify(self, scene, startident):	pass	
 		
-		#Pivot(s1,s2, (vec3(0,0,1), vec3(1,0,0)), (vec3(0,0,-1), normalize(vec3(1,0,0)))),
-		Pivot(s2,s3, (vec3(0,0,2), normalize(vec3(1,0,0))), (vec3(0,0,0), vec3(1,0,0))),
-		Pivot(s3,s4, (vec3(0,0,2), normalize(vec3(1,0,0))), (vec3(0,0,0), vec3(1,0,0))),
-		Pivot(s4,s5, (vec3(0,0,2), normalize(vec3(1,0,0))), (vec3(0,0,0), vec3(1,0,0))),
-		]
+	def start(self, solid, scene, ident, pt):
+		if solid is self.root:	return
 		
-	import sys
-	from PyQt5.QtWidgets import QApplication
-	from view import Scene
+		self.startpt = scene.ptat(pt)
+		self.startpos = copy(solid.position)
+		self.actsolid = solid
+		self.moved = False
+		return self.move
 	
-	app = QApplication(sys.argv)
-	scn = Scene()
-	s0.visuals.append(mkwiredisplay(s0, csts))
-	s1.visuals.append(mkwiredisplay(s1, csts, color=(1,0.4,0.2)))
-	s2.visuals.append(mkwiredisplay(s2, csts))
-	s3.visuals.append(mkwiredisplay(s3, csts))
-	s4.visuals.append(mkwiredisplay(s4, csts))
-	s5.visuals.append(mkwiredisplay(s5, csts))
-	#display_mechanism(scn, csts, s0)
-	scn.add(ToolMove(scn, csts, s0))
-	scn.show()
-	sys.exit(app.exec())
+	def move(self, scene, evt):
+		# we use the conjugated gradient algorithm, that seems more 
+		# - CPU efficient for situations starting near to the solution 
+		# - RAM efficient for larg kinematic problems (with tons of variables)
+		method = 'CG'
+		
+		if evt.type() == QEvent.MouseMove:
+			# unlock moving solid
+			self.lock(self.actsolid, False)
+			self.moved = True
+			# displace the moved object
+			pt = scene.ptfrom((evt.x(), evt.y()), self.startpt)
+			store(self.actsolid.position, pt - self.startpt + self.startpos)
+			# solve
+			try:	self.problem.solve(precision=1e-3, method=method)
+			except constraints.SolveError as err:	print(err)
+			# assign new positions to displays
+			for primitive,displays in self.primitives.values():
+				trans = fmat4(*primitive.transform())
+				for disp in displays:
+					if hasattr(disp, 'transform'):
+						disp.transform = trans
+		else:
+			if not self.moved:
+				self.lock(self.actsolid, id(self.actsolid) not in self.locked)
+			else:
+				# finish on a better precision
+				try:	self.problem.solve(precision=1e-6, method=method)
+				except constraints.SolveError as err:	print(err)
+			scene.tool = None
+		
+		scene.update()
+		return True
 	
-
-if __name__ == '__main__':
-	test_constraints()
-	test_manip()
-	#test_display()
-
+	def lock(self, solid, lock):
+		if solid is self.root:	return
+		if lock:
+			if id(solid) in self.locked:	return
+			# add solid's variables to fixed
+			self.locked[id(solid)] = solid
+			# grey display for locked solid
+			for disp in self.primitives[id(solid)][1]:
+				disp.color = fvec3(0.5, 0.5, 0.5)
+		else:
+			if id(solid) not in self.locked:	return
+			# remove solid's variables from fixed
+			if id(solid) in self.locked:	del self.locked[id(solid)]
+			# reset solid color
+			for disp in self.primitives[id(solid)][1]:
+				disp.color = fvec3(settings.display['schematics_color'])
+		self.reproblem()
+	
+	def reproblem(self):
+		fixed = []
+		for locked in self.locked.values():
+			fixed.append(locked.position)
+			fixed.append(locked.orientation)
+		self.problem = constraints.Problem(self.csts, fixed)

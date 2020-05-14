@@ -100,6 +100,11 @@ class ArcCentered(object):
 	
 	slv_vars = ('axis', 'a', 'b')
 	slv_tangent = tangent
+	def fit(self):
+		return (	dot(self.a-self.axis[0], self.axis[1]) **2 
+				+	dot(self.b-self.axis[0], self.axis[1]) **2 
+				+	(length(self.axis[1])-1) **2
+				)
 	
 	def mesh(self, resolution=None):
 		return mkarc(self.axis, self.a, self.b, resolution or self.resolution)
@@ -153,6 +158,9 @@ class Circle(object):
 	
 	def center(self, pt):
 		return self.axis[0]
+	
+	def fit(self):
+		return (length(self.axis[1])-1) **2
 	
 	def tangent(self, pt):
 		return normalize(cross(pt-self.axis[0], self.axis[1]))

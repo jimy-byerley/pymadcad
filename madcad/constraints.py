@@ -11,11 +11,11 @@ class Constraint(object):
 			setattr(self, name, arg)
 		for name, arg in kwargs.items():
 			setattr(self, name, arg)
-	def fitgrad(self):
-		varset = Varset()
-		for name in self.primitives:
-			varset.register(getattr(self, name))
-		return Derived(varset.state(), varset.grad(), varset.vars)
+	#def fitgrad(self):
+		#varset = Varset()
+		#for name in self.primitives:
+			#varset.register(getattr(self, name))
+		#return Derived(varset.state(), varset.grad(), varset.vars)
 
 class Tangent(Constraint):
 	__slots__ = 'c1', 'c2', 'p'
@@ -28,8 +28,8 @@ class Distance(Constraint):
 	primitives = 'p1', 'p2'
 	def fit(self):
 		return (distance(self.p1, self.p2) - self.d) **2
-	def fitgrad(self):
-		return derived.compose(dot, Derived(self.p1), Derived(self.p2))
+	#def fitgrad(self):
+		#return derived.compose(dot, Derived(self.p1), Derived(self.p2))
 
 class Angle(Constraint):
 	__slots__ = 's1', 's2', 'angle'
@@ -63,7 +63,8 @@ class Projected(Constraint):
 
 class OnPlane(Constraint):
 	__slots__ = 'axis', 'pts'
-	primitives = 'pts',
+	def primitives(self):
+		return self.pts
 	def fit(self):
 		s = 0
 		for p in self.pts:
@@ -78,18 +79,57 @@ class PointOn(Constraint):
 
 		
 def solve(constraints, fixed=(), *args, **kwargs):
+	''' short hand to use the class Problem '''
 	return Problem(constraints, fixed).solve(*args, **kwargs)
 
 class Problem:
+	''' class to holds data for a problem solving process.
+		it is intended to be instantiated for each different probleme solving, an instance is used multiple times only when we want to solve on top of the previous results, using exactly the same probleme definition (constraints and variables)
+		
+		therefore the solver protocol is the follownig:
+			- constraints define the probleme
+			- each constraint refers to primitives it applies on
+				constraints have the method fit() and a member 'primitives' that can be  1. an iterable of names of primitives members in the constraint object, or 2. a function returning an iterable of the actual primtives objects
+			- each primitive has a member 'slv_vars' that is an iterable of names of variables members in the primitive (these variables can be any of float, vec3, list of floats, np.array)
+			- primitives can also be constraints on their variables, thus they must have a method fit()   (but no member 'primitives' here)
+			- primitives can implement the optional solver methods for some constraints, such as 'slv_tangent'
+		
+		solving method
+			Internally, this class uses scipy.optimize.minimize. Therefore the scipy minimization methods using only the gradient are all available. The mose usefull may be:
+			
+			BFGS	fast even for complex problems (few variables)
+						https://en.wikipedia.org/wiki/Broyden%E2%80%93Fletcher%E2%80%93Goldfarb%E2%80%93Shanno_algorithm
+			CG		for problems with tons of variables	or for nearby solutions
+						https://en.wikipedia.org/wiki/Conjugate_gradient_method
+			Powell	for simple non-continuous problems with tons of variables
+						https://en.wikipedia.org/wiki/Powell%27s_method
+			
+			default is `method='BFGS'`
+	'''
 	def __init__(self, constraints, fixed=()):
 		self.constraints = constraints
 		self.slvvars = []
 		self.identified = Counter()
 		self.dim = 0
 		for cst in constraints:
-			for pname in cst.primitives:
-				primitive = getattr(cst, pname)
-				self.register(primitive)
+			# cst can contains objects that are not constraints
+			if hasattr(cst, 'fit'):
+				if hasattr(cst, 'primitives'):
+					# register constraint's primitives
+					prims = cst.primitives
+					if callable(prims):		prims = prims()
+					else:					prims = (getattr(cst, pname) for pname in prims)
+					for primitive in prims:
+						# if the primitive is also a constraint, register it later
+						if hasattr(primitive, 'fit'):
+							self.constraints.append(primitive)
+						else:
+							self.register(primitive)
+				elif hasattr(cst, 'slv_vars'):
+					# register the constraint as a primitive
+					self.register(cst)
+				else:
+					raise TypeError("the constraints must provide parameters, with a member 'slv_vars' for primitives, and with a member 'primitives' for constraints")
 		for prim in fixed:
 			self.unregister(prim)
 		for v in self.slvvars:
@@ -97,6 +137,7 @@ class Problem:
 			else:						self.dim += len(v)
 	
 	def register(self, primitive):
+		# register primitive's variables
 		if hasattr(primitive, 'slv_vars'):
 			for varname in primitive.slv_vars:
 				v = getattr(primitive, varname)
@@ -154,7 +195,7 @@ class Problem:
 		return self.fit()
 	
 	def solve(self, precision=1e-4, method='BFGS', afterset=None):
-		nprint(self.slvvars)
+		#nprint(self.slvvars)
 		res = minimize(self.evaluate, self.state(), 
 				tol=precision, method=method, callback=afterset, 
 				options={'eps':precision/2})
