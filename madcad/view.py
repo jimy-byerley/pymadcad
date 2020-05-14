@@ -384,6 +384,8 @@ class Scene(QGLWidget):
 						1))
 	
 	def ptfrom(self, coords, center):
+		''' 3D point below the cursor in the plane orthogonal to the sight, with center as origin '''
+		center = fvec3(center)
 		viewport = self.ident_frame.viewport
 		x =  (coords[0]/viewport[2] *2 -1)
 		y = -(coords[1]/viewport[3] *2 -1)
@@ -603,7 +605,7 @@ class WireDisplay:
 	renderindex = 1
 	def __init__(self, scene, points, edges, idents=None, color=None, transform=None):
 		ctx = scene.ctx
-		self.transform = fmat4(transform or 1)
+		self.transform = fmat4(*transform or 1)
 		self.color = fvec3(color or settings.display['line_color'])
 		
 		self.idents = idents
