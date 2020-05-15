@@ -62,6 +62,7 @@ class Solid:
 			self.orientation = vec3(0)
 		self.visuals = list(args)
 		self.name = name
+	slvvars = 'position', 'orientation',
 	
 	def transform(self):
 		return transform(self.position, self.orientation)
@@ -80,7 +81,7 @@ class InSolid:	# TODO test
 		center = sum(reference)/len(reference)
 		for p in self.reference:	p -= center
 	
-	def primitives(self):
+	def slvvars(self):
 		return (self.solid.position, self.solid.orientation, *self.points)
 
 	def pose(self):
@@ -105,8 +106,7 @@ class Pivot:
 		self.axis = (a1, a2 or a1)
 		self.position = position or (self.axis[0][0], self.axis[1][0])
 	
-	def primitives(self):
-		return self.solids[0].position, self.solids[0].orientation, self.solids[1].position, self.solids[1].orientation
+	slvvars = 'solids',
 	
 	def fit(self):
 		orients = (quat(self.solids[0].orientation), quat(self.solids[1].orientation))
@@ -134,7 +134,6 @@ class Pivot:
 								size/4, 
 								resolution=('div', 16),
 						)))
-			cyl.mergeclose()
 			l = len(cyl.points)
 			v = junc - center
 			v = normalize(v - project(v,axis[1]))
@@ -147,7 +146,10 @@ class Pivot:
 					cyl.points, 
 					cyl.faces, 
 					[(l,l+1,l+2)], 
-					[(l, l+2), (l+2, l+3)] + [(i-1,i) for i in range(1,l//2)] + [(i-1,i) for i in range(l//2+1,l)],
+					(	[(l, l+2), (l+2, l+3)] 
+					+	[(i-1,i) for i in range(1,l//2)] 
+					+	[(i-1,i) for i in range(l//2+1,l)] 
+					+	[(l//2-1,0), (l-1,l//2)]),
 					)
 		elif solid is self.solids[1]:
 			radius = size/4
@@ -170,7 +172,9 @@ class Pivot:
 							radius, 
 							resolution=('div', 16),
 							).mesh()[0]))
-			indices = [(i-1,i)  for i in range(1,len(c1.points))]
+			l = len(c1.points)
+			indices = [(i-1,i)  for i in range(1,l-1)]
+			indices.append((l-1,0))
 			s = Scheme([center-side, center+side, center+attach, junc], [], [], [(0,1), (2,3)])
 			s.extend(Scheme(c1.points, c1.faces, [], indices))
 			s.extend(Scheme(c2.points, c2.faces, [], indices))
@@ -182,8 +186,7 @@ class Plane:
 		self.axis = (a1, a2 or a1)
 		self.position = position or (self.axis[0][0], self.axis[1][0])
 	
-	def primitives(self):
-		return self.solids[0].position, self.solids[0].orientation, self.solids[1].position, self.solids[1].orientation
+	slvvars = 'solids',
 		
 	def corrections(self):
 		#print('  --')
@@ -419,102 +422,6 @@ from PyQt5.QtCore import QEvent
 from . import view, text
 from copy import copy
 
-class Kinemanip:
-	renderindex = 0
-	
-	def __init__(self, scene, csts, root):
-		self.csts, self.root = csts, root
-		self.fixed = [self.root]
-		
-		# build displays for params, keeping there indices to access their pose later
-		self.params = []
-		for cst in csts:
-			self.params.extend(cst.solids)
-		self.displays = []
-		self.problem = constraints.Problem(self.csts, self.fixed)
-	
-	def display(self, scene):
-		for param in self.params:
-			grp = list(param.display(scene))
-			self.displays.append(grp)
-			for disp in grp:
-				disp.control = lambda scene, grp, ident, evt, param=param:	self.start(param, scene, ident, evt)	# lambda default argument uncapture the variable
-				yield disp
-	
-	def render(self, scene):	pass
-	def identify(self, scene, startident):	pass	
-		
-	def start(self, solid, scene, ident, pt):
-		if solid is self.root:	return
-		
-		self.startpt = scene.ptat(pt)
-		self.ptoffset = solid.position - self.startpt
-		self.actsolid = solid
-		self.moved = False
-		scene.tool = self.move
-		
-		return self.move
-	
-	def move(self, scene, evt):
-		# solving using the conjugated gradient algorithm, that seems more 
-		# - CPU efficient for situations starting near to the solution 
-		# - RAM efficient for larg kinematic problems (with tons of variables)
-		method = 'CG'
-		
-		if evt.type() == QEvent.MouseMove:
-			# unlock moving solid
-			if self.actsolid is not self.root:
-				self.lock(self.actsolid, False)
-				self.moved = True
-			# displace the moved object
-			#pt = scene.ptfrom((evt.x(), evt.y()), self.startpt)
-			#self.actsolid.position = pt - self.startpt + self.startpos
-			self.startpt = scene.ptfrom((evt.x(), evt.y()), self.startpt)
-			self.actsolid.position = self.startpt - self.ptoffset
-			# solve
-			try:	self.problem.solve(precision=1e-3, method=method)
-			except constraints.SolveError as err:	print(err)
-			# assign new positions to displays
-			for param,grp in zip(self.params, self.displays):
-				trans = fmat4(*param.transform())
-				for disp in grp:
-					if isinstance(disp, (view.SolidDisplay, WireDisplay)):
-						disp.transform = trans
-					elif isinstance(disp, text.Text):
-						disp.position = trans * disp.position
-		else:
-			if not self.moved:
-				self.lock(self.actsolid, True)
-			else:
-				try:	self.problem.solve(precision=1e-6, method=method)
-				except constraints.SolveError as err:	print(err)
-			scene.tool = None
-		
-		scene.update()
-	
-	def lock(self, solid, lock):
-		if lock:
-			# add solid's variables to fixed
-			self.fixed.append(solid.position)
-			self.fixed.append(solid.orientation)
-			# grey display for locked solid
-			for param,grp in zip(self.params, self.displays):
-				if param is self.actsolid:
-					for disp in grp:
-						disp.color = fvec3(0.5, 0.5, 0.5)
-		else:
-			# remove solid's variables from fixed
-			i = len(self.fixed)
-			while i > 0:
-				i -= 1
-				if   self.fixed[i] is self.actsolid.position:		self.fixed.pop(i)
-				elif self.fixed[i] is self.actsolid.orientation:	self.fixed.pop(i)
-			# reset solid color
-			for param,grp in zip(self.params, self.displays):
-				if param is self.actsolid:
-					for disp in grp:
-						disp.color = fvec3(settings.display['schematics_color'])
-
 def store(dst, src):
 	for i in range(len(dst)):
 		dst[i] = src[i]
@@ -528,6 +435,9 @@ class Kinemanip:
 		self.csts, self.root = csts, root
 		self.locked = {id(root): root}
 		self.primitives = {}
+		self.debug_label = None
+		
+		
 		self.reproblem()
 	
 	def display(self, scene):
@@ -539,6 +449,8 @@ class Kinemanip:
 					for disp in displays:
 						disp.control = lambda scene, grp, ident, evt, solid=prim:	self.start(solid, scene, ident, evt)	# lambda default argument uncapture the variable
 						yield disp
+		self.debug_label = text.TextDisplay(scene, vec3(0,0,0), "mouse", 8, (1,1,1))
+		yield self.debug_label
 	
 	def render(self, scene):	pass
 	def identify(self, scene, startident):	pass	
@@ -547,7 +459,8 @@ class Kinemanip:
 		if solid is self.root:	return
 		
 		self.startpt = scene.ptat(pt)
-		self.startpos = copy(solid.position)
+		self.debug_label.position = fvec3(self.startpt)
+		self.ptoffset = inverse(quat(solid.orientation)) * (solid.position - self.startpt)
 		self.actsolid = solid
 		self.moved = False
 		return self.move
@@ -564,7 +477,8 @@ class Kinemanip:
 			self.moved = True
 			# displace the moved object
 			pt = scene.ptfrom((evt.x(), evt.y()), self.startpt)
-			store(self.actsolid.position, pt - self.startpt + self.startpos)
+			self.debug_label.position = fvec3(pt)
+			store(self.actsolid.position, pt+quat(self.actsolid.orientation)*self.ptoffset)
 			# solve
 			try:	self.problem.solve(precision=1e-3, method=method)
 			except constraints.SolveError as err:	print(err)

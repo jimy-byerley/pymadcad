@@ -19,13 +19,13 @@ class Constraint(object):
 
 class Tangent(Constraint):
 	__slots__ = 'c1', 'c2', 'p'
-	primitives = 'c1', 'c2', 'p'
+	slvvars = 'c1', 'c2', 'p'
 	def fit(self):
 		return length(cross(self.c1.slv_tangent(self.p), self.c2.slv_tangent(self.p))) **2
 
 class Distance(Constraint):
 	__slots__ = 'p1', 'p2', 'd'
-	primitives = 'p1', 'p2'
+	slvvars = 'p1', 'p2'
 	def fit(self):
 		return (distance(self.p1, self.p2) - self.d) **2
 	#def fitgrad(self):
@@ -33,7 +33,7 @@ class Distance(Constraint):
 
 class Angle(Constraint):
 	__slots__ = 's1', 's2', 'angle'
-	primitives = 's1', 's2'
+	slvvars = 's1', 's2'
 	def fit(self):
 		d1 = self.s1.direction()
 		d2 = self.s2.direction()
@@ -45,7 +45,7 @@ def Parallel(s1,s2):
 
 class Radius(Constraint):
 	__slots__ = 'arc', 'radius' #'consta', 'constb'
-	primitives = 'arc',
+	slvvars = 'arc',
 	def __init__(self, arc, radius):
 		self.arc = arc
 		self.radius = radius
@@ -57,13 +57,13 @@ class Radius(Constraint):
 
 class Projected(Constraint):
 	__slots__ = 'a', 'b', 'proj'
-	primitives = 'a', 'b'
+	slvvars = 'a', 'b'
 	def fit(self):
 		return dot(self.a - self.b - self.proj, self.proj)
 
 class OnPlane(Constraint):
 	__slots__ = 'axis', 'pts'
-	def primitives(self):
+	def slvvars(self):
 		return self.pts
 	def fit(self):
 		s = 0
@@ -73,7 +73,7 @@ class OnPlane(Constraint):
 
 class PointOn(Constraint):
 	__slots__ = 'point', 'curve'	
-	primitives = 'point', 'curve'
+	slvvars = 'point', 'curve'
 	def fit(self):
 		return distance(self.curve.slv_nearest(self.point), self.point) ** 2
 
@@ -88,9 +88,9 @@ class Problem:
 		
 		therefore the solver protocol is the follownig:
 			- constraints define the probleme
-			- each constraint refers to primitives it applies on
-				constraints have the method fit() and a member 'primitives' that can be  1. an iterable of names of primitives members in the constraint object, or 2. a function returning an iterable of the actual primtives objects
-			- each primitive has a member 'slv_vars' that is an iterable of names of variables members in the primitive (these variables can be any of float, vec3, list of floats, np.array)
+			- each constraint refers to variables it applies on
+				constraints have the method fit() and a member 'slvvars' that can be  1. an iterable of names of variable members in the constraint object, or 2. a function returning an iterable of the actual variables objects (that therefore must be referenced refs and not primitive types)
+			- each variable object can redirect to other variable objects if they implements such a member 'slvvars'
 			- primitives can also be constraints on their variables, thus they must have a method fit()   (but no member 'primitives' here)
 			- primitives can implement the optional solver methods for some constraints, such as 'slv_tangent'
 		
@@ -107,89 +107,78 @@ class Problem:
 			default is `method='BFGS'`
 	'''
 	def __init__(self, constraints, fixed=()):
-		self.constraints = constraints
-		self.slvvars = []
-		self.identified = Counter()
+		self.constraints = set()
+		self.slvvars = {}
 		self.dim = 0
 		for cst in constraints:
 			# cst can contains objects that are not constraints
 			if hasattr(cst, 'fit'):
-				if hasattr(cst, 'primitives'):
-					# register constraint's primitives
-					prims = cst.primitives
-					if callable(prims):		prims = prims()
-					else:					prims = (getattr(cst, pname) for pname in prims)
-					for primitive in prims:
-						# if the primitive is also a constraint, register it later
-						if hasattr(primitive, 'fit'):
-							self.constraints.append(primitive)
-						else:
-							self.register(primitive)
-				elif hasattr(cst, 'slv_vars'):
-					# register the constraint as a primitive
-					self.register(cst)
-				else:
-					raise TypeError("the constraints must provide parameters, with a member 'slv_vars' for primitives, and with a member 'primitives' for constraints")
+				self.register(cst)
 		for prim in fixed:
 			self.unregister(prim)
-		for v in self.slvvars:
+		for v in self.slvvars.values():
 			if isinstance(v, tuple):	self.dim += 1
 			else:						self.dim += len(v)
 	
-	def register(self, primitive):
-		# register primitive's variables
-		if hasattr(primitive, 'slv_vars'):
-			for varname in primitive.slv_vars:
-				v = getattr(primitive, varname)
-				if isinstance(v, (float,int)):
-					self.slvvars.append((primitive, varname))
-				else:
-					self.register(v)
-		elif isinstance(primitive, tuple):
-			for p in primitive:
+	def register(self, obj):
+		''' register a constraint or a variable object '''
+		if hasattr(obj, 'fit'):
+			self.constraints.add(obj.fit)
+		# register object's variables
+		if hasattr(obj, 'slvvars'):
+			if callable(obj.slvvars):
+				for var in obj.slvvars():
+					if isinstance(var, (float, int)):		raise TypeError("primitive types (float,int) are not allowed when 'slvvars' is a callable")
+					self.register(var)
+			else:
+				for varname in obj.slvvars:
+					var = getattr(obj, varname)
+					if isinstance(var, (float,int)):
+						self.slvvars[(id(obj), varname)] = (obj, varname)
+					else:
+						self.register(var)
+		elif isinstance(obj, tuple):
+			for p in obj:
 				self.register(p)
 		else:
-			if id(primitive) not in self.identified:
-				self.slvvars.append(primitive)
-				self.identified[id(primitive)] += 1
-	def unregister(self, primitive):
-		if hasattr(primitive, 'slv_vars'):
-			for varname in primitive.slv_vars:
-				v = getattr(primitive, varname)
+			if id(obj) not in self.slvvars:
+				self.slvvars[id(obj)] = obj
+	
+	def unregister(self, obj):
+		''' unregister all variables from a constraint or a variable object '''
+		if hasattr(obj, 'slvvars'):
+			if callable(obj.slvvars):
+				for var in obj.slvvars():
+					self.unregister(var)
+			for varname in obj.slvvars:
+				var = getattr(obj, varname)
 				if isinstance(v, (float,int)):
-					for i,r in enumerate(self.slvvars):
-						if r[0] is primitive and r[1] == varname:
-							self.identified.pop(i)
-							break
+					del self.slvvars[(id(obj), varname)]
 				else:
 					self.unregister(v)
-		elif isinstance(primitive, tuple):
-			for p in primitive:
+		elif isinstance(obj, tuple):
+			for p in obj:
 				self.unregister(p)
 		else:
-			if id(primitive) in self.identified:
-				del self.identified[id(primitive)]
-				for i,p in enumerate(self.slvvars):
-					if p is primitive:
-						self.slvvars.pop(i)
-						break
+			if id(obj) in self.slvvars:
+				del self.slvvars[id(obj)]
 	
 	def state(self):
 		x = np.empty(self.dim, dtype='f8')
 		i = 0
-		for v in self.slvvars:
+		for v in self.slvvars.values():
 			l = len(v)
 			x[i:i+l] = v
 			i += l
 		return x
 	def place(self, x):
 		i = 0
-		for v in self.slvvars:
+		for v in self.slvvars.values():
 			l = len(v)
 			for j in range(l):	v[j] = x[i+j]
 			i += l
 	def fit(self):
-		return sum((c.fit() for c in self.constraints))
+		return sum((fit()  for fit in self.constraints))
 	def evaluate(self, x):
 		self.place(x)
 		return self.fit()
