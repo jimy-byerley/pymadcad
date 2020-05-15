@@ -359,7 +359,9 @@ class Scene(QGLWidget):
 	
 	def sight(self, coords):
 		''' sight axis from the camera center to the point matching the given pixel coordinates '''
-		m = inverse(self.manipulator.view_matrix)
+		x =  (coords[0]/viewport[2] *2 -1) /self.proj_matrix[0][0]
+		y = -(coords[1]/viewport[3] *2 -1) /self.proj_matrix[1][1]
+		m = affineInverse(self.view_matrix)
 		return (vec3(m[3]), vec3(m[2]))
 
 	
@@ -375,9 +377,9 @@ class Scene(QGLWidget):
 			return None
 		else:
 			a,b = self.proj_matrix[2][2], self.proj_matrix[3][2]
-			depth = b/(depthred + a)/2	# get the true depth  (can't get why there is a 2 factor ... opengl trick)
+			depth = b/(depthred + a) * 0.53	# get the true depth  (can't get why there is a strange factor ... opengl trick)
 			#print('depth', depth, length(fvec3(self.view_matrix[3])))
-			return vec3(inverse(self.view_matrix) * fvec4(
+			return vec3(affineInverse(self.view_matrix) * fvec4(
 						depth * x /self.proj_matrix[0][0],
 						depth * y /self.proj_matrix[1][1],
 						-depth,
@@ -385,23 +387,23 @@ class Scene(QGLWidget):
 	
 	def ptfrom(self, coords, center):
 		''' 3D point below the cursor in the plane orthogonal to the sight, with center as origin '''
-		center = fvec3(center)
 		viewport = self.ident_frame.viewport
 		x =  (coords[0]/viewport[2] *2 -1)
 		y = -(coords[1]/viewport[3] *2 -1)
-		inv = inverse(fmat3(self.view_matrix))
-		dir = inv * fvec3(
-					x/self.proj_matrix[0][0],
-					y/self.proj_matrix[1][1],
-					1)
-		orig = inv * fvec3(column(self.view_matrix,3))
-		return vec3(orig + project(center - orig, dir))
+		depth = (self.view_matrix * fvec4(center,1))[2]
+		return vec3(affineInverse(self.view_matrix) * fvec4(
+					-depth * x /self.proj_matrix[0][0],
+					-depth * y /self.proj_matrix[1][1],
+					depth,
+					1))
 	
 	def look(self, box):
 		fov = self.projection.fov or settings.display['field_of_view']
 		self.manipulator.center = fvec3(box.center)
 		self.manipulator.distance = length(box.width) / (2*tan(fov/2))
 		self.manipulator.update()
+
+from .mathutils import dot, transpose, affineInverse
 
 def snail(radius):
 	''' generator of coordinates snailing around 0,0 '''
