@@ -20,6 +20,8 @@ def skeleting(outline: Wire, skeleting: callable, prec=NUMPREC) -> [vec2]:
 	''' skeleting procedure for the given wire
 		at each step, the skeleting function is called
 		created points will be added to the wire point buffer and this buffer is returned (ROI)
+		
+		NOTE: yet it only works with near-convex outlines
 	'''
 	l = len(outline)
 	pts = outline.points
@@ -85,6 +87,8 @@ def skeleton(outline: Wire, prec=NUMPREC) -> Web:
 	''' return a Web that constitute the skeleton of the outline
 		the returned Web uses the same point buffer than the input Wire.
 		created points will be added into it
+		
+		NOTE: yet it only works with near-convex outlines
 	'''
 	skeleton = []
 	#def sk(ip, o1,o2, a1,b1, a2,b2):
@@ -99,6 +103,8 @@ def skeleton(outline: Wire, prec=NUMPREC) -> Web:
 def triangulation_skeleton(outline: Wire, prec=NUMPREC) -> Mesh:
 	''' return a Mesh with triangles filling the surface of the outline 
 		the returned Mesh uses the same point buffer than the input Wire
+		
+		NOTE: yet it only works with near-convex outlines
 	'''
 	triangles = []
 	skeleton = []

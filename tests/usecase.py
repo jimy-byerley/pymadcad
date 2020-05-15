@@ -76,7 +76,7 @@ solve([
 		Distance(Ae, O, dext),
 		Distance(Be, O, dext),
 		Angle(Segment(Ae,A), Segment(Be,B), radians(60)),
-		OnPlane((C,Z), (A,B,Ae,Be)),
+		OnPlane((C,Z), (A,B,Ae,Be)),	# TODO trouver pourquoi ca foire la derniere operation booleenne
 		],
 	fixed=[O,X,Y,Z,C],
 	precision=1e-12,
