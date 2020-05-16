@@ -32,7 +32,7 @@ class Axis(object):
 	def direction(self):
 		return self.dir
 	
-	slv_vars = ('origin', 'dir')
+	slvvars = ('origin', 'dir')
 	def slv_tangent(self, pt):
 		return self.dir
 
