@@ -159,6 +159,7 @@ def triangulation_outline(outline: Wire, normal=None) -> Mesh:
 	try:				proj = planeproject(outline, normal)
 	except ValueError:	return Mesh()
 	hole = list(outline.indices)
+	if hole[-1] == hole[0]:		hole.pop()
 	def score(i):
 		l = len(hole)
 		u = proj[(i+1)%l] - proj[i]
