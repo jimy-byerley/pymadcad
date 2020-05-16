@@ -704,7 +704,7 @@ def web(*args):
 	if not args:	raise TypeError('web take at least one argument')
 	if len(args) == 1:	args = args[0]
 	if isinstance(args, Web):		return args
-	elif isinstance(args, Wire):	return Web(args.points, list(lineedges(args)))
+	elif isinstance(args, Wire):	return Web(args.points, list(lineedges(args)), groups=[args.group])
 	elif hasattr(args, 'mesh'):
 		res = args.mesh()
 		if isinstance(res, tuple):
@@ -734,10 +734,11 @@ class Wire:
 			points		points buffer
 			indices		indices of the line's points in the buffer
 	'''
-	def __init__(self, points, indices=None):
+	def __init__(self, points, indices=None, group=None):
 		self.points = points
 		if indices is None:	self.indices = list(range(len(points))) #arraylike(lambda i: i, lambda: len(points))
 		else:				self.indices = indices
+		self.group = group
 	
 	def __len__(self):	return len(self.indices)
 	def __iter__(self):	return (self.points[i] for i in self.indices)
@@ -763,7 +764,9 @@ class Wire:
 			if i >= l:	raise MeshError("some indices are greater than the number of points", i, l)
 
 	def edge(self, i):
-		return (self.indices[i+1], self.indices[i-1])
+		return (self.indices[i], self.indices[i+1])
+	def edges(self):
+		return [self.edge(i)  for i in range(len(self.indices)-1)]
 	
 	def __iadd__(self, other):
 		if not isinstance(other, Wire):		return NotImplemented

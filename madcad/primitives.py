@@ -1,6 +1,7 @@
 from math import sqrt
 from .mathutils import vec3, mat3, normalize, anglebt, project, noproject, cos, sin, atan2, pi, length, distance, cross, vec2, mat2, determinant, inverse, dot, atan, acos, dirbase
 from . import settings
+from .mesh import Wire
 
 class Primitive(object):
 	__slots__ = ('annotations',)
@@ -42,12 +43,12 @@ class Segment(object):
 	def direction(self):
 		return normalize(self.b-self.a)
 		
-	slv_vars = 'a', 'b'
+	slvvars = 'a', 'b'
 	def slv_tangent(self, pt):
 		return self.direction()
 	
 	def mesh(self):
-		return [self.a, self.b], 'flat'
+		return Wire([self.a, self.b], group='flat')
 
 class ArcThrough(object):	
 	__slots__ = ('a', 'b', 'c', 'resolution')
@@ -74,7 +75,7 @@ class ArcThrough(object):
 		c = self.center()
 		return normalize(cross(pt-c, self.a-c))
 	
-	slv_vars = ('a', 'b', 'c')
+	slvvars = ('a', 'b', 'c')
 	slv_tangent = tangent
 	
 	def mesh(self, resolution=None):
@@ -98,7 +99,7 @@ class ArcCentered(object):
 	def tangent(self, pt):
 		return cross(normalize(pt - self.axis[0]), self.axis[1])
 	
-	slv_vars = ('axis', 'a', 'b')
+	slvvars = ('axis', 'a', 'b')
 	slv_tangent = tangent
 	def fit(self):
 		return (	dot(self.a-self.axis[0], self.axis[1]) **2 
@@ -115,16 +116,13 @@ def mkarc(axis, start, end, resolution=None):
 	r = length(v)
 	x = v/r
 	y = cross(axis[1], x)
-	print(x,y,z)
-	#print(dot(end-center,y), dot(end-center,x))
 	angle = atan2(dot(end-center,y), dot(end-center,x)) % (2*pi)
-	#angle = acos(dot(x, normalize(end-center)))
 	div = settings.curve_resolution(angle*r, angle, resolution) +2
 	pts = []
 	for i in range(div):
 		a = angle * i/(div-1)
 		pts.append(x*r*cos(a) + y*r*sin(a) + center)
-	return pts, 'arc'
+	return Wire(pts, group='arc')
 	
 
 class TangentEllipsis(object):
@@ -135,6 +133,8 @@ class TangentEllipsis(object):
 	
 	def axis(self):
 		return (self.a+self.c - self.b, normalize(cross(self.a-self.b, self.c-self.b)))
+	
+	slvvars = ('a', 'b', 'c')
 	
 	def mesh(self, resolution=None):
 		''' axis directions doesn't need to be normalized nor oriented '''
@@ -147,7 +147,7 @@ class TangentEllipsis(object):
 		for i in range(div+1):
 			u = pi/2 * i/div
 			pts.append(x*a*(1-cos(u)) + y*b*(1-sin(u)) + origin)
-		return pts, 'ellipsis'
+		return Wire(pts, group='ellipsis')
 
 class Circle(object):
 	__slots__ = ('axis', 'radius', 'alignment', 'resolution')
@@ -165,7 +165,7 @@ class Circle(object):
 	def tangent(self, pt):
 		return normalize(cross(pt-self.axis[0], self.axis[1]))
 	
-	slv_vars = ('axis', 'radius')
+	slvvars = ('axis', 'radius')
 	slv_tangent = tangent
 	
 	def mesh(self, resolution=None):
@@ -175,10 +175,12 @@ class Circle(object):
 		r = self.radius
 		div = settings.curve_resolution(angle*r, angle, self.resolution or resolution)
 		pts = []
-		for i in range(div+1):
+		for i in range(div):
 			a = angle * i/div
 			pts.append(x*r*cos(a) + y*r*sin(a) + center)
-		return pts, 'arc'
+		indices = list(range(div))
+		indices.append(0)
+		return Wire(pts, indices, group='arc')
 
 
 if __name__ == '__main__':
