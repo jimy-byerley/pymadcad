@@ -1,6 +1,6 @@
 from .mathutils import vec2,mat2,dvec2,dmat2,vec3,vec4,mat3,mat4, mat3_cast, quat, rotate, translate, dot, cross, perpdot, project, noproject, scaledir, transform, normalize, inverse, length, cos, asin, acos, sqrt, atan2, NUMPREC, COMPREC, angleAxis, angle, distance, anglebt, interpol1, spline
 from .mesh import Mesh, edgekey, MeshError, web, distance_pa
-from .primitives import Primitive
+from . import triangulation
 from . import settings
 from nprint import nprint
 
@@ -375,29 +375,9 @@ def triangulate(mesh, outline, group=None):
 		outline.pop(index)
 		pts.pop(index)
 
-def makebase(points):
-	''' create a base that keep the points in the XY plane (list version, use the center of the points) '''
-	center = vec3(0)
-	for p in points:	center += p
-	center /= len(points)
-	for p in points:
-		x = p - center
-		if length(x) > NUMPREC:	break
-	for p in points:
-		y = p - center
-		if length(y) > NUMPREC and distance(x,y) > NUMPREC:	break
-	x = normalize(x)
-	y -= project(y,x)
-	z = cross(x,y)
-	return x,y,z
-
 
 def flatsurface(outline):
-	''' create a surface in the given outline '''
-	mesh = Mesh(outline.points, [], [], [])
-	triangulate(mesh, outline.indices)
-	return mesh
-
+	return triangulation.triangulation_outline(outline)
 
 def arclen(p1, p2, n1, n2):
 	''' approximated length of an arc between p1 and p2, with associated normals '''

@@ -138,7 +138,7 @@ def beveltgt(mesh, line, cutter, interpol=spline, resolution=None):
 		
 		lps = suites(s)
 		if len(lps) == 1:
-			gt.triangulate(mesh, lp, group)
+			mesh += gt.flatsurface(Wire(mesh.points, lps[0]))
 		else:
 			left,right = lps
 			if dot(dir, mesh.points[left[1]] - mesh.points[left[0]]) > 0:
@@ -193,7 +193,7 @@ def bevel(mesh, line, cutter, interpol=spline, resolution=None):
 		
 		lps = suites(s)
 		if len(lps) == 1:
-			gt.triangulate(mesh, lps[0], len(mesh.groups))
+			mesh += gt.flatsurface(Wire(mesh.points, lps[0]))
 		elif len(lps) == 2:
 			# match left and right lines
 			left,right = lps
@@ -310,23 +310,23 @@ def cutsegments(mesh, line, offsets):
 			segments.append(None)
 		
 		# display cut planes in the mesh (debug)
-		#grp = len(mesh.groups)
-		#mesh.groups.append(None)
-		#m = len(mesh.points)
+		#grp = len(debmesh.groups)
+		#debmesh.groups.append(None)
+		#m = len(debmesh.points)
 		#d = normalize(d)
-		#mesh.points.append(p)
-		#mesh.points.append(intersect+d)
-		#mesh.points.append(intersect-d)
-		#mesh.faces.append((m,m+1,m+2))
-		#mesh.tracks.append(grp)
+		#debmesh.points.append(p)
+		#debmesh.points.append(intersect+d)
+		#debmesh.points.append(intersect-d)
+		#debmesh.faces.append((m,m+1,m+2))
+		#debmesh.tracks.append(grp)
 	return segments
+
 
 def cut(mesh, line, offsets, conn=None):
 	''' cut the mesh faces by planes, determined by the offsets to the lines '''
 	
 	toremove = set()		# faces to remove that match no replacements
 	result = []				# intersection segments for each offset
-
 	prec = mesh.precision()
 	# build connectivity
 	if not conn:
@@ -337,22 +337,22 @@ def cut(mesh, line, offsets, conn=None):
 	
 	# complete segments that cannot be computed locally (straight suite of points for example)
 	for i in range(1,len(segments)):
-		if i and not segments[i]:		segments[i] = segments[i-1]
+		if not segments[i]:		segments[i] = segments[i-1]
 	for i in reversed(range(len(segments)-1)):
-		if i and not segments[i]:		segments[i] = segments[i+1]
+		if not segments[i]:		segments[i] = segments[i+1]
 	
 	# cut at each plane
 	for i in range(1,len(line)):
 		# propagate until cut
 		cutplane = (mesh.points[line[i-1]]+offsets[i-1], -normalize(offsets[i-1]))
-		#print('cutplane', cutplane)
 		# take segment limiting planes
 		if circular:
 			s1 = segments[i-2]
-			s2 = segments[(i-1) % len(segments)]
+			s2 = segments[i-1]
 		else:
 			s1 = segments[i-2] if i >= 2 else None
 			s2 = segments[i-1] if i <= len(segments) else None
+		
 		# prepare propagation
 		seen = set()
 		front = [(line[i],line[i-1]), (line[i-1],line[i])]
@@ -365,9 +365,15 @@ def cut(mesh, line, offsets, conn=None):
 			if frontedge not in conn:	continue
 			fi = conn[frontedge]
 			if fi in seen:	continue
-			if faceheight(mesh, fi) <= prec:	continue
-			
 			f = mesh.faces[fi]
+			
+			# do not process empty faces (its a topology singularity), but propagate
+			if faceheight(mesh, fi) <= prec:	
+				seen.add(fi)
+				for j in range(3):
+					front.append((f[j],f[j-1]))
+				continue
+			
 			# find the intersection of the triangle with the common axis to the two cutplanes (current and next)
 			p = intersection_axis_face((s2[0], s2[2]), mesh.facepoints(fi)) if s2 else None
 			if p and distance(p, mesh.points[f[0]]) > prec and distance(p, mesh.points[f[1]]) > prec and distance(p, mesh.points[f[2]]) > prec:
@@ -459,7 +465,7 @@ def cut(mesh, line, offsets, conn=None):
 						front.append((f[j],f[j-1]))
 		
 		result.append(intersections)
-			
+	
 	# simplify cuts
 	merges = {}
 	for i,grp in enumerate(result):

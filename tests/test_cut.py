@@ -28,6 +28,7 @@ line = suites(list(m.group(1).outlines_unoriented() & m.group(2).outlines_unorie
 #bevel3(m, line, ('depth', 0.2))
 #beveltgt(m, line, ('depth', 0.6))
 bevel(m, line, ('depth', 0.6))
+m.mergeclose()
 
 #m.check()	# TODO fix the face using the same point multiple times
 #assert m.issurface()

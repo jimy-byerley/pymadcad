@@ -103,7 +103,6 @@ for i in range(6):
 	pl = deepcopy(place)
 	pl.transform(angleAxis(i/6*2*pi, Z))
 	big += pl
-#big = place
 #place.transform(angleAxis(2*pi/3, Z))
 part = difference(cone, big)
 #from madcad import boolean
@@ -111,12 +110,11 @@ part = difference(cone, big)
 #boolean.intersectwith(cone, big)
 #boolean.booleanwith(big, cone, True)
 #part = big
-nprint(part)
 
 #part.finish()
 #part.groups = [None]*len(part.faces)
 #part.tracks = list(range(len(part.faces)))
-#part.options = {'debug_display':True, 'debug_points':False, 'debug_faces':False}
+#part.options = {'debug_display':True, 'debug_points':True, 'debug_faces':False}
 #place.options = {'debug_display':True, 'debug_points':False, 'debug_faces':False}
 #vis.options.update({'debug_display':True, 'debug_points':False, 'debug_faces':False})
 scn3D.add(part)
