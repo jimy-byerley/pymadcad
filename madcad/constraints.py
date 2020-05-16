@@ -183,11 +183,11 @@ class Problem:
 		self.place(x)
 		return self.fit()
 	
-	def solve(self, precision=1e-4, method='BFGS', afterset=None):
+	def solve(self, precision=1e-4, method='BFGS', afterset=None, maxiter=None):
 		#nprint(self.slvvars)
 		res = minimize(self.evaluate, self.state(), 
 				tol=precision, method=method, callback=afterset, 
-				options={'eps':precision/2})
+				options={'eps':precision/2, 'maxiter':maxiter})
 		if res.fun <= precision:
 			self.place(res.x)
 			return res
@@ -253,6 +253,8 @@ def geoparams(constraints):
 				yield param
 '''
 
+from math import inf
+
 def solve2(constraints, precision=1e-4, afterset=None, fixed=(), maxiter=0):
 	params = []
 	corrections = []
@@ -305,20 +307,12 @@ def solve2(constraints, precision=1e-4, afterset=None, fixed=(), maxiter=0):
 				if l > corrnorms[indices[i]]:	corrnorms[indices[i]] = l
 				i += 1
 		
-		#print('corrnorms', corrnorms)
-		#print('corrections', corrections)
-		#for i in range(len(corrections)):
-			#if id(params[i]) in fixed:	corrections[i] = vec3(0)
-		#for c in corrections:	print('    ',c)
-		
 		# apply changes
 		for param,correction,corrnorm,oldcorr in zip(params, corrections, corrnorms, oldcorrs):
 			if id(param) not in fixed:
 				l = length(correction)
 				if l > maxcorr:		maxcorr = l
 				if corrnorm > maxdelta:		maxdelta = corrnorm
-				#if l > 0:
-					#param += correction * (corrnorm / l)
 				# filtre a oscillation
 				if oldcorr:
 					#print('       ', correction*0.5 + oldcorr*0.5)
@@ -327,7 +321,6 @@ def solve2(constraints, precision=1e-4, afterset=None, fixed=(), maxiter=0):
 					param += correction * 0.8
 		oldcorrs = corrections[:]
 		
-		#print('solve:', it, maxdelta)
 		if afterset:	afterset()
 		it += 1
 		# check that the solver is solving
@@ -336,5 +329,5 @@ def solve2(constraints, precision=1e-4, afterset=None, fixed=(), maxiter=0):
 		if maxdelta > precision and maxcorr < mincorr:	
 			raise SolveError('resolution is blocked (try an other initial state)')
 
-	print('iterations:', it-1)
+	#print('iterations:', it-1)
 	return maxdelta
