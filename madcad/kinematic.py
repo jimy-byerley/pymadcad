@@ -162,22 +162,25 @@ class Pivot:
 				attach = side + normalize(noproject(junc-center, axis[1]))*radius
 			else:
 				attach = side
-			c1 = generation.flatsurface(Wire(primitives.Circle(
+			c1 = primitives.Circle(
 							(center-axis[1]*size*0.5, -axis[1]), 
 							radius, 
 							resolution=('div', 16),
-							).mesh()[0]))
-			c2 = generation.flatsurface(Wire(primitives.Circle(
+							).mesh()
+			c2 = primitives.Circle(
 							(center+axis[1]*size*0.5, axis[1]), 
 							radius, 
 							resolution=('div', 16),
-							).mesh()[0]))
+							).mesh()
+			s1 = generation.flatsurface(c1)
+			s2 = generation.flatsurface(c2)
 			l = len(c1.points)
 			indices = [(i-1,i)  for i in range(1,l-1)]
 			indices.append((l-1,0))
+			
 			s = Scheme([center-side, center+side, center+attach, junc], [], [], [(0,1), (2,3)])
-			s.extend(Scheme(c1.points, c1.faces, [], indices))
-			s.extend(Scheme(c2.points, c2.faces, [], indices))
+			s.extend(Scheme(c1.points, s1.faces, [], c1.edges()))
+			s.extend(Scheme(c2.points, s2.faces, [], c2.edges()))
 			return s
 
 class Plane:
@@ -480,7 +483,7 @@ class Kinemanip:
 			self.debug_label.position = fvec3(pt)
 			store(self.actsolid.position, pt+quat(self.actsolid.orientation)*self.ptoffset)
 			# solve
-			try:	self.problem.solve(precision=1e-3, method=method)
+			try:	self.problem.solve(precision=1e-3, method=method, maxiter=50)
 			except constraints.SolveError as err:	print(err)
 			# assign new positions to displays
 			for primitive,displays in self.primitives.values():
