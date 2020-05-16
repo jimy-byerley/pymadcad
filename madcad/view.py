@@ -91,7 +91,7 @@ class Turntable:
 IDENT_TYPE = 'u2'
 IDENT_SIZE = int(IDENT_TYPE[1:]) * 8
 
-class Scene(QGLWidget):
+class Scene(QOpenGLWidget):
 	''' Scene widget to display CAD objects 
 		Attributes defined here:
 			
@@ -103,18 +103,18 @@ class Scene(QGLWidget):
 	
 	def __init__(self, parent=None, objects=(), projection=None, manipulator=None):
 		# vieille version: QGLWidget, qui plante quand on écrit du texte
-		fmt = QGLFormat()
-		fmt.setVersion(*opengl_version)
-		fmt.setProfile(QGLFormat.CoreProfile)
-		fmt.setSampleBuffers(True)
-		super().__init__(fmt, parent)
-		# nouvelle version: QOpenGLWidget, qui fait des bugs d'affichage
-		#super().__init__(parent)
-		#fmt = QSurfaceFormat()
+		#fmt = QGLFormat()
 		#fmt.setVersion(*opengl_version)
-		#fmt.setProfile(QSurfaceFormat.CoreProfile)
-		#fmt.setSamples(4)
-		#self.setFormat(fmt)
+		#fmt.setProfile(QGLFormat.CoreProfile)
+		#fmt.setSampleBuffers(True)
+		#super().__init__(fmt, parent)
+		# nouvelle version: QOpenGLWidget, qui fait des bugs d'affichage
+		super().__init__(parent)
+		fmt = QSurfaceFormat()
+		fmt.setVersion(*opengl_version)
+		fmt.setProfile(QSurfaceFormat.CoreProfile)
+		fmt.setSamples(4)
+		self.setFormat(fmt)
         
 		self.projection = projection or Perspective()
 		self.manipulator = manipulator or Turntable()
@@ -146,8 +146,8 @@ class Scene(QGLWidget):
 
 	def paintGL(self):
 		self.ctx = mgl.create_context()
-		self.screen = self.ctx.detect_framebuffer()	# old glwidget
-		#self.screen = self.ctx.detect_framebuffer(self.defaultFramebufferObject()) # new glwidget
+		#self.screen = self.ctx.detect_framebuffer()	# old glwidget
+		self.screen = self.ctx.detect_framebuffer(self.defaultFramebufferObject()) # new glwidget
 		self.ident_frame = self.ctx.simple_framebuffer((self.size().width(), self.size().height()), components=3, dtype='f1')
 		self.ident_shader = self.ctx.program(
 						vertex_shader=open('shaders/identification.vert').read(),
@@ -166,10 +166,10 @@ class Scene(QGLWidget):
 		
 		w, h = self.size().width(), self.size().height()
 		self.aspectratio = w/h
-		self.ctx.viewport = (0, 0, w, h)
-		self.ident_frame.viewport = (0, 0, w, h)
-		#self.screen = self.ctx.detect_framebuffer(self.defaultFramebufferObject())
-		#self.ident_map = bytearray(w*h*IDENT_SIZE)
+		# self.sceeen has already been resized by Qt
+		#self.ident_frame.viewport = (0, 0, w, h)	# reallocate the framebuffer
+		self.ident_frame = self.ctx.simple_framebuffer((self.size().width(), self.size().height()), components=3, dtype='f1')
+		self.screen = self.ctx.detect_framebuffer(self.defaultFramebufferObject())
 		self.ident_map = np.empty((h,w), dtype='u2')
 		self.depth_map = np.empty((h,w), dtype='f4')
 		
@@ -262,6 +262,7 @@ class Scene(QGLWidget):
 		if name in self.ressources:	
 			return self.ressources[name]
 		elif callable(func):
+			self.makeCurrent()	# set the scene context as current opengl context
 			res = func(self)
 			self.ressources[name] = res
 			return res
@@ -338,10 +339,12 @@ class Scene(QGLWidget):
 			if already done since last render, returns immediately
 		'''
 		if not self.refreshed:
+			self.makeCurrent()	# set the scene context as current opengl context
 			self.ident_frame.read_into(self.ident_map, viewport=self.ident_frame.viewport, components=2)
 			self.ident_frame.read_into(self.depth_map, viewport=self.ident_frame.viewport, components=1, attachment=-1, dtype='f4')
 			self.refreshed = True
-			#Image.fromarray(self.ident_map).show()
+			#from PIL import Image
+			#Image.fromarray(self.ident_map*100).show()
 	
 	def objat(self, coords, radius=0):
 		''' return a tuple (obji, groupi) of the idents of the object and its group at the given screen coordinates '''
@@ -378,7 +381,9 @@ class Scene(QGLWidget):
 		else:
 			a,b = self.proj_matrix[2][2], self.proj_matrix[3][2]
 			depth = b/(depthred + a) * 0.53	# get the true depth  (can't get why there is a strange factor ... opengl trick)
-			#print('depth', depth, length(fvec3(self.view_matrix[3])))
+			#near, far = self.projection.limits  or settings.display['view_limits']
+			#depth = 2 * near / (far + near - depthred * (far - near))
+			#print('depth', depth, depthred)
 			return vec3(affineInverse(self.view_matrix) * fvec4(
 						depth * x /self.proj_matrix[0][0],
 						depth * y /self.proj_matrix[1][1],

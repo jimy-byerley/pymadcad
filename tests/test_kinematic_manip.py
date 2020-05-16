@@ -19,10 +19,12 @@ csts = [
 	]
 	
 import sys
+from PyQt5.QtCore import Qt, QCoreApplication
 from PyQt5.QtWidgets import QApplication
 from madcad.view import Scene
 from madcad.text import Text
 
+QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
 app = QApplication(sys.argv)
 scn = Scene()
 s0.visuals.append(mkwiredisplay(s0, csts))
