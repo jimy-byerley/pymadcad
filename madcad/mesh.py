@@ -12,7 +12,7 @@ from . import view
 from . import text
 from . import hashing
 
-__all__ = ['Mesh', 'Web', 'Wire', 'MeshError', 'web', 'edgekey', 'lineedges', 'striplist', 'suites', 'line_simplification']
+__all__ = ['Mesh', 'Web', 'Wire', 'MeshError', 'web', 'wire', 'edgekey', 'lineedges', 'striplist', 'suites', 'line_simplification']
 
 class MeshError(Exception):	pass
 
@@ -780,6 +780,31 @@ class Wire:
 	
 	def display(self, scene):
 		yield from web(self).display(scene)
+
+def wire(*args):
+	if not args:	raise TypeError('web take at least one argument')
+	if len(args) == 1:	args = args[0]
+	if isinstance(args, Wire):		return args
+	elif isinstance(args, Web):		
+		indices = suites(args.edges)
+		if len(indices) > 1:	raise ValueError('the given web has junctions')
+		return Wire(args.points, indices[0])
+	elif hasattr(args, 'mesh'):
+		return wire(args.mesh())
+	elif isinstance(args, list) and isinstance(args[0], vec3):
+		return Wire(args, list(range(len(args)-1)))
+	elif isinstance(args, tuple) and isinstance(args[0], vec3):
+		return Wire(list(args), list(range(len(args)-1)))
+	elif hasattr(args, '__iter__'):
+		pool = Wire([])
+		for primitive in args:
+			add = wire(primitive)
+			l = len(pool.points)
+			pool.points.extend(add.points)
+			pool.points.extend((i+l  for i in add.indices))
+		return pool
+	else:
+		raise TypeError('incompatible data type for Wire creation')
 		
 # --- common tools ----
 # connectivity:

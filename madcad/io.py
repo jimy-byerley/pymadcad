@@ -63,7 +63,7 @@ else:
 				if len(face) == 3:	# triangle
 					mesh.faces.append(tuple(face))
 				elif len(face) > 3:	# quad or other extended face
-					generation.triangulate(mesh, list(face))
+					mesh += triangulation.triangulation_outline(Wire(mesh.points, face))
 		else:
 			for face in faces.data:
 				mesh.faces.append(tuple(*face[:2]))

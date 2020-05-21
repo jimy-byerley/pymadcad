@@ -9,7 +9,7 @@ __all__ = [
 	'extrans', 'extrusion', 'revolution', 'saddle', 'tube',
 	'curvematch', 'join', 'junction', 'junctioniter',
 	'matchexisting', 'matchclosest', 'dividematch',
-	'triangulate', 'flatsurface', 'closeenvelope', 
+	'flatsurface',
 	]
 
 
@@ -319,65 +319,11 @@ def closeenvelope(mesh):	# TODO: refaire
 		hole.pop()
 		triangulate(mesh, hole)
 
-def triangulate(mesh, outline, group=None):
-	''' insert triangles in mesh in order to create a flat surface in the outline 
-		outline must be oriented
-		if group is specified, the new faces will use this group id
-	'''
-	if not group:	
-		group = len(mesh.groups)
-		mesh.groups.append('flat')
-	
-	# project outline points in a plane
-	x,y,z = makebase([mesh.points[i] for i in outline])
-	pts = [vec2(dot(mesh.points[p],x),dot(mesh.points[p],y)) for p in outline]
-	
-	# make sure the projection respects the outline rotation
-	i = max(range(len(pts)), key=lambda i: pts[i][0])
-	s = perpdot(pts[(i+1)%len(pts)]-pts[i], pts[i-1]-pts[i])
-	if s < 0:
-		for p in pts:	p[1] = -p[1]
-		
-	# create faces
-	while len(outline) > 2:
-		best_surf = -NUMPREC
-		index = None
-		l = len(pts)
-		for i in range(l):
-			o = pts[i]
-			u = pts[(i+1)%l] - o
-			v = pts[(i-1)%l] - o
-			#surf = perpdot(u,v) 
-			#surf = perpdot(u,v) / (length(u)+length(v)+length(u-v))		# ratio surface/perimeter -> leads to equilateral triangles
-			surf = anglebt(u,v)
-			# greatest surface
-			if surf < best_surf:	continue
-			# check hat there is not point of the outline inside the triangle
-			decomp = inverse(dmat2(u,v))
-			inside = False
-			for j,p in enumerate(pts):
-				if j != i and j != (i-1)%l and j != (i+1)%l:
-					uc,vc = decomp * dvec2(p-o)
-					if 0 < uc and 0 < vc and uc+vc < 1:
-						inside = True
-						break
-			if inside:	continue
-			# there is no more tests
-			best_surf = surf
-			index = i
-		
-		# create face using this vertex
-		if index is None: 
-			print(surf, best_surf)
-			raise MeshError("no more feasible triangles in "+str(outline))
-		mesh.faces.append((outline[(index-1)%l], outline[index], outline[(index+1)%l]))
-		mesh.tracks.append(group)
-		outline.pop(index)
-		pts.pop(index)
-
-
-def flatsurface(outline):
-	return triangulation.triangulation_outline(outline)
+def flatsurface(outline, normal=None):
+	m = triangulation.triangulation_outline(outline, normal)
+	if normal and dot(m.facenormal(0), normal) < 0:
+		m.flip()
+	return m
 
 def arclen(p1, p2, n1, n2):
 	''' approximated length of an arc between p1 and p2, with associated normals '''
