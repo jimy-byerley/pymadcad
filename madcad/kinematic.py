@@ -3,7 +3,7 @@ import moderngl as mgl
 
 from .mathutils import (fvec3, fmat4, vec3, vec4, mat3, mat4, quat, mat4_cast, quat_cast,
 						column, translate, inverse, isnan,
-						dot, cross, length, normalize, project, dirbase, distance,
+						dot, cross, length, normalize, project, noproject, dirbase, distance,
 						atan2, acos, angle, axis, angleAxis,
 						Box, transform)
 from .mesh import Mesh, Wire, web
@@ -100,6 +100,10 @@ class InSolid:	# TODO test
 cornersize = 0.1
 GAPROT = 0.5
 
+def solidtransform_axis(solid, obj):
+	rot = quat(solid.orientation)
+	return (rot*obj[0] + solid.position, rot*obj[1])
+
 class Pivot:
 	def __init__(self, s1, s2, a1, a2=None, position=None):
 		self.solids = (s1,s2)
@@ -107,6 +111,12 @@ class Pivot:
 		self.position = position or (self.axis[0][0], self.axis[1][0])
 	
 	slvvars = 'solids',
+	
+	def corrections(self):
+		axis = solidtransform_axis(self.solids[0], self.axis[0]), solidtransform_axis(self.solids[1], self.axis[1])
+		r = cross(axis[0][1], axis[1][1])
+		t = axis[1][0] - axis[0][0]
+		return Torsor(r,t,axis[0][0]), Torsor(-r,-t,axis[1][0])
 	
 	def fit(self):
 		orients = (quat(self.solids[0].orientation), quat(self.solids[1].orientation))
@@ -218,8 +228,11 @@ class Plane:
 		#print('  plane', s)
 		return s
 	
-	#def freedom(self):
-		#return (self.solids[0].orientation, self.axis[0][1]), (self.solids[0].position, dirbase(self.axis[0][1])[:2])
+	def corrections(self):
+		axis = solidtransform_axis(self.solids[0], self.axis[0]), solidtransform_axis(self.solids[1], self.axis[1])
+		r = cross(axis[0][1], axis[1][1])
+		t = project(axis[1][0] - axis[0][0], normalize(axis[0][1] + axis[1][1]))
+		return Torsor(r,t,axis[0][0]), Torsor(-r,-t,axis[1][0])
 	
 	def fit(self):
 		orients = (quat(self.solids[0].orientation), quat(self.solids[1].orientation))
@@ -268,8 +281,6 @@ class Near:
 		#self.lastref = ref*0.2 + self.lastref*0.8
 		return 0.2*gap, 0.2*rot
 		
-				
-def noproject(x,dir):	return x - project(x,dir)
 
 def mkwiredisplay(solid, constraints, size=None, color=None):
 	# get center and size of the solid's scheme
@@ -278,11 +289,14 @@ def mkwiredisplay(solid, constraints, size=None, color=None):
 	box = Box()
 	for cst in constraints:
 		if solid in cst.solids and cst.position:
+			print(cst.position)
+			pos = cst.position[cst.solids.index(solid)]
 			contrib += 1
-			center += cst.position[cst.solids.index(solid)]
-			box.union(cst.position)
+			center += pos
+			box.union(pos)
 	center /= contrib
 	if not size:	size = length(box.width)/len(constraints) or 1
+	print(size)
 	
 	# assemble junctions
 	scheme = Scheme([], [], [], [], color, solid.transform())
@@ -292,8 +306,29 @@ def mkwiredisplay(solid, constraints, size=None, color=None):
 	
 	return scheme
 
-def faceoffset(o):
-	return lambda f: (f[0]+o, f[1]+o, f[2]+o)
+from .mathutils import glm
+def makescheme(constraints, color=None):
+	# collect solids informations
+	solids = {}
+	diag = vec3(0)
+	for cst in constraints:
+		for solid, pos in zip(cst.solids, cst.position):
+			if id(solid) not in solids:
+				solids[id(solid)] = info = [solid, [], vec3(0), 0]
+			info[1].append(cst)
+			v = pos - solid.position
+			info[2] += v
+			info[3] += 1
+			diag = glm.max(diag, glm.abs(v))
+	# get the junction size
+	size = (max(diag) or 1) / len(constraints)
+	
+	for info in solids.values():
+		scheme = Scheme([], [], [], [], color, solid.transform())
+		center = info[2]/info[3]
+		for cst in info[1]:
+			scheme.extend(cst.scheme(info[0], size, center))
+		info[0].visuals.append(scheme)
 
 
 
@@ -309,8 +344,6 @@ class Scheme:
 	def extend(self, other):
 		l = len(self.points)
 		self.points.extend(other.points)
-		#self.opacfaces.extend(map(faceoffset(l), other.opaqfaces))		# create a faceoffset function
-		#self.opacfaces.extend([f+l for f in other.opaqfaces])		# use ivec as faces and edges
 		self.transpfaces.extend(((a+l,b+l,c+l) for a,b,c in other.transpfaces))
 		self.opaqfaces.extend(((a+l,b+l,c+l) for a,b,c in other.opaqfaces))
 		self.lines.extend(((a+l, b+l)  for a,b in other.lines))
@@ -419,6 +452,118 @@ class WireDisplay:
 		if self.vb_lines:			self.va_ident_lines.render(mgl.LINES)
 		return 1
 
+from math import inf
+def solvekin(joints, fixed=(), precision=1e-4, maxiter=None, damping=0.5):
+	# register solids and corrections
+	solids = []
+	register = {}
+	counts = []
+	indices = []
+	fixed = set((id(solid) for solid in fixed))
+	for joint in joints:
+		for solid in joint.solids:
+			if id(solid) in fixed:
+				indices.append(-1)
+			else:
+				if id(solid) not in register:
+					register[id(solid)] = i = len(register)
+					solids.append(solid)
+					counts.append(0)
+				else:	
+					i = register[id(solid)]
+				counts[i] += 1
+				indices.append(i)
+	
+	corrmax = inf
+	itercount = 0
+	while corrmax > precision:
+		#corrmax = 0
+		# collect corrections
+		corr = [[] for i in range(len(solids))]
+		i = 0
+		for joint in joints:
+			for action in joint.corrections():
+				if indices[i] >= 0:
+					corr[indices[i]].append(action)
+				i += 1
+		for solid,corrections in zip(solids, corr):
+			# corrections are displacement torsors, (similar to kinematic torsor) therefore the translation is the momentum and the rotation is the resulting
+			l = len(corrections)
+			v = vec3(0)
+			w = vec3(0)
+			center = vec3(0)
+			'''
+			for c in corrections:
+				v += c.momentum
+				center += c.position
+			v /= l
+			center /= l
+			for c in corrections:
+				r = length(c.position-center) + 1e-15
+				induced = cross(c.momentum-v, c.position-center) / r**2
+				lind = length(induced)
+				if lind > 1:	induced /= lind
+				w += c.resulting - induced
+				corrmax = max(corrmax, length(c.momentum), length(c.resulting)*r)
+			w /= 2*l
+			'''
+			for c in corrections:
+				center += c.position
+			center /= l
+			for c in corrections:
+				v += c.locate(center).momentum
+				w += c.resulting
+			v /= l
+			w /= l
+			w2 = vec3(0)
+			tot = 0
+			for c in corrections:
+				r = length(c.position-center) + 1e-15
+				w2 += cross(c.momentum - v, c.position-center) /r
+				tot += r
+			w = (w - w2/tot)/2
+			
+			solid.position += v*damping
+			#solid.orientation += w*damping
+			#solid.orientation += inverse(quat(solid.orientation)) * (w*damping)
+			nrot = quat(w*damping) * quat(solid.orientation)
+			solid.orientation = angle(nrot)*axis(nrot)
+			
+		if maxiter and maxiter == itercount:	
+		
+			print()
+			for solid in solids:
+				print(solid.position, solid.orientation)
+			return
+			#raise constraints.SolveError('maximum iteration count reached with no solution found, err='+str(corrmax))
+		itercount += 1
+	
+	
+	
+class Torsor:
+	__slots__ = ('resulting', 'momentum', 'position')
+	def __init__(self, resulting=None, momentum=None, position=None):
+		self.resulting, self.momentum, self.position = resulting or vec3(0), momentum or vec3(0), position or vec3(0)
+	def locate(self, pt):
+		return Torsor(self.momentum, self.resulting + cross(self.momentum, pt-self.position), pt)
+	#def transform(self):
+		# donne la matrice de l'application affine de la position vers la resultante
+		#return transform(self.position) * transform(self.resulting, self.momentum) * transform(-self.position)
+	
+	def __add__(self, other):
+		if other.position != self.position:		other = other.locate(self.position)
+		return Torsor(self.resulting+other.resulting, self.momentum+other.momentum, self.position)
+	
+	def __sub__(self, other):
+		if other.position != self.position:		other = other.locate(self.position)
+		return Torsor(self.resulting-other.resulting, self.momentum-other.momentum, self.position)
+	
+	def __neg__(self):
+		return Torsor(-self.resulting, -self.momentum, self.position)
+
+def comomentum(t1, t2):
+	t2 = t2.locate(t1.position)
+	return dot(t1.momentum, t2.resulting) + dot(t2.momentum, t1.resulting)
 
 
 from PyQt5.QtCore import QEvent	
@@ -434,14 +579,14 @@ class Kinemanip:
 	'''
 	renderindex = 0
 	
-	def __init__(self, scene, csts, root):
+	def __init__(self, scene, csts, root, scheme=False):
 		self.csts, self.root = csts, root
 		self.locked = {id(root): root}
 		self.primitives = {}
 		self.debug_label = None
-		
-		
 		self.reproblem()
+		if scheme:
+			makescheme(self.csts)
 	
 	def display(self, scene):
 		for cst in self.csts:
@@ -483,14 +628,9 @@ class Kinemanip:
 			self.debug_label.position = fvec3(pt)
 			store(self.actsolid.position, pt+quat(self.actsolid.orientation)*self.ptoffset)
 			# solve
-			try:	self.problem.solve(precision=1e-3, method=method, maxiter=50)
+			#try:	self.problem.solve(precision=1e-3, method=method, maxiter=50)
+			try:	solvekin(self.csts, self.locked.values(), precision=1e-3, maxiter=50)
 			except constraints.SolveError as err:	print(err)
-			# assign new positions to displays
-			for primitive,displays in self.primitives.values():
-				trans = fmat4(*primitive.transform())
-				for disp in displays:
-					if hasattr(disp, 'transform'):
-						disp.transform = trans
 		else:
 			if not self.moved:
 				self.lock(self.actsolid, id(self.actsolid) not in self.locked)
@@ -500,6 +640,12 @@ class Kinemanip:
 				except constraints.SolveError as err:	print(err)
 			scene.tool = None
 		
+		# assign new positions to displays
+		for primitive,displays in self.primitives.values():
+			trans = fmat4(*primitive.transform())
+			for disp in displays:
+				if hasattr(disp, 'transform'):
+					disp.transform = trans
 		scene.update()
 		return True
 	
