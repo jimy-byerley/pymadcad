@@ -1,3 +1,35 @@
+'''	Display module of pymadcad
+	
+	This module provide a Qt widget 'Scene' to handle user events and implements a graphic pipeline for the displayed objects
+	The objects displayed can be of any type but must implement the display protocol
+	
+	display protocol
+	----------------
+		a displayable is an object that have a method `display() -> iterator` returning an iterable of display objects
+		a display object is a part of the rendering pipeline.
+		these are defined as follow:
+			- a class/object member  `renderindex`
+				used to determine the place of this display in the pipeline (the bigger will be rendered the latter)
+			- a method `render(scene)`
+			- a method `identify(scene, startindex) -> (num of indices)`
+				used to render a map of ids for selectable regions
+				if there is no selectable regions, just return 0
+		
+		displays can implement a selection method
+			- a method `select(idents, state=None)`	
+				setting the selection state of the ident(s) passed, or returning them if state is None
+			NOTE: to be useful, the idents used here must be the same as those baked by `identify`
+		
+		displays can defines a custom user control callback (user actions triggered when the display is being clicked):
+			when an object is clicked on, its method `control(scene, ident, event) -> callable` is called
+			the returned object is called for each further action on the view, until the called procedure assign `view.tool = None`
+	
+	NOTE
+	----
+		Unfortunately it's not possible to get a multi-view scene. This is due to some Qt limitations (and design choices), that Qt is using separated opengl contexts for each independent widgets. (actually there is ways to deal with data sharing across contexts but it would be very complex to implement it with the objects exposed here)
+'''
+
+
 import numpy.core as np
 from PIL import Image
 import moderngl as mgl
@@ -96,12 +128,12 @@ class Scene(QOpenGLWidget):
 		Attributes defined here:
 			
 		* objs			list of the objects to render, in the render order. The user can hack into it
-		* projection
-		* manipulator
+		* projection	an object with a method `matrix(aspectration)` that provide the perspective projection matrix
+		* manipulator	an object with a method `matrix()` that provide the world->camera matrix
 		* ctx			the mgl context used for renders
 	'''
 	
-	def __init__(self, parent=None, objects=(), projection=None, manipulator=None):
+	def __init__(self, objects=(), projection=None, manipulator=None, parent=None):
 		# vieille version: QGLWidget, qui plante quand on écrit du texte
 		#fmt = QGLFormat()
 		#fmt.setVersion(*opengl_version)
@@ -115,6 +147,7 @@ class Scene(QOpenGLWidget):
 		fmt.setProfile(QSurfaceFormat.CoreProfile)
 		fmt.setSamples(4)
 		self.setFormat(fmt)
+		self.setFocusPolicy(Qt.StrongFocus)
         
 		self.projection = projection or Perspective()
 		self.manipulator = manipulator or Turntable()
@@ -126,7 +159,6 @@ class Scene(QOpenGLWidget):
 		self.ident_steps = []
 		self.queue = []
 		
-		self.drag = False
 		self.ctx = None		# opengl context, that is None when no yet initialized
 		
 		# mouse modes
@@ -138,8 +170,9 @@ class Scene(QOpenGLWidget):
 			}
 		self.speckeys = 0b00
 		self.mode = self.modes[self.speckeys]
-		self.modelock = False
 		self.tool = None
+		
+		for obj in objects:	self.add(obj)
 	
 	
 	def initializeGL(self):	pass
@@ -150,12 +183,12 @@ class Scene(QOpenGLWidget):
 		self.screen = self.ctx.detect_framebuffer(self.defaultFramebufferObject()) # new glwidget
 		self.ident_frame = self.ctx.simple_framebuffer((self.size().width(), self.size().height()), components=3, dtype='f1')
 		self.ident_shader = self.ctx.program(
-						vertex_shader=open('shaders/identification.vert').read(),
-						fragment_shader=open('shaders/identification.frag').read(),
+						vertex_shader=open('shaders/object-ident.vert').read(),
+						fragment_shader=open('shaders/ident.frag').read(),
 						)
 		self.subident_shader = self.ctx.program(
-						vertex_shader=open('shaders/subidentification.vert').read(),
-						fragment_shader=open('shaders/subidentification.frag').read(),
+						vertex_shader=open('shaders/object-item-ident.vert').read(),
+						fragment_shader=open('shaders/ident.frag').read(),
 						)
 		self.init()
 		self.render()
@@ -296,20 +329,28 @@ class Scene(QOpenGLWidget):
 	
 		x,y = evt.x(), evt.y()
 		b = evt.button()
+		# find the navigation current mode
 		if b == Qt.LeftButton:
 			self.mode = self.modes[self.speckeys]
 		elif b == Qt.MiddleButton:
 			self.mode = (self.manipulator.rotatestart, self.manipulator.rotating)
-		
+		# navigate if a mode is on
 		if self.mode[0]:
 			self.mouse_clicked = (x,y)	# movement origin
 			self.mode[0]()
 		else:
+			# search for object interaction
 			h,w = self.ident_frame.viewport[2:]
 			clicked = self.objat((x,y), 10)
 			if clicked: 
 				grp,rdr = self.stack[clicked[0]]
-				self.tool = rdr.control(self, grp, clicked[1], (x, y))
+				# right-click is the selection button
+				if b == Qt.RightButton and hasattr(rdr, 'select'):
+					#rdr.select(grp, not rdr.select(grp))
+					rdr.select(clicked[1], not rdr.select(clicked[1]))
+				# other clicks are for custom controls
+				elif hasattr(rdr, 'control'):
+					self.tool = rdr.control(self, grp, clicked[1], (x, y))
 
 	def mouseMoveEvent(self, evt):
 		self.update()
@@ -344,7 +385,7 @@ class Scene(QOpenGLWidget):
 			self.ident_frame.read_into(self.depth_map, viewport=self.ident_frame.viewport, components=1, attachment=-1, dtype='f4')
 			self.refreshed = True
 			#from PIL import Image
-			#Image.fromarray(self.ident_map*100).show()
+			#Image.fromarray(self.ident_map*10).show()
 	
 	def objat(self, coords, radius=0):
 		''' return a tuple (obji, groupi) of the idents of the object and its group at the given screen coordinates '''
@@ -430,13 +471,20 @@ def snailaround(pt, box, radius):
 			yield x,y
 
 
-class View(QWidget):
-	# add some buttons and menus to customize the view
+def quickdisplay(objs):
+	''' shortcut to create a QApplication showing only one view with the given objects inside.
+		the functions returns when the window has been closed and all GUI destroyed
+	'''
+	import sys
+	from PyQt5.QtCore import Qt, QCoreApplication
+	from PyQt5.QtWidgets import QApplication
 	
-	def __init__(self, parent=None, scene=None):
-		super().__init__(self, parent)
-		self.scene = scene
-		scene.setParent(self)
+	QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
+	app = QApplication(sys.argv)
+	scn = Scene(objs)
+	scn.show()
+	err = app.exec()
+	if err != 0:	print('Qt exited with code', err)
 
 
 
@@ -501,7 +549,7 @@ class SolidDisplay:
 		
 		### allocate buffers ##
 		self.vb_positions = ctx.buffer(np.array(positions, dtype='f4', copy=False))
-		self.vb_flags = ctx.buffer(self.flags)
+		self.vb_flags = ctx.buffer(self.flags, dynamic=True)
 		
 		if faces is not None:
 			if positions.shape[0] != vertexnormals.shape[0]:		
@@ -593,7 +641,6 @@ class SolidDisplay:
 	
 	def control(self, scene, grp, ident, evt):
 		self.select(ident, not self.select(ident))
-		return None
 	
 	def select(self, idents, state=None):
 		mask = 0b1
@@ -610,9 +657,9 @@ class SolidDisplay:
 class WireDisplay:
 	''' wireframe with group selection '''
 	renderindex = 1
-	def __init__(self, scene, points, edges, idents=None, color=None, transform=None):
+	def __init__(self, scene, points, edges, idents=None, color=None, transform=fmat4(1)):
 		ctx = scene.ctx
-		self.transform = fmat4(*transform or 1)
+		self.transform = fmat4(*transform)
 		self.color = fvec3(color or settings.display['line_color'])
 		
 		self.idents = idents
@@ -668,7 +715,6 @@ class WireDisplay:
 			
 	def control(self, scene, grp, ident, evt):
 		self.select(ident, not self.select(ident))
-		return None
 	
 	def select(self, idents, state=None):
 		mask = 0b1

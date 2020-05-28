@@ -3,6 +3,10 @@ from PyQt5.QtWidgets import QApplication
 from madcad.mathutils import vec3
 from madcad.mesh import Mesh, Web, Wire
 from madcad.view import *
+from madcad.displays import *
+
+app = QApplication(sys.argv)
+scn = Scene()
 
 m = Mesh(
 	[
@@ -29,6 +33,7 @@ m = Mesh(
 		(4, 3, 7)],
 	list(range(12)),
 	)
+scn.add(m)
 
 w = Web(
 	[	
@@ -46,13 +51,11 @@ w = Web(
 	list(range(12)),
 	)
 w.transform(vec3(0,0,2))
-
-app = QApplication(sys.argv)
-scn = Scene()
-scn.add(m)
 scn.add(w)
-scn.look(Box(center=fvec3(0), width=fvec3(1)))
 
+scn.add(Displayable(PointDisplay, vec3(1,1,1)))
+
+scn.look(Box(center=fvec3(0), width=fvec3(1)))
 scn.show()
 sys.exit(app.exec())
 
