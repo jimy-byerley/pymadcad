@@ -47,7 +47,9 @@ def chamfer(mesh, line, cutter):
 			lp = []
 			for part in suites(s):
 				lp.extend(part)
-			gt.triangulate(mesh, lp, group)
+			faces = gt.flatsurface(Wire(mesh.points, lp)).faces
+			mesh.faces.extend(faces)
+			mesh.tracks.extend([group]*len(faces))
 
 def bevel3(mesh, line, cutter, interpol=spline, resolution=None):
 	''' create a round profile on the given suite of points, create faces form cylindric surfaces.
