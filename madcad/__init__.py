@@ -2,7 +2,9 @@
 
 	main concepts
 	-------------
-		TODO
+		- built on the idea that current parametric softwares, such as Catia or OpenCascade, are leading to very messy and tricky softwares (just look at their GUI!)
+		- procedural engineering design library
+		- full python code for great clearity of the algorithms, polyvalence, extensibility, and intuitive use
 	
 	data types
 	----------
@@ -20,17 +22,17 @@ from . import (
 		io, hashing, triangulation,
 	)
 # gui
-from . import view, text
+from . import view, text, displays
 
 # the most common tools, imported to access it directly from madcad
 from .mathutils import *
-from .mesh import Mesh, Web, Wire, MeshError, web
+from .mesh import Mesh, Web, Wire, MeshError, web, wire, suites
 from .boolean import difference, union, intersection
 from .cut import chamfer, bevel, beveltgt, planeoffsets
 from .generation import flatsurface, junction, extrans, extrusion, revolution, saddle, tube, icosurface
 from .primitives import Point, Axis, Segment, ArcThrough, ArcCentered, Circle
 from .constraints import SolveError, Tangent, Distance, Angle, Parallel, Radius, Projected, PointOn, solve
-from .kinematic import Solid, InSolid, Pivot, Plane
+from .kinematic import Solid, InSolid, Pivot, Plane, Kinemanip
 from .selection import select
 from .io import read, write
 from .triangulation import TriangulationError
