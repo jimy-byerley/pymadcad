@@ -127,9 +127,10 @@ class Scene(QOpenGLWidget):
 	''' Scene widget to display CAD objects 
 		Attributes defined here:
 			
-		* objs			list of the objects to render, in the render order. The user can hack into it
+		* groups		list of the displays for rendering, grouped by the insertion index
 		* projection	an object with a method `matrix(aspectration)` that provide the perspective projection matrix
 		* manipulator	an object with a method `matrix()` that provide the world->camera matrix
+		* options		a dict of rendering options used by default by displays, this is overloaded by assining the member 'options' of a display
 		* ctx			the mgl context used for renders
 	'''
 	
@@ -149,9 +150,12 @@ class Scene(QOpenGLWidget):
 		self.setFormat(fmt)
 		self.setFocusPolicy(Qt.StrongFocus)
         
+        # user members
 		self.projection = projection or Perspective()
 		self.manipulator = manipulator or Turntable()
 		self.ressources = {}
+		# display rendering options
+		self.options = deepcopy(settings.scene)
 		
 		self.groups = []
 		self.layers = []
@@ -249,12 +253,15 @@ class Scene(QOpenGLWidget):
 					for _ in range(len(self.layers), rdr.renderindex+1):	
 						self.layers.append([])
 					self.layers[rdr.renderindex].append((grp,rdr))
-			# regenerate the display stack
-			self.stack = []
-			for layer in self.layers:	self.stack.extend(layer)
-			self.ident_steps = [0] * len(self.stack)
+			self.restack()
 			# empty the queue
 			self.queue = []
+	
+	def restack(self):
+		# regenerate the display stack
+		self.stack = []
+		for layer in self.layers:	self.stack.extend(layer)
+		self.ident_steps = [0] * len(self.stack)
 	
 	def add(self, obj):
 		''' add an object to the scene
@@ -262,7 +269,7 @@ class Scene(QOpenGLWidget):
 		'''
 		# find group id
 		grp = 0
-		while grp < len(self.groups) and grp != self.groups[grp]:		grp += 1
+		while grp < len(self.groups) and grp == self.groups[grp]:		grp += 1
 		# register object
 		self.groups.insert(grp,grp)
 		self.queue.append((grp,obj))
@@ -285,6 +292,7 @@ class Scene(QOpenGLWidget):
 				if layer[i][0] == grp:	poped.append(layer.pop(i))
 				else:					i += 1
 		self.groups.remove(grp)
+		self.restack()
 		return poped
 		
 	
@@ -516,7 +524,6 @@ class SolidDisplay:
 		self.flags = np.zeros(len(positions), dtype='u1')
 		self.flags_updated = True
 		self.idents = idents
-		self.displays = set()
 		
 		def load(scene):
 			img = Image.open('textures/skybox.png')

@@ -12,6 +12,7 @@ display = {
 	'view_font_size': 8,
 	'field_of_view': pi/6,
 	'view_limits': (0.1, 1024.),
+	
 	'solid_color': (0.2, 0.2, 0.2),
 	'solid_color_front': 1.,
 	'solid_color_side': 0.2,
@@ -22,6 +23,13 @@ display = {
 	'line_width': 1.,
 	}
 
+scene = {
+	'display_faces': True,
+	'display_groups': True,
+	'display_points': False,
+	'display_wire': False,
+	}
+		
 controls = {
 	'zoom_sensitivity':	1.,
 	'orbit_sensitivity': 4.,

@@ -9,6 +9,7 @@ from array import array
 import math
 from .mathutils import Box, vec3, vec4, mat3, mat4, quat, mat3_cast, cross, dot, normalize, length, distance, project, noproject, anglebt, NUMPREC
 from . import view
+from . import displays
 from . import text
 from . import hashing
 
@@ -412,7 +413,7 @@ class Mesh(Container):
 			idents.append(i)
 			idents.append(i)
 		
-		yield view.SolidDisplay(scene,
+		yield displays.SolidDisplay(scene,
 			points[np.array(self.faces, dtype='u4')].reshape((len(self.faces)*3,3)),
 			np.hstack((fn, fn, fn)).reshape((len(self.faces)*3,3)),
 			faces = np.array(range(3*len(self.faces)), dtype='u4').reshape(len(self.faces),3),
@@ -470,7 +471,7 @@ class Mesh(Container):
 		for i in range(0,len(normals)):
 			normals[i] = normalize(normals[i])
 		
-		return view.SolidDisplay(scene,
+		return displays.SolidDisplay(scene,
 			glmarray(points),
 			glmarray(normals),
 			faces,
@@ -628,13 +629,33 @@ class Web(Container):
 	# --- extraction methods ---
 		
 	def extremities(self):
-		''' return the points that are used once only '''
+		''' return the points that are used once only (so at wire terminations)
+			1D equivalent of Mesh.outlines()
+		'''
 		extr = set()
 		for l in self.edges:
 			for p in l:
 				if p in extr:	extr.remove(p)
 				else:			extr.add(p)
 		return extr
+	
+	def groupextremities(self):
+		''' return the points that split groups appart.
+			1D equivalent of Mesh.groupoutlines()
+		'''
+		indices = []
+		tmp = {}
+		# insert points belonging to different groups
+		for i,edge in enumerate(self.edges):
+			for p in edge:
+				if p in tmp:
+					if self.tracks[tmp[p]] != self.tracks[tmp[i]]:
+						indices.append(p)
+					del tmp[p]
+				else:
+					tmp[p] = i
+		indices.extend(tmp.keys())
+		return Wire(self.points, indices)
 	
 	def length(self):
 		''' total length of edges '''
@@ -668,6 +689,7 @@ class Web(Container):
 		points = []
 		idents = []
 		edges = []
+		frontiers = []
 		def usept(pi, ident, used):
 			if used[pi] >= 0:	
 				return used[pi]
@@ -679,13 +701,20 @@ class Web(Container):
 		
 		for group in range(len(self.groups)):
 			used = [-1]*len(self.points)
+			frontier = set()
 			for edge,track in zip(self.edges, self.tracks):
 				if track != group:	continue
 				edges.append((usept(edge[0], track, used), usept(edge[1], track, used)))
+				for p in edge:
+					if p in frontier:	frontier.remove(p)
+					else:				frontier.add(p)
+			for p in frontier:
+				frontiers.append(used[p])
 				
-		yield view.WireDisplay(scene,
+		yield displays.WebDisplay(scene,
 				glmarray(points), 
 				edges,
+				frontiers,
 				idents,
 				color=self.options.get('color'))
 
