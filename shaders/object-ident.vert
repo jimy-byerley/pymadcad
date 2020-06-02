@@ -4,7 +4,6 @@
 #version 330
 
 in vec3 v_position;	// vertex position
-uniform mat4 pose;
 uniform mat4 view;	// view matrix (camera orientation)
 uniform mat4 proj;	// projection matrix (perspective or orthographic)
 uniform uint ident;
