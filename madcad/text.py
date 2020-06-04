@@ -62,7 +62,7 @@ class TextDisplay:
 		
 		# load font
 		def load(scene):
-			img, align = create_font_texture(ImageFont.truetype(ressourcedir+'NotoMono-Regular.ttf', 2*size))
+			img, align = create_font_texture(ImageFont.truetype(ressourcedir+'/NotoMono-Regular.ttf', 2*size))
 			return scene.ctx.texture(img.size, 1, img.tobytes()), align
 		self.fonttex, self.fontalign = scene.ressource(('fonttex', size), load)
 		
