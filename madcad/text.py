@@ -1,6 +1,7 @@
 from PIL import Image, ImageFont, ImageDraw
 import numpy.core as np
 import moderngl as mgl
+from .common import ressourcedir
 from .mathutils import fvec3, fvec4, fmat4, ceil, sqrt
 from . import settings
 
@@ -61,15 +62,15 @@ class TextDisplay:
 		
 		# load font
 		def load(scene):
-			img, align = create_font_texture(ImageFont.truetype('NotoMono-Regular.ttf', 2*size))
+			img, align = create_font_texture(ImageFont.truetype(ressourcedir+'NotoMono-Regular.ttf', 2*size))
 			return scene.ctx.texture(img.size, 1, img.tobytes()), align
 		self.fonttex, self.fontalign = scene.ressource(('fonttex', size), load)
 		
 		# load shader
 		def load(scene):
 			shader = scene.ctx.program(
-						vertex_shader=open('shaders/font.vert').read(),
-						fragment_shader=open('shaders/font.frag').read(),
+						vertex_shader=open(ressourcedir+'/shaders/font.vert').read(),
+						fragment_shader=open(ressourcedir+'/shaders/font.frag').read(),
 						)
 			shader['fonttex'].value = 0
 			return shader
@@ -149,7 +150,7 @@ def test_text_display():
 	sys.exit(app.exec())
 
 def test_font_texture():
-	im, shape = create_font_texture(ImageFont.truetype('NotoMono-Regular.ttf', 16))
+	im, shape = create_font_texture(ImageFont.truetype(ressourcedir+'NotoMono-Regular.ttf', 16))
 	im.show()
 
 

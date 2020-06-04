@@ -1,6 +1,7 @@
-from .mathutils import fvec3, fvec4, fmat4, mix
+from .mathutils import fvec3, fvec4, fmat4, mix, normalize, length, distance, noproject
 from . import settings
 from . import view
+from .common import ressourcedir
 from PIL import Image
 import numpy.core as np
 import moderngl as mgl
@@ -22,17 +23,17 @@ class PointDisplay:
 		self.transform = fmat4(*transform)
 		
 		def load(scene):
-			img = Image.open('textures/point.png')
+			img = Image.open(ressourcedir+'/textures/point.png')
 			texture = scene.ctx.texture(img.size, 1, img.convert('L').tobytes())
 			#self.texture = scene.ressource('pointtex', load)
 			shader = scene.ctx.program(
-						vertex_shader=open('shaders/pointhalo.vert').read(),
-						fragment_shader=open('shaders/pointhalo.frag').read(),
+						vertex_shader=open(ressourcedir+'/shaders/pointhalo.vert').read(),
+						fragment_shader=open(ressourcedir+'/shaders/pointhalo.frag').read(),
 						)
 			shader['halotex'].value = 0
 			ident_shader = scene.ctx.program(
-						vertex_shader=open('shaders/pointhalo-ident.vert').read(),
-						fragment_shader=open('shaders/ident.frag').read(),
+						vertex_shader=open(ressourcedir+'/shaders/pointhalo-ident.vert').read(),
+						fragment_shader=open(ressourcedir+'/shaders/ident.frag').read(),
 						)
 			#self.shader = scene.ressource('pointhalo', load)
 			vb = scene.ctx.buffer(np.array([(0,0), (0,1), (1,1), (0,0), (1,1), (1,0)], 'f4'))
@@ -93,12 +94,12 @@ class AxisDisplay:
 	
 	def load(self, scene):
 		shader = scene.ctx.program(
-					vertex_shader=open('shaders/axis.vert').read(),
-					fragment_shader=open('shaders/axis.frag').read(),
+					vertex_shader=open(ressourcedir+'/shaders/axis.vert').read(),
+					fragment_shader=open(ressourcedir+'/shaders/axis.frag').read(),
 					)
 		ident_shader = scene.ctx.program(
-					vertex_shader=open('shaders/axis-ident.vert').read(),
-					fragment_shader=open('shaders/ident.frag').read(),
+					vertex_shader=open(ressourcedir+'/shaders/axis-ident.vert').read(),
+					fragment_shader=open(ressourcedir+'/shaders/ident.frag').read(),
 					)
 		pts = []
 		for i in range(-1, self.repetitions+1):
@@ -138,44 +139,99 @@ class AxisDisplay:
 		if state is not None:	self.selected = state
 		else:					return self.selected
 
-class LengthMeasure:
+
+class AnnotationDisplay:
 	renderindex = 1
-	def __init__(self, scene, a, b, text=None, location=None, color=None, arrows=None, transform=fmat4(1)):
+	def __init__(self, scene, points, alpha, color, transform):
 		self.color = fvec3(color or settings.display['annotation_color'])
 		self.transform = fmat4(*transform)
+		self.selected = False
+		# load shader
+		def load(scene):
+			return scene.ctx.program(
+						vertex_shader=open(ressourcedir+'/shaders/annotation.vert').read(),
+						fragment_shader=open(ressourcedir+'/shaders/annotation.frag').read(),
+						)
+		self.shader = scene.ressource('shader_annotation', load)
+		# allocate buffers
+		vb_pts = scene.ctx.buffer(np.hstack((
+				np.array([tuple(p) for p in points], 'f4'), 
+				np.array(alpha, 'f4', ndmin=2).transpose(),
+				)))
+		self.va = scene.ctx.vertex_array(self.shader, [(vb_pts, '3f f', 'v_position', 'v_alpha')])
+		self.va_idents = scene.ctx.vertex_array(scene.ident_shader, [(vb_pts, '3f', 'v_position')])
+
+	def render(self, scene):
+		self.shader['color'].write(fvec3(settings.display['select_color_line']) if self.selected else self.color)
+		self.shader['proj'].write(scene.proj_matrix)
+		self.shader['view'].write(scene.view_matrix * self.transform)
+		self.va.render(mgl.LINES)
+	
+	def identify(self, scene, startident):
+		scene.ident_shader['proj'].write(scene.proj_matrix)
+		scene.ident_shader['view'].write(scene.view_matrix * self.transform)
+		scene.ident_shader['ident'] = startident
+		self.va_idents.render(mgl.LINES)
+		return 1
+		
+	def control(self, scene, grp, ident, evt):
+		self.selected = not self.selected
+	
+	def select(self, idents, state=None):
+		if state is not None:	self.selected = state
+		else:					return self.selected
+
+
+class LengthMeasure(AnnotationDisplay):
+	def __init__(self, scene, a, b, location=None, color=None, arrows=None, transform=fmat4(1)):
+		# place points
 		middle = (a + b)/2
 		if not location:	location = middle
 		dir = normalize(a-b)
 		top = noproject(location-middle, dir)
-		sizeref = max(distance(a,b), length(top))
-		arrowx = sizeref*0.1*dir
-		arrowy = sizeref*0.06*normalize(top)
-		pts = [	a, a+top, 
-				a+top-arrowx-arrowy, a+top-arrowx+arrowy,
-				b, b+top,
-				b+top+arrowx-arrowy, b+top+arrowx+arrowy,
+		topdist = length(top)
+		sizeref = max(distance(a,b), topdist)
+		arrowx = sizeref*0.05*dir
+		arrowy = sizeref*0.03*(top/topdist if topdist else fvec3(1,0,0))
+		pts = [	a, a+top+arrowy*0.75, 
+				a+top, a+top-arrowx-arrowy, 
+				a+top, a+top-arrowx+arrowy,
+				b, b+top+arrowy*0.75, 
+				b+top, b+top+arrowx-arrowy, 
+				b+top, b+top+arrowx+arrowy,
+				a+top, b+top,
 			]
-		lines = [	0,1,  0,2,  0,3,
-					1,5,
-					4,5,  5,6,  5,7,	]
-					
-		def load(scene):
-			return scene.ctx.program(
-						vertex_shader=open('shaders/uniformcolor.vert').read(),
-						fragment_shader=open('shaders/uniformcolor.frag').read(),
-						)
-		self.shader = scene.ressource('shader_uniformcolor', load)
-		vb_pts = scene.ctx.buffer(np.array(pts, 'f4'))
-		vb_lines = scene.ctx.buffer(np.array(lines, 'u1'))
-		self.va = scene.ctx.vertex_array(self.shader, [(vb_pts, '3f', 'v_position')], vb_lines)
-		self.va_idents = scene.ctx.vertex_array(scene.ident_shader, [(vb_pts, '3f', 'v_position')], vb_lines)
+		a = 0.4
+		alpha = [a, a, 1, 1, 1, 1, a, a, 1, 1, 1, 1, 1, 1]
+		self.textplace = (a+b)/2 + top
 
-	def render(self, scene):
-		self.shader['color'].write(self.color)
-		self.shader['proj'].write(scene.proj)
-		self.shader['view'].write(scene.view)
-		self.va.render(mgl.LINES)
+		super().__init__(scene, pts, alpha, color, transform)
 
+class ArcMeasure(AnnotationDisplay):
+	def __init__(self, scene, arc, location=None, color=None, arrows=None, transform=fmat4(1)):
+		# place points
+		middle = (a + b)/2
+		if not location:	location = middle
+		dir = normalize(a-b)
+		top = noproject(location-middle, dir)
+		topdist = length(top)
+		sizeref = max(distance(a,b), topdist)
+		arrowx = sizeref*0.05*dir
+		arrowy = sizeref*0.03*(top/topdist if topdist else fvec3(1,0,0))
+		pts = [	a, a+top+arrowy*0.75, 
+				a+top, a+top-arrowx-arrowy, 
+				a+top, a+top-arrowx+arrowy,
+				b, b+top+arrowy*0.75, 
+				b+top, b+top+arrowx-arrowy, 
+				b+top, b+top+arrowx+arrowy,
+				a+top, b+top,
+			]
+		a = 0.4
+		alpha = [a, a, 1, 1, 1, 1, a, a, 1, 1, 1, 1, 1, 1]
+		self.textplace = (a+b)/2 + top
+		
+		super().__init__(scene, pts, alpha, color, transform)
+	
 
 class SolidDisplay:
 	''' Display render Meshes '''
@@ -276,15 +332,15 @@ class FacesDisplay:
 	
 		# load the skybox texture
 		def load(scene):
-			img = Image.open('textures/skybox.png')
-			return scene.ctx.texture(img.size, 4, img.tobytes())
+			img = Image.open(ressourcedir+'/textures/skybox-violet.png')
+			return scene.ctx.texture(img.size, 3, img.tobytes())
 		self.reflectmap = scene.ressource('skybox', load)
 		
 		# load the shader
 		def load(scene):
 			shader = scene.ctx.program(
-						vertex_shader=open('shaders/solid.vert').read(),
-						fragment_shader=open('shaders/solid.frag').read(),
+						vertex_shader=open(ressourcedir+'/shaders/solid.vert').read(),
+						fragment_shader=open(ressourcedir+'/shaders/solid.frag').read(),
 						)
 			# setup some uniforms
 			shader['reflectmap'] = 0
@@ -337,8 +393,8 @@ class LinesDisplay:
 		# load the line shader
 		def load(scene):
 			shader = scene.ctx.program(
-						vertex_shader=open('shaders/wire.vert').read(),
-						fragment_shader=open('shaders/wire.frag').read(),
+						vertex_shader=open(ressourcedir+'/shaders/wire.vert').read(),
+						fragment_shader=open(ressourcedir+'/shaders/wire.frag').read(),
 						)
 			shader['select_color'] = settings.display['select_color_line']
 			return shader
@@ -381,8 +437,8 @@ class PointsDisplay:
 		# load the line shader
 		def load(scene):
 			shader = scene.ctx.program(
-						vertex_shader=open('shaders/wire.vert').read(),
-						fragment_shader=open('shaders/wire.frag').read(),
+						vertex_shader=open(ressourcedir+'/shaders/wire.vert').read(),
+						fragment_shader=open(ressourcedir+'/shaders/wire.frag').read(),
 						)
 			shader['select_color'] = settings.display['select_color_line']
 			return shader

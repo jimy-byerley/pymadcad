@@ -441,6 +441,8 @@ class WireDisplay:
 			self.transpshader['view'].write(viewmat)
 			self.transpshader['proj'].write(scene.proj_matrix)
 			self.va_transpfaces.render(mgl.TRIANGLES)
+		scene.ctx.enable(mgl.DEPTH_TEST)
+		scene.ctx.disable(mgl.CULL_FACE)
 	
 	def identify(self, scene, startident):
 		viewmat = scene.view_matrix * self.transform

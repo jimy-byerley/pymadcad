@@ -20,6 +20,7 @@ display = {
 	'select_color_face': (0.01, 0.05, 0.03),
 	'select_color_line': (0.5, 1, 0.6),
 	'schematics_color': (0.3, 0.8, 1),
+	'annotation_color': (0.2, 0.7, 1),
 	'line_width': 1.,
 	}
 

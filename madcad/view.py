@@ -36,6 +36,7 @@ import moderngl as mgl
 from copy import copy, deepcopy
 from math import tan, sin, cos, pi, exp
 
+from .common import ressourcedir
 from .mathutils import vec3, fvec3, fvec4, fmat3, fmat4, row, column, length, perspective, translate, project, inverse, dichotomy_index, Box
 from . import settings
 
@@ -187,12 +188,12 @@ class Scene(QOpenGLWidget):
 		self.screen = self.ctx.detect_framebuffer(self.defaultFramebufferObject()) # new glwidget
 		self.ident_frame = self.ctx.simple_framebuffer((self.size().width(), self.size().height()), components=3, dtype='f1')
 		self.ident_shader = self.ctx.program(
-						vertex_shader=open('shaders/object-ident.vert').read(),
-						fragment_shader=open('shaders/ident.frag').read(),
+						vertex_shader=open(ressourcedir+'/shaders/object-ident.vert').read(),
+						fragment_shader=open(ressourcedir+'/shaders/ident.frag').read(),
 						)
 		self.subident_shader = self.ctx.program(
-						vertex_shader=open('shaders/object-item-ident.vert').read(),
-						fragment_shader=open('shaders/ident.frag').read(),
+						vertex_shader=open(ressourcedir+'/shaders/object-item-ident.vert').read(),
+						fragment_shader=open(ressourcedir+'/shaders/ident.frag').read(),
 						)
 		self.init()
 		self.render()
