@@ -1,6 +1,7 @@
 from math import sqrt
 from .mathutils import vec3, mat3, normalize, anglebt, project, noproject, cos, sin, atan2, pi, length, distance, cross, vec2, mat2, determinant, inverse, dot, atan, acos, dirbase
 from . import settings
+from . import displays
 from .mesh import Wire
 
 class Primitive(object):
@@ -17,6 +18,8 @@ class Primitive(object):
 	def mesh(self, resolution=None):
 		return NotImplemented
 
+def isprimitive(obj):
+	return hasattr(obj, 'mesh') and hasattr(obj, 'slvvars')
 		
 Vector = Point = vec3
 #class Vector(vec3):	pass	
@@ -35,6 +38,9 @@ class Axis(object):
 	slvvars = ('origin', 'dir')
 	def slv_tangent(self, pt):
 		return self.dir
+	
+	def display(self, scene):
+		yield displays.AxisDisplay(scene, (self.origin, self.dir))
 
 class Segment(object):
 	__slots__ = ('a', 'b')
@@ -49,6 +55,8 @@ class Segment(object):
 	
 	def mesh(self):
 		return Wire([self.a, self.b], group='flat')
+	def display(self, scene):
+		return self.mesh().display(scene)
 
 class ArcThrough(object):	
 	__slots__ = ('a', 'b', 'c', 'resolution')
@@ -82,6 +90,8 @@ class ArcThrough(object):
 		center = self.center()
 		z = normalize(cross(self.c-self.b, self.a-self.b))
 		return mkarc((center, z), self.a, self.c, resolution or self.resolution)
+	def display(self, scene):
+		return self.mesh().display(scene)
 
 class ArcCentered(object):
 	__slots__ = ('axis', 'a', 'b', 'resolution')
@@ -109,6 +119,8 @@ class ArcCentered(object):
 	
 	def mesh(self, resolution=None):
 		return mkarc(self.axis, self.a, self.b, resolution or self.resolution)
+	def display(self, scene):
+		return self.mesh().display(scene)
 
 def mkarc(axis, start, end, resolution=None):
 	center, z = axis
@@ -148,6 +160,8 @@ class TangentEllipsis(object):
 			u = pi/2 * i/div
 			pts.append(x*a*(1-cos(u)) + y*b*(1-sin(u)) + origin)
 		return Wire(pts, group='ellipsis')
+	def display(self, scene):
+		return self.mesh().display(scene)
 
 class Circle(object):
 	__slots__ = ('axis', 'radius', 'alignment', 'resolution')
@@ -181,6 +195,8 @@ class Circle(object):
 		indices = list(range(div))
 		indices.append(0)
 		return Wire(pts, indices, group='arc')
+	def display(self, scene):
+		return self.mesh().display(scene)
 
 
 if __name__ == '__main__':

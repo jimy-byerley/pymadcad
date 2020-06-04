@@ -17,6 +17,9 @@ class Constraint(object):
 			#varset.register(getattr(self, name))
 		#return Derived(varset.state(), varset.grad(), varset.vars)
 
+def isconstraint(obj):
+	return hasattr(obj, 'fit') and hasattr(obj, 'slvvars')
+
 class Tangent(Constraint):
 	__slots__ = 'c1', 'c2', 'p'
 	slvvars = 'c1', 'c2', 'p'

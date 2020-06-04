@@ -249,14 +249,19 @@ class Scene(QOpenGLWidget):
 	def dequeue(self):
 		if self.queue:
 			# insert renderers for each object in queue
-			for grp,obj in self.queue:
-				for rdr in obj.display(self):
+			while self.queue:
+				grp,obj = self.queue.pop()
+				if type(obj) in dispoverrides:
+					renderers = dispoverrides[type(obj)](obj, self)
+				elif hasattr(obj, 'display'):
+					renderers = obj.display(self)
+				else:
+					continue
+				for rdr in renderers:
 					for _ in range(len(self.layers), rdr.renderindex+1):	
 						self.layers.append([])
 					self.layers[rdr.renderindex].append((grp,rdr))
 			self.restack()
-			# empty the queue
-			self.queue = []
 	
 	def restack(self):
 		# regenerate the display stack
@@ -457,6 +462,21 @@ class Scene(QOpenGLWidget):
 		self.manipulator.center = fvec3(box.center)
 		self.manipulator.distance = length(box.width) / (2*tan(fov/2))
 		self.manipulator.update()
+
+
+def isdisplay(obj):
+	return hasattr(obj, 'render') and hasattr(obj, 'identify') and not isinstance(obj, type)
+
+def displayable(obj):
+	return type(obj) in dispoverrides or hasattr(obj, 'display') and callable(obj.display) and not isinstance(obj, type)
+
+# dictionnary to store procedures to override default object displays
+dispoverrides = {}
+def list_override(l,scene):
+	for obj in l:
+		if obj in dispoverrides:		yield from dispoverrides(obj,scene)
+		elif hasattr(obj, 'display'):	yield from obj.display(scene)
+dispoverrides[list] = list_override
 
 from .mathutils import dot, transpose, affineInverse
 

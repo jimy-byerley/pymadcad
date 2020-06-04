@@ -1,4 +1,4 @@
-from .mathutils import fvec3, fvec4, fmat4, mix, normalize, length, distance, noproject
+from .mathutils import vec3, fvec3, fvec4, fmat4, mix, normalize, length, distance, noproject
 from . import settings
 from . import view
 from .common import ressourcedir
@@ -14,7 +14,7 @@ class Displayable:
 		self.display = lambda scene: (disp(scene, *args, **kwargs),)
 
 class PointDisplay:
-	renderindex = 2
+	renderindex = 3
 	def __init__(self, scene, position, size=10, color=None, selected=False, transform=fmat4(1)):
 		self.position = position
 		self.size = size
@@ -79,7 +79,7 @@ class PointDisplay:
 		else:					return self.selected
 
 class AxisDisplay:
-	renderindex = 1
+	renderindex = 2
 	pattern = [0, 0.25, 0.45, 0.55, 0.75, 1]
 	repetitions = 3
 	def __init__(self, scene, axis, interval=None, color=None, transform=fmat4(1)):
@@ -141,7 +141,7 @@ class AxisDisplay:
 
 
 class AnnotationDisplay:
-	renderindex = 1
+	renderindex = 3
 	def __init__(self, scene, points, alpha, color, transform):
 		self.color = fvec3(color or settings.display['annotation_color'])
 		self.transform = fmat4(*transform)
@@ -235,7 +235,7 @@ class ArcMeasure(AnnotationDisplay):
 
 class SolidDisplay:
 	''' Display render Meshes '''
-	renderindex = 2
+	renderindex = 1
 	def __init__(self, scene, positions, normals, faces, lines, idents, color=None, transform=fmat4(1)):
 		self.options = scene.options
 		
@@ -325,7 +325,7 @@ class Vertices(object):
 
 
 class FacesDisplay:
-	renderindex = 2
+	renderindex = 1
 	def __init__(self, scene, vertices, normals, faces, color):
 		self.color = color
 		self.vertices = vertices
@@ -428,7 +428,7 @@ class LinesDisplay:
 		return self.vertices.nident
 		
 class PointsDisplay:
-	renderindex = 2
+	renderindex = 3
 	def __init__(self, scene, vertices, indices=None, color=None, ptsize=3):
 		self.color = color
 		self.ptsize = ptsize
@@ -471,3 +471,8 @@ class PointsDisplay:
 		scene.ctx.point_size = self.ptsize
 		self.va_idents.render(mgl.POINTS)
 		return self.vertices.nident
+
+view.dispoverrides.update({
+	vec3: 	lambda p,scene: [PointDisplay(scene,p)],
+	tuple:	lambda a,scene: [AxisDisplay(scene,a)],
+	})

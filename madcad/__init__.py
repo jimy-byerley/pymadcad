@@ -30,13 +30,13 @@ from .mesh import Mesh, Web, Wire, MeshError, web, wire, suites
 from .boolean import difference, union, intersection
 from .cut import chamfer, bevel, beveltgt, planeoffsets
 from .generation import flatsurface, junction, extrans, extrusion, revolution, saddle, tube, icosurface
-from .primitives import Point, Axis, Segment, ArcThrough, ArcCentered, Circle
-from .constraints import SolveError, Tangent, Distance, Angle, Parallel, Radius, Projected, PointOn, solve
+from .primitives import isprimitive, Point, Axis, Segment, ArcThrough, ArcCentered, Circle
+from .constraints import isconstraint, SolveError, Tangent, Distance, Angle, Parallel, Radius, Projected, PointOn, solve
 from .kinematic import Solid, InSolid, Pivot, Plane, Kinemanip
 from .selection import select
 from .io import read, write
 from .triangulation import TriangulationError
 
 from .text import Text
-from .view import Scene
+from .view import Scene, isdisplay, displayable
 
