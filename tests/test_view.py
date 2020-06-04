@@ -53,7 +53,9 @@ w = Web(
 w.transform(vec3(0,0,2))
 scn.add(w)
 
-scn.add(Displayable(PointDisplay, vec3(1,1,1)))
+scn.add(Displayable(PointDisplay, vec3(1,1,1) ))
+scn.add(Displayable(AxisDisplay, (vec3(2,0,0), vec3(0,0,1)) ))
+scn.add(Displayable(LengthMeasure, vec3(-2, 0, 0), vec3(0,-2,0), vec3(-1,-1,2)))
 
 scn.look(Box(center=fvec3(0), width=fvec3(1)))
 scn.show()
