@@ -54,7 +54,9 @@ pointsdef = [
 class TextDisplay:
 	renderindex = 3
 	
-	def __init__(self, scene, position, text, size, color, align=(0,0), transform=fmat4(1)):
+	def __init__(self, scene, position, text, size=None, color=None, align=(0,0), transform=fmat4(1)):
+		if not color:	color = settings.display['annotation_color']
+		if not size:	size = settings.display['view_font_size']
 		self.transform = fmat4(*transform)
 		self.position = fvec3(position)
 		self.color = fvec3(color)
