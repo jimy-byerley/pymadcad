@@ -3,7 +3,7 @@
 import glm
 from glm import *
 del version, license
-from math import pi, atan2
+from math import pi, inf, atan2
 from copy import deepcopy
 max = __builtins__['max']
 min = __builtins__['min']
@@ -90,8 +90,8 @@ def transform(*args):
 			return m
 	elif isinstance(args[0], vec3) and len(args) == 3:			
 		return mat4(mat3(*args))
-	elif isinstance(args[0], vec3) and len(args) == 4:			
-		m = mat4(mat3(args[1:]))
+	elif isinstance(args[0], vec3) and len(args) == 4:
+		m = mat4(mat3(*args[1:]))
 		m[3] = vec4(args[0], 1)
 		return m
 	
