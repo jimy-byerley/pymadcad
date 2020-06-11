@@ -6,7 +6,7 @@ from .mathutils import (fvec3, fmat4, vec3, vec4, mat3, mat4, quat, mat4_cast, q
 						column, translate, inverse, isnan,
 						dot, cross, length, normalize, project, noproject, dirbase, distance,
 						atan2, acos, angle, axis, angleAxis,
-						pi, inf,
+						pi, inf, glm,
 						Box, transform)
 from .mesh import Mesh, Wire, web, Web
 from . import generation
@@ -15,49 +15,64 @@ from . import settings
 from . import constraints
 
 
+__all__ = ['Torsor', 'comomentum', 'Solid', 'Kinemanip', 'solvekin',
+			'makescheme', 'Scheme', 'WireDisplay',
+			'Pivot', 'Plane', 'Track', 'Linear']
+
+
 '''
 onesolid = Solid(mesh1, base=R0)	# solide avec visuel, maillage a transformer pour passer dans la base adhoc
 othersolid = Solid(mesh2, pose=R1)	 # solide avec visuel, maillage prétransformé
 onceagain = Solid()                 # solide vide, base bar defaut (transformation = I4)
 csts = [
 	Pivot(onesolid, othersolid, (O,x), (O,z)),
-	Linear(onesolid, othersolid, (C,x), C),
+	Gliding(onesolid, othersolid, (C,x), C),	# pivot glissant
 	Plane(onesolid, othersolid, z, x),	# plan
+	Track(onesolid, othersolid, x, y),		# glissiere
+	Ball(onesolid, othersolid, P, P)		# rotule
+	Punctiform(onesolid, ithersolid, (O,x), P)	# ponctuelle
+	Ringlin(onesolid, othersolid, (O,z), P)		# lineaire annulaire
+	Linear(onesolid, othersolid, (O,z), (O,x))	# lineaire
+	
 	Screw(onesolid, othersolid, (B,x), (D,y), 0.2),	# helicoidale
 	Gear(onesolid, onceagain, (O,z), (O,z), 2, offset=0),	# engrenage
 	Rack(onesolid, onceagain, (O,z), x, 1, offset=0),	# cremaillere
-	Track(onesolid, othersolid, x, y),		# glissiere
+	
 	InSolid(onesolid, A, B, C, D, E),	# points sur solide
 	]
 '''
 
 class Torsor(object):
 	''' a 3D torsor is a mathematical object defined as follow:
-			* a resulting vector R
-			* a momentum vector field M
-		the momentum is a function of space, satisfying the relationship:
+		  * a resulting vector R
+		  * a momentum vector field M
+		  the momentum is a function of space, satisfying the relationship:
 			M(A) = M(B) + cross(R, A-B)
 		
 		therefore it is possible to represent a localized torsor such as:
-			* R = resulting
-			* M = momentum vector at position P
-			* P = position at which M takes the current value
+		  * R = resulting
+		  * M = momentum vector at position P
+		  * P = position at which M takes the current value
 		
 		torsor are usefull for generalized solid mechanics to handle multiple variables of the same nature:
-			force torsor:	
-				Torsor(force, torque, pos)
-			velocity (aka kinematic) torsor:
-				Torsor(rotation, velocity, pos)
-			kinetic (inertia) torsor:
-				Torsor(linear movement quantity, rotational movement quantity, pos)
+		  * force torsor:	
+			  Torsor(force, torque, pos)
+		  * velocity (aka kinematic) torsor:
+			  Torsor(rotation, velocity, pos)
+		  * kinetic (inertia) torsor:
+			  Torsor(linear movement quantity, rotational movement quantity, pos)
+			
+		  all these torsors makes it possible to represent all these values independently from expression location
 	'''
 	__slots__ = ('resulting', 'momentum', 'position')
 	def __init__(self, resulting=None, momentum=None, position=None):
 		self.resulting, self.momentum, self.position = resulting or vec3(0), momentum or vec3(0), position or vec3(0)
 	def locate(self, pt):
+		''' gets the same torsor, but expressed for an other location '''
 		return Torsor(self.resulting, self.momentum + cross(self.resulting, pt-self.position), pt)
+	
 	def transform(self, mat):
-		''' change le torseur de systeme de coordonnées '''
+		''' changes the torsor from coordinate system '''
 		if isinstance(mat, mat4):
 			rot, trans = mat3(mat), vec3(mat[3])
 		elif isinstance(mat, mat3):
@@ -84,18 +99,20 @@ class Torsor(object):
 
 def comomentum(t1, t2):
 	''' comomentum of torsors:   dot(M1, R2)  +  dot(M2, R1)
-		independent of torsor location
+		the result is independent of torsors location
 	'''
 	t2 = t2.locate(t1.position)
 	return dot(t1.momentum, t2.resulting) + dot(t2.momentum, t1.resulting)
 
 
 class Solid:
-	'''
-		orientation - vec3  as angle vector rotating from local to world
-		position - vec3	as displacement from local to world
-		visuals	- list of objects to display using the solid's pose
-		name - optional name to display
+	''' Solid for kinematic definition, used as variable by the kinematic solver
+	
+	Attributes defined here:
+		* orientation - quat  as rotation from local to world space
+		* position - vec3	as displacement from local to world
+		* visuals	- list of objects to display using the solid's pose
+		* name - optional name to display on the scheme
 	'''
 	def __init__(self, *args, base=None, pose=None, name=None):
 		if pose:
@@ -120,13 +137,12 @@ class InSolid:	# TODO test
 	def __init__(self, solid, points, reference=None):
 		self.solid = solid
 		self.points = points
-		self.reference = reference or [p*solid.transform() for p in points]	# if no reference position is provided, use the current position in the solid
+		self.reference = reference or [p*solid.transform() for p in points]	# if no reference position is provided, then we use the current position in the solid
 		# remove origin from references
 		center = sum(reference)/len(reference)
 		for p in self.reference:	p -= center
 	
-	def slvvars(self):
-		return (self.solid.position, self.solid.orientation, *self.points)
+	slvvars = 'solid', 'points',
 
 	def pose(self):
 		center = sum(self.points)/len(self.points)
@@ -151,6 +167,12 @@ def solidtransform_base(solid, obj):
 	return (rot*obj[0] + solid.position, rot*obj[1], rot*obj[2])
 
 class Pivot:
+	''' Junction for rotation only around an axis
+	
+		classical definition:	Pivot (axis)
+		no additional information is required by the initial state
+		this class holds an axis for each side
+	'''
 	def __init__(self, s1, s2, a1, a2=None, position=None):
 		self.solids = (s1,s2)
 		self.axis = (a1, a2 or a1)
@@ -241,6 +263,12 @@ class Pivot:
 			return s
 
 class Plane:
+	''' Joint for translation in 2 directions and rotation around the third direction 
+		
+		classical definition:	Plane (direction vector)
+		the initial state requires an additional distance between the solids
+		this class holds an axis for each side, the axis origins are constrained to share the same projections on the normal
+	'''
 	def __init__(self, s1, s2, a1, a2=None, position=None):
 		self.solids = (s1, s2)
 		self.axis = (a1, a2 or a1)
@@ -284,8 +312,14 @@ class Plane:
 			[(4,5,6)],
 			[(0,1),(1,2),(2,3),(3,0),(4,6),(6,7)],
 			)
-from .mathutils import mix
+
 class Track:
+	''' Joint for translation only in a direction 
+		
+		classical definition:  Track (direction vector)
+		the initial state requires more parameters: the relative placements of the solids
+		this class holds a base for each of the solids, bases are (0,X,Y)  where X,Y are constrained to keep the same direction across bases, and the bases origins lays on their common Z axis
+	'''
 	def __init__(self, s1, s2, b1, b2=None, position=None):
 		self.solids = (s1, s2)
 		self.bases = (b1, b2 or b1)
@@ -309,9 +343,10 @@ class Track:
 			+	cross(b0[1], b1[1])
 			+	cross(b0[2], b1[2])
 			)
+		t = b1[0] - b0[0]
 		return (
-			Torsor(noproject(b1[0] - b0[0], z1),  r,b0[0]), 
-			Torsor(noproject(b0[0] - b1[0], z0), -r,b1[0]),
+			Torsor(noproject( t, z1),  r,b0[0]), 
+			Torsor(noproject(-t, z0), -r,b1[0]),
 			)
 	
 	def transmitable(self, action):
@@ -381,39 +416,89 @@ class Track:
 						(0,4), (1,5), (2,6), (3,7),
 						(4,6), (5,7)],
 					)
+
+class Gliding:
+	''' Joint for rotation and translation around an axis 
 		
-
-
-def mkwiredisplay(solid, constraints, size=None, color=None):
-	# get center and size of the solid's scheme
-	center = vec3(0)
-	contrib = 0
-	box = Box()
-	for cst in constraints:
-		if solid in cst.solids and cst.position:
-			print(cst.position)
-			pos = cst.position[cst.solids.index(solid)]
-			contrib += 1
-			center += pos
-			box.union(pos)
-	center /= contrib
-	if not size:	size = length(box.width)/len(constraints) or 1
-	print(size)
+		classical definition:  Gliding pivot (axis)
+		the initial state doesn't require more data
+		this class holds an axis for each side
+	'''
+	def __init__(self, s1, s2, a1, a2=None, position=None):
+		self.solids = (s1,s2)
+		self.axis = (a1, a2 or a1)
+		self.position = position or (self.axis[0][0], self.axis[1][0])
 	
-	# assemble junctions
-	scheme = Scheme([], [], [], [], color, solid.transform())
-	for cst in constraints:
-		part = cst.scheme(solid, size, center)
-		if part:	scheme.extend(part)
+	slvvars = 'solids',
+	def fit(self):
+		a0,a1 = solidtransform_axis(self.solids[0], self.axis[0]), solidtransform_axis(self.solids[1], self.axis[1])
+		return distance(a0[0],a1[0])**2 + 1-dot(a0[1],a1[1])
 	
-	return scheme
+	def corrections(self):
+		a0,a1 = solidtransform_axis(self.solids[0], self.axis[0]), solidtransform_axis(self.solids[1], self.axis[1])
+		r = cross(a0[1], a1[1])
+		t = a1[0] - a0[0]
+		return (
+				Torsor(noproject( t,a0[1]),  r,a0[0]), 
+				Torsor(noproject(-t,a1[1]), -r,a1[0]),
+				) # force torsor
+	
+	def transmitable(self, action):
+		axis = solidtransform_axis(self.solids[0], self.axis[0])
+		normal = normalize(a0[1] + a1[1])
+		return Torsor(
+				noproject(action.resulting, normal), 
+				noproject(action.momentum, normal), 
+				action.position)
+		
+	def scheme(self, solid, size, junc):
+		''' return primitives to render the junction from the given solid side
+			size is the desired size of the junction
+			junc is the point the junction is linked with the scheme by
+		'''
+		if solid is self.solids[0]:
+			radius = size/4
+			axis = self.axis[0]
+			center = axis[0] + project(self.position[0]-axis[0], axis[1])
+			cyl = generation.extrusion(
+						axis[1]*size, 
+						web(primitives.Circle(
+								(center-axis[1]*size*0.5, axis[1]), 
+								size/4, 
+								resolution=('div', 16),
+						)))
+			l = len(cyl.points)
+			v = junc - center
+			v = normalize(noproject(v,axis[1]))
+			if glm.any(isnan(v)):
+				v,_,_ = dirbase(axis[1])
+			p = center + v*size/4
+			cyl.points.append(p)
+			cyl.points.append(p + axis[1]*size*cornersize)
+			cyl.points.append(p + v*size*cornersize)
+			cyl.points.append(junc)
+			return Scheme(
+					cyl.points, 
+					cyl.faces, 
+					[(l,l+1,l+2)], 
+					(	[(l, l+2), (l+2, l+3)] 
+					+	[(i-1,i) for i in range(1,l//2)] 
+					+	[(i-1,i) for i in range(l//2+1,l)] 
+					+	[(l//2-1,0), (l-1,l//2)]),
+					)
+		elif solid is self.solids[1]:
+			radius = size/4
+			axis = self.axis[1]
+			center = axis[0] + project(self.position[1]-axis[0], axis[1])
+			attach = side = axis[1] * size
+			return Scheme([center-side, center+side, center+attach, junc], [], [], [(0,1), (2,3)])
 
-from .mathutils import glm
-def makescheme(constraints, color=None):
+def makescheme(joints, color=None):
+	''' create kinematic schemes and add them as visual elements to the solids the joints applies on '''
 	# collect solids informations
 	solids = {}
 	diag = vec3(0)
-	for cst in constraints:
+	for cst in joints:
 		for solid, pos in zip(cst.solids, cst.position):
 			if id(solid) not in solids:
 				solids[id(solid)] = info = [solid, [], vec3(0), 0]
@@ -425,7 +510,7 @@ def makescheme(constraints, color=None):
 				info[3] += 1
 				diag = glm.max(diag, glm.abs(pos))
 	# get the junction size
-	size = (max(diag) or 1) / len(constraints)
+	size = (max(diag) or 1) / len(joints)
 	
 	for info in solids.values():
 		scheme = Scheme([], [], [], [], color, solid.transform())
@@ -440,6 +525,7 @@ def makescheme(constraints, color=None):
 
 
 class Scheme:
+	''' buffer holder to construct schemes, for now it's only usefull to append to buffer '''
 	def __init__(self, points, transpfaces, opacfaces, lines, color=None, transform=None):
 		self.color = color or settings.display['schematics_color']
 		self.points = points
@@ -460,6 +546,7 @@ class Scheme:
 
 
 class WireDisplay:
+	''' wireframe display for schemes, like kinematic schemes '''
 	renderindex = 1
 	
 	def __init__(self, scene, points, transpfaces, opaqfaces, lines, color=None, transform=fmat4(1)):

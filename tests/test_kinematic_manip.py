@@ -18,7 +18,8 @@ s6 = Solid()
 csts = [
 	#Plane(s0,s1, (O,Z)),  
 	#Pivot(s0,s1, (O,Z)),
-	Track(s0,s1, (vec3(0,0,10),X,Y), (O,X,Y)),
+	#Track(s0,s1, (vec3(0,0,10),X,Y), (O,X,Y)),
+	Linear(s0,s1, (O,Z)),
 	Pivot(s1,s2, (vec3(0,0,1), X), (vec3(0,0,-1), X)),
 	#Pivot(s2,s3, (vec3(0,0,2), normalize(vec3(1,1,0))), (O,X)),
 	
@@ -28,7 +29,7 @@ csts = [
 	]
 
 # 6 DoF robot arm
-csts = [
+csts2 = [
 	Pivot(s0,s1, (O,Z)),
 	Pivot(s1,s2, (vec3(0,0,1), X), (O,X)),
 	Pivot(s2,s3, (vec3(0,0,2), X), (O,X)),
