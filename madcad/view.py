@@ -133,6 +133,9 @@ class Scene(QOpenGLWidget):
 		* manipulator	an object with a method `matrix()` that provide the world->camera matrix
 		* options		a dict of rendering options used by default by displays, this is overloaded by assining the member 'options' of a display
 		* ctx			the mgl context used for renders
+	
+		NOTE
+			due to Qt limitations, the OpenGL context behind this widget is changed at each reparenting, so be careful to never reparent this widget once you added content
 	'''
 	
 	def __init__(self, objects=(), projection=None, manipulator=None, parent=None):
@@ -355,8 +358,9 @@ class Scene(QOpenGLWidget):
 		else:
 			# search for object interaction
 			h,w = self.ident_frame.viewport[2:]
-			clicked = self.objat((x,y), 10)
-			if clicked: 
+			pos = self.objnear((x,y), 10)
+			if pos:
+				clicked = self.objat(pos)
 				grp,rdr = self.stack[clicked[0]]
 				# right-click is the selection button
 				if b == Qt.RightButton and hasattr(rdr, 'select'):
@@ -364,7 +368,7 @@ class Scene(QOpenGLWidget):
 					rdr.select(clicked[1], not rdr.select(clicked[1]))
 				# other clicks are for custom controls
 				elif hasattr(rdr, 'control'):
-					self.tool = rdr.control(self, grp, clicked[1], (x, y))
+					self.tool = rdr.control(self, grp, clicked[1], pos)
 
 	def mouseMoveEvent(self, evt):
 		self.update()
@@ -401,19 +405,25 @@ class Scene(QOpenGLWidget):
 			#from PIL import Image
 			#Image.fromarray(self.ident_map*10).show()
 	
-	def objat(self, coords, radius=0):
-		''' return a tuple (obji, groupi) of the idents of the object and its group at the given screen coordinates '''
+	def objnear(self, coords, radius=0):
 		self.refreshmaps()
 		for x,y in snailaround(coords, (self.ident_map.shape[1], self.ident_map.shape[0]), radius):
 			ident = int(self.ident_map[-y, x])
 			if ident > 0:
-				obji = dichotomy_index(self.ident_steps, ident)
-				if obji == len(self.ident_steps):
-					print('problem: object ident points out of idents list')
-				while obji > 0 and self.ident_steps[obji-1] == ident:	obji -= 1
-				if obji > 0:	groupi = ident - self.ident_steps[obji-1] - 1
-				else:			groupi = ident - 1
-				return obji, groupi
+				return x,y
+	
+	def objat(self, coords):
+		''' return a tuple (obji, groupi) of the idents of the object and its group at the given screen coordinates '''
+		self.refreshmaps()
+		ident = int(self.ident_map[-coords[1], coords[0]])
+		if ident > 0:
+			obji = dichotomy_index(self.ident_steps, ident)
+			if obji == len(self.ident_steps):
+				print('problem: object ident points out of idents list')
+			while obji > 0 and self.ident_steps[obji-1] == ident:	obji -= 1
+			if obji > 0:	groupi = ident - self.ident_steps[obji-1] - 1
+			else:			groupi = ident - 1
+			return obji, groupi
 	
 	def sight(self, coords):
 		''' sight axis from the camera center to the point matching the given pixel coordinates '''
@@ -474,7 +484,7 @@ def displayable(obj):
 dispoverrides = {}
 def list_override(l,scene):
 	for obj in l:
-		if obj in dispoverrides:		yield from dispoverrides(obj,scene)
+		if type(obj) in dispoverrides:	yield from dispoverrides[type(obj)](obj,scene)
 		elif hasattr(obj, 'display'):	yield from obj.display(scene)
 dispoverrides[list] = list_override
 
