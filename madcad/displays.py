@@ -1,4 +1,5 @@
-from .mathutils import vec3, fvec3, fvec4, fmat4, mix, normalize, length, distance, noproject
+from .mathutils import vec3, fvec3, fvec4, fmat4, mix, normalize, length, distance, dot, noproject, dirbase
+from .mathutils import transform as mktransform
 from . import settings
 from . import view
 from .common import ressourcedir
@@ -78,6 +79,84 @@ class PointDisplay:
 		if state is not None:	self.selected = state
 		else:					return self.selected
 
+class ArrowDisplay:
+	renderindex = 2
+	def __init__(self, scene, axis, color=None, transform=fmat4(1)):
+		x,y,z = dirbase(axis[1])
+		self.local = fmat4(*mktransform(axis[0],x,y,z))
+		self.color = fvec3(color or settings.display['annotation_color'])
+		self.transform = fmat4(*transform)
+		self.selected = False
+		
+		# load shader
+		def load(scene):
+			return scene.ctx.program(
+						vertex_shader=open(ressourcedir+'/shaders/uniformcolor.vert').read(),
+						fragment_shader=open(ressourcedir+'/shaders/uniformcolor.frag').read(),
+						)
+		self.shader = scene.ressource('shader_uniformcolor', load)
+		self.va, self.va_idents = scene.ressource('arrow', self.load)
+	
+	def load(self, scene):
+		pts = [	(0,0,0), (0,0,1), 
+				(0,0,1), ( 0.16,0,1-0.2), 
+				(0,0,1), (-0.16,0,1-0.2),
+				]
+		vb = scene.ctx.buffer(np.array(pts, 'f4'))
+		va = scene.ctx.vertex_array(self.shader, [(vb, '3f', 'v_position')])
+		va_idents = scene.ctx.vertex_array(scene.ident_shader, [(vb, '3f', 'v_position')])
+		return va, va_idents
+	
+	def render(self, scene):
+		self.shader['color'].write(fvec3(settings.display['select_color_line']) if self.selected else self.color)
+		self.shader['proj'].write(scene.proj_matrix)
+		self.shader['view'].write(scene.view_matrix * self.transform * self.local)
+		self.va.render(mgl.LINES)
+	
+	def identify(self, scene, startident):
+		scene.ident_shader['proj'].write(scene.proj_matrix)
+		scene.ident_shader['view'].write(scene.view_matrix * self.transform * self.local)
+		scene.ident_shader['ident'] = startident
+		self.va_idents.render(mgl.LINES)
+		return 1
+		
+	def control(self, scene, grp, ident, evt):
+		self.selected = not self.selected
+	
+	def select(self, idents, state=None):
+		if state is not None:	self.selected = state
+		else:					return self.selected
+
+class TangentDisplay:
+	renderindex = 2
+	def __init__(self, scene, axis, size=None, color=None, transform=fmat4(1)):
+		self.size = size
+		self.axis = axis
+		self.arrow1 = ArrowDisplay(scene, axis, color, transform)
+		self.arrow2 = ArrowDisplay(scene, axis, color, transform)
+		self.selected = False
+	
+	def render(self, scene):
+		size = self.size or -scene.view_matrix[3][2] * 10/scene.height()
+		x,y,z = dirbase(self.axis[1])
+		self.arrow1.local = fmat4(*mktransform(self.axis[0], size*x, size*y, size*z))
+		self.arrow2.local = fmat4(*mktransform(self.axis[0], size*x, size*y, -size*z))
+		self.arrow1.render(scene)
+		self.arrow2.render(scene)
+	
+	def identify(self, scene, startident):
+		self.arrow1.identify(scene, startident)
+		self.arrow1.identify(scene, startident)
+		return 1
+	
+	def control(self, scene, grp, ident, evt):
+		self.select(0, not self.select(0))
+	
+	def select(self, idents, state=None):
+		r = self.arrow1.select(idents, state)
+		self.arrow2.selected = self.arrow1.selected
+		return r
+
 class AxisDisplay:
 	renderindex = 2
 	pattern = [0, 0.25, 0.45, 0.55, 0.75, 1]
@@ -85,7 +164,7 @@ class AxisDisplay:
 	def __init__(self, scene, axis, interval=None, color=None, transform=fmat4(1)):
 		self.origin = fvec3(axis[0])
 		self.direction = fvec3(axis[1])
-		self.interval = interval or (-1, 1)
+		self.interval = interval
 		self.color = fvec3(color or settings.display['line_color'])
 		self.transform = fmat4(*transform)
 		self.selected = False
@@ -113,13 +192,19 @@ class AxisDisplay:
 		va_idents = scene.ctx.vertex_array(ident_shader, [(vb, 'f 12x', 'v_absciss')])
 		return shader, va, ident_shader, va_idents
 	
+	def _disp_interval(self, scene):
+		if self.interval:	return self.interval
+		else:
+			size = -scene.view_matrix[3][2]/6
+			return (-0.5*size, size)
+	
 	def render(self, scene):
 		self.shader['projview'].write(scene.proj_matrix * scene.view_matrix)
 		self.shader['color'].write(fvec3(settings.display['select_color_line']) if self.selected else self.color)
 		self.shader['origin'].write(self.origin)
 		self.shader['direction'].write(self.direction)
 		self.shader['transform'].write(self.transform)
-		self.shader['interval'] = self.interval
+		self.shader['interval'] = self._disp_interval(scene)
 		self.va.render(mgl.LINES)
 	
 	def identify(self, scene, startident):
@@ -127,10 +212,12 @@ class AxisDisplay:
 		self.ident_shader['origin'].write(self.origin)
 		self.ident_shader['direction'].write(self.direction)
 		self.ident_shader['transform'].write(self.transform)
-		self.ident_shader['interval'] = self.interval
+		self.ident_shader['interval'] = self._disp_interval(scene)
 		self.ident_shader['ident'] = startident
 		self.va_idents.render(mgl.LINES)
 		return 1
+	
+	# axis = (vec3(0), vec3(1))
 		
 	def control(self, scene, grp, ident, evt):
 		self.selected = not self.selected
@@ -159,7 +246,7 @@ class AnnotationDisplay:
 				np.array(alpha, 'f4', ndmin=2).transpose(),
 				)))
 		self.va = scene.ctx.vertex_array(self.shader, [(vb_pts, '3f f', 'v_position', 'v_alpha')])
-		self.va_idents = scene.ctx.vertex_array(scene.ident_shader, [(vb_pts, '3f', 'v_position')])
+		self.va_idents = scene.ctx.vertex_array(scene.ident_shader, [(vb_pts, '3f 4x', 'v_position')])
 
 	def render(self, scene):
 		self.shader['color'].write(fvec3(settings.display['select_color_line']) if self.selected else self.color)
@@ -181,12 +268,34 @@ class AnnotationDisplay:
 		if state is not None:	self.selected = state
 		else:					return self.selected
 
+class RadiusMeasure(AnnotationDisplay):
+	def __init__(self, scene, circle, location=None, color=None, transform=fmat4(1)):
+		center = circle.axis[0]
+		x,y,z = dirbase(circle.axis[1], normalize(location-center) if location else circle.alignment)
+		d = abs(dot(location-center, x))/circle.radius if location else 2
+		r = circle.radius*x
+		sizeref = d*circle.radius
+		arrowx = 0.1*sizeref*x
+		arrowy = 0.06*sizeref*y
+		
+		pts = [
+			r, r+arrowx-arrowy,
+			r, r+arrowx+arrowy,
+			r, d*r,
+			]
+		for i in range(len(pts)):	pts[i] = center+pts[i]
+		alpha = [1] * 6
+		self.textplace = center + d*r
+		
+		super().__init__(scene, pts, alpha, color, transform)
+		
 
 class LengthMeasure(AnnotationDisplay):
-	def __init__(self, scene, a, b, location=None, color=None, arrows=None, transform=fmat4(1)):
+	def __init__(self, scene, a, b, location=None, color=None, transform=fmat4(1)):
 		# place points
 		middle = (a + b)/2
 		if not location:	location = middle
+		if not color:		color = settings.display['annotation_color']
 		dir = normalize(a-b)
 		top = noproject(location-middle, dir)
 		topdist = length(top)
@@ -201,9 +310,9 @@ class LengthMeasure(AnnotationDisplay):
 				b+top, b+top+arrowx+arrowy,
 				a+top, b+top,
 			]
-		a = 0.4
-		alpha = [a, a, 1, 1, 1, 1, a, a, 1, 1, 1, 1, 1, 1]
-		self.textplace = (a+b)/2 + top
+		o = 0.4
+		alpha = [o, o, 1, 1, 1, 1, o, o, 1, 1, 1, 1, 1, 1]
+		self.textplace = middle + top
 
 		super().__init__(scene, pts, alpha, color, transform)
 
@@ -226,9 +335,9 @@ class ArcMeasure(AnnotationDisplay):
 				b+top, b+top+arrowx+arrowy,
 				a+top, b+top,
 			]
-		a = 0.4
-		alpha = [a, a, 1, 1, 1, 1, a, a, 1, 1, 1, 1, 1, 1]
-		self.textplace = (a+b)/2 + top
+		o = 0.4
+		alpha = [o, o, 1, 1, 1, 1, o, o, 1, 1, 1, 1, 1, 1]
+		self.textplace = middle + top
 		
 		super().__init__(scene, pts, alpha, color, transform)
 	
