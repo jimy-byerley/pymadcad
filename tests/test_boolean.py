@@ -5,14 +5,7 @@ from madcad import vec3,mat4, rotate, Mesh
 from madcad.boolean import difference, booleanwith, intersectwith
 from madcad import boolean
 
-from madcad import view, text
-import sys
-from PyQt5.QtWidgets import QApplication
-
-app = QApplication(sys.argv)
-
-main = scn3D = view.Scene()
-
+from madcad.view import quickdisplay
 
 m1 = Mesh(
 	[
@@ -75,11 +68,5 @@ m1.options.update({'debug_display':True, 'debug_points':False, 'debug_faces':'in
 #m3.groups = [None]*len(m3.faces)
 #m3.tracks = list(range(len(m3.faces)))
 # display
-scn3D.add(m3)
-#scn3D.add(m2)
-#scn3D.add(m1)
+quickdisplay([m3])
 
-#scn3D.add(debug_vox)
-
-main.show()
-sys.exit(app.exec())
