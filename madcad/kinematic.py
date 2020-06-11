@@ -1,12 +1,14 @@
 import numpy.core as np
 import moderngl as mgl
 
+from .common import ressourcedir
 from .mathutils import (fvec3, fmat4, vec3, vec4, mat3, mat4, quat, mat4_cast, quat_cast,
 						column, translate, inverse, isnan,
 						dot, cross, length, normalize, project, noproject, dirbase, distance,
 						atan2, acos, angle, axis, angleAxis,
+						pi, inf,
 						Box, transform)
-from .mesh import Mesh, Wire, web
+from .mesh import Mesh, Wire, web, Web
 from . import generation
 from . import primitives
 from . import settings
@@ -29,37 +31,79 @@ csts = [
 	]
 '''
 
-'''
-class Torsor:
-	__slots__ = ('momentum', 'resulting', 'position')
-	def __init__(self, momentum, resulting, position):
-		self.momentum, self.resulting, self.position = momentum, resulting, position
+class Torsor(object):
+	''' a 3D torsor is a mathematical object defined as follow:
+			* a resulting vector R
+			* a momentum vector field M
+		the momentum is a function of space, satisfying the relationship:
+			M(A) = M(B) + cross(R, A-B)
+		
+		therefore it is possible to represent a localized torsor such as:
+			* R = resulting
+			* M = momentum vector at position P
+			* P = position at which M takes the current value
+		
+		torsor are usefull for generalized solid mechanics to handle multiple variables of the same nature:
+			force torsor:	
+				Torsor(force, torque, pos)
+			velocity (aka kinematic) torsor:
+				Torsor(rotation, velocity, pos)
+			kinetic (inertia) torsor:
+				Torsor(linear movement quantity, rotational movement quantity, pos)
+	'''
+	__slots__ = ('resulting', 'momentum', 'position')
+	def __init__(self, resulting=None, momentum=None, position=None):
+		self.resulting, self.momentum, self.position = resulting or vec3(0), momentum or vec3(0), position or vec3(0)
 	def locate(self, pt):
-		return Torsor(self.momentum, self.resulting + cross(self.momentum, pt-self.position), pt)
-	#def transform(self):
-		# donne la matrice de l'application affine de la position vers la resultante
-		#return transform(self.position) * transform(self.resulting, self.momentum) * transform(-self.position)
+		return Torsor(self.resulting, self.momentum + cross(self.resulting, pt-self.position), pt)
+	def transform(self, mat):
+		''' change le torseur de systeme de coordonnées '''
+		if isinstance(mat, mat4):
+			rot, trans = mat3(mat), vec3(mat[3])
+		elif isinstance(mat, mat3):
+			rot, trans = mat, 0
+		elif isinstance(mat, vec3):
+			rot, trans = 1, mat
+		else:
+			raise TypeError('Torsor.transform() expect mat4, mat3 or vec3')
+		return Torsor(rot*self.resulting, rot*self.momentum, rot*self.position + trans)
+	
+	def __add__(self, other):
+		if other.position != self.position:		other = other.locate(self.position)
+		return Torsor(self.resulting+other.resulting, self.momentum+other.momentum, self.position)
+	
+	def __sub__(self, other):
+		if other.position != self.position:		other = other.locate(self.position)
+		return Torsor(self.resulting-other.resulting, self.momentum-other.momentum, self.position)
+	
+	def __neg__(self):
+		return Torsor(-self.resulting, -self.momentum, self.position)
+		
+	def __repr__(self):
+		return '{}(\n\t{}, \n\t{}, \n\t{})'.format(self.__class__.__name__, repr(self.resulting), repr(self.momentum), repr(self.position))
 
 def comomentum(t1, t2):
+	''' comomentum of torsors:   dot(M1, R2)  +  dot(M2, R1)
+		independent of torsor location
+	'''
 	t2 = t2.locate(t1.position)
 	return dot(t1.momentum, t2.resulting) + dot(t2.momentum, t1.resulting)
-'''
 
 
 class Solid:
 	'''
-		orientation - quat
-		position - vec3
+		orientation - vec3  as angle vector rotating from local to world
+		position - vec3	as displacement from local to world
 		visuals	- list of objects to display using the solid's pose
 		name - optional name to display
 	'''
 	def __init__(self, *args, base=None, pose=None, name=None):
 		if pose:
 			self.position = pose[0]
-			self.orientation = pose[1]
+			self.orientation = quat(pose[1])
 		else:
 			self.position = vec3(0)
-			self.orientation = vec3(0)
+			self.orientation = quat()
 		self.visuals = list(args)
 		self.name = name
 	slvvars = 'position', 'orientation',
@@ -90,7 +134,7 @@ class InSolid:	# TODO test
 		for pt,ref in zip(self.points, self.reference):
 			v, r = normalize(pt-ref), normalize(ref)
 			c = cross(v,r)
-			if not isnan(c):
+			if not glm.any(isnan(c)):
 				angle = acos(dot(v,r))
 				rot += angleAxis(angle, c/sin(angle))
 		rot = normalize(rot)
@@ -98,11 +142,13 @@ class InSolid:	# TODO test
 		return self.solid.position+center, self.solid.orientation+rot
 
 cornersize = 0.1
-GAPROT = 0.5
 
 def solidtransform_axis(solid, obj):
-	rot = quat(solid.orientation)
+	rot = solid.orientation
 	return (rot*obj[0] + solid.position, rot*obj[1])
+def solidtransform_base(solid, obj):
+	rot = solid.orientation
+	return (rot*obj[0] + solid.position, rot*obj[1], rot*obj[2])
 
 class Pivot:
 	def __init__(self, s1, s2, a1, a2=None, position=None):
@@ -111,22 +157,21 @@ class Pivot:
 		self.position = position or (self.axis[0][0], self.axis[1][0])
 	
 	slvvars = 'solids',
+	def fit(self):
+		a0,a1 = solidtransform_axis(self.solids[0], self.axis[0]), solidtransform_axis(self.solids[1], self.axis[1])
+		return distance(a0[0],a1[0])**2 + 1-dot(a0[1],a1[1])
 	
 	def corrections(self):
-		axis = solidtransform_axis(self.solids[0], self.axis[0]), solidtransform_axis(self.solids[1], self.axis[1])
-		r = cross(axis[0][1], axis[1][1])
-		t = axis[1][0] - axis[0][0]
-		return Torsor(r,t,axis[0][0]), Torsor(-r,-t,axis[1][0])
+		a0,a1 = solidtransform_axis(self.solids[0], self.axis[0]), solidtransform_axis(self.solids[1], self.axis[1])
+		r = cross(a0[1], a1[1])
+		t = a1[0] - a0[0]
+		#return Torsor(r,t,a0[0]), Torsor(-r,-t,a1[0]) 	# velocity torsor
+		return Torsor(t,r,a0[0]), Torsor(-t,-r,a1[0]) 	# force torsor
 	
-	def fit(self):
-		orients = (quat(self.solids[0].orientation), quat(self.solids[1].orientation))
-		a1 = (orients[0] * self.axis[0][0] + self.solids[0].position,  orients[0] * self.axis[0][1])
-		a2 = (orients[1] * self.axis[1][0] + self.solids[1].position,  orients[1] * self.axis[1][1])
-		return distance(a1[0],a2[0])**2 - dot(a1[1],a2[1])
-	
-	def freedom(self):
-		orient = quat(self.solids[0].orientation)
-		return Torsor(orient * self.axis[0][1], vec3(0), orient * self.axis[0][0] + self.solids[0].position)
+	def transmitable(self, action):
+		axis = solidtransform_axis(self.solids[0], self.axis[0])
+		normal = normalize(a0[1] + a1[1])
+		return Torsor(action.resulting, noproject(action.momentum, normal), action.position)
 		
 	def scheme(self, solid, size, junc):
 		''' return primitives to render the junction from the given solid side
@@ -136,7 +181,7 @@ class Pivot:
 		if solid is self.solids[0]:
 			radius = size/4
 			axis = self.axis[0]
-			center = axis[0] + project(self.position[0], axis[1])
+			center = axis[0] + project(self.position[0]-axis[0], axis[1])
 			cyl = generation.extrusion(
 						axis[1]*size * 0.8, 
 						web(primitives.Circle(
@@ -146,7 +191,9 @@ class Pivot:
 						)))
 			l = len(cyl.points)
 			v = junc - center
-			v = normalize(v - project(v,axis[1]))
+			v = normalize(noproject(v,axis[1]))
+			if glm.any(isnan(v)):
+				v,_,_ = dirbase(axis[1])
 			p = center + v*size/4
 			cyl.points.append(p)
 			cyl.points.append(p + axis[1]*size*cornersize)
@@ -164,7 +211,7 @@ class Pivot:
 		elif solid is self.solids[1]:
 			radius = size/4
 			axis = self.axis[1]
-			center = axis[0] + project(self.position[1], axis[1])
+			center = axis[0] + project(self.position[1]-axis[0], axis[1])
 			side = axis[1] * size * 0.5
 			if dot(junc-axis[0], axis[1]) < 0:
 				side = -side
@@ -200,46 +247,24 @@ class Plane:
 		self.position = position or (self.axis[0][0], self.axis[1][0])
 	
 	slvvars = 'solids',
-		
-	def corrections(self):
-		#print('  --')
-		orients = (quat(self.solids[0].orientation), quat(self.solids[1].orientation))
-		a1 = (orients[0] * self.axis[0][0] + self.solids[0].position,  orients[0] * self.axis[0][1])
-		a2 = (orients[1] * self.axis[1][0] + self.solids[1].position,  orients[1] * self.axis[1][1])
-		#if dot(a1[1], a2[1]) < -0.2:
-			#print('\tpush')
-			#normal = a1[1]
-			#rot = vec3(3.14,0,0)
-		#else:							
-		normal = normalize(a1[1] + a2[1])
-		rot = cross(a1[1],a2[1])
-		gap = project(a1[0] - a2[0], normal)
-		#print('  a1', a1)
-		#print('  a2', a2)
-		#print('\tgap', gap)
-		#print('\trot', rot)
-		
-		r = (orients[0]*self.axis[0][0], orients[1]*self.axis[1][0])
-		s = (-gap - GAPROT*noproject(cross(rot, r[0]), normal),
-			  rot + GAPROT*project(cross(r[0],-gap) / (dot(r[0],r[0]) + 1e-15), normal),
-			  gap - GAPROT*noproject(cross(-rot, r[1]), normal),
-			 -rot + GAPROT*project(cross(r[1],gap) / (dot(r[1],r[1]) + 1e-15), normal),
-			)
-		#print('  plane', s)
-		return s
-	
-	def corrections(self):
-		axis = solidtransform_axis(self.solids[0], self.axis[0]), solidtransform_axis(self.solids[1], self.axis[1])
-		r = cross(axis[0][1], axis[1][1])
-		t = project(axis[1][0] - axis[0][0], normalize(axis[0][1] + axis[1][1]))
-		return Torsor(r,t,axis[0][0]), Torsor(-r,-t,axis[1][0])
-	
 	def fit(self):
-		orients = (quat(self.solids[0].orientation), quat(self.solids[1].orientation))
-		a1 = (orients[0] * self.axis[0][0] + self.solids[0].position,  orients[0] * self.axis[0][1])
-		a2 = (orients[1] * self.axis[1][0] + self.solids[1].position,  orients[1] * self.axis[1][1])
-		normal = normalize(a1[1] + a2[1])
-		return dot(a1[0]-a2[0], normal) **2 - dot(a1[1], a2[1])
+		a0,a1 = solidtransform_axis(self.solids[0], self.axis[0]), solidtransform_axis(self.solids[1], self.axis[1])
+		normal = normalize(a0[1] + a1[1])
+		return dot(a0[0]-a1[0], normal) **2 - dot(a0[1], a1[1])
+	
+	def corrections(self):
+		a0,a1 = solidtransform_axis(self.solids[0], self.axis[0]), solidtransform_axis(self.solids[1], self.axis[1])
+		r = cross(a0[1], a1[1])
+		t = project(a1[0] - a0[0], normalize(a0[1] + a1[1]))
+		
+		#return Torsor(r,t,a0[0]), Torsor(-r,-t,a1[0]) 	# velocity torsor
+		return Torsor(t,r,a0[0]), Torsor(-t,-r,a1[0]) 	# force torsor
+	
+	def transmitable(self, action):
+		a0,a1 = solidtransform_axis(self.solids[0], self.axis[0])
+		normal = normalize(a0[1] + a1[1])
+		return Torsor(project(action.resulting, normal), noproject(action.momentum, normal), action.position)
+	
 		
 	
 	def scheme(self, solid, size, junc):
@@ -259,28 +284,105 @@ class Plane:
 			[(4,5,6)],
 			[(0,1),(1,2),(2,3),(3,0),(4,6),(6,7)],
 			)
-
-class Near:
-	def __init__(self, solid, pt, ref):
-		self.solid, self.pt, self.ref = solid, pt, ref
-		self.lastref = vec3(self.solid.transform() * vec4(self.ref,1))
+from .mathutils import mix
+class Track:
+	def __init__(self, s1, s2, b1, b2=None, position=None):
+		self.solids = (s1, s2)
+		self.bases = (b1, b2 or b1)
+		self.position = (self.bases[0][0], self.bases[1][0])
 	
-	def params(self):
-		return self.solid.position, self.solid.orientation
+	slvvars = 'solids',
+	def fit(self):
+		b0, b1 = solidtransform_base(self.solids[0], self.bases[0]), solidtransform_base(self.solids[1], self.bases[1])
+		t = b1[0] - b0[0]
+		x = normalize(b0[1]+b1[1])
+		y = normalize(b0[2]+b1[2])
+		return (	1-dot(cross(b0[1],b0[2]), cross(b1[1],b1[2]))
+				+	dot(t,x) **2
+				+	dot(t,y) **2
+				)
 	
 	def corrections(self):
-		r = quat(self.solid.orientation) * self.ref
-		ref = r + self.solid.position
-		free = normalize(ref - self.lastref)		# approximation for the free direction
-		print('free', ref - self.lastref)
-		gap = self.pt - ref
-		if not isnan(free):
-			gap = project(gap, free)
-		rot = cross(r, gap) / (dot(r,r) + 1e-15)
-		#rot = vec3(0)
-		#self.lastref = ref*0.2 + self.lastref*0.8
-		return 0.2*gap, 0.2*rot
+		b0, b1 = solidtransform_base(self.solids[0], self.bases[0]), solidtransform_base(self.solids[1], self.bases[1])
+		z0, z1 = cross(b0[1],b0[2]), cross(b1[1],b1[2])
+		r = (	cross(z0,z1)
+			+	cross(b0[1], b1[1])
+			+	cross(b0[2], b1[2])
+			)
+		return (
+			Torsor(noproject(b1[0] - b0[0], z1),  r,b0[0]), 
+			Torsor(noproject(b0[0] - b1[0], z0), -r,b1[0]),
+			)
+	
+	def transmitable(self, action):
+		z0, z1 = cross(b0[1],b0[2]), cross(b1[1],b1[2])
+		normal = normalize(z0 + z1)
+		return Torsor(noproject(action.resulting, normal), action.momentum, action.position)
+	
+	def scheme(self, solid, size, junc):
+		if solid is self.solids[0]:
+			o,x,y = self.bases[0]
+			y = normalize(noproject(y,x))
+			z = normalize(cross(x,y))
+			s = 0.25*size
+			line = Web(
+						[(x+y)*s, (-x+y)*s, (-x-y)*s, (x-y)*s],
+						[(0,1),(1,2),(2,3),(3,0)],
+						)
+			line.transform(-size/2*z)
+			ext = generation.extrusion(size*z, line)
+			l = len(ext.points)
+			v = junc - o
+			if abs(dot(v,x)) > abs(dot(v,y)):
+				v = x if dot(v,x)>0 else -x
+			else:
+				v = y if dot(v,y)>0 else -y
+			p = o + v*0.25*size
+			ext.points.append(p)
+			ext.points.append(p + z*size*cornersize)
+			ext.points.append(p + v*size*cornersize)
+			ext.points.append(junc)
+			return Scheme(
+					ext.points, 
+					ext.faces, 
+					[(l,l+1,l+2)], 
+					[	(l, l+2),
+						(0,1),(1,2),(2,3),(3,0),
+						(0,4), (1,5), (2,6), (3,7), 
+						(4,5),(5,6),(6,7),(7,4)],
+					)
 		
+		elif solid is self.solids[1]:
+			o,x,y = self.bases[1]
+			y = noproject(y,x)
+			z = cross(x,y)
+			s = 0.15*size
+			line = Web(
+						[(x+y)*s, (-x+y)*s, (-x-y)*s, (x-y)*s],
+						[(0,2),(1,3)],
+						)
+			line.transform(-size/2*z)
+			ext = generation.extrusion(size*z, line)
+			l = len(ext.points)
+			v = junc - o
+			if abs(dot(v,x)) > abs(dot(v,y)):
+				v = x if dot(v,x)>0 else -x
+			else:
+				v = y if dot(v,y)>0 else -y
+			p = o + z*size/2
+			ext.points.append(p)
+			ext.points.append(junc)
+			return Scheme(
+					ext.points, 
+					[], 
+					[], 
+					[	(l, l+1),
+						(0,2), (1,3),
+						(0,4), (1,5), (2,6), (3,7),
+						(4,6), (5,7)],
+					)
+		
+
 
 def mkwiredisplay(solid, constraints, size=None, color=None):
 	# get center and size of the solid's scheme
@@ -315,20 +417,25 @@ def makescheme(constraints, color=None):
 		for solid, pos in zip(cst.solids, cst.position):
 			if id(solid) not in solids:
 				solids[id(solid)] = info = [solid, [], vec3(0), 0]
+			else:
+				info = solids[id(solid)]
 			info[1].append(cst)
-			v = pos - solid.position
-			info[2] += v
-			info[3] += 1
-			diag = glm.max(diag, glm.abs(v))
+			if pos:
+				info[2] += pos
+				info[3] += 1
+				diag = glm.max(diag, glm.abs(pos))
 	# get the junction size
 	size = (max(diag) or 1) / len(constraints)
 	
 	for info in solids.values():
 		scheme = Scheme([], [], [], [], color, solid.transform())
 		center = info[2]/info[3]
+		if glm.any(isnan(center)):	center = vec3(0)
 		for cst in info[1]:
 			scheme.extend(cst.scheme(info[0], size, center))
 		info[0].visuals.append(scheme)
+		if info[0].name:
+			info[0].visuals.append(text.Text(center, info[0].name))
 
 
 
@@ -362,15 +469,15 @@ class WireDisplay:
 		
 		def load(scene):
 			return scene.ctx.program(
-						vertex_shader=open('shaders/uniformcolor.vert').read(),
-						fragment_shader=open('shaders/uniformcolor.frag').read(),
+						vertex_shader=open(ressourcedir+'/shaders/uniformcolor.vert').read(),
+						fragment_shader=open(ressourcedir+'/shaders/uniformcolor.frag').read(),
 						)
 		self.uniformshader = scene.ressource('shader_uniformcolor', load)
 		
 		def load(scene):
 			return scene.ctx.program(
-						vertex_shader=open('shaders/glowenvelope.vert').read(),
-						fragment_shader=open('shaders/glowenvelope.frag').read(),
+						vertex_shader=open(ressourcedir+'/shaders/glowenvelope.vert').read(),
+						fragment_shader=open(ressourcedir+'/shaders/glowenvelope.frag').read(),
 						)
 		self.transpshader = scene.ressource('shader_glowenvelope', load)
 		
@@ -454,8 +561,7 @@ class WireDisplay:
 		if self.vb_lines:			self.va_ident_lines.render(mgl.LINES)
 		return 1
 
-from math import inf
-def solvekin(joints, fixed=(), precision=1e-4, maxiter=None, damping=0.5):
+def solvekin(joints, fixed=(), precision=1e-4, maxiter=None, damping=0.9):
 	# register solids and corrections
 	solids = []
 	register = {}
@@ -479,7 +585,10 @@ def solvekin(joints, fixed=(), precision=1e-4, maxiter=None, damping=0.5):
 	corrmax = inf
 	itercount = 0
 	while corrmax > precision:
-		#corrmax = 0
+		if maxiter and maxiter <= itercount:
+			raise constraints.SolveError('maximum iteration count reached with no solution found, err='+str(corrmax))
+		
+		corrmax = 0
 		# collect corrections
 		corr = [[] for i in range(len(solids))]
 		i = 0
@@ -494,12 +603,17 @@ def solvekin(joints, fixed=(), precision=1e-4, maxiter=None, damping=0.5):
 			v = vec3(0)
 			w = vec3(0)
 			center = vec3(0)
+			
 			'''
+			# displacement based correction:  the correction torsor is assimilated to Velocity torsor
+			# rotation center is determined by the center of correction applications points
+			# displacement is the average of correction displacements
 			for c in corrections:
 				v += c.momentum
 				center += c.position
 			v /= l
 			center /= l
+			# rotation is the average of correction rotations and rotation requested by displacement differences to the average displacement
 			for c in corrections:
 				r = length(c.position-center) + 1e-15
 				induced = cross(c.momentum-v, c.position-center) / r**2
@@ -509,64 +623,80 @@ def solvekin(joints, fixed=(), precision=1e-4, maxiter=None, damping=0.5):
 				corrmax = max(corrmax, length(c.momentum), length(c.resulting)*r)
 			w /= 2*l
 			'''
+			
+			# force based correction: the correction torsor is assimilated to Force torsor
 			for c in corrections:
 				center += c.position
 			center /= l
+			
 			for c in corrections:
-				v += c.locate(center).momentum
-				w += c.resulting
-			v /= l
-			w /= l
-			w2 = vec3(0)
-			tot = 0
-			for c in corrections:
-				r = length(c.position-center) + 1e-15
-				w2 += cross(c.momentum - v, c.position-center) /r
-				tot += r
-			w = (w - w2/tot)/2
+				v += c.resulting
+				w += c.locate(center).momentum
+				r = length(c.position-center) + 1e-15	# radius, to evaluate rotation impact geometry shape
+				corrmax = max(corrmax, length(c.resulting), length(c.momentum)*r)
+			v /= l*2
+			w /= l*2
+			if length(w) > 1:
+				w /= length(w)
 			
 			solid.position += v*damping
-			#solid.orientation += w*damping
-			#solid.orientation += inverse(quat(solid.orientation)) * (w*damping)
-			nrot = quat(w*damping) * quat(solid.orientation)
-			solid.orientation = angle(nrot)*axis(nrot)
-			
-		if maxiter and maxiter == itercount:	
+			solid.orientation = quat(w*damping) * solid.orientation
 		
-			print()
-			for solid in solids:
-				print(solid.position, solid.orientation)
-			return
-			#raise constraints.SolveError('maximum iteration count reached with no solution found, err='+str(corrmax))
 		itercount += 1
-	
-	
-	
-class Torsor:
-	__slots__ = ('resulting', 'momentum', 'position')
-	def __init__(self, resulting=None, momentum=None, position=None):
-		self.resulting, self.momentum, self.position = resulting or vec3(0), momentum or vec3(0), position or vec3(0)
-	def locate(self, pt):
-		return Torsor(self.momentum, self.resulting + cross(self.momentum, pt-self.position), pt)
-	#def transform(self):
-		# donne la matrice de l'application affine de la position vers la resultante
-		#return transform(self.position) * transform(self.resulting, self.momentum) * transform(-self.position)
-	
-	def __add__(self, other):
-		if other.position != self.position:		other = other.locate(self.position)
-		return Torsor(self.resulting+other.resulting, self.momentum+other.momentum, self.position)
-	
-	def __sub__(self, other):
-		if other.position != self.position:		other = other.locate(self.position)
-		return Torsor(self.resulting-other.resulting, self.momentum-other.momentum, self.position)
-	
-	def __neg__(self):
-		return Torsor(-self.resulting, -self.momentum, self.position)
 
-def comomentum(t1, t2):
-	t2 = t2.locate(t1.position)
-	return dot(t1.momentum, t2.resulting) + dot(t2.momentum, t1.resulting)
-
+'''
+class Problem:
+	def __init__(self, joints, fixed=()):
+		self.joints = joints
+		self.fixed = fixed
+	
+		self.solids = []
+		self.register = {id(s) for s in self.solids}
+		self.corrdispatch = []
+		self.propagate = []
+		self.contribs = [0] * len(self.solids)
+	
+	def solve(self, precision=1e-4, maxiter=None, damping=0.5):
+		reached = inf
+		itercount = 0
+		while reached > precision and (not maxiter or maxiter > itercount):
+			reached = self.step(damping)
+		return reached
+	
+	def step(self, damping):
+		corrs = [Torsor(position=centers[i])  for i in range(len(self.solids))]
+		barys = [vec3(0)	for i in range(len(self.solids))]
+		
+		# sum contributions
+		for joint,dispatch in zip(self.joints, self.corrdispatch):
+			for contrib,dst in zip(joint.corrections(), dispatch):
+				corrs[dst] += contrib.locate(centers[dst])
+				barys[dst] += contrib.position
+		for i,ncontrib in enumerate(self.contribs):
+			corrs[i] /= ncontrib
+			barys[i] /= ncontrib
+		for i,coor in enumerate(corrs):
+			corrs[i] = coor.locate(barys[i])
+		
+		# propagate across joints
+		shared = [Torsor(position=center[i])	for i in range(len(self.solids))]
+		for propagation,contrib in zip(self.propagations,corr):
+			for src,dst,transmitter in propagation:
+				contrib = transmitter(contrib)
+				shared[dst] += contrib
+		# assign propagated
+		for dst,share in enumerate(shared):
+			corrs[dst] += share
+		
+		# assign corrections
+		corrmax = 0
+		for solid,corr in zip(self.solids, corrs):
+			solid.position += corr.resulting*damping
+			solid.orientation = quat(corr.momentum*damping) * solid.orientation
+			corrmax = max(corrmax, abs(a), length(corr.resulting))
+		
+		return corrmax
+'''
 
 from PyQt5.QtCore import QEvent	
 from . import view, text
@@ -581,7 +711,7 @@ class Kinemanip:
 	'''
 	renderindex = 0
 	
-	def __init__(self, scene, csts, root, scheme=False):
+	def __init__(self, csts, root, scheme=False):
 		self.csts, self.root = csts, root
 		self.locked = {id(root): root}
 		self.primitives = {}
@@ -591,6 +721,7 @@ class Kinemanip:
 			makescheme(self.csts)
 	
 	def display(self, scene):
+		yield self
 		for cst in self.csts:
 			for prim in cst.solids:
 				if id(prim) not in self.primitives:
@@ -627,18 +758,20 @@ class Kinemanip:
 			self.moved = True
 			# displace the moved object
 			pt = scene.ptfrom((evt.x(), evt.y()), self.startpt)
+			self.startpt = self.actsolid.position - quat(self.actsolid.orientation)*self.ptoffset
 			self.debug_label.position = fvec3(pt)
 			store(self.actsolid.position, pt+quat(self.actsolid.orientation)*self.ptoffset)
 			# solve
 			#try:	self.problem.solve(precision=1e-3, method=method, maxiter=50)
-			try:	solvekin(self.csts, self.locked.values(), precision=1e-3, maxiter=50)
-			except constraints.SolveError as err:	print(err)
+			try:	solvekin(self.csts, self.locked.values(), precision=1e-2, maxiter=50)
+			except constraints.SolveError as err:	pass
 		else:
 			if not self.moved:
 				self.lock(self.actsolid, id(self.actsolid) not in self.locked)
 			else:
 				# finish on a better precision
-				try:	self.problem.solve(precision=1e-6, method=method)
+				#try:	self.problem.solve(precision=1e-4, method=method)
+				try:	solvekin(self.csts, self.locked.values(), precision=1e-4, maxiter=1000)
 				except constraints.SolveError as err:	print(err)
 			scene.tool = None
 		
