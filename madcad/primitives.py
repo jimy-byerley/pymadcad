@@ -31,6 +31,10 @@ class Axis(object):
 	def __init__(self, origin, dir, interval=None):
 		self.origin, self.dir = origin, dir
 		self.interval = interval
+	def __getitem__(self, i):
+		if i==0:	return self.origin
+		elif i==1:	return self.dir
+		else:		raise IndexError('an axis has only 2 components')
 	
 	def direction(self):
 		return self.dir
@@ -40,7 +44,7 @@ class Axis(object):
 		return self.dir
 	
 	def display(self, scene):
-		yield displays.AxisDisplay(scene, (self.origin, self.dir))
+		yield displays.AxisDisplay(scene, (self.origin, self.dir), self.interval)
 
 class Segment(object):
 	__slots__ = ('a', 'b')
@@ -81,7 +85,7 @@ class ArcThrough(object):
 	
 	def tangent(self, pt):
 		c = self.center()
-		return normalize(cross(pt-c, self.a-c))
+		return normalize(cross(pt-c, cross(self.a-c, self.c-c)))
 	
 	slvvars = ('a', 'b', 'c')
 	slv_tangent = tangent
@@ -124,10 +128,10 @@ class ArcCentered(object):
 
 def mkarc(axis, start, end, resolution=None):
 	center, z = axis
-	v = noproject(start-center, axis[1])
+	v = noproject(start-center, z)
 	r = length(v)
 	x = v/r
-	y = cross(axis[1], x)
+	y = cross(z, x)
 	angle = atan2(dot(end-center,y), dot(end-center,x)) % (2*pi)
 	div = settings.curve_resolution(angle*r, angle, resolution) +2
 	pts = []
