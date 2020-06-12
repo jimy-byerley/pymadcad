@@ -1,4 +1,4 @@
-from .mathutils import vec3, ivec3, noproject, norminf, normalize, dot, glm, cross, length, NUMPREC
+from .mathutils import vec3, i64vec3, noproject, norminf, normalize, dot, glm, cross, length, NUMPREC
 from . import core
 from . import mesh
 from functools import reduce
@@ -31,7 +31,7 @@ class PositionMap:
 		cell = self.cellsize
 		# point
 		if isinstance(space, vec3):
-			yield tuple(ivec3(glm.floor(space/cell)))
+			yield tuple(i64vec3(glm.floor(space/cell)))
 		
 		# segment
 		elif isinstance(space, tuple) and len(space) == 2:
@@ -146,7 +146,7 @@ class PositionMap:
 		'''
 		# point
 		if isinstance(space, vec3):
-			return tuple(ivec3(glm.floor(space/cell))),
+			return tuple(i64vec3(glm.floor(space/cell))),
 		# segment
 		elif isinstance(space, tuple) and len(space) == 2:
 			return core.rasterize_segment(space, self.cellsize)
@@ -233,7 +233,7 @@ class PointSet:
 			if iterable:	self.update(iterable)
 	
 	def keyfor(self, pt):
-		return tuple(ivec3(pt/self.cellsize))
+		return tuple(i64vec3(pt/self.cellsize))
 	
 	def update(self, iterable):
 		for pt in iterable:	self.add(pt)

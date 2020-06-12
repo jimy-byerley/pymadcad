@@ -17,6 +17,7 @@ m1 = extrusion(vec3(0,0,0.5), Web(
 		))
 m1.check()
 assert m1.issurface()
+scn3D.add(m1)
 	
 # test revolution
 m2 = revolution(pi, (vec3(0,0,0), vec3(0,1,0)), web(
@@ -26,6 +27,7 @@ m2 = revolution(pi, (vec3(0,0,0), vec3(0,1,0)), web(
 		))
 m2.check()
 assert m2.issurface()
+scn3D.add(m2)
 
 # test saddle
 m3 = saddle(
@@ -57,19 +59,6 @@ assert m4.issurface()
 m4.transform(vec3(-4,0,0))
 scn3D.add(m4)
 
-# test closeholes
-m = m1+m2
-m.mergeclose()
-m.strippoints()
-#print(loopholes(m))
-#assert len(loopholes(m)) == 5, len(loopholes(m))
-#closeenvelope(m)
-#m.check()
-#assert m.issurface()
-#assert m.isenvelope()
-m.transform(vec3(0,0,4))
-#m.options.update({'debug_display': True, 'debug_points': True})
-scn3D.add(m)
 
 # test junction
 m5 = junction(
@@ -98,6 +87,6 @@ m6.transform(vec3(0,0,-4))
 scn3D.add(m6)
 
 
-scn3D.look(m6.box())
+scn3D.look(m1.box())
 main.show()
 sys.exit(app.exec())
