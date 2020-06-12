@@ -17,11 +17,11 @@ class Displayable:
 class PointDisplay:
 	renderindex = 3
 	def __init__(self, scene, position, size=10, color=None, selected=False, transform=fmat4(1)):
-		self.position = position
+		self.position = fvec3(position)
 		self.size = size
 		self.selected = selected
 		self.color = fvec3(color or settings.display['line_color'])
-		self.transform = fmat4(*transform)
+		self.transform = fmat4(transform)
 		
 		def load(scene):
 			img = Image.open(ressourcedir+'/textures/point.png')
@@ -83,9 +83,9 @@ class ArrowDisplay:
 	renderindex = 2
 	def __init__(self, scene, axis, color=None, transform=fmat4(1)):
 		x,y,z = dirbase(axis[1])
-		self.local = fmat4(*mktransform(axis[0],x,y,z))
+		self.local = fmat4(mktransform(axis[0],x,y,z))
 		self.color = fvec3(color or settings.display['annotation_color'])
-		self.transform = fmat4(*transform)
+		self.transform = fmat4(transform)
 		self.selected = False
 		
 		# load shader
@@ -139,8 +139,8 @@ class TangentDisplay:
 	def render(self, scene):
 		size = self.size or -scene.view_matrix[3][2] * 10/scene.height()
 		x,y,z = dirbase(self.axis[1])
-		self.arrow1.local = fmat4(*mktransform(self.axis[0], size*x, size*y, size*z))
-		self.arrow2.local = fmat4(*mktransform(self.axis[0], size*x, size*y, -size*z))
+		self.arrow1.local = fmat4(mktransform(self.axis[0], size*x, size*y, size*z))
+		self.arrow2.local = fmat4(mktransform(self.axis[0], size*x, size*y, -size*z))
 		self.arrow1.render(scene)
 		self.arrow2.render(scene)
 	
@@ -166,7 +166,7 @@ class AxisDisplay:
 		self.direction = fvec3(axis[1])
 		self.interval = interval
 		self.color = fvec3(color or settings.display['line_color'])
-		self.transform = fmat4(*transform)
+		self.transform = fmat4(transform)
 		self.selected = False
 		
 		self.shader, self.va, self.ident_shader, self.va_idents = scene.ressource('axis', self.load)
@@ -231,7 +231,7 @@ class AnnotationDisplay:
 	renderindex = 3
 	def __init__(self, scene, points, alpha, color, transform):
 		self.color = fvec3(color or settings.display['annotation_color'])
-		self.transform = fmat4(*transform)
+		self.transform = fmat4(transform)
 		self.selected = False
 		# load shader
 		def load(scene):
@@ -346,11 +346,10 @@ class SolidDisplay:
 	''' Display render Meshes '''
 	renderindex = 1
 	def __init__(self, scene, positions, normals, faces, lines, idents, color=None, transform=fmat4(1)):
-		self.options = scene.options
-		
+		self.options = scene.options		
 		color = fvec3(color or settings.display['solid_color'])
 		line_color = fvec3(settings.display['line_color'])
-		self.vertices = Vertices(scene.ctx, positions, idents, fmat4(*transform))
+		self.vertices = Vertices(scene.ctx, positions, idents, fmat4(transform))
 		self.disp_faces = FacesDisplay(scene, self.vertices, normals, faces, color)
 		self.disp_groups = LinesDisplay(scene, self.vertices, lines, line_color)
 		self.disp_points = PointsDisplay(scene, self.vertices, color=line_color)
@@ -384,7 +383,7 @@ class WebDisplay:
 		self.options = scene.options
 		
 		color = fvec3(settings.display['line_color'])
-		self.vertices = Vertices(scene.ctx, positions, idents, fmat4(*transform))
+		self.vertices = Vertices(scene.ctx, positions, idents, fmat4(transform))
 		self.disp_edges = LinesDisplay(scene, self.vertices, lines, color)
 		self.disp_groups = PointsDisplay(scene, self.vertices, points, color=color)
 		self.disp_points = PointsDisplay(scene, self.vertices, color=color)
@@ -407,7 +406,7 @@ class Vertices(object):
 	''' convenient class to share vertices between SolidDisplay, WebDisplay, PointsDisplay '''
 	__slots__ = 'transform', 'idents', 'nident', 'flags', 'flags_updated', 'vb_positions', 'vb_idents', 'vb_flags'
 	def __init__(self, ctx, positions, idents, transform):
-		self.transform = fmat4(*transform)
+		self.transform = fmat4(transform)
 		self.idents = idents
 		self.nident = int(max(idents))+1
 		self.flags = np.zeros(len(positions), dtype='u1')
