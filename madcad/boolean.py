@@ -338,7 +338,10 @@ def find(iterator, predicate):
 	for e in iterator:
 		if predicate(e):	return e
 
-
+#def dumpvec(v):
+	#return 'dvec3({:.15g},{:.15g},{:.15g})'.format(*v)
+#def dumpface(f):
+	#return ', '.join([dumpvec(p) for p in f])
 
 # routines to simplify intersections
 def max_v(x):
