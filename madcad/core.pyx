@@ -295,10 +295,6 @@ def intersect_triangles(f0, f1, precision):
 		varr(&yA)[i] = dot(vsub(fA[i], pfA[i]), tA)
 		varr(&yB)[i] = dot(vsub(fB[i], pfB[i]), tB)
 	
-	# dimensioning for fA and fB
-	sA = max(vmax(vabs(xA)), vmax(vabs(yA)))
-	sB = max(vmax(vabs(xB)), vmax(vabs(yB)))
-	
 	# identify signs of yA and yB
 	cdef int[3] sYA
 	cdef int[3] sYB
@@ -361,11 +357,11 @@ def intersect_triangles(f0, f1, precision):
 	piB, miB = (0, 1)	if xIB[0] > xIB[1] else   (1, 0)
 	
     # one intersection at the border of the intervals
-	if abs(xIA[piA]-xIB[miB]) / (0.5*(sB+sA)) < prec:
+	if abs(xIA[piA]-xIB[miB]) < prec:
 		# edge of max from A matches min of B
 		return (0, eIA[piA], c2glm(vaffine(pA1, d, xIA[piA]))),  (1, eIB[miB], c2glm(vaffine(pA1, d, xIB[miB])))
 		
-	if abs(xIB[piB]-xIA[miA]) / (0.5*(sB+sA)) < prec:
+	if abs(xIB[piB]-xIA[miA]) < prec:
 		# edge of max from B matches min of A
 		return (0, eIA[miA], c2glm(vaffine(pA1, d, xIA[miA]))),  (1, eIB[piB], c2glm(vaffine(pA1, d, xIB[piB])))
 	
