@@ -146,7 +146,7 @@ class TangentDisplay:
 	
 	def identify(self, scene, startident):
 		self.arrow1.identify(scene, startident)
-		self.arrow1.identify(scene, startident)
+		self.arrow2.identify(scene, startident)
 		return 1
 	
 	def control(self, scene, grp, ident, evt):
@@ -154,7 +154,7 @@ class TangentDisplay:
 	
 	def select(self, idents, state=None):
 		r = self.arrow1.select(idents, state)
-		self.arrow2.selected = self.arrow1.selected
+		self.arrow2.select(idents, state)
 		return r
 
 class AxisDisplay:
@@ -293,6 +293,9 @@ class RadiusMeasure(AnnotationDisplay):
 class LengthMeasure(AnnotationDisplay):
 	def __init__(self, scene, a, b, location=None, color=None, transform=fmat4(1)):
 		# place points
+		a = fvec3(a)
+		b = fvec3(b)
+		if location:	location = fvec3(location)
 		middle = (a + b)/2
 		if not location:	location = middle
 		if not color:		color = settings.display['annotation_color']
@@ -301,7 +304,7 @@ class LengthMeasure(AnnotationDisplay):
 		topdist = length(top)
 		sizeref = max(distance(a,b), topdist)
 		arrowx = sizeref*0.05*dir
-		arrowy = sizeref*0.03*(top/topdist if topdist else fvec3(1,0,0))
+		arrowy = sizeref*0.03*(top/topdist if topdist/distance(a,b) > 1e-6 else fvec3(dirbase(vec3(dir))[0]))
 		pts = [	a, a+top+arrowy*0.75, 
 				a+top, a+top-arrowx-arrowy, 
 				a+top, a+top-arrowx+arrowy,
@@ -326,7 +329,7 @@ class ArcMeasure(AnnotationDisplay):
 		topdist = length(top)
 		sizeref = max(distance(a,b), topdist)
 		arrowx = sizeref*0.05*dir
-		arrowy = sizeref*0.03*(top/topdist if topdist else fvec3(1,0,0))
+		arrowy = sizeref*0.03*(top/topdist if topdist/distance(a,b) > 1e-6 else fvec3(dirbase(vec3(dir))[0]))
 		pts = [	a, a+top+arrowy*0.75, 
 				a+top, a+top-arrowx-arrowy, 
 				a+top, a+top-arrowx+arrowy,
