@@ -7,7 +7,8 @@ from math import inf
 from .mathutils import (
 		vec3, mat3, dvec2, dvec3, dmat3, ivec3, 
 		sign, dot, cross, noproject, inverse, sqrt, normalize, length, distance,
-		NUMPREC
+		find,
+		NUMPREC,
 		)
 from . import core
 from .mesh import Mesh, Web, edgekey, connef, line_simplification, distance_pe
@@ -333,10 +334,6 @@ def intersectwith(m1, m2, prec=None):
 	m1.faces = mn.faces
 	m1.tracks = mn.tracks
 	return frontier
-
-def find(iterator, predicate):
-	for e in iterator:
-		if predicate(e):	return e
 
 #def dumpvec(v):
 	#return 'dvec3({:.15g},{:.15g},{:.15g})'.format(*v)

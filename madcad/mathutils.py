@@ -127,11 +127,15 @@ def dichotomy_index(l, index, key=lambda x:x):
 		else:	return mid
 	return start
 
+def find(iterator, predicate):
+	for e in iterator:
+		if predicate(e):	return e
+
 
 
 class Box:
 	__slots__ = ('min', 'max')
-	def __init__(self, min=None, max=None, center=vec3(0), width=vec3(0)):
+	def __init__(self, min=None, max=None, center=vec3(0), width=vec3(-inf)):
 		if min and max:			self.min, self.max = min, max
 		else:					self.min, self.max = center-width, center+width
 	
@@ -141,6 +145,13 @@ class Box:
 	@property
 	def width(self):
 		return self.max - self.min
+	
+	def isvalid(self):
+		''' return True if the box defines a valid space (min coordinates <= max coordinates) '''
+		return any(self.min <= self.max)
+	def isempty(self):
+		''' return True if the box contains a non null volume '''
+		return any(self.min >= self.max)
 	
 	def __add__(self, other):
 		if isinstance(other, vec3):		return Box(self.min + other, self.max + other)
@@ -191,3 +202,5 @@ class Box:
 		for i in range(3):
 			if self.min[i] >= self.max[i]:	return False
 		return True
+	def __repr__(self):
+		return '{}({}, {})'.format(self.__class__.__name__, repr(self.min), repr(self.max))
