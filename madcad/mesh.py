@@ -2,7 +2,7 @@
 	Defines triangular meshes for pymadcad
 '''
 
-from copy import deepcopy
+from copy import copy, deepcopy
 from random import random
 import numpy as np
 from array import array
@@ -61,6 +61,8 @@ class Container:
 		used = [False] * len(self.groups)
 		for track in self.tracks:
 			used[track] = True
+		self.groups = copy(self.groups)
+		self.tracks = copy(self.tracks)
 		reindex = striplist(self.groups, used)
 		for i,track in enumerate(self.tracks):
 			self.tracks[i] = reindex[track]
@@ -214,6 +216,8 @@ class Mesh(Container):
 		for face in self.faces:
 			for p in face:
 				used[p] = True
+		self.points = copy(self.points)
+		self.faces = copy(self.faces)
 		reindex = striplist(self.points, used)
 		for i,f in enumerate(self.faces):
 			self.faces[i] = (reindex[f[0]], reindex[f[1]], reindex[f[2]])
@@ -601,6 +605,8 @@ class Web(Container):
 		for edge in self.edges:
 			for p in edge:
 				used[p] = True
+		self.points = copy(self.points)
+		self.edges = copy(self.edges)
 		reindex = striplist(self.points, used)
 		for i,e in enumerate(self.edges):
 			self.edges[i] = (reindex[e[0]], reindex[e[1]])
