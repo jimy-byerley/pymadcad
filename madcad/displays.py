@@ -72,7 +72,7 @@ class PointDisplay:
 		self.va_idents.render(mgl.TRIANGLES)
 		return 1
 	
-	def control(self, scene, grp, ident, evt):
+	def control(self, scene, rdr, ident, evt):
 		self.selected = not self.selected
 	
 	def select(self, idents, state=None):
@@ -120,7 +120,7 @@ class ArrowDisplay:
 		self.va_idents.render(mgl.LINES)
 		return 1
 		
-	def control(self, scene, grp, ident, evt):
+	def control(self, scene, rdr, ident, evt):
 		self.selected = not self.selected
 	
 	def select(self, idents, state=None):
@@ -149,7 +149,7 @@ class TangentDisplay:
 		self.arrow2.identify(scene, startident)
 		return 1
 	
-	def control(self, scene, grp, ident, evt):
+	def control(self, scene, rdr, ident, evt):
 		self.select(0, not self.select(0))
 	
 	def select(self, idents, state=None):
@@ -219,7 +219,7 @@ class AxisDisplay:
 	
 	# axis = (vec3(0), vec3(1))
 		
-	def control(self, scene, grp, ident, evt):
+	def control(self, scene, rdr, ident, evt):
 		self.selected = not self.selected
 	
 	def select(self, idents, state=None):
@@ -261,7 +261,7 @@ class AnnotationDisplay:
 		self.va_idents.render(mgl.LINES)
 		return 1
 		
-	def control(self, scene, grp, ident, evt):
+	def control(self, scene, rdr, ident, evt):
 		self.selected = not self.selected
 	
 	def select(self, idents, state=None):
@@ -375,8 +375,8 @@ class SolidDisplay:
 		self.disp_faces.identify(scene, startident)
 		return self.vertices.nident
 	
-	def control(self, *args):	self.vertices.control(*args)
-	def select(self, *args):	self.vertices.select(*args)
+	def control(self, *args):	return self.vertices.control(*args)
+	def select(self, *args):	return self.vertices.select(*args)
 		
 
 class WebDisplay:
@@ -418,7 +418,7 @@ class Vertices(object):
 		self.vb_idents = ctx.buffer(np.array(idents, dtype=view.IDENT_TYPE, copy=False))
 		self.vb_flags = self.vb_flags = ctx.buffer(self.flags, dynamic=True)
 	
-	def control(self, scene, grp, ident, evt):
+	def control(self, scene, grp, rdr, evt):
 		self.select(ident, not self.select(ident))
 	
 	def select(self, idents, state=None):

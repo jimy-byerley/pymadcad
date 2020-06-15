@@ -37,15 +37,13 @@ from copy import copy, deepcopy
 from math import tan, sin, cos, pi, exp
 
 from .common import ressourcedir
-from .mathutils import vec3, fvec3, fvec4, fmat3, fmat4, row, column, length, perspective, translate, project, inverse, dichotomy_index, Box
+from .mathutils import vec3, fvec3, fvec4, fmat3, fmat4, row, column, length, perspective, translate, project, inverse, dichotomy_index, find, Box
 from . import settings
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QPointF
 from PyQt5.QtOpenGL import QGLWidget, QGLFormat
-from PyQt5.QtWidgets import QWidget
-# new open gl widget (bug)
 from PyQt5.QtWidgets import QOpenGLWidget
-from PyQt5.QtGui import QSurfaceFormat
+from PyQt5.QtGui import QSurfaceFormat, QMouseEvent
 
 
 opengl_version = (3,3)	# min (3,3)
@@ -161,11 +159,10 @@ class Scene(QOpenGLWidget):
 		# display rendering options
 		self.options = deepcopy(settings.scene)
 		
-		self.groups = []
-		self.layers = []
+		self.displayed = set()
+		self.queue = {}
 		self.stack = []
-		self.ident_steps = []
-		self.queue = []
+		self.identsteps = []
 		
 		self.ctx = None		# opengl context, that is None when no yet initialized
 		
@@ -246,14 +243,14 @@ class Scene(QOpenGLWidget):
 		ident = 1
 		for i,(grp,rdr) in enumerate(self.stack):
 			ident += rdr.identify(self, ident) or 0
-			self.ident_steps[i] = ident-1
+			self.identsteps[i] = ident-1
 		self.refreshed = False
 	
 	def dequeue(self):
 		if self.queue:
 			# insert renderers for each object in queue
 			while self.queue:
-				grp,obj = self.queue.pop()
+				grp,obj = self.queue.popitem()
 				if type(obj) in dispoverrides:
 					renderers = dispoverrides[type(obj)](obj, self)
 				elif hasattr(obj, 'display'):
@@ -261,48 +258,34 @@ class Scene(QOpenGLWidget):
 				else:
 					continue
 				for rdr in renderers:
-					for _ in range(len(self.layers), rdr.renderindex+1):	
-						self.layers.append([])
-					self.layers[rdr.renderindex].append((grp,rdr))
-			self.restack()
+					i = dichotomy_index(self.stack, rdr.renderindex, lambda r: r[1].renderindex)
+					self.stack.insert(i, (grp,rdr))
+		self.identsteps = [0]*len(self.stack)
 	
-	def restack(self):
-		# regenerate the display stack
+	def clear(self):
+		''' remove all renderers from the scene, an clears the insertion queue '''
+		self.displayed = set()
+		self.queue = []
 		self.stack = []
-		for layer in self.layers:	self.stack.extend(layer)
-		self.ident_steps = [0] * len(self.stack)
+		self.identsteps = []
 	
-	def add(self, obj):
+	def add(self, obj, key=None):
 		''' add an object to the scene
 			returns the group id created for the object's renderers 
 		'''
-		# find group id
-		grp = 0
-		while grp < len(self.groups) and grp == self.groups[grp]:		grp += 1
-		# register object
-		self.groups.insert(grp,grp)
-		self.queue.append((grp,obj))
-		return grp
+		if key is None:	# find a new group id
+			key = find(range(len(self.queue)), lambda i: i not in self.queue)
+		self.queue[key] = obj
+		self.displayed.add(key)
+		return key
 	
-	def remove(self, grp):
+	def remove(self, key):
 		''' remove an object from the scene and return its renderers if already created
 			grp must be an integer returned by self.stack()
 		'''
-		# search for it in queue
-		for i in range(len(self.queue)):
-			if self.queue[i][0] == grp:	
-				self.queue.pop(i)
-				return ()
-		# else remove already inserted renderers
-		poped = []
-		for layer in self.layers:
-			i = 0
-			while i < len(layer):
-				if layer[i][0] == grp:	poped.append(layer.pop(i))
-				else:					i += 1
-		self.groups.remove(grp)
-		self.restack()
-		return poped
+		self.queue.pop(key, None)
+		self.stack = [(k,r)	for k,r in self.stack if k != key]
+		self.displayed.discard(key)
 		
 	
 	def ressource(self, name, func=None):
@@ -360,15 +343,19 @@ class Scene(QOpenGLWidget):
 			h,w = self.ident_frame.viewport[2:]
 			pos = self.objnear((x,y), 10)
 			if pos:
-				clicked = self.objat(pos)
-				grp,rdr = self.stack[clicked[0]]
-				# right-click is the selection button
-				if b == Qt.RightButton and hasattr(rdr, 'select'):
-					#rdr.select(grp, not rdr.select(grp))
-					rdr.select(clicked[1], not rdr.select(clicked[1]))
-				# other clicks are for custom controls
-				elif hasattr(rdr, 'control'):
-					self.tool = rdr.control(self, grp, clicked[1], pos)
+				rdr,sub = self.objat(pos)
+				evt = QMouseEvent(evt.type(), QPointF(*pos), evt.button(), evt.buttons(), evt.modifiers())
+				self.objcontrol(rdr, sub, evt)
+	
+	def objcontrol(self, rdri, subi, evt):
+		''' apply a control action over a renderer, feel free to overload this method '''
+		grp,rdr = self.stack[rdri]
+		# left-click is the selection button
+		if evt.button() == Qt.LeftButton and hasattr(rdr, 'select'):
+			rdr.select(subi, not rdr.select(subi))
+		# other clicks are for custom controls
+		elif hasattr(rdr, 'control'):
+			self.tool = rdr.control(self, rdri, subi, evt)
 
 	def mouseMoveEvent(self, evt):
 		self.update()
@@ -405,7 +392,10 @@ class Scene(QOpenGLWidget):
 			#from PIL import Image
 			#Image.fromarray(self.ident_map*10).show()
 	
-	def objnear(self, coords, radius=0):
+	def objnear(self, coords, radius=10):
+		''' return the closest coordinate to coords, (within the given radius) for which there is an object at
+			So if objnear is returing something, objat and ptat will return something at the returned point
+		'''
 		self.refreshmaps()
 		for x,y in snailaround(coords, (self.ident_map.shape[1], self.ident_map.shape[0]), radius):
 			ident = int(self.ident_map[-y, x])
@@ -413,17 +403,25 @@ class Scene(QOpenGLWidget):
 				return x,y
 	
 	def objat(self, coords):
-		''' return a tuple (obji, groupi) of the idents of the object and its group at the given screen coordinates '''
+		''' return a tuple (rdri, subi) of the idents of the object and its group at the given screen coordinates '''
 		self.refreshmaps()
 		ident = int(self.ident_map[-coords[1], coords[0]])
 		if ident > 0:
-			obji = dichotomy_index(self.ident_steps, ident)
-			if obji == len(self.ident_steps):
+			rdri = dichotomy_index(self.identsteps, ident)
+			if rdri == len(self.identsteps):
 				print('problem: object ident points out of idents list')
-			while obji > 0 and self.ident_steps[obji-1] == ident:	obji -= 1
-			if obji > 0:	groupi = ident - self.ident_steps[obji-1] - 1
-			else:			groupi = ident - 1
-			return obji, groupi
+			while rdri > 0 and self.identsteps[rdri-1] == ident:	rdri -= 1
+			if rdri > 0:	subi = ident - self.identsteps[rdri-1] - 1
+			else:			subi = ident - 1
+			return rdri, subi
+	
+	def grpat(self, coords):
+		''' return the (group ident, render index, renderer subident) at the given coordinates '''
+		rdri, subi = self.objat(coords)
+		return self.stack[rdri][0], rdri, subi
+	
+	def rdrgrp(self, rdr):
+		return self.stack[rdr][0]
 	
 	def sight(self, coords):
 		''' sight axis from the camera center to the point matching the given pixel coordinates '''
@@ -449,29 +447,34 @@ class Scene(QOpenGLWidget):
 			#near, far = self.projection.limits  or settings.display['view_limits']
 			#depth = 2 * near / (far + near - depthred * (far - near))
 			#print('depth', depth, depthred)
-			return vec3(affineInverse(self.view_matrix) * fvec4(
+			return vec3(fvec3(affineInverse(self.view_matrix) * fvec4(
 						depth * x /self.proj_matrix[0][0],
 						depth * y /self.proj_matrix[1][1],
 						-depth,
-						1))
+						1)))
 	
 	def ptfrom(self, coords, center):
 		''' 3D point below the cursor in the plane orthogonal to the sight, with center as origin '''
 		viewport = self.ident_frame.viewport
 		x =  (coords[0]/viewport[2] *2 -1)
 		y = -(coords[1]/viewport[3] *2 -1)
-		depth = (self.view_matrix * fvec4(center,1))[2]
-		return vec3(affineInverse(self.view_matrix) * fvec4(
+		depth = (self.view_matrix * fvec4(fvec3(center),1))[2]
+		return vec3(fvec3(affineInverse(self.view_matrix) * fvec4(
 					-depth * x /self.proj_matrix[0][0],
 					-depth * y /self.proj_matrix[1][1],
 					depth,
-					1))
+					1)))
 	
 	def look(self, box):
-		fov = self.projection.fov or settings.display['field_of_view']
-		self.manipulator.center = fvec3(box.center)
-		self.manipulator.distance = length(box.width) / (2*tan(fov/2))
-		self.manipulator.update()
+		if isinstance(box, (vec3,fvec3)):	box = Box(center=box, width=vec3(0))
+		if box.isvalid():
+			if box.isempty():
+				self.manipulator.center = fvec3(box.center)
+			else:
+				fov = self.projection.fov or settings.display['field_of_view']
+				self.manipulator.center = fvec3(box.center)
+				self.manipulator.distance = length(box.width) / (2*tan(fov/2))
+			self.manipulator.update()
 
 
 def isdisplay(obj):

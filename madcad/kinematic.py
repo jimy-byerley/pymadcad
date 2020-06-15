@@ -17,7 +17,7 @@ from . import constraints
 
 __all__ = ['Torsor', 'comomentum', 'Solid', 'Kinemanip', 'solvekin',
 			'makescheme', 'Scheme', 'WireDisplay',
-			'Pivot', 'Plane', 'Track', 'Linear']
+			'Pivot', 'Plane', 'Track', 'Gliding']
 
 
 '''
@@ -551,7 +551,7 @@ class WireDisplay:
 	
 	def __init__(self, scene, points, transpfaces, opaqfaces, lines, color=None, transform=fmat4(1)):
 		ctx = scene.ctx
-		self.transform = fmat4(*transform)
+		self.transform = fmat4(transform)
 		self.color = fvec3(color or settings.display['wire_color'])
 		
 		def load(scene):
@@ -823,10 +823,10 @@ class Kinemanip:
 	def render(self, scene):	pass
 	def identify(self, scene, startident):	pass	
 		
-	def start(self, solid, scene, ident, pt):
+	def start(self, solid, scene, ident, evt):
 		if solid is self.root:	return
 		
-		self.startpt = scene.ptat(pt)
+		self.startpt = scene.ptat((evt.x(), evt.y()))
 		self.debug_label.position = fvec3(self.startpt)
 		self.ptoffset = inverse(quat(solid.orientation)) * (solid.position - self.startpt)
 		self.actsolid = solid
@@ -864,7 +864,7 @@ class Kinemanip:
 		
 		# assign new positions to displays
 		for primitive,displays in self.primitives.values():
-			trans = fmat4(*primitive.transform())
+			trans = fmat4(primitive.transform())
 			for disp in displays:
 				if hasattr(disp, 'transform'):
 					disp.transform = trans
