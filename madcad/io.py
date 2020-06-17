@@ -1,5 +1,6 @@
 import numpy as np
-from .mathutils import vec3
+import os
+from .mathutils import vec3, glm, inf
 from .mesh import Mesh, Wire
 from . import generation
 
@@ -21,7 +22,7 @@ def read(name: str, type=None, **opts) -> Mesh:
 	if reader:
 		return reader(name, **opts)
 	else:
-		raise FileFormatError('no function available for format '+type)
+		raise FileFormatError('no read function available for format '+type)
 
 def write(mesh: Mesh, name: str, type=None, **opts):
 	''' write a mesh to a file, guessing its file type '''
@@ -30,7 +31,33 @@ def write(mesh: Mesh, name: str, type=None, **opts):
 	if writer:
 		return writer(mesh, name, **opts)
 	else:
-		return FileFormatError('no function available for format '+type)
+		raise FileFormatError('no write function available for format '+type)
+
+caches = {}
+def cache(name: str, create: callable=None, **opts) -> Mesh:
+	''' Small cachefile system, it allows to dump objects to files and to get them when needed.
+		It's particularly usefull when working with other processes. The cached files are reloaded only when the cache files are newer than the memory cache data
+		
+		If specified, create() is called to provide the data, in case it doesn't exist in memory neighter as file
+	'''
+	# create the cache file if it doesn't exist
+	if os.path.exists(name):
+		cachedate = caches[name][0] if name in caches else -inf
+		filedate = os.path.getmtime(name)
+		if cachedate < filedate:
+			caches[name] = (filedate, read(name, **opts))
+	# load reload the file content if it's newer that the data in memory
+	else:
+		if name in caches:	obj = caches[name][1]
+		elif create:		obj = create()
+		else:				obj = None
+		if obj:
+			write(name, obj, **opts)
+			caches[name] = (os.path.getmtime(name), obj)
+		else:
+			raise IOError("the cache file doesn't exist")
+	return caches[name][1]
+
 
 '''
 	PLY is loaded using plyfile module 	https://github.com/dranjan/python-plyfile
@@ -101,13 +128,12 @@ else:
 
 	def stl_read(file, **opts):
 		stlmesh = stl.mesh.Mesh.from_file(file, calculate_normals=False)
-		mesh = Mesh()
 		trinum = stlmesh.points.shape[0]
-		for p in stlmesh.points.reshape(trinum*3, 3):
-			mesh.points.append(vec3(p))
-		mesh.faces = [(i, i+1, i+2)  for i in range(3*trinum, 3)]
+		ptsbuff = stlmesh.points.reshape(trinum*3, 3).astype('f8')
+		pts = glm.array(a).to_list()
+		faces = [(i, i+1, i+2)  for i in range(0, 3*trinum, 3)]
+		mesh = Mesh(pts, faces)
 		mesh.options['name'] = stlmesh.name
-		mesh.mergeclose()
 		return mesh
 
 	def stl_write(mesh, file, **opts):
@@ -127,9 +153,9 @@ except ImportError:	pass
 else:
 	
 	def obj_read(file, **opts):
-		scene = pywavefront.Wavefront('something.obj', parse=True, cache=False)
+		scene = pywavefront.Wavefront(file, parse=True, cache=False)
 		mesh = Mesh()
-		mesh.points = [tuple(v[:2]) for v in scene.vertices]
+		mesh.points = [vec3(v[:2]) for v in scene.vertices]
 		for sub in scene.meshes.values():
 			mesh.faces.extend(( tuple(f[:2]) for f in sub.faces ))
 		if len(scene.meshes) == 1:

@@ -31,10 +31,10 @@ from .boolean import difference, union, intersection
 from .cut import chamfer, bevel, beveltgt, planeoffsets
 from .generation import flatsurface, junction, extrans, extrusion, revolution, saddle, tube, icosurface
 from .primitives import isprimitive, Point, Axis, Segment, ArcThrough, ArcCentered, Circle
-from .constraints import isconstraint, SolveError, Tangent, Distance, Angle, Parallel, Radius, Projected, PointOn, solve
+from .constraints import isconstraint, SolveError, Tangent, Distance, Angle, Parallel, Radius, Projected, PointOn, OnPlane, solve
 from .kinematic import Solid, InSolid, Pivot, Plane, Kinemanip
 from .selection import select
-from .io import read, write
+from .io import read, write, cache
 from .triangulation import TriangulationError
 
 from .text import Text
