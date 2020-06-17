@@ -443,7 +443,7 @@ class FacesDisplay:
 	
 		# load the skybox texture
 		def load(scene):
-			img = Image.open(ressourcedir+'/textures/skybox-violet.png')
+			img = Image.open(ressourcedir+'/textures/skybox-violet-saturated.png')
 			return scene.ctx.texture(img.size, 3, img.tobytes())
 		self.reflectmap = scene.ressource('skybox', load)
 		
