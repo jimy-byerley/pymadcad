@@ -141,9 +141,11 @@ class Box:
 	
 	@property
 	def center(self):
+		''' mid coordinates of the box '''
 		return (self.min + self.max) /2
 	@property
 	def width(self):
+		''' diagonal vector of the box '''
 		return self.max - self.min
 	
 	def isvalid(self):
@@ -204,3 +206,27 @@ class Box:
 		return True
 	def __repr__(self):
 		return '{}({}, {})'.format(self.__class__.__name__, repr(self.min), repr(self.max))
+
+def boundingbox(*args, ignore=True) -> Box:
+	''' return a bounding box for the objects passed
+		will search recursively in sub iterables
+		if ignore is False, a TypeError is raised when one of the passed objects doesn't contribute to the bounding box
+	'''
+	box = Box(vec3(inf), vec3(-inf))
+	for obj in args:
+		if hasattr(obj, 'box'):
+			part = obj.box()
+		elif isinstance(obj, vec3):
+			part = obj
+		elif isinstance(obj, tuple) and isinstance(obj[0], vec3):
+			part = obj[0]
+		elif hasattr(obj, '__iter__'):
+			for e in obj:
+				box.union(boundingbox(e))
+			continue
+		else:
+			if not ignore:	raise TypeError('unable to get a boundingbox from', obj)
+			continue
+		box.union(part)
+	return box
+
