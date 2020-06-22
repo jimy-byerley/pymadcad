@@ -54,11 +54,11 @@ class Perspective:
 	__slots__ = ('fov', 'limits')
 	def __init__(self, fov=None, limits=None):
 		self.limits, self.fov = limits, fov
-	def matrix(self, ratio):
+	def matrix(self, ratio, distance):
 		#return perspective(ratio, self.fov, self.limits, dtype='f4')
 		fov = self.fov or settings.display['field_of_view']
-		limits = self.limits or settings.display['view_limits']
-		return perspective(fov, ratio, *limits)
+		near,far = self.limits or settings.display['view_limits']
+		return perspective(fov, ratio, distance*near, distance*far)
 		
 class Turntable:
 	''' class to rotate the view using the mouse events '''
@@ -219,7 +219,7 @@ class Scene(QOpenGLWidget):
 		
 		# setup the render pass
 		self.view_matrix = self.manipulator.matrix()	# column major matrix for opengl
-		self.proj_matrix = self.projection.matrix(self.aspectratio)		# column major matrix for opengl
+		self.proj_matrix = self.projection.matrix(self.aspectratio, self.manipulator.distance)		# column major matrix for opengl
 		
 		# set the default flags for the scene
 		self.ctx.multisample = True

@@ -11,6 +11,6 @@ flat out int flags;
 
 void main() {
 	flags = v_flags;
-	gl_Position = proj * view * vec4(v_position,1) - vec4(0,0,1e-4,0);	// set vertex position for render, with an offset to display wires on the top of faces
+	gl_Position = proj * view * vec4(v_position,1) - vec4(0,0,1e-2,0);	// set vertex position for render, with an offset to display wires on the top of faces
 	if ((flags & 1) != 0)	gl_Position[2] -= 1e-4;
 }
