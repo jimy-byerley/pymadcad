@@ -34,29 +34,34 @@ def write(mesh: Mesh, name: str, type=None, **opts):
 		raise FileFormatError('no write function available for format '+type)
 
 caches = {}
-def cache(name: str, create: callable=None, **opts) -> Mesh:
+def cache(filename: str, create: callable=None, name=None, storage=None, **opts) -> Mesh:
 	''' Small cachefile system, it allows to dump objects to files and to get them when needed.
 		It's particularly usefull when working with other processes. The cached files are reloaded only when the cache files are newer than the memory cache data
 		
 		If specified, create() is called to provide the data, in case it doesn't exist in memory neighter as file
+		if specified, name is the cache name used to index the file it defaults to the filename
+		if specified, storage is the dictionnary used to storage cache data, defaults to io.caches
 	'''
+	if not storage:	storage = caches
+	if not name:	name = filename
+	
 	# create the cache file if it doesn't exist
-	if os.path.exists(name):
-		cachedate = caches[name][0] if name in caches else -inf
-		filedate = os.path.getmtime(name)
+	if os.path.exists(filename):
+		cachedate = storage[name][0] if name in storage else -inf
+		filedate = os.path.getmtime(filename)
 		if cachedate < filedate:
-			caches[name] = (filedate, read(name, **opts))
+			storage[name] = (filedate, read(filename, **opts))
 	# load reload the file content if it's newer that the data in memory
 	else:
-		if name in caches:	obj = caches[name][1]
+		if name in storage:	obj = storage[name][1]
 		elif create:		obj = create()
 		else:				obj = None
 		if obj:
-			write(name, obj, **opts)
-			caches[name] = (os.path.getmtime(name), obj)
+			write(filename, obj, **opts)
+			storage[name] = (os.path.getmtime(filename), obj)
 		else:
 			raise IOError("the cache file doesn't exist")
-	return caches[name][1]
+	return storage[name][1]
 
 
 '''
