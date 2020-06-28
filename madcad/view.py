@@ -126,7 +126,8 @@ class Scene(QOpenGLWidget):
 	''' Scene widget to display CAD objects 
 		Attributes defined here:
 			
-		* groups		list of the displays for rendering, grouped by the insertion index
+		* stack			the renderers, in the render order, couples (grp, rdr)
+		* displayed		the set of group idents of objects displayed here
 		* projection	an object with a method `matrix(aspectration)` that provide the perspective projection matrix
 		* manipulator	an object with a method `matrix()` that provide the world->camera matrix
 		* options		a dict of rendering options used by default by displays, this is overloaded by assining the member 'options' of a display
@@ -334,6 +335,8 @@ class Scene(QOpenGLWidget):
 			self.mode = self.modes[self.speckeys]
 		elif b == Qt.MiddleButton:
 			self.mode = (self.manipulator.rotatestart, self.manipulator.rotating)
+		else:
+			self.mode = self.modes[0]
 		# navigate if a mode is on
 		if self.mode[0]:
 			self.mouse_clicked = (x,y)	# movement origin
