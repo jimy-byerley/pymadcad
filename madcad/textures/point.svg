@@ -25,9 +25,9 @@
      borderopacity="1"
      inkscape:pageopacity="1"
      inkscape:pageshadow="2"
-     inkscape:zoom="5.6"
-     inkscape:cx="17.035714"
-     inkscape:cy="17.444268"
+     inkscape:zoom="10.1875"
+     inkscape:cx="16"
+     inkscape:cy="16.987911"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      showgrid="false"
@@ -35,8 +35,8 @@
      inkscape:showpageshadow="false"
      inkscape:window-width="821"
      inkscape:window-height="547"
-     inkscape:window-x="0"
-     inkscape:window-y="455"
+     inkscape:window-x="392"
+     inkscape:window-y="473"
      inkscape:window-maximized="0" />
   <metadata
      id="metadata5">
@@ -46,7 +46,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title />
+        <dc:title></dc:title>
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -63,7 +63,7 @@
        x="-0.14174107"
        y="288.40103" />
     <path
-       style="fill:none;fill-opacity:0;stroke:#fefefe;stroke-width:0.51991028;stroke-linecap:square;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers stroke fill"
+       style="fill:none;fill-opacity:0;stroke:#676767;stroke-width:0.8;stroke-linecap:square;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers stroke fill"
        id="path815"
        sodipodi:type="arc"
        sodipodi:cx="4.2286081"
@@ -75,7 +75,7 @@
        sodipodi:open="true"
        d="m 6.5969951,294.65865 a 3.0047839,3.0283282 0 0 1 -4.2107563,0.52862 3.0047839,3.0283282 0 0 1 -0.5366029,-4.24221 3.0047839,3.0283282 0 0 1 4.2076734,-0.55299 3.0047839,3.0283282 0 0 1 0.5607777,4.23903" />
     <path
-       style="fill:#8b8b8b;fill-opacity:1;stroke:none;stroke-width:0.22943522;stroke-linecap:square;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers stroke fill"
+       style="fill:#fefefe;fill-opacity:1;stroke:none;stroke-width:0.22943522;stroke-linecap:square;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:markers stroke fill"
        id="path815-3"
        sodipodi:type="arc"
        sodipodi:cx="4.3020134"
