@@ -210,12 +210,15 @@ class Mesh(Container):
 			else:
 				i += 1
 	
-	def strippoints(self):
-		''' remove points that are used by no faces, return the reindex list '''
-		used = [False] * len(self.points)
-		for face in self.faces:
-			for p in face:
-				used[p] = True
+	def strippoints(self, used=None):
+		''' remove points that are used by no faces, return the reindex list 
+			if used is provided, these points will be removed without usage verification
+		'''
+		if used is None:
+			used = [False] * len(self.points)
+			for face in self.faces:
+				for p in face:
+					used[p] = True
 		self.points = copy(self.points)
 		self.faces = copy(self.faces)
 		reindex = striplist(self.points, used)
@@ -372,6 +375,18 @@ class Mesh(Container):
 		# insert edges that border only one face
 		edges.extend(tmp.keys())
 		return Web(self.points, edges)
+		
+	def groupoutlines_oriented(self):
+		''' return a dict of ORIENTED edges indexing groups '''
+		edges = {}	# group for edges
+		for i,face in enumerate(self.faces):
+			for edge in ((face[1],face[0]),(face[2],face[1]),(face[0],face[2])):
+				track = self.tracks[i]
+				if e in edges and edges[e] == track:
+					del edges[e]
+				else:
+					tmp[(e[1],e[0])] = track
+		return edges
 	
 	def surface(self):
 		''' total surface of triangles '''
@@ -380,6 +395,41 @@ class Mesh(Container):
 			a,b,c = self.facepoints(f)
 			s += length(cross(a-b, a,c))
 		return s
+	
+	def splitgroups(self, edges=None):
+		''' split the mesh groups into connectivity separated groups.
+			the points shared by multiple groups will be duplicated
+			if edges is provided, only the given edges at group frontier will be splitted
+			
+			return a list of tracks for points
+		'''
+		if edges is None:	edges = self.groupoutlines().edges
+		# mark points on the frontier
+		frontier = [False]*len(self.points)
+		for a,b in edges:
+			frontier[a] = True
+			frontier[b] = True
+		# duplicate points and reindex faces
+		points = copy(self.points)
+		idents = [0] * len(self.points)		# track id corresponding to each point
+		duplicated = {}		# new point index for couples (frontierpoint, group)
+		def repl(pt, track):
+			if frontier[pt]:
+				key = (pt,track)
+				if key in duplicated:	i = duplicated[key]
+				else:
+					i = duplicated[key] = len(points)
+					points.append(points[pt])
+					idents.append(track)
+				return i
+			else:
+				idents[pt] = track
+				return pt
+		faces = [(repl(a,t), repl(b,t), repl(c,t))  for (a,b,c),t in zip(self.faces, self.tracks)]
+		
+		self.points = points
+		self.faces = faces
+		return idents
 	
 	
 	# --- renderable interfaces ---
@@ -429,66 +479,19 @@ class Mesh(Container):
 			)
 	
 	def display_groups(self, scene):
-		facenormals = [self.facenormal(f)  for f in self.faces]
+		m = copy(self)
+		idents = m.splitgroups()
+		edges = m.groupoutlines().edges
+		normals = m.vertexnormals()
 		
-		points = []
-		normals = []
-		idents = []
-		edges = []
-		faces = []
-		def usept(pi,xi,yi, fi, used):
-			o = self.points[pi]
-			x = self.points[xi] - o
-			y = self.points[yi] - o
-			contrib = anglebt(x,y)
-			if used[pi] >= 0:
-				i = used[pi]
-				# contribute to the points normals
-				normals[i] += facenormals[fi] * contrib
-				return i
-			else:
-				i = used[pi] = len(points)
-				points.append(self.points[pi])
-				normals.append(facenormals[fi] * contrib)
-				idents.append(self.tracks[fi])
-				return i
-		
-		# get the faces for each group
-		for group in range(len(self.groups)):
-			# reset the points extraction for each group
-			used = [-1]*len(self.points)
-			frontier = set()
-			# get faces and exterior edges
-			for i,face in enumerate(self.faces):
-				if self.tracks[i] == group:
-					faces.append((
-						usept(face[0],face[1],face[2], i, used),
-						usept(face[1],face[2],face[0], i, used),
-						usept(face[2],face[0],face[1], i, used)))
-					for edge in ((face[0], face[1]), (face[1], face[2]), (face[2],face[0])):
-						e = edgekey(*edge)
-						if e in frontier:	frontier.remove(e)
-						else:				frontier.add(e)
-			# render exterior edges
-			for e in frontier:
-				edges.append((used[e[0]], used[e[1]]))
-		
-		for i in range(0,len(normals)):
-			normals[i] = normalize(normals[i])
-		
-		print(len(points))
-		print(len(normals))
-		print(len(faces))
-		print(len(edges))
-		
-		return displays.SolidDisplay(scene,
-			glmarray(points),
-			glmarray(normals),
-			faces,
-			edges,
-			idents=idents,
-			color = self.options.get('color'),
-			),
+		return displays.SolidDisplay(scene, 
+				glmarray(m.points), 
+				glmarray(normals), 
+				m.faces, 
+				edges,
+				idents,
+				color = self.options.get('color'),
+				),
 	
 	def display(self, scene):
 		if self.options.get('debug_display', False):
