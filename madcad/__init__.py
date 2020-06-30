@@ -17,7 +17,7 @@ from . import (
 		# base tools (defines types for the whole library)
 		mathutils, mesh, 
 		# interdependent functionnalities
-		generation, boolean, cut, primitives, constraints, kinematic, 
+		generation, boolean, cut, primitives, constraints, kinematic, joints,
 		# near-independant modules
 		io, hashing, triangulation,
 	)
@@ -32,11 +32,11 @@ from .cut import chamfer, bevel, beveltgt, planeoffsets
 from .generation import flatsurface, junction, extrans, extrusion, revolution, saddle, tube, icosurface
 from .primitives import isprimitive, Point, Axis, Segment, ArcThrough, ArcCentered, Circle
 from .constraints import isconstraint, SolveError, Tangent, Distance, Angle, Parallel, Radius, Projected, PointOn, OnPlane, solve
-from .kinematic import Solid, InSolid, Pivot, Plane, Kinemanip
+from .kinematic import Torsor, comomentum, Pressure, Solid, solvekin, Kinematic
+from .joints import Pivot, Plane, Track, Gliding
 from .selection import select
 from .io import read, write, cache
 from .triangulation import TriangulationError
 
 from .text import Text
 from .view import Scene, isdisplay, displayable
-
