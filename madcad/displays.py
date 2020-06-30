@@ -275,7 +275,7 @@ class RadiusMeasure(AnnotationDisplay):
 		d = abs(dot(location-center, x))/circle.radius if location else 2
 		r = circle.radius*x
 		sizeref = d*circle.radius
-		arrowx = 0.1*sizeref*x
+		arrowx = 0.16*sizeref*x
 		arrowy = 0.06*sizeref*y
 		
 		pts = [
@@ -303,7 +303,7 @@ class LengthMeasure(AnnotationDisplay):
 		top = noproject(location-middle, dir)
 		topdist = length(top)
 		sizeref = max(distance(a,b), topdist)
-		arrowx = sizeref*0.05*dir
+		arrowx = sizeref*0.08*dir
 		arrowy = sizeref*0.03*(top/topdist if topdist/distance(a,b) > 1e-6 else fvec3(dirbase(vec3(dir))[0]))
 		pts = [	a, a+top+arrowy*0.75, 
 				a+top, a+top-arrowx-arrowy, 
@@ -328,7 +328,7 @@ class ArcMeasure(AnnotationDisplay):
 		top = noproject(location-middle, dir)
 		topdist = length(top)
 		sizeref = max(distance(a,b), topdist)
-		arrowx = sizeref*0.05*dir
+		arrowx = sizeref*0.08*dir
 		arrowy = sizeref*0.03*(top/topdist if topdist/distance(a,b) > 1e-6 else fvec3(dirbase(vec3(dir))[0]))
 		pts = [	a, a+top+arrowy*0.75, 
 				a+top, a+top-arrowx-arrowy, 
