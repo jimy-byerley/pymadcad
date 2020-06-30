@@ -1,5 +1,6 @@
 from madcad.mathutils import vec3, normalize
 from madcad.kinematic import *
+from madcad.joints import *
 
 O = vec3(0)
 X = vec3(1,0,0)
@@ -40,4 +41,4 @@ csts2 = [
 
 from madcad.view import quickdisplay
 makescheme(csts)
-quickdisplay([Kinemanip(csts, s0), O, X, Y, Z])
+quickdisplay([Kinematic(csts, s0), O, X, Y, Z])
