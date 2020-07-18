@@ -360,7 +360,9 @@ class Scene(QOpenGLWidget):
 	
 	def event(self, evt):
 		''' Qt event handler
-			in addition to the usual subhandlers, inputEvent is called first to handle every InputEvent 
+			In addition to the usual subhandlers, inputEvent is called first to handle every InputEvent.
+			
+			The usual subhandlers are used to implement the navigation through the scene (that is considered to be intrinsic to the scene widget).
 		'''
 		if isinstance(evt, QInputEvent):
 			if self.navmode[1]:
@@ -372,8 +374,10 @@ class Scene(QOpenGLWidget):
 		return super().event(evt)
 	
 	def inputEvent(self, evt):
-		''' default handler for every input event (mouse move, press, release, keyboard, ...) 
-			when the event is not accepted, the default matching Qt handler is used
+		''' Default handler for every input event (mouse move, press, release, keyboard, ...) 
+			When the event is not accepted, the usual matching Qt handlers are used (mousePressEvent, KeyPressEvent, etc).
+			
+			This function can be overwritten to change the scene widget behavior.
 		'''
 		self.update()
 		
@@ -394,7 +398,12 @@ class Scene(QOpenGLWidget):
 					evt.accept()
 			
 	def objcontrol(self, rdri, subi, evt):
-		''' apply a control action over a renderer, feel free to overload this method '''
+		''' apply a control action over a renderer, feel free to overload this method 
+			When there is not navigation nor tool in use, the click/dblclick/release mouse actions are transmited to this function if there is an identified display below. 
+			The display the click occurs onto is passed.
+			
+			This function can be overwritten to change the interaction with the scene objects.
+		'''
 		grp,rdr = self.stack[rdri]
 		# the events is submitted to the custom controls first
 		if hasattr(rdr, 'control'):
@@ -447,6 +456,7 @@ class Scene(QOpenGLWidget):
 		return self.stack[rdri][0], rdri, subi
 	
 	def rdrgrp(self, rdr):
+		''' shorthand to get the group identifier for a display index '''
 		return self.stack[rdr][0]
 	
 	def sight(self, coords):
@@ -492,6 +502,9 @@ class Scene(QOpenGLWidget):
 					1)))
 	
 	def look(self, box):
+		''' Make the scene manipulator look at the box.
+			This is adjusting both the manipulator center and the zoom level.
+		'''
 		if isinstance(box, (vec3,fvec3)):	box = Box(center=box, width=vec3(0))
 		if box.isvalid():
 			if box.isempty():
