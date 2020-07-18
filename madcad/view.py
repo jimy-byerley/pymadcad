@@ -134,7 +134,7 @@ class Scene(QOpenGLWidget):
 		* ctx			the mgl context used for renders
 	
 		NOTE
-			due to Qt limitations, the OpenGL context behind this widget is changed at each reparenting, so be careful to never reparent this widget once you added content
+			due to Qt limitations, the OpenGL context behind this widget is changed at each reparenting, so be careful to never reparent this widget once you added content, or you will need to reconstruct the whole scene.
 	'''
 	
 	def __init__(self, objects=(), projection=None, manipulator=None, parent=None):
@@ -517,9 +517,15 @@ class Scene(QOpenGLWidget):
 
 
 def isdisplay(obj):
+	''' return True if the object is considerd to be a display.
+		eg. an object that can be part of the renderpipeline in a scene stack.
+	'''
 	return hasattr(obj, 'render') and hasattr(obj, 'identify') and not isinstance(obj, type)
 
 def displayable(obj):
+	''' return True if the object is considered to be a displayable,  
+		eg. the object can be added to a scene 
+	'''
 	return type(obj) in dispoverrides or hasattr(obj, 'display') and callable(obj.display) and not isinstance(obj, type)
 
 # dictionnary to store procedures to override default object displays
