@@ -1,4 +1,4 @@
-from .mathutils import vec3, fvec3, fvec4, fmat4, mix, normalize, length, distance, dot, noproject, dirbase
+from .mathutils import vec3, fvec3, fvec4, fmat4, mix, normalize, length, distance, dot, noproject, dirbase, Box, isnan, isinf
 from .mathutils import transform as mktransform
 from . import settings
 from . import view
@@ -63,7 +63,7 @@ class PointDisplay:
 	def identify(self, scene, startident):
 		self.ident_shader['ident'] = startident
 		self.ident_shader['position'].write(fvec3(self.transform * fvec4(self.position,1)))
-		self.ident_shader['view'].write(scene.view_matrix * self.transform)
+		self.ident_shader['view'].write(scene.view_matrix)
 		self.ident_shader['proj'].write(scene.proj_matrix)
 		self.ident_shader['ratio'] = (
 				self.size / scene.width(),
@@ -72,8 +72,8 @@ class PointDisplay:
 		self.va_idents.render(mgl.TRIANGLES)
 		return 1
 	
-	def control(self, scene, rdr, ident, evt):
-		self.selected = not self.selected
+	#def control(self, scene, rdr, ident, evt):
+		#self.selected = not self.selected
 	
 	def select(self, idents, state=None):
 		if state is not None:	self.selected = state
@@ -120,8 +120,8 @@ class ArrowDisplay:
 		self.va_idents.render(mgl.LINES)
 		return 1
 		
-	def control(self, scene, rdr, ident, evt):
-		self.selected = not self.selected
+	#def control(self, scene, rdr, ident, evt):
+		#self.selected = not self.selected
 	
 	def select(self, idents, state=None):
 		if state is not None:	self.selected = state
@@ -149,8 +149,8 @@ class TangentDisplay:
 		self.arrow2.identify(scene, startident)
 		return 1
 	
-	def control(self, scene, rdr, ident, evt):
-		self.select(0, not self.select(0))
+	#def control(self, scene, rdr, ident, evt):
+		#self.select(0, not self.select(0))
 	
 	def select(self, idents, state=None):
 		r = self.arrow1.select(idents, state)
@@ -219,8 +219,8 @@ class AxisDisplay:
 	
 	# axis = (vec3(0), vec3(1))
 		
-	def control(self, scene, rdr, ident, evt):
-		self.selected = not self.selected
+	#def control(self, scene, rdr, ident, evt):
+		#self.selected = not self.selected
 	
 	def select(self, idents, state=None):
 		if state is not None:	self.selected = state
@@ -229,7 +229,7 @@ class AxisDisplay:
 
 class AnnotationDisplay:
 	renderindex = 3
-	def __init__(self, scene, points, alpha, color, transform):
+	def __init__(self, scene, points, color, transform):
 		self.color = fvec3(color or settings.display['annotation_color'])
 		self.transform = fmat4(transform)
 		self.selected = False
@@ -241,12 +241,16 @@ class AnnotationDisplay:
 						)
 		self.shader = scene.ressource('shader_annotation', load)
 		# allocate buffers
-		vb_pts = scene.ctx.buffer(np.hstack((
-				np.array([tuple(p) for p in points], 'f4'), 
-				np.array(alpha, 'f4', ndmin=2).transpose(),
-				)))
+		vb_pts = scene.ctx.buffer(points)
 		self.va = scene.ctx.vertex_array(self.shader, [(vb_pts, '3f f', 'v_position', 'v_alpha')])
 		self.va_idents = scene.ctx.vertex_array(scene.ident_shader, [(vb_pts, '3f 4x', 'v_position')])
+	
+	@staticmethod
+	def buff_ptsalpha(points, alpha):
+		return np.hstack((
+				np.array([tuple(p) for p in points], 'f4'), 
+				np.array(alpha, 'f4', ndmin=2).transpose(),
+				))
 
 	def render(self, scene):
 		self.shader['color'].write(fvec3(settings.display['select_color_line']) if self.selected else self.color)
@@ -261,8 +265,8 @@ class AnnotationDisplay:
 		self.va_idents.render(mgl.LINES)
 		return 1
 		
-	def control(self, scene, rdr, ident, evt):
-		self.selected = not self.selected
+	#def control(self, scene, rdr, ident, evt):
+		#self.selected = not self.selected
 	
 	def select(self, idents, state=None):
 		if state is not None:	self.selected = state
@@ -287,7 +291,7 @@ class RadiusMeasure(AnnotationDisplay):
 		alpha = [1] * 6
 		self.textplace = center + d*r
 		
-		super().__init__(scene, pts, alpha, color, transform)
+		super().__init__(scene, self.buff_ptsalpha(pts, alpha), color, transform)
 		
 
 class LengthMeasure(AnnotationDisplay):
@@ -298,7 +302,6 @@ class LengthMeasure(AnnotationDisplay):
 		if location:	location = fvec3(location)
 		middle = (a + b)/2
 		if not location:	location = middle
-		if not color:		color = settings.display['annotation_color']
 		dir = normalize(a-b)
 		top = noproject(location-middle, dir)
 		topdist = length(top)
@@ -317,7 +320,7 @@ class LengthMeasure(AnnotationDisplay):
 		alpha = [o, o, 1, 1, 1, 1, o, o, 1, 1, 1, 1, 1, 1]
 		self.textplace = middle + top
 
-		super().__init__(scene, pts, alpha, color, transform)
+		super().__init__(scene, self.buff_ptsalpha(pts, alpha), color, transform)
 
 class ArcMeasure(AnnotationDisplay):
 	def __init__(self, scene, arc, location=None, color=None, arrows=None, transform=fmat4(1)):
@@ -342,7 +345,41 @@ class ArcMeasure(AnnotationDisplay):
 		alpha = [o, o, 1, 1, 1, 1, o, o, 1, 1, 1, 1, 1, 1]
 		self.textplace = middle + top
 		
-		super().__init__(scene, pts, alpha, color, transform)
+		super().__init__(scene, self.buff_ptsalpha(pts, alpha), color, transform)
+		
+class BoxDisplay(AnnotationDisplay):
+	def __init__(self, scene, box, color=None, transform=fmat4(1)):
+		# place points
+		w = box.width
+		x,y,z = w
+		c = 0.1*min(x,y,z)	# corner
+		o = 0.3 # wire alpha
+		pts = np.array([
+			# corner
+			(0,0,0,1),(c,0,0,1),
+			(0,0,0,1),(0,c,0,1),
+			(0,0,0,1),(0,0,2*c,1),
+			
+			# box wire
+			(0,0,0,o),(x,0,0,o),
+			(0,0,0,o),(0,y,0,o),
+			(0,0,0,o),(0,0,z,o),
+			
+			(x,0,0,o),(x,y,0,o),
+			(x,0,0,o),(x,0,z,o),
+			(0,y,0,o),(x,y,0,o),
+			(0,y,0,o),(0,y,z,o),
+			(0,0,z,o),(x,0,z,o),
+			(0,0,z,o),(0,y,z,o),
+			
+			(x,y,0,o),(x,y,z,o),
+			(x,0,z,o),(x,y,z,o),
+			(0,y,z,o),(x,y,z,o),
+			], dtype='f4')
+		pts += (*box.min, 0)
+		self.textplace = box.min
+
+		super().__init__(scene, pts, color, transform)
 	
 
 class SolidDisplay:
@@ -375,8 +412,15 @@ class SolidDisplay:
 		self.disp_faces.identify(scene, startident)
 		return self.vertices.nident
 	
-	def control(self, *args):	return self.vertices.control(*args)
+	#def control(self, *args):	return self.vertices.control(*args)
 	def select(self, *args):	return self.vertices.select(*args)
+	
+	@property
+	def transform(self):
+		return self.vertices.transform
+	@transform.setter
+	def transform(self, value):
+		self.vertices.transform = value
 		
 
 class WebDisplay:
@@ -401,8 +445,15 @@ class WebDisplay:
 		self.disp_edges.identify(scene, startident)
 		return self.vertices.nident
 	
-	def control(self, *args):	self.vertices.control(*args)
+	#def control(self, *args):	self.vertices.control(*args)
 	def select(self, *args):	self.vertices.select(*args)
+	
+	@property
+	def transform(self):
+		return self.vertices.transform
+	@transform.setter
+	def transform(self, value):
+		self.vertices.transform = value
 		
 
 class Vertices(object):
@@ -418,8 +469,8 @@ class Vertices(object):
 		self.vb_idents = ctx.buffer(np.array(idents, dtype=view.IDENT_TYPE, copy=False))
 		self.vb_flags = self.vb_flags = ctx.buffer(self.flags, dynamic=True)
 	
-	def control(self, scene, grp, rdr, evt):
-		self.select(ident, not self.select(ident))
+	#def control(self, scene, rdr, sub, evt):
+		#self.select(sub, not self.select(sub))
 	
 	def select(self, idents, state=None):
 		mask = 0b1
@@ -583,7 +634,11 @@ class PointsDisplay:
 		self.va_idents.render(mgl.POINTS)
 		return self.vertices.nident
 
+
+
+
 view.dispoverrides.update({
 	vec3: 	lambda p,scene: [PointDisplay(scene,p)],
 	tuple:	lambda a,scene: [AxisDisplay(scene,a)],
+	Box:	lambda a,scene: [BoxDisplay(scene,a)],
 	})
