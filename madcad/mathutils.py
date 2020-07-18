@@ -74,7 +74,7 @@ def transform(*args):
 			(vec3,vec3,vec3)                        - base of vectors for rotation
 			(vec3,vec3,vec3,vec3)                   - translation and base of vectors for rotation
 	'''
-	if len(args) == 1 and isinstance(args[0], tuple):
+	if len(args) == 1 and isinstance(args[0], (tuple,list)):
 		args = args[0]
 	if len(args) == 1:
 		if isinstance(args[0], mat4):	return args[0]
@@ -83,7 +83,7 @@ def transform(*args):
 		elif isinstance(args[0], vec3):	return translate(mat4(1), args[0])
 	elif len(args) == 2:
 		if isinstance(args[0], vec3):
-			if   isinstance(args[1], mat3):		m = args[1]
+			if   isinstance(args[1], mat3):		m = mat4(args[1])
 			elif isinstance(args[1], quat):		m = mat4_cast(args[1])
 			elif isinstance(args[1], vec3):		m = mat4_cast(quat(args[1]))
 			m[3] = vec4(args[0], 1)
