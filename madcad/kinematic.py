@@ -1,4 +1,4 @@
-from copy import copy
+from copy import copy, deepcopy
 import numpy.core as np
 import moderngl as mgl
 from PyQt5.QtCore import QEvent	
@@ -72,6 +72,12 @@ class Torsor(object):
 	
 	def __neg__(self):
 		return Torsor(-self.resulting, -self.momentum, self.position)
+	
+	def __mul__(self, x):
+		return Torsor(x*self.resulting, x*self.momentum, self.position)
+	
+	def __div__(self, x):
+		return Torsor(self.resulting/x, self.momentum/x, self.position)
 		
 	def __repr__(self):
 		return '{}(\n\t{}, \n\t{}, \n\t{})'.format(self.__class__.__name__, repr(self.resulting), repr(self.momentum), repr(self.position))
@@ -105,11 +111,17 @@ class Solid:
 	# solver variable definition
 	slvvars = 'position', 'orientation',
 	
+	#@property
 	def pose(self):
 		''' transformation from local to global space, 
 			therefore containing the translation and rotation from the global origin 
 		'''
 		return transform(self.position, self.orientation)
+		
+	#@pose.setter
+	#def pose(self, mat):
+		#self.position = vec3(mat[3])
+		#self.orientation = quat_cast(mat3(mat))
 	
 	def transform(self, mat):
 		''' displace the solid by the transformation '''
@@ -125,11 +137,15 @@ class Solid:
 		self.position += trans
 	
 	def display(self, scene):
-		#box = Box()
+		from .mathutils import boundingbox
+		from .displays import BoxDisplay
 		for visu in self.visuals:
-			#box.union(visu.box())
-			yield from visu.display(scene)
-		#yield from boxdisplay(scene)
+			yield from scene.display(visu)
+		box = boundingbox(self.visuals)
+		m = min(box.width)
+		box.min -= 0.2*m
+		box.max += 0.2*m
+		yield BoxDisplay(scene, box)
 		#if self.name:	
 			#yield text.Text(box.max, self.name)
 
@@ -140,7 +156,8 @@ def solvekin(joints, fixed=(), precision=1e-4, maxiter=None, damping=0.9):
 	register = {}	# solid index indexed by their id()
 	counts = []		# correction count for each solid
 	indices = []	# solid index for each successive corrections
-	fixed = set((id(solid) for solid in fixed))
+	if not isinstance(fixed, set):
+		fixed = set(id(solid) for solid in fixed)
 	for joint in joints:
 		for solid in joint.solids:
 			if id(solid) in fixed:
@@ -226,26 +243,26 @@ class Kinematic:
 		Attributes defined here:
 			* joints	the joints constraints
 			* solids	all the solids the joint applys on, and eventually more
-			* root		the root solid that is considered to be fixed to the ground
+			* fixed		the root solids that is considered to be fixed to the ground
 	'''
-	def __init__(self, joints, root=None, solids=None):
+	def __init__(self, joints, fixed=None, solids=None):
 		self.joints = joints
-		self.root = root
+		if isinstance(joints, set):	self.fixed = fixed
+		else:						self.fixed = set(id(solid) for solid in fixed)
+		print('fixed', self.fixed)
 		if not solids:	self._detectsolids()
-		if not root:	self.root = self.solids[0]
 		self.options = {}
 	def _detectsolids(self):
 		solids = []
 		known = set()
 		for joint in self.joints:
 			for solid in joint.solids:
-				if solid is not self.root:
-					if id(solid) not in known:
-						solids.append(solid)
+				if id(solid) not in known:
+					solids.append(solid)
 		self.solids = solids
 		
 	def solve(self, *args, **kwargs):
-		return solvekin(self.joints, (self.root,), *args, **kwargs)
+		return solvekin(self.joints, self.fixed, *args, **kwargs)
 	def forces(self, applied) -> '[junction forces], [solid resulting]':
 		''' return the forces in each junction and the resulting on each solid, induces by the given applied forces '''
 		indev
@@ -260,6 +277,15 @@ class Kinematic:
 			function must assign a reproductible pose to the solids, it takes one variable (usally the animation time step)
 		'''
 		indev
+	
+	@property
+	def pose(self) -> '[mat4]':
+		return [solid.pose() 	for solid in self.solids]
+	@pose.setter
+	def pose(self, value):
+		for solid,pose in zip(self.solids, pose):
+			solid.position = vec3(pose[3])
+			solid.orientation = quat_cast(mat3(pose))
 		
 	def graph(self) -> 'Graph':
 		''' graph representing solid as nodes and joints as bidirectional links '''
@@ -338,15 +364,15 @@ class Kinemanip:
 	
 	def __init__(self, scene, kinematic):
 		self.joints = kinematic.joints
-		self.root = kinematic.root
-		self.locked = {id(self.root): self.root}
+		self.fixed = kinematic.fixed
 		self.solids = {id(solid): (solid, [])   for solid in kinematic.solids}
+		self.locked = set(kinematic.fixed)
 	
 	def render(self, scene):	pass
 	def identify(self, scene, startident):	pass	
 		
 	def start(self, solid, scene, ident, evt):
-		if solid is self.root:	return
+		if id(solid) in self.fixed:	return
 		
 		self.startpt = scene.ptat((evt.x(), evt.y()))
 		self.ptoffset = inverse(quat(solid.orientation)) * (solid.position - self.startpt)
@@ -355,11 +381,6 @@ class Kinemanip:
 		return self.move
 	
 	def move(self, scene, evt):
-		# we use the conjugated gradient algorithm, that seems more 
-		# - CPU efficient for situations starting near to the solution 
-		# - RAM efficient for larg kinematic problems (with tons of variables)
-		method = 'CG'
-		
 		if evt.type() == QEvent.MouseMove:
 			# unlock moving solid
 			self.lock(self.actsolid, False)
@@ -367,16 +388,17 @@ class Kinemanip:
 			# displace the moved object
 			pt = scene.ptfrom((evt.x(), evt.y()), self.startpt)
 			self.startpt = self.actsolid.position - quat(self.actsolid.orientation)*self.ptoffset
-			store(self.actsolid.position, pt+quat(self.actsolid.orientation)*self.ptoffset)
+			#store(self.actsolid.position, pt+quat(self.actsolid.orientation)*self.ptoffset)
+			self.actsolid.position = pt+quat(self.actsolid.orientation)*self.ptoffset
 			# solve
-			try:	solvekin(self.joints, self.locked.values(), precision=1e-2, maxiter=50)
+			try:	solvekin(self.joints, self.locked, precision=1e-2, maxiter=50)
 			except constraints.SolveError as err:	pass
 		else:
 			if not self.moved:
 				self.lock(self.actsolid, id(self.actsolid) not in self.locked)
 			else:
 				# finish on a better precision
-				try:	solvekin(self.joints, self.locked.values(), precision=1e-4, maxiter=1000)
+				try:	solvekin(self.joints, self.locked, precision=1e-4, maxiter=1000)
 				except constraints.SolveError as err:	print(err)
 			scene.tool = None
 		
@@ -390,20 +412,21 @@ class Kinemanip:
 		return True
 	
 	def lock(self, solid, lock):
-		if solid is self.root:	return
+		key = id(solid)
+		if key in self.fixed:	return
 		if lock:
-			if id(solid) in self.locked:	return
+			if key in self.locked:	return
 			# add solid's variables to fixed
-			self.locked[id(solid)] = solid
+			self.locked.add(key)
 			# grey display for locked solid
-			for disp in self.solids[id(solid)][1]:
+			for disp in self.solids[key][1]:
 				disp.color = fvec3(0.5, 0.5, 0.5)
 		else:
-			if id(solid) not in self.locked:	return
+			if key not in self.locked:	return
 			# remove solid's variables from fixed
-			if id(solid) in self.locked:	del self.locked[id(solid)]
+			if key in self.locked:	del self.locked[key]
 			# reset solid color
-			for disp in self.solids[id(solid)][1]:
+			for disp in self.solids[key][1]:
 				disp.color = fvec3(settings.display['schematics_color'])
 		
 
@@ -455,6 +478,19 @@ class Scheme:
 		self.transpfaces.extend(((a+l,b+l,c+l) for a,b,c in other.transpfaces))
 		self.opaqfaces.extend(((a+l,b+l,c+l) for a,b,c in other.opaqfaces))
 		self.lines.extend(((a+l, b+l)  for a,b in other.lines))
+	
+	def box(self):
+		''' return the extreme coordinates of the mesh (vec3, vec3) '''
+		if not self.points:		return None
+		max = deepcopy(self.points[0])
+		min = deepcopy(self.points[0])
+		for pt in self.points:
+			for i in range(3):
+				if pt[i] < min[i]:	min[i] = pt[i]
+				if pt[i] > max[i]:	
+					print(pt[i])
+					max[i] = pt[i]
+		return Box(min, max)
 	
 	def display(self, scene):
 		return WireDisplay(scene, self.points, self.transpfaces, self.opaqfaces, self.lines, self.color, self.transform),
