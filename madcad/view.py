@@ -40,7 +40,7 @@ from .common import ressourcedir
 from .mathutils import vec3, fvec3, fvec4, fmat3, fmat4, row, column, length, perspective, translate, project, inverse, dichotomy_index, find, Box
 from . import settings
 
-from PyQt5.QtCore import Qt, QPointF
+from PyQt5.QtCore import Qt, QPointF, QEvent
 from PyQt5.QtOpenGL import QGLWidget, QGLFormat
 from PyQt5.QtWidgets import QOpenGLWidget
 from PyQt5.QtGui import QSurfaceFormat, QMouseEvent
@@ -168,14 +168,14 @@ class Scene(QOpenGLWidget):
 		self.ctx = None		# opengl context, that is None when no yet initialized
 		
 		# mouse modes
-		self.modes = {
+		self.navmodes = {
 			0b00:	(None, None),
 			0b10:	(self.manipulator.rotatestart, self.manipulator.rotating),
 			0b01:	(self.manipulator.panstart, self.manipulator.paning),
 			0b11:	(self.manipulator.zoomstart, self.manipulator.zooming),
 			}
 		self.speckeys = 0b00
-		self.mode = self.modes[self.speckeys]
+		self.navmode = self.navmodes[self.speckeys]
 		self.tool = None
 		
 		for obj in objects:	self.add(obj)
@@ -252,16 +252,21 @@ class Scene(QOpenGLWidget):
 			# insert renderers for each object in queue
 			while self.queue:
 				grp,obj = self.queue.popitem()
-				if type(obj) in dispoverrides:
-					renderers = dispoverrides[type(obj)](obj, self)
-				elif hasattr(obj, 'display'):
-					renderers = obj.display(self)
-				else:
-					continue
+				renderers = self.display(obj)
+				if not renderers:	continue
 				for rdr in renderers:
 					i = dichotomy_index(self.stack, rdr.renderindex, lambda r: r[1].renderindex)
 					self.stack.insert(i, (grp,rdr))
 		self.identsteps = [0]*len(self.stack)
+	
+	def display(self, obj):
+		''' get an iterable of renderers for the given object, can be overriten
+			the default implementation use the dispoverrides if available or obj.display
+		'''
+		if type(obj) in dispoverrides:
+			return dispoverrides[type(obj)](obj, self)
+		elif hasattr(obj, 'display'):
+			return obj.display(self)
 	
 	def clear(self):
 		''' remove all renderers from the scene, an clears the insertion queue '''
@@ -313,18 +318,25 @@ class Scene(QOpenGLWidget):
 		return self.size().width()
 	
 	def keyPressEvent(self, evt):
-		k = evt.key()
-		if	 k == Qt.Key_Control:	self.speckeys |= 0b01
-		elif k == Qt.Key_Alt:		self.speckeys |= 0b10
-		elif k == Qt.Key_Shift:		self.manipulator.slow(True)
+		evt.ignore()
+		if self.runtool(evt):		return
+		if not evt.isAccepted():
+			k = evt.key()
+			if	 k == Qt.Key_Control:	self.speckeys |= 0b01
+			elif k == Qt.Key_Alt:		self.speckeys |= 0b10
+			elif k == Qt.Key_Shift:		self.manipulator.slow(True)
 	
 	def keyReleaseEvent(self, evt):
-		k = evt.key()
-		if	 k == Qt.Key_Control:	self.speckeys &= ~0b01
-		elif k == Qt.Key_Alt:		self.speckeys &= ~0b10
-		elif k == Qt.Key_Shift:		self.manipulator.slow(False)
+		evt.ignore()
+		if self.runtool(evt):		return
+		if not evt.isAccepted():
+			k = evt.key()
+			if	 k == Qt.Key_Control:	self.speckeys &= ~0b01
+			elif k == Qt.Key_Alt:		self.speckeys &= ~0b10
+			elif k == Qt.Key_Shift:		self.manipulator.slow(False)
 		
 	def mousePressEvent(self, evt):
+		evt.ignore()
 		self.update()
 		if self.runtool(evt):		return
 	
@@ -332,15 +344,15 @@ class Scene(QOpenGLWidget):
 		b = evt.button()
 		# find the navigation current mode
 		if b == Qt.LeftButton:
-			self.mode = self.modes[self.speckeys]
+			self.navmode = self.navmodes[self.speckeys]
 		elif b == Qt.MiddleButton:
-			self.mode = (self.manipulator.rotatestart, self.manipulator.rotating)
+			self.navmode = (self.manipulator.rotatestart, self.manipulator.rotating)
 		else:
-			self.mode = self.modes[0]
+			self.navmode = self.navmodes[0]
 		# navigate if a mode is on
-		if self.mode[0]:
+		if self.navmode[0]:
 			self.mouse_clicked = (x,y)	# movement origin
-			self.mode[0]()
+			self.navmode[0]()
 		else:
 			# search for object interaction
 			h,w = self.ident_frame.viewport[2:]
@@ -348,39 +360,49 @@ class Scene(QOpenGLWidget):
 			if pos:
 				rdr,sub = self.objat(pos)
 				evt = QMouseEvent(evt.type(), QPointF(*pos), evt.button(), evt.buttons(), evt.modifiers())
+				evt.ignore()
+				print('created', evt.isAccepted())
 				self.objcontrol(rdr, sub, evt)
 	
 	def objcontrol(self, rdri, subi, evt):
 		''' apply a control action over a renderer, feel free to overload this method '''
 		grp,rdr = self.stack[rdri]
-		# left-click is the selection button
-		if evt.button() == Qt.LeftButton and hasattr(rdr, 'select'):
-			rdr.select(subi, not rdr.select(subi))
-		# other clicks are for custom controls
-		elif hasattr(rdr, 'control'):
+		# the events is submitted to the custom controls first
+		if hasattr(rdr, 'control'):
 			self.tool = rdr.control(self, rdri, subi, evt)
+		if not evt.isAccepted():
+			# left-click is the selection button
+			if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton and hasattr(rdr, 'select'):
+				rdr.select(subi, not rdr.select(subi))
 
 	def mouseMoveEvent(self, evt):
+		evt.ignore()
 		self.update()
 		if self.runtool(evt):		return
-		if self.mode[1]:
+		if self.navmode[1]:
 			s = self.sizeref()
 			ox, oy = self.mouse_clicked
-			self.mode[1]((evt.x()-ox)/s, -(evt.y()-oy)/s)	# call the mode function with the coordinates relative to the movement start
+			self.navmode[1]((evt.x()-ox)/s, -(evt.y()-oy)/s)	# call the mode function with the coordinates relative to the movement start
 
 	def mouseReleaseEvent(self, evt):
+		evt.ignore()
 		if self.runtool(evt):		return
 		self.mouse_clicked = (evt.x(), evt.y())
 	
 	def wheelEvent(self, evt):
 		self.update()
+		evt.ignore()
 		if self.runtool(evt):		return
 		self.manipulator.zoom(-evt.angleDelta().y()/8 * pi/180)	# the 8 factor is there because of the Qt documentation
+		
+	def inputEvent(self, evt):
+		
 	
 	# apply the given Qt event to the active tool
 	def runtool(self, evt):
 		if self.tool:
-			return self.tool(self, evt)
+			self.tool(self, evt)
+			return evt.isAccepted()
 	
 	
 	def refreshmaps(self):
@@ -489,6 +511,7 @@ def displayable(obj):
 # dictionnary to store procedures to override default object displays
 dispoverrides = {}
 def list_override(l,scene):
+	print('override for', l)
 	for obj in l:
 		if type(obj) in dispoverrides:	yield from dispoverrides[type(obj)](obj,scene)
 		elif hasattr(obj, 'display'):	yield from obj.display(scene)
