@@ -43,7 +43,7 @@ from . import settings
 from PyQt5.QtCore import Qt, QPointF, QEvent
 from PyQt5.QtOpenGL import QGLWidget, QGLFormat
 from PyQt5.QtWidgets import QOpenGLWidget
-from PyQt5.QtGui import QSurfaceFormat, QMouseEvent
+from PyQt5.QtGui import QSurfaceFormat, QMouseEvent, QInputEvent
 
 
 opengl_version = (3,3)	# min (3,3)
@@ -318,28 +318,18 @@ class Scene(QOpenGLWidget):
 		return self.size().width()
 	
 	def keyPressEvent(self, evt):
-		evt.ignore()
-		if self.runtool(evt):		return
-		if not evt.isAccepted():
-			k = evt.key()
-			if	 k == Qt.Key_Control:	self.speckeys |= 0b01
-			elif k == Qt.Key_Alt:		self.speckeys |= 0b10
-			elif k == Qt.Key_Shift:		self.manipulator.slow(True)
+		k = evt.key()
+		if	 k == Qt.Key_Control:	self.speckeys |= 0b01
+		elif k == Qt.Key_Alt:		self.speckeys |= 0b10
+		elif k == Qt.Key_Shift:		self.manipulator.slow(True)
 	
 	def keyReleaseEvent(self, evt):
-		evt.ignore()
-		if self.runtool(evt):		return
-		if not evt.isAccepted():
-			k = evt.key()
-			if	 k == Qt.Key_Control:	self.speckeys &= ~0b01
-			elif k == Qt.Key_Alt:		self.speckeys &= ~0b10
-			elif k == Qt.Key_Shift:		self.manipulator.slow(False)
+		k = evt.key()
+		if	 k == Qt.Key_Control:	self.speckeys &= ~0b01
+		elif k == Qt.Key_Alt:		self.speckeys &= ~0b10
+		elif k == Qt.Key_Shift:		self.manipulator.slow(False)
 		
 	def mousePressEvent(self, evt):
-		evt.ignore()
-		self.update()
-		if self.runtool(evt):		return
-	
 		x,y = evt.x(), evt.y()
 		b = evt.button()
 		# find the navigation current mode
@@ -353,17 +343,56 @@ class Scene(QOpenGLWidget):
 		if self.navmode[0]:
 			self.mouse_clicked = (x,y)	# movement origin
 			self.navmode[0]()
-		else:
-			# search for object interaction
-			h,w = self.ident_frame.viewport[2:]
-			pos = self.objnear((x,y), 10)
-			if pos:
-				rdr,sub = self.objat(pos)
-				evt = QMouseEvent(evt.type(), QPointF(*pos), evt.button(), evt.buttons(), evt.modifiers())
-				evt.ignore()
-				print('created', evt.isAccepted())
-				self.objcontrol(rdr, sub, evt)
 	
+	def mouseMoveEvent(self, evt):
+		if self.navmode[1]:
+			s = self.sizeref()
+			ox, oy = self.mouse_clicked
+			self.navmode[1]((evt.x()-ox)/s, -(evt.y()-oy)/s)	# call the mode function with the coordinates relative to the movement start
+
+	def mouseReleaseEvent(self, evt):
+		self.mouse_clicked = (evt.x(), evt.y())
+		self.navmode = self.navmodes[0]
+	
+	def wheelEvent(self, evt):
+		self.manipulator.zoom(-evt.angleDelta().y()/8 * pi/180)	# the 8 factor is there because of the Qt documentation
+	
+	
+	def event(self, evt):
+		''' Qt event handler
+			in addition to the usual subhandlers, inputEvent is called first to handle every InputEvent 
+		'''
+		if isinstance(evt, QInputEvent):
+			if self.navmode[1]:
+				self.update()
+				return super().event(evt)
+			evt.ignore()
+			self.inputEvent(evt)
+			if evt.isAccepted():	return True
+		return super().event(evt)
+	
+	def inputEvent(self, evt):
+		''' default handler for every input event (mouse move, press, release, keyboard, ...) 
+			when the event is not accepted, the default matching Qt handler is used
+		'''
+		self.update()
+		
+		if self.tool:	
+			self.tool(self, evt)
+			if evt.isAccepted():	return
+			
+		elif isinstance(evt, QMouseEvent) and evt.type() in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease, QEvent.MouseButtonDblClick):
+			pos = self.objnear((evt.x(), evt.y()))
+			if pos:
+				rdri,subi = self.objat(pos)
+				grp,rdr = self.stack[rdri]
+				self.objcontrol(rdri, subi, evt)
+				if evt.isAccepted():	return
+				
+				if evt.button() == Qt.LeftButton and evt.type() == QEvent.MouseButtonRelease and hasattr(rdr, 'select'):
+					rdr.select(subi, not rdr.select(subi))
+					evt.accept()
+			
 	def objcontrol(self, rdri, subi, evt):
 		''' apply a control action over a renderer, feel free to overload this method '''
 		grp,rdr = self.stack[rdri]
@@ -374,35 +403,7 @@ class Scene(QOpenGLWidget):
 			# left-click is the selection button
 			if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton and hasattr(rdr, 'select'):
 				rdr.select(subi, not rdr.select(subi))
-
-	def mouseMoveEvent(self, evt):
-		evt.ignore()
-		self.update()
-		if self.runtool(evt):		return
-		if self.navmode[1]:
-			s = self.sizeref()
-			ox, oy = self.mouse_clicked
-			self.navmode[1]((evt.x()-ox)/s, -(evt.y()-oy)/s)	# call the mode function with the coordinates relative to the movement start
-
-	def mouseReleaseEvent(self, evt):
-		evt.ignore()
-		if self.runtool(evt):		return
-		self.mouse_clicked = (evt.x(), evt.y())
 	
-	def wheelEvent(self, evt):
-		self.update()
-		evt.ignore()
-		if self.runtool(evt):		return
-		self.manipulator.zoom(-evt.angleDelta().y()/8 * pi/180)	# the 8 factor is there because of the Qt documentation
-		
-	def inputEvent(self, evt):
-		
-	
-	# apply the given Qt event to the active tool
-	def runtool(self, evt):
-		if self.tool:
-			self.tool(self, evt)
-			return evt.isAccepted()
 	
 	
 	def refreshmaps(self):
