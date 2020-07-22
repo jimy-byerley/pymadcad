@@ -9,5 +9,4 @@ out vec4 out_color;
 
 void main() {
 	out_color = vec4(color, texture2D(halotex, uv).r);
-// 	out_color = vec4(1);
 }
