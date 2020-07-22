@@ -169,3 +169,44 @@ else:
 	
 	# no write function available at this time
 	#def obj_write(mesh, file, **opts):
+
+'''
+	JSON is loaded using the builtin json module
+	always using the official json specifications
+	it can store many object types, not only shapes
+'''
+import json
+
+class JSONEncoder(json.JSONEncoder):
+	def default(self, obj):
+		if isinstance(obj, (vec2,vec3,vec4,mat2,mat3,mat4,quat)):
+			return {'type':type(obj).__name__, 'content':list(obj)}
+		elif isinstance(obj, np.ndarray):
+			return {'type':'ndarray', 'dtype':obj.dtype, 'content':list(obj)}
+		elif isinstance(obj, Mesh):
+			return {'type':'Mesh', 'points': [tuple(p) for p in obj.points], 'faces':obj.faces, 'tracks':obj.tracks, 'groups':obj.groups}
+		elif isinstance(obj, Web):
+			return {'type':'Web', 'points': [tuple(p) for p in obj.points], 'edges':obj.edges, 'tracks':obj.tracks, 'groups':obj.groups}
+		else:
+			return json.JSONEncoder.default(self, obj)
+
+def jsondecode(obj):
+	if 'type' in obj:
+		t = obj['type']
+		if t in {'vec2','vec3','vec4','mat2','mat3','mat4','quat'}:		
+			return vec3(obj['content'])
+		elif t == 'ndarray':
+			return np.array(obj['content'], dtype=obj['dtype'])
+		elif t == 'Mesh':
+			return Mesh([vec3(p) for p in obj['points']], [tuple(f) for f in obj['faces']], obj['tracks'], obj['groups'])
+		elif t == 'Web':
+			return Mesh([vec3(p) for p in obj['points']], [tuple(f) for f in obj['edges']], obj['tracks'], obj['groups'])
+		else:
+			raise FileFormatError('unable to load json for dumped type {}', t)
+	return obj
+	
+def json_read(file, **opts):
+	return json.load(open(file, 'r'), cls=JSONDecoder, **opts)
+
+def json_write(objs, file, **opts):
+	return json.dump(open(file, 'w'), object_hook=jsondecode, **opts)
