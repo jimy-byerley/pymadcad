@@ -498,7 +498,7 @@ class Scheme:
 
 class WireDisplay:
 	''' wireframe display for schemes, like kinematic schemes '''
-	renderindex = 1
+	renderindex = 2
 	
 	def __init__(self, scene, points, transpfaces, opaqfaces, lines, color=None, transform=fmat4(1)):
 		ctx = scene.ctx
@@ -574,12 +574,11 @@ class WireDisplay:
 		self.uniformshader['view'].write(viewmat)
 		self.uniformshader['proj'].write(scene.proj_matrix)
 		
-		scene.ctx.enable(mgl.DEPTH_TEST)
+		scene.ctx.disable(mgl.DEPTH_TEST)
 		scene.ctx.disable(mgl.CULL_FACE)
 		if self.vb_opaqfaces:	self.va_opaqfaces.render(mgl.TRIANGLES)
 		if self.vb_lines:		self.va_lines.render(mgl.LINES)
 		
-		scene.ctx.disable(mgl.DEPTH_TEST)
 		scene.ctx.enable(mgl.CULL_FACE)
 		if self.vb_transpfaces:	
 			self.transpshader['color'].write(self.color)
