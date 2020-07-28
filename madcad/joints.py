@@ -2,18 +2,17 @@ from .mathutils import (vec3, mat3, mat4, quat, quat,
 						isnan, inverse,
 						dot, cross, distance, length, normalize, project, noproject, dirbase,
 						pi, inf, glm,
+						sin, cos, atan2,
 						transform,
 						)
 from .kinematic import Torsor, WireDisplay, Scheme
 from .mesh import Mesh, Wire, web, Web
 from . import generation, primitives
 
-__all__ = ['Pivot', 'Plane', 'Track', 'Gliding']
+__all__ = ['Pivot', 'Plane', 'Track', 'Gliding', 'Ball', 'Punctiform', 'Gear']
 
 '''
 TODO:
-	Ball		rotule
-	Punctiform	ponctuelle (sphere-plan)
 	Ringlin		linéaire annulaire
 	Linear		linéaire
 	Screw		helicoidale
@@ -56,7 +55,8 @@ def solidtransform_axis(solid, obj):
 	return (rot*obj[0] + solid.position, rot*obj[1])
 def solidtransform_base(solid, obj):
 	rot = solid.orientation
-	return (rot*obj[0] + solid.position, rot*obj[1], rot*obj[2])
+	if len(obj) == 3:	return (rot*obj[0] + solid.position, rot*obj[1], rot*obj[2])
+	if len(obj) == 4:	return (rot*obj[0] + solid.position, rot*obj[1], rot*obj[2], rot*obj[3])
 
 class Pivot:
 	''' Junction for rotation only around an axis
@@ -384,3 +384,193 @@ class Gliding:
 			center = axis[0] + project(self.position[1]-axis[0], axis[1])
 			attach = side = axis[1] * size
 			return Scheme([center-side, center+side, center+attach, junc], [], [], [(0,1), (2,3)])
+
+
+class Ball:
+	''' Joint for rotation all around a point.
+	
+		classical definition: Ball (point)
+		the initial state doen't require more data
+		the class holds a point for each side
+	'''
+	def __init__(self, s1, s2, p1, p2=None):
+		self.solids = (s1,s2)
+		self.points = (p1, p2 or p1)
+		self.position = self.points
+	
+	slvvars = 'solids',
+	def fit(self):
+		p0 = self.solids[0].orientation*self.points[0] + self.solids[0].position
+		p1 = self.solids[1].orientation*self.points[1] + self.solids[1].position
+		return distance(p0, p1)**2
+	
+	def corrections(self):
+		p0 = self.solids[0].orientation*self.points[0] + self.solids[0].position
+		p1 = self.solids[1].orientation*self.points[1] + self.solids[1].position
+		return (
+			Torsor(p1-p0, vec3(0), p0),
+			Torsor(p0-p1, vec3(0), p1),
+			) # force torsor
+	
+	def scheme(self, solid, size, junc):
+		if solid is self.solids[0]:
+			r = 0.3*size
+			p = self.points[0]
+			sph = generation.icosphere(p, r, resolution=('rad',0.2))
+			z = normalize(junc-p)
+			l = len(sph.points)
+			sph.points.append(p + z*r)
+			sph.points.append(junc)
+			return Scheme(sph.points, sph.faces, [], [(l+0, l+1)])
+		elif solid is self.solids[1]:
+			r = 0.4*size
+			angle = 1.2
+			p = self.points[1]
+			x,y,z = dirbase(normalize(junc-p))
+			prof = web(primitives.ArcCentered((p,y), p+z*r, p+r*(x*sin(angle)+z*cos(angle))))
+			sph = generation.revolution(2*pi, (p,z), prof)
+			sph.finish()
+			l = len(sph.points)
+			sph.points.append(p + z*r)
+			sph.points.append(junc)
+			return Scheme(sph.points, sph.faces, [], 
+					[(l+0, l+1)] + list(sph.outlines_unoriented()) )
+	
+class Punctiform:
+	''' Joint for rotation all around a point belonging to a plane.
+	
+		classical definition: Punctiform/Sphere-Plane (axis)
+		the initial state does't require more data
+		the class holds a normal axis for the plane side, and a point for the sphere side (that defaults to the axis'origin)
+	'''
+	def __init__(self, s1, s2, a1, p2=None):
+		self.solids = (s1,s2)
+		self.axis = a1
+		self.point = p2 or a1[0]
+		self.position = (self.axis[0], self.point)
+	
+	slvvars = 'solids',
+	def fit(self):
+		a = solidtransform_axis(self.solids[0], self.axis)
+		p = self.solids[1].orientation*self.point + self.solids[1].position
+		return project(p-a[0], a[1]) **2
+	
+	def corrections(self):
+		a = solidtransform_axis(self.solids[0], self.axis)
+		p = self.solids[1].orientation*self.point + self.solids[1].position
+		t = Torsor(project(p-a[0], a[1]), vec3(0), p)
+		return (t, -t) # force torsor
+	
+	def scheme(self, solid, size, junc):
+		r = 0.2*size
+		if solid is self.solids[0]:
+			center, normal = self.axis
+			if dot(junc-center, normal) < 0:	normal = -normal
+			x,y,z = dirbase(normal)
+			c = center + r*z
+			x *= size*0.7
+			y *= size*0.7
+			return Scheme(
+				[c+(x+y), c+(-x+y), c+(-x-y), c+(x-y), c, c+cornersize*x, c+cornersize*z, junc],
+				[(0,1,2), (0,2,3)],
+				[(4,5,6)],
+				[(0,1),(1,2),(2,3),(3,0),(4,6),(6,7)],
+				)
+		elif solid is self.solids[1]:
+			sph = generation.icosphere(self.point, r, resolution=('rad', 0.2))
+			z = normalize(junc-self.point)
+			l = len(sph.points)
+			sph.points.append(self.point + z*r)
+			sph.points.append(junc)
+			return Scheme(sph.points, sph.faces, [], [(l+0, l+1)])
+
+
+class Gear:
+	def __init__(self, s1, s2, ratio, a1, a2=None, position=None):
+		self.ratio = ratio
+		self.solids = (s1, s2)
+		self.axis = (a1, a2 or a1)
+		self.position = position or (self.axis[0][0], self.axis[1][0])
+		print('position', self.position)
+	
+	slvvars = 'solids',
+	def fit(self):
+		#t0 = dot(angleAxis(self.solids[0].orientation)*axis(self.solids[0].orientation), self.axis[0][1])
+		#t1 = dot(angleAxis(self.solids[1].orientation)*axis(self.solids[1].orientation), self.axis[1][1])
+		#return (t0 - t1) **2
+		indev
+	
+	def corrections(self):
+		b0 = solidtransform_base(self.solids[0], (self.axis[0][0], *dirbase(self.axis[0][1])))
+		b1 = solidtransform_base(self.solids[1], (self.axis[1][0], *dirbase(self.axis[1][1])))
+		# direction of the contact point from the center
+		v = b1[0]-b0[0]
+		# get the rotation of both solids relatively to this orientation
+		t0, t1 = atan2(dot(v,b0[2]), dot(v,b0[1])), atan2(dot(v,b1[2]), dot(v,b1[1]))
+		# correct cyclic orientation reset of the fastest solid
+		if abs(self.ratio) < 1:
+			m = (t1/self.ratio - t0 +pi) %(2*pi) -pi
+		else:
+			p = (t1 - t0*self.ratio +pi) %(2*pi) -pi
+			m = p/self.ratio
+		# m is the rotation delta for solid 0
+		return (
+			Torsor(vec3(0), -m * b0[3], b0[0]),
+			Torsor(vec3(0), m*self.ratio * b1[3], b1[0]),
+			)
+		
+	def scheme(self, solid, size, junc):
+		if solid is self.solids[0]:		i0,i1,n = 0,1,self.ratio
+		elif solid is self.solids[1]:	i1,i0,n = 0,1,1/self.ratio
+		else:	return
+		from .mathutils import sqrt, mix
+		
+		a0, a1 = solidtransform_axis(self.solids[0],self.axis[0]), solidtransform_axis(self.solids[1],self.axis[1])
+		x,y,z = dirbase(self.axis[i0][1], align=junc-self.axis[i0][0])
+		o = self.axis[i0][0] + project(self.position[i0]-self.axis[i0][0], z)
+		
+		# radial vector
+		rl = length(noproject(a0[0]-a1[0], a1[1])) / (1/self.ratio - dot(a0[1],a1[1]))
+		if solid is self.solids[1]:
+			rl /= self.ratio
+		r = o + x * rl
+		
+		self.position = (r, inverse(self.solids[i1].orientation) * (self.solids[i0].orientation * r + self.solids[i0].position - self.solids[i1].position))
+		
+		# tooth depth vector
+		d = inverse(self.solids[i0].orientation) * mix(a0[1], a1[1], abs(self.ratio)/(1+abs(self.ratio)))
+		d /= abs(dot(d,z))
+		b = size*0.4 * d
+		w = size*0.08 * cross(d,y)
+		if solid is self.solids[0]:
+			w = -w
+		
+		profile = Web([r+b+w, r+b, r+b, r, r-b, r-b, r-b+w], [(0,1),(2,3),(3,4),(5,6)])
+		surf = generation.revolution(2*pi, self.axis[i0], profile, resolution=('rad',0.1))
+		l = len(profile.points)
+		sch = Scheme(surf.points, surf.faces, [], [(i,i+l) for i in range(3, len(surf.points)-l, l)])
+		sch.extend(Scheme([junc, o, r], [], [], [(0,1),(1,2)]))
+		return sch
+	
+class Helicoid:
+	def __init__(self, s0, s1, step, b0, b1=None, position=None):
+		self.step = step
+		self.solids = s0, s1
+		self.bases = b0, b1 or b0
+		self.position = position or (self.axis[0][0], self.axis[1][1])
+		
+	slvvars = 'solids',
+	def fit(self):
+		indev
+
+	def corrections(self):
+		(o0,x0,y0), (o1,x1,y1) = solidtransform_base(self.bases[0]), solidtransform_base(self.bases[1])
+		z0, z1 = cross(x0,y0), cross(x1,y1)
+		angle = atan2(dot(y0,y1), dot(x0,x1))
+		delta = o1 - o0
+		z = normalize(z0 + z1)
+		substep = (dot(delta,z) + p/2) % p - p/2
+		r = cross(z0, z1)
+		orient = ...
+		t = delta - substep * z
+		return Torsor(noproject(t,z0),r,o0), Torsor(-noproject(t,z1),-r,o1) 	# force torsor
