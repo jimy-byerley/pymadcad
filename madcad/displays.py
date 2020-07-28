@@ -390,22 +390,22 @@ class SolidDisplay:
 		color = fvec3(color or settings.display['solid_color'])
 		line_color = fvec3(settings.display['line_color'])
 		self.vertices = Vertices(scene.ctx, positions, idents, fmat4(transform))
-		self.disp_faces = FacesDisplay(scene, self.vertices, normals, faces, color)
-		self.disp_groups = LinesDisplay(scene, self.vertices, lines, line_color)
-		self.disp_points = PointsDisplay(scene, self.vertices, color=line_color)
+		self.disp_faces = FacesDisplay(scene, self.vertices, normals, faces, color) if len(faces) else None
+		self.disp_groups = LinesDisplay(scene, self.vertices, lines, line_color) if len(lines) else None
+		self.disp_points = PointsDisplay(scene, self.vertices, color=line_color) if len(positions) else None
 		wire = []
 		for f in faces:
 			wire.append((f[0], f[1]))
 			wire.append((f[1], f[2]))
 			wire.append((f[2], f[0]))
-		self.disp_wire = LinesDisplay(scene, self.vertices, wire, mix(color, line_color, 0.3))
+		self.disp_wire = LinesDisplay(scene, self.vertices, wire, mix(color, line_color, 0.3)) if len(wire) else None
 	
 	def render(self, scene):
 		self.vertices.update(scene)
-		if self.options['display_faces']:	self.disp_faces.render(scene)
-		if self.options['display_groups']:	self.disp_groups.render(scene)
-		if self.options['display_points']:	self.disp_points.render(scene)
-		if self.options['display_wire']:	self.disp_wire.render(scene)
+		if self.options['display_faces'] and self.disp_faces:	self.disp_faces.render(scene)
+		if self.options['display_groups'] and self.disp_groups:	self.disp_groups.render(scene)
+		if self.options['display_points'] and self.disp_points:	self.disp_points.render(scene)
+		if self.options['display_wire'] and self.disp_wire:	self.disp_wire.render(scene)
 	
 	def identify(self, scene, startident):
 		# NOTE only the face identifications are used, whatever is the display option, the va_ident from the other objects are useless here
