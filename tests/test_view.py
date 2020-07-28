@@ -60,6 +60,7 @@ scn.add(Displayable(LengthMeasure, vec3(-2, 0, 0), vec3(0,-2,0), vec3(-1,-1,2) )
 scn.add(Circle((vec3(-2,-2,0), vec3(0,0,1)), 1) )
 scn.add(Displayable(RadiusMeasure, Circle((vec3(-2,-2,0), vec3(0,0,1)), 1), vec3(-2,-4,0) ))
 scn.add(Displayable(ArrowDisplay, (vec3(3,0,0), vec3(0,0,1)) ))
+scn.add(Displayable(BoxDisplay, Box(vec3(-3), vec3(-1,-2,-1.5)) ))
 
 scn.look(Box(center=fvec3(0), width=fvec3(1)))
 scn.show()
