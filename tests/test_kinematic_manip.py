@@ -39,6 +39,25 @@ csts2 = [
 	Pivot(s5,s6, (vec3(0,0,0.5), Z), (O,Z)),
 	]
 
+# custom structure
+csts = [
+	Ball(s0,s1, vec3(-1,0,0), O),
+	Punctiform(s0,s2, (vec3(1,0,0.5),Z), O),
+	Ball(s1,s3, vec3(0,0,1), O),
+	Ball(s3,s4, vec3(0,0,2), O),
+	Ball(s2,s4, vec3(0,0,3), O),
+	]
+
+csts = [
+	Pivot(s0,s1, (vec3(0,1,0),Y), (O,Z)),
+	Pivot(s0,s2, (vec3(1,0,0),X), (O,Z)),
+	Pivot(s0,s4, (vec3(0,1,1),Y), (O,Z)),
+	Gear(s1,s2, -2, (-0.5*Z,Z), (O,Z)),
+	Pivot(s2,s3, (vec3(1,1,0),Z), (O,Z)),
+	Gear(s1,s4, -1.5, (O,Z)),
+	]
+
 from madcad.view import quickdisplay
+solvekin(csts, [s0], precision=1e-2)
 makescheme(csts)
-quickdisplay([Kinematic(csts, s0), O, X, Y, Z])
+quickdisplay([Kinematic(csts, [s0]), O, X, Y, Z])
