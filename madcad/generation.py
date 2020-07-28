@@ -1,7 +1,15 @@
-from .mathutils import vec2,mat2,dvec2,dmat2,vec3,vec4,mat3,mat4, mat3_cast, quat, rotate, translate, dot, cross, perpdot, project, noproject, scaledir, transform, normalize, inverse, length, cos, asin, acos, sqrt, atan2, NUMPREC, COMPREC, angleAxis, angle, distance, anglebt, interpol1, spline
+from .mathutils import (
+					vec2,mat2,dvec2,dmat2,vec3,vec4,mat3,mat4, mat3_cast, quat, 
+					rotate, translate, dot, cross, perpdot, project, noproject, scaledir, 
+					dirbase, transform, normalize, inverse, length, 
+					cos, asin, acos, sqrt, atan2, 
+					NUMPREC, COMPREC, pi, 
+					angleAxis, angle, distance, anglebt, interpol1, spline, mix,
+					)
 from .mesh import Mesh, edgekey, MeshError, web, distance_pa
 from . import triangulation
 from . import settings
+from . import primitives
 from nprint import nprint
 
 
@@ -10,6 +18,7 @@ __all__ = [
 	'curvematch', 'join', 'junction', 'junctioniter',
 	'matchexisting', 'matchclosest', 'dividematch',
 	'flatsurface',
+	'icosahedron', 'icosphere', 'uvsphere',
 	]
 
 
@@ -408,3 +417,88 @@ def interpol2tri(pts, ptangents, etangents, a,b):
 			+	2*(c*b) * ((b*B + c*C)/(b+c+1e-5) + a*tbc)
 			+	2*(a*c) * ((c*C + a*A)/(c+a+1e-5) + b*tca)
 			)
+
+def icosahedron(center, radius):
+	phi = (1+ sqrt(5)) /2	# golden ratio
+	m = Mesh([
+		vec3(0, 1, phi),
+		vec3(1, phi, 0),
+		vec3(phi, 0, 1),
+		vec3(0, -1, phi),
+		vec3(-1, phi, 0),
+		vec3(phi, 0, -1),
+		vec3(0, 1, -phi),
+		vec3(1, -phi, 0),
+		vec3(-phi, 0, 1),
+		vec3(0, -1, -phi),
+		vec3(-1, -phi, 0),
+		vec3(-phi, 0, -1),
+		],
+		[
+		(0,1,4), (0,2,1), (0,3,2), (0,8,3), (0,4,8),
+		(2,5,1), (1,6,4), (4,11,8), (8,10,3), (3,7,2),
+		(3,10,7), (2,7,5), (1,5,6), (4,6,11), (8,11,10),
+		(7,9,5), (5,9,6), (6,9,11), (11,9,10), (10,9,7),
+		],
+		)
+	f = radius/length(m.points[0])
+	for i,p in enumerate(m.points):
+		m.points[i] = f*p + center
+	return m
+
+def subdivide(mesh, div=1):
+	''' subdivide all faces by the number of cuts '''
+	n = div+2
+	pts = []
+	faces = []
+	tracks = []
+	c = 0
+	for f,t in enumerate(mesh.tracks):
+		# place the points
+		o,p0,p1 = mesh.facepoints(f)
+		x = p0-o
+		y = p1-o
+		for i in range(n):
+			u = i/(n-1)	
+			for j in range(n-i):
+				v = j/(n-1)
+				p = o + u*x + v*y
+				pts.append(p)
+		# create the faces
+		for i in reversed(range(1,n+1)):
+			for j in range(i-1):
+				s = c+j
+				faces.append((s, s+i, s+1))
+			for j in range(1,i-1):
+				s = c+j
+				faces.append((s, s+i-1, s+i))
+			c += i
+		tracks.extend([t] * (len(faces)-len(tracks)))
+	
+	new = Mesh(pts, faces, tracks)
+	new.mergeclose()
+	return new
+
+
+
+def icosphere(center, radius, resolution=None):
+	ico = icosahedron(center, radius)
+	div = settings.curve_resolution(2/6*pi*radius, 2/6*pi, resolution)
+	ico = subdivide(ico, div-1)
+	for i,p in enumerate(ico.points):
+		ico.points[i] = center + radius * normalize(p-center)
+	return ico
+
+def uvsphere(center, radius, alignment=vec3(0,0,1), resolution=None):
+	x,y,z = dirbase(alignment)
+	mesh = revolution(2*pi, 
+			(center, z),
+			web(primitives.ArcCentered(
+				(center,x), 
+				center+radius*z, 
+				center-radius*z, 
+				resolution=resolution)),
+			resolution=resolution)
+	mesh.mergeclose()
+	return mesh
+
