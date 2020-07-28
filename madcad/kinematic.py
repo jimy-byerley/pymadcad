@@ -22,7 +22,7 @@ __all__ = ['Torsor', 'comomentum', 'Pressure', 'Solid', 'Kinematic', 'Kinemanip'
 
 
 class Torsor(object):
-	''' a 3D torsor is a mathematical object defined as follow:
+	''' a 3D torsor aka Screw aka Wrench aka Twist - is a mathematical object defined as follow:
 		  * a resulting vector R
 		  * a momentum vector field M
 		  the momentum is a function of space, satisfying the relationship:
@@ -141,11 +141,13 @@ class Solid:
 		from .displays import BoxDisplay
 		for visu in self.visuals:
 			yield from scene.display(visu)
-		box = boundingbox(self.visuals)
-		m = min(box.width)
-		box.min -= 0.2*m
-		box.max += 0.2*m
-		yield BoxDisplay(scene, box)
+		
+		#box = boundingbox(self.visuals)
+		#m = min(box.width)
+		#box.min -= 0.2*m
+		#box.max += 0.2*m
+		#yield BoxDisplay(scene, box)
+		
 		#if self.name:	
 			#yield text.Text(box.max, self.name)
 
@@ -249,7 +251,6 @@ class Kinematic:
 		self.joints = joints
 		if isinstance(joints, set):	self.fixed = fixed
 		else:						self.fixed = set(id(solid) for solid in fixed)
-		print('fixed', self.fixed)
 		if not solids:	self._detectsolids()
 		self.options = {}
 	def _detectsolids(self):
@@ -372,15 +373,17 @@ class Kinemanip:
 	def identify(self, scene, startident):	pass	
 		
 	def start(self, solid, scene, ident, evt):
-		if id(solid) in self.fixed:	return
+		if id(solid) in self.fixed:		return
+		evt.accept()
 		
-		self.startpt = scene.ptat((evt.x(), evt.y()))
+		self.startpt = scene.ptat(scene.objnear((evt.x(), evt.y())))
 		self.ptoffset = inverse(quat(solid.orientation)) * (solid.position - self.startpt)
 		self.actsolid = solid
 		self.moved = False
 		return self.move
 	
 	def move(self, scene, evt):
+		evt.accept()
 		if evt.type() == QEvent.MouseMove:
 			# unlock moving solid
 			self.lock(self.actsolid, False)
@@ -424,7 +427,7 @@ class Kinemanip:
 		else:
 			if key not in self.locked:	return
 			# remove solid's variables from fixed
-			if key in self.locked:	del self.locked[key]
+			self.locked.discard(key)
 			# reset solid color
 			for disp in self.solids[key][1]:
 				disp.color = fvec3(settings.display['schematics_color'])
@@ -487,9 +490,7 @@ class Scheme:
 		for pt in self.points:
 			for i in range(3):
 				if pt[i] < min[i]:	min[i] = pt[i]
-				if pt[i] > max[i]:	
-					print(pt[i])
-					max[i] = pt[i]
+				if pt[i] > max[i]:	max[i] = pt[i]
 		return Box(min, max)
 	
 	def display(self, scene):
