@@ -1,7 +1,7 @@
 from nprint import nprint
 from math import pi
 from madcad import vec3, normalize, web, Web, Wire, ArcThrough, Segment, extrusion, revolution, saddle, tube, junction, icosurface
-from madcad.generation import dividematch, matchclosest
+from madcad.generation import *
 from madcad import view
 import sys
 from PyQt5.QtWidgets import QApplication
@@ -86,6 +86,9 @@ assert m6.issurface()
 m6.transform(vec3(0,0,-4))
 scn3D.add(m6)
 
+m7 = icosphere(vec3(0,3,0), 1)
+#m7.options = {'debug_display':True, 'debug_points':True}
+scn3D.add(m7)
 
 scn3D.look(m1.box())
 main.show()
