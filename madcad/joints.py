@@ -9,7 +9,7 @@ from .kinematic import Torsor, WireDisplay, Scheme
 from .mesh import Mesh, Wire, web, Web
 from . import generation, primitives
 
-__all__ = ['Pivot', 'Plane', 'Track', 'Gliding', 'Ball', 'Punctiform', 'Gear']
+__all__ = ['Pivot', 'Plane', 'Track', 'Gliding', 'Ball', 'Punctiform', 'Gear', 'Helicoid']
 
 '''
 TODO:
@@ -253,10 +253,10 @@ class Track:
 			z = normalize(cross(x,y))
 			s = 0.25*size
 			line = Web(
-						[(x+y)*s, (-x+y)*s, (-x-y)*s, (x-y)*s],
-						[(0,1),(1,2),(2,3),(3,0)],
+						[(x-y)*s, (x+y)*s, (x+y)*s, (-x+y)*s, (-x+y)*s, (-x-y)*s, (-x-y)*s, (x-y)*s],
+						[(0,1),(2,3),(4,5),(6,7)],
 						)
-			line.transform(-size/2*z)
+			line.transform(o-size/2*z)
 			ext = generation.extrusion(size*z, line)
 			l = len(ext.points)
 			v = junc - o
@@ -273,10 +273,10 @@ class Track:
 					ext.points, 
 					ext.faces, 
 					[(l,l+1,l+2)], 
-					[	(l, l+2),
-						(0,1),(1,2),(2,3),(3,0),
-						(0,4), (1,5), (2,6), (3,7), 
-						(4,5),(5,6),(6,7),(7,4)],
+					[	(l+2, l+3),
+						(0,1),(2,3),(4,5),(6,7),
+						(0,8), (2,10), (4,12), (6,14), 
+						(8,9),(10,11),(12,13),(14,15)],
 					)
 		
 		elif solid is self.solids[1]:
@@ -288,7 +288,7 @@ class Track:
 						[(x+y)*s, (-x+y)*s, (-x-y)*s, (x-y)*s],
 						[(0,2),(1,3)],
 						)
-			line.transform(-size/2*z)
+			line.transform(o-size/2*z)
 			ext = generation.extrusion(size*z, line)
 			l = len(ext.points)
 			v = junc - o
@@ -554,23 +554,87 @@ class Gear:
 	
 class Helicoid:
 	def __init__(self, s0, s1, step, b0, b1=None, position=None):
-		self.step = step
+		self.step = step	# m/tr
 		self.solids = s0, s1
+		if len(b0) == 2:			b0 = b0[0], *dirbase(b0[1])[:2]
+		if b1 and len(b1) == 2:		b1 = b1[0], *dirbase(b1[1])[:2]
 		self.bases = b0, b1 or b0
-		self.position = position or (self.axis[0][0], self.axis[1][1])
+		self.position = position or (self.bases[0][0], self.bases[1][1])
 		
 	slvvars = 'solids',
 	def fit(self):
 		indev
 
 	def corrections(self):
-		(o0,x0,y0), (o1,x1,y1) = solidtransform_base(self.bases[0]), solidtransform_base(self.bases[1])
+		(o0,x0,y0), (o1,x1,y1) = solidtransform_base(self.solids[0], self.bases[0]), solidtransform_base(self.solids[1], self.bases[1])
 		z0, z1 = cross(x0,y0), cross(x1,y1)
-		angle = atan2(dot(y0,y1), dot(x0,x1))
-		delta = o1 - o0
 		z = normalize(z0 + z1)
-		substep = (dot(delta,z) + p/2) % p - p/2
-		r = cross(z0, z1)
-		orient = ...
-		t = delta - substep * z
-		return Torsor(noproject(t,z0),r,o0), Torsor(-noproject(t,z1),-r,o1) 	# force torsor
+		delta = o1 - o0
+		pos = dot(-delta,z)
+		angle = atan2(dot(y1,x0), dot(x1,x0))
+		
+		gap_angle = (pos%self.step)/self.step * 2*pi - angle
+		if gap_angle > pi:	gap_angle -= 2*pi
+		if abs(gap_angle) > 0.5:	gap_angle = 0
+		gap_pos = (angle/(2*pi)*self.step - pos) % self.step
+		if gap_pos > self.step/2:	gap_pos -= self.step
+		
+		r = cross(z0, z1) + gap_angle*z
+		t = gap_pos*z
+		return Torsor(t+noproject(delta,z0), r, o0), Torsor(-t-noproject(delta,z1), -r, o1)	# force torsor
+
+	def scheme(self, solid, size, junc):
+		''' return primitives to render the junction from the given solid side
+			size is the desired size of the junction
+			junc is the point the junction is linked with the scheme by
+		'''
+		if solid is self.solids[0]:
+			radius = size/4
+			o,x,y = self.bases[0]
+			z = cross(x,y)
+			center = o + project(self.position[0]-o, z)
+			cyl = generation.extrusion(
+						z*size, 
+						web(primitives.Circle(
+								(center-z*size*0.5, z), 
+								radius, 
+								resolution=('div', 16),
+						)))
+			l = len(cyl.points)
+			v = junc - center
+			v = normalize(noproject(v,z))
+			if glm.any(isnan(v)):
+				v,_,_ = dirbase(z)
+			p = center + v*size/4
+			cyl.points.append(p)
+			cyl.points.append(p + z*size*cornersize)
+			cyl.points.append(p + v*size*cornersize)
+			cyl.points.append(junc)
+			
+			return Scheme(
+					cyl.points, 
+					cyl.faces, 
+					[(l,l+1,l+2)], 
+					(	[(l, l+2), (l+2, l+3)] 
+					+	[(i-1,i) for i in range(1,l//2)] 
+					+	[(i-1,i) for i in range(l//2+1,l)] 
+					+	[(l//2-1,0), (l-1,l//2)]),
+					)
+					
+		elif solid is self.solids[1]:
+			radius = size/6
+			o,x,y = self.bases[1]
+			z = cross(x,y)
+			center = o + project(self.position[1]-o, z)
+			attach = side = z * size
+			
+			heli = []
+			div = 32
+			a = 4*pi
+			for i in range(-div,div+1):
+				t = i/div
+				heli.append( radius*(cos(a*t)*x + sin(a*t)*y) + center + side*t )
+			heli.extend([center+side, junc])
+			heli = web(Wire(heli))
+			return Scheme(heli.points, [], [], heli.edges)
+
