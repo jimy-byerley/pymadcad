@@ -15,12 +15,9 @@ __all__ = ['Pivot', 'Plane', 'Track', 'Gliding', 'Ball', 'Punctiform', 'Gear', '
 TODO:
 	Ringlin		linéaire annulaire
 	Linear		linéaire
-	Screw		helicoidale
-	Gear		engrenage
 	Rack		crémaillere
 	
 	Screw(onesolid, othersolid, (B,x), (D,y), 0.2),	# helicoidale
-	Gear(onesolid, onceagain, (O,z), (O,z), 2, offset=0),	# engrenage
 	Rack(onesolid, onceagain, (O,z), x, 1, offset=0),	# cremaillere
 '''
 
@@ -523,7 +520,7 @@ class Gear:
 		
 		a0, a1 = solidtransform_axis(self.solids[0],self.axis[0]), solidtransform_axis(self.solids[1],self.axis[1])
 		x,y,z = dirbase(self.axis[i0][1], align=junc-self.axis[i0][0])
-		o = self.axis[i0][0] #+ project(self.position[i0]-self.axis[i0][0], z)
+		o = self.axis[i0][0] + project(self.position[i0]-self.axis[i0][0], z)
 		
 		# radial vector
 		rl = length(noproject(a0[0]-a1[0], a1[1])) / (dot(a0[1],a1[1]) - 1/self.ratio)
@@ -531,27 +528,22 @@ class Gear:
 			rl /= abs(self.ratio)
 		r = o + x * rl
 		
-		self.position = [None, None]
-		self.position[i0] = r
-		self.position[i1] = inverse(self.solids[i1].orientation) * (self.solids[i0].orientation * r + self.solids[i0].position - self.solids[i1].position)
-		
 		# tooth depth vector
-		angle = dot(	a0[1] if solid is self.solids[0] else a1[1], 
+		angle = min(1, dot(	a0[1] if solid is self.solids[0] else a1[1], 
 						normalize(mix(a0[1], a1[1], abs(self.ratio)/(1+abs(self.ratio))))
-						)
+						))
 		d = angle*z + sqrt(1-angle**2)*x
-		#d = inverse(self.solids[i0].orientation) * mix(a0[1], a1[1], abs(self.ratio)/(1+abs(self.ratio)))
-		#d /= abs(dot(d,z))
 		b = size*0.4 * d
 		w = size*0.08 * cross(d,y)
-		#if solid is self.solids[1]:
-			#w = -w
+		if self.ratio > 0 and (	abs(self.ratio) > 1 and solid is self.solids[0] 
+							or	abs(self.ratio) < 1 and solid is self.solids[1]):
+			b, w = -b, -w
 		
 		profile = Web([r+b+w, r+b, r+b, r, r-b, r-b, r-b+w], [(0,1),(2,3),(3,4),(5,6)])
 		surf = generation.revolution(2*pi, self.axis[i0], profile, resolution=('rad',0.1))
 		l = len(profile.points)
 		sch = Scheme(surf.points, surf.faces, [], [(i,i+l) for i in range(3, len(surf.points)-l, l)])
-		sch.extend(Scheme([junc, mix(o,r,0.9), r], [], [], [(0,1),(1,2)]))
+		sch.extend(Scheme([junc, mix(o,r,0.8), r], [], [], [(0,1),(1,2)]))
 		return sch
 
 
