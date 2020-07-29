@@ -292,11 +292,8 @@ class Track:
 			ext = generation.extrusion(size*z, line)
 			l = len(ext.points)
 			v = junc - o
-			if abs(dot(v,x)) > abs(dot(v,y)):
-				v = x if dot(v,x)>0 else -x
-			else:
-				v = y if dot(v,y)>0 else -y
-			p = o + z*size/2
+			v = z if dot(v, z) > 0 else -z
+			p = o + v*size/2
 			ext.points.append(p)
 			ext.points.append(junc)
 			return Scheme(
@@ -491,7 +488,6 @@ class Gear:
 		self.solids = (s1, s2)
 		self.axis = (a1, a2 or a1)
 		self.position = position or (self.axis[0][0], self.axis[1][0])
-		print('position', self.position)
 	
 	slvvars = 'solids',
 	def fit(self):
@@ -521,37 +517,44 @@ class Gear:
 		
 	def scheme(self, solid, size, junc):
 		if solid is self.solids[0]:		i0,i1,n = 0,1,self.ratio
-		elif solid is self.solids[1]:	i1,i0,n = 0,1,1/self.ratio
+		elif solid is self.solids[1]:	i0,i1,n = 1,0,1/self.ratio
 		else:	return
 		from .mathutils import sqrt, mix
 		
 		a0, a1 = solidtransform_axis(self.solids[0],self.axis[0]), solidtransform_axis(self.solids[1],self.axis[1])
 		x,y,z = dirbase(self.axis[i0][1], align=junc-self.axis[i0][0])
-		o = self.axis[i0][0] + project(self.position[i0]-self.axis[i0][0], z)
+		o = self.axis[i0][0] #+ project(self.position[i0]-self.axis[i0][0], z)
 		
 		# radial vector
-		rl = length(noproject(a0[0]-a1[0], a1[1])) / (1/self.ratio - dot(a0[1],a1[1]))
+		rl = length(noproject(a0[0]-a1[0], a1[1])) / (dot(a0[1],a1[1]) - 1/self.ratio)
 		if solid is self.solids[1]:
-			rl /= self.ratio
+			rl /= abs(self.ratio)
 		r = o + x * rl
 		
-		self.position = (r, inverse(self.solids[i1].orientation) * (self.solids[i0].orientation * r + self.solids[i0].position - self.solids[i1].position))
+		self.position = [None, None]
+		self.position[i0] = r
+		self.position[i1] = inverse(self.solids[i1].orientation) * (self.solids[i0].orientation * r + self.solids[i0].position - self.solids[i1].position)
 		
 		# tooth depth vector
-		d = inverse(self.solids[i0].orientation) * mix(a0[1], a1[1], abs(self.ratio)/(1+abs(self.ratio)))
-		d /= abs(dot(d,z))
+		angle = dot(	a0[1] if solid is self.solids[0] else a1[1], 
+						normalize(mix(a0[1], a1[1], abs(self.ratio)/(1+abs(self.ratio))))
+						)
+		d = angle*z + sqrt(1-angle**2)*x
+		#d = inverse(self.solids[i0].orientation) * mix(a0[1], a1[1], abs(self.ratio)/(1+abs(self.ratio)))
+		#d /= abs(dot(d,z))
 		b = size*0.4 * d
 		w = size*0.08 * cross(d,y)
-		if solid is self.solids[0]:
-			w = -w
+		#if solid is self.solids[1]:
+			#w = -w
 		
 		profile = Web([r+b+w, r+b, r+b, r, r-b, r-b, r-b+w], [(0,1),(2,3),(3,4),(5,6)])
 		surf = generation.revolution(2*pi, self.axis[i0], profile, resolution=('rad',0.1))
 		l = len(profile.points)
 		sch = Scheme(surf.points, surf.faces, [], [(i,i+l) for i in range(3, len(surf.points)-l, l)])
-		sch.extend(Scheme([junc, o, r], [], [], [(0,1),(1,2)]))
+		sch.extend(Scheme([junc, mix(o,r,0.9), r], [], [], [(0,1),(1,2)]))
 		return sch
-	
+
+
 class Helicoid:
 	def __init__(self, s0, s1, step, b0, b1=None, position=None):
 		self.step = step	# m/tr
@@ -559,7 +562,7 @@ class Helicoid:
 		if len(b0) == 2:			b0 = b0[0], *dirbase(b0[1])[:2]
 		if b1 and len(b1) == 2:		b1 = b1[0], *dirbase(b1[1])[:2]
 		self.bases = b0, b1 or b0
-		self.position = position or (self.bases[0][0], self.bases[1][1])
+		self.position = position or (self.bases[0][0], self.bases[1][0])
 		
 	slvvars = 'solids',
 	def fit(self):
@@ -584,10 +587,6 @@ class Helicoid:
 		return Torsor(t+noproject(delta,z0), r, o0), Torsor(-t-noproject(delta,z1), -r, o1)	# force torsor
 
 	def scheme(self, solid, size, junc):
-		''' return primitives to render the junction from the given solid side
-			size is the desired size of the junction
-			junc is the point the junction is linked with the scheme by
-		'''
 		if solid is self.solids[0]:
 			radius = size/4
 			o,x,y = self.bases[0]
