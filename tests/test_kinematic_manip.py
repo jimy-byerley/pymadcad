@@ -52,9 +52,11 @@ csts = [
 	Pivot(s0,s1, (vec3(0,1,0),Y), (O,Z)),
 	Pivot(s0,s2, (vec3(1,0,0),X), (O,Z)),
 	Pivot(s0,s4, (vec3(0,1,1),Y), (O,Z)),
-	Gear(s1,s2, -2, (-0.5*Z,Z), (O,Z)),
+	Gear(s1,s2, -1.5, (-0.5*Z,Z), (O,Z)),
 	Pivot(s2,s3, (vec3(1,1,0),Z), (O,Z)),
-	Gear(s1,s4, -1.5, (O,Z)),
+	Gear(s1,s4, 3, (O,Z)),
+	Helicoid(s4,s5, 0.2, (0.5*Z,Z)),
+	Track(s0,s5, (vec3(0,2,1),Z,X), (Z,X,Y)),
 	]
 
 from madcad.view import quickdisplay
