@@ -1,5 +1,24 @@
 '''	
-	Defines triangular meshes for pymadcad
+	This module defines triangular meshes and edges webs.
+	
+	
+	containers
+	----------
+	
+	The classes defined here are 'points containers' it means that they are storing a list of points (as a member `point`), a list of groups (member `group`) and index points and groups for other purpose (faces and edges).
+	All of these follow this line:
+	
+	- storages are using basic types, no object inter-referencing, making it easy to copy it
+	
+	- storages (points, groups, faces, edges, ...) are used as shared ressources
+	
+		python objects are ref-counted, allowing multiple Mesh instance to have the same point buffer. The user is responsible to ensure that there will be non conflict.
+		
+		To avoid conflicts, operations that are changing each point (or the most of them) reallocate a new list. Then operations like `mergeclose` or `stripgroups` won't affect other Meshes that shared the same buffers initially.
+		
+	- as build from shared ressources, these classes can be build from existing parts at a nearly zero cost (few verifications, no computation)
+	
+	- the user is allowed to hack into the internal data, ensure that the Mesh is still consistent after.
 '''
 
 from copy import copy, deepcopy
@@ -33,7 +52,9 @@ class Container:
 			self.points[i] = transformer(self.points[i])
 			
 	def mergeclose(self, limit=None, start=0):
-		''' merge points below the specified distance, or below the precision '''
+		''' merge points below the specified distance, or below the precision 
+			return a dictionnary of points remapping  {src index: dst index}
+		'''
 		if limit is None:	limit = self.precision()
 		'''
 		# O(n**2 /2) implementation
@@ -84,6 +105,7 @@ class Container:
 	# --- verification methods ---
 		
 	def isvalid(self):
+		''' return true if the internal data is consistent (all indices referes to actual points and groups) '''
 		try:				self.check()
 		except MeshError:	return False
 		else:				return True
@@ -104,7 +126,7 @@ class Container:
 		return self.maxnum() * NUMPREC * (2**propag)
 		
 	def usepointat(self, point, neigh=NUMPREC):
-		''' return the index of the first point in the mesh at the location, if none is found, insert it and return the index '''
+		''' Return the index of the first point in the mesh at the location. If none is found, insert it and return the index '''
 		i = self.pointat(point, neigh=neigh)
 		if i is None:
 			i = len(self.points)
@@ -139,11 +161,11 @@ class Mesh(Container):
 		As volumes are represented by their exterior surface, there is no difference between representation of volumes and faces, juste the way we interpret it.
 		
 		Attributes:
-			points		list of vec3 for points
-			faces		list of triplets for faces, the triplet is (a,b,c) such that  cross(b-a, c-a) is the normal oriented to the exterior.
-			tracks		integer giving the group each face belong to
-			groups		custom information for each group
-			options		custom informations for the entire mesh
+			:points:     list of vec3 for points
+			:faces:		list of triplets for faces, the triplet is (a,b,c) such that  cross(b-a, c-a) is the normal oriented to the exterior.
+			:tracks:	    integer giving the group each face belong to
+			:groups:     custom information for each group
+			:options:	custom informations for the entire mesh
 	'''
 	
 	# --- standard point container methods ---
@@ -194,7 +216,7 @@ class Mesh(Container):
 		
 	def mergepoints(self, merges):
 		''' merge points with the merge dictionnary {src index: dst index}
-			remaining points are not removed
+			merged points are not removed from the buffer.
 		'''
 		i = 0
 		while i < len(self.faces):
@@ -243,7 +265,7 @@ class Mesh(Container):
 		return len(self.outlines_oriented()) == 0
 	
 	def check(self):
-		''' check that the internal data references are good (indices and list lengths) '''
+		''' raise if the internal data is inconsistent '''
 		l = len(self.points)
 		for face in self.faces:
 			for p in face:
@@ -533,11 +555,11 @@ class Web(Container):
 		this definition is very close to the definition of Mesh, but with edges instead of triangles
 		
 		Attributes:
-			points		list of vec3 for points
-			faces		list of couples for edges, the couple is oriented (meanings of this depends on the usage)
-			tracks		integer giving the group each line belong to
-			groups		custom information for each group
-			options		custom informations for the entire web
+			:points:	list of vec3 for points
+			:edges:		list of couples for edges, the couple is oriented (meanings of this depends on the usage)
+			:tracks:	integer giving the group each line belong to
+			:groups:	custom information for each group
+			:options:	custom informations for the entire web
 	'''
 
 	# --- standard point container methods ---
@@ -579,7 +601,7 @@ class Web(Container):
 		else:
 			return NotImplemented
 	
-	def reverse(self):
+	def flip(self):
 		''' reverse direction of all edges '''
 		self.faces = [(b,a)  for a,b in self.edges]
 		
@@ -771,12 +793,12 @@ def web(*args):
 
 
 class Wire:
-	''' line as continuous suite of points 
-		used to borrow reference of points from a mesh by keeping their original indices
-		
+	''' Line as continuous suite of points 
+		Used to borrow reference of points from a mesh by keeping their original indices
+
 		Attributes:
-			points		points buffer
-			indices		indices of the line's points in the buffer
+			:points:	points buffer
+			:indices:	indices of the line's points in the buffer
 	'''
 	def __init__(self, points, indices=None, group=None):
 		self.points = points
@@ -792,24 +814,29 @@ class Wire:
 		else:						raise TypeError('item index must be int or slice')
 	
 	def length(self):
+		''' curviform length of the wire (sum of all edges length) '''
 		s = 0
 		for i in range(1,len(self.indices)):
 			s += distance(self.points[self.indices[i-1]], self.points[self.indices[i]])
 		return s
 		
 	def isvalid(self):
+		''' return True if the internal data are consistent '''
 		try:				self.check()
 		except MeshError:	return False
 		else:				return True
 	
 	def check(self):
+		''' raise if the internal data are not consistent '''
 		l = len(self.points)
 		for i in self.indices:
 			if i >= l:	raise MeshError("some indices are greater than the number of points", i, l)
 
 	def edge(self, i):
+		''' ith edge of the wire '''
 		return (self.indices[i], self.indices[i+1])
 	def edges(self):
+		''' list of successive edges of the wire '''
 		return [self.edge(i)  for i in range(len(self.indices)-1)]
 	
 	def __iadd__(self, other):
@@ -927,8 +954,11 @@ def line_simplification(web, prec=None):
 def suites(lines, oriented=True, cut=True, loop=False):
 	''' return a list of the suites that can be formed with lines.
 		lines is an iterable of edges
-		* oriented      specifies that (a,b) and (c,b) will not be assembled
-		* cut           cut suites when they are crossing each others
+		
+		parameters:
+			:oriented:      specifies that (a,b) and (c,b) will not be assembled
+			:cut:           cut suites when they are crossing each others
+		
 		return a list of the sequences that can be formed
 	'''
 	lines = list(lines)

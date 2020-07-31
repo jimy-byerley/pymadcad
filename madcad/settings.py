@@ -1,7 +1,10 @@
-'''	Utilities and default parameters for pymadcad
-	
-	Attributes:
-		*  primitives		- dictionnary of parameters for primitives
+'''	 The settings module holds dictionnaries each aspect of the madcad library.
+
+dictionnaries:
+	:primitives:  default settings for mesh and primitive operations
+	:display:	visual settings to display the 3D objects
+	:scene:		for what and how to display in the 3D scene
+	:controls:	preferences for the controls of the Scene widget
 '''
 
 from math import pi, ceil, floor, sqrt
@@ -43,10 +46,10 @@ primitives = {
 	}
 
 def curve_resolution(length, angle, param=None):
-	''' procedure donnant le nombre de points a placer sur une courbe
-		- length est la longueur curviligne
-		- angle est l'angle entre le debut de la courbe
-		length et angle doivent caracteriser une portion de la courbe a courbure monotone
+	''' return the subdivision number for a curve, using the given or setting specification
+
+		:length:  is the curvilign length of the curve
+		:angle:   is the integral of the absolute curvature (total rotation angle)
 	'''
 	kind, prec = param or primitives['curve_resolution']
 	if kind == 'div':
@@ -65,8 +68,8 @@ def curve_resolution(length, angle, param=None):
 	return res
 
 def getparam(levels: list, key):
-	''' Donne la valeur correspondant a la clef dans les dictionnaire
-		Les dictionnaires sont interrogés les uns apres les autres, la premiere valeur trouvée est utilisée
+	''' get the first found value for key through the given dictionnaries.
+		Dictionnaries are tested successively until the matching value is found. If no value is found, None is returned
 	'''
 	for d in levels:
 		if d is not None:

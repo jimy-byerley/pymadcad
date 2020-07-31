@@ -27,35 +27,43 @@ COMPREC = 1-NUMPREC
 #COMPREC = 1-NUMPREC
 
 def norminf(x):
+	''' norm L infinite  ie.  max(abs(x), abs(y), abs(z)) '''
 	return max(glm.abs(x))
 
 def norm1(x):
+	''' norm L1  ie.  abs(x)+abs(y)+abs(z) '''
 	return sum(glm.abs(x))
 
 norm2 = length
 
 def anglebt(x,y):
+	''' angle between two vectors '''
 	n = length(x)*length(y)
 	return acos(min(1,max(-1, dot(x,y)/n)))	if n else 0
 
 def project(vec, dir):
+	''' component of `vec` along `dir`, equivalent to dot(vec, dir) * dir '''
 	return dot(vec, dir) * dir
 	
 def noproject(x,dir):	
+	''' components of `vec` not along `dir`, equivalent to x - project(x,dir) '''
 	return x - project(x,dir)
 
 def perpdot(a:vec2, b:vec2) -> float:
 	return -a[1]*b[0] + a[0]*b[1]
 
 def perp(v:vec2) -> vec2:
+	''' perpendicular vector to the given vector '''
 	return vec2(-v[1], v[0])
 	
 def dirbase(dir, align=vec3(1,0,0)):
 	''' returns a base using the given direction as z axis (and the nearer vector to align as x) '''
 	x = align - project(align, dir)
-	if length(x) < NUMPREC:
+	if not length(x) > NUMPREC:
 		align = vec3(align[2],-align[0],align[1])
 		x = align - project(align, dir)
+	if not length(x) > NUMPREC:
+		return vec3(1,0,0),vec3(0,1,0),vec3(0,0,1)
 	x = normalize(x)
 	y = cross(dir, x)
 	return x,y,dir
@@ -65,14 +73,16 @@ def scaledir(dir, factor):
 	return mat3(1) + (factor-1)*mat3(dir[0]*dir, dir[1]*dir, dir[2]*dir)
 
 def transform(*args):
-	''' create an affine transformation matrix
+	''' create an affine transformation matrix.
+		
 		supported inputs:
-			mat4
-			vec3                                    - translation only
-			quat, mat3, mat4                        - rotation only
-			(vec3,vec3), (vec3,mat3), (vec3,quat)   - translation and rotation
-			(vec3,vec3,vec3)                        - base of vectors for rotation
-			(vec3,vec3,vec3,vec3)                   - translation and base of vectors for rotation
+		
+		*	mat4
+		*	vec3                                    - translation only
+		*	quat, mat3, mat4                        - rotation only
+		*	(vec3,vec3), (vec3,mat3), (vec3,quat)   - translation and rotation
+		*	(vec3,vec3,vec3)                        - base of vectors for rotation
+		*	(vec3,vec3,vec3,vec3)                   - translation and base of vectors for rotation
 	'''
 	if len(args) == 1 and isinstance(args[0], (tuple,list)):
 		args = args[0]

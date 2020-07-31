@@ -1,3 +1,20 @@
+''' This modules defines the constraints definitions and the solver tools
+
+	Constraints can be any object referencing `variables` and implementing the following signature to guide the solver in the resolution:
+		
+		class SomeConstraint:
+			
+			# name the attributes referencing the solver variables to change
+			slvvars = 'some_primitive', 'some_point'
+			# function returning the squared error in the constraint
+			
+			#  for a coincident constraint for instance it's the squared distance
+			#  the error must be a contiguous function of the parameters, and it's squared for numeric stability reasons.
+			#  the solver internally use an iterative approach to optimize the sum of all fit functions.
+			def fit((self):
+				...
+'''
+
 from collections import Counter
 import numpy as np
 from scipy.optimize import minimize
@@ -19,9 +36,15 @@ class Constraint(object):
 		#return Derived(varset.state(), varset.grad(), varset.vars)
 
 def isconstraint(obj):
+	''' return True if obj match the constraint signature '''
 	return hasattr(obj, 'fit') and hasattr(obj, 'slvvars')
 
 class Tangent(Constraint):
+	''' Makes to curves tangent in the given point 
+		The point moves as well as curves.
+		
+		The curves primitives must have a member ``slv_tangent(p)`` returning the tangent vector at the nearest position to `p`
+	'''
 	__slots__ = 'c1', 'c2', 'p', 'size'
 	slvvars = 'c1', 'c2', 'p'
 	def fit(self):
@@ -31,6 +54,7 @@ class Tangent(Constraint):
 		return displays.TangentDisplay(scene, (self.p, self.c2.slv_tangent(self.p)), self.size),
 
 class Distance(Constraint):
+	''' Makes two points distant of the fixed given distance '''
 	__slots__ = 'p1', 'p2', 'd', 'location'
 	slvvars = 'p1', 'p2'
 	def fit(self):
@@ -45,6 +69,7 @@ class Distance(Constraint):
 		return arrows, measure
 
 class Angle(Constraint):
+	''' Gets two segments with the given fixed angle between them '''
 	__slots__ = 's1', 's2', 'angle', 'location'
 	slvvars = 's1', 's2'
 	def fit(self):
@@ -56,9 +81,14 @@ class Angle(Constraint):
 		#return displays.ArcMeasure(scene, arc, 
 
 def Parallel(s1,s2):
+	''' Strict equivalent of Angle(s1,s2,0) '''
 	return Angle(s1,s2,0)
 
 class Radius(Constraint):
+	''' Gets the given Arc with the given fixed radius 
+		
+		Note: Only ArcCentered are supported yet.
+	'''
 	__slots__ = 'arc', 'radius', 'location'
 	slvvars = 'arc',	
 	def fit(self):
@@ -89,6 +119,7 @@ class Projected(Constraint):
 		return dot(self.a - self.b - self.proj, self.proj)
 
 class OnPlane(Constraint):
+	''' Puts the given points on the fixed plane given by its normal axis '''
 	__slots__ = 'axis', 'pts'
 	def slvvars(self):
 		return self.pts
@@ -99,6 +130,10 @@ class OnPlane(Constraint):
 		return s
 
 class PointOn(Constraint):
+	''' Puts the given point on the curve.
+	
+		The curve primitive must have a member  ``slv_nearest(p) -> vec3`` returning the closest point to p on the curve.
+	'''
 	__slots__ = 'point', 'curve'	
 	slvvars = 'point', 'curve'
 	def fit(self):
@@ -116,7 +151,11 @@ class Problem:
 		therefore the solver protocol is the follownig:
 			- constraints define the probleme
 			- each constraint refers to variables it applies on
-				constraints have the method fit() and a member 'slvvars' that can be  1. an iterable of names of variable members in the constraint object, or 2. a function returning an iterable of the actual variables objects (that therefore must be referenced refs and not primitive types)
+				constraints have the method fit() and a member 'slvvars' that can be  
+				
+				1. an iterable of names of variable members in the constraint object
+				2. a function returning an iterable of the actual variables objects (that therefore must be referenced refs and not primitive types)
+			
 			- each variable object can redirect to other variable objects if they implements such a member 'slvvars'
 			- primitives can also be constraints on their variables, thus they must have a method fit()   (but no member 'primitives' here)
 			- primitives can implement the optional solver methods for some constraints, such as 'slv_tangent'

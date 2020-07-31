@@ -1,3 +1,14 @@
+''' This module defines the types and functions for kinematic manimulation and computation.
+
+	A kinematic in itself is a set of solids, observing movement relations. Those are modeled across the following classes: ``Solid`` and ``Kinematic``.
+	
+	Solids are considered to be undeformable, this allows the to use the Screw theory to represent the force and movement variables (see https://en.wikipedia.org/wiki/Screw_theory). 
+	In this module, screws are called ``Torsor``.
+	
+	.. tip::
+		In case of undeformable solids, torsors makes possible to represent both the translative and rotative part of each movement aspect, independently from the point in the solid.
+'''
+
 from copy import copy, deepcopy
 import numpy.core as np
 import moderngl as mgl
@@ -46,11 +57,11 @@ class Torsor(object):
 	__slots__ = ('resulting', 'momentum', 'position')
 	def __init__(self, resulting=None, momentum=None, position=None):
 		self.resulting, self.momentum, self.position = resulting or vec3(0), momentum or vec3(0), position or vec3(0)
-	def locate(self, pt):
+	def locate(self, pt) -> 'Torsor':
 		''' gets the same torsor, but expressed for an other location '''
 		return Torsor(self.resulting, self.momentum + cross(self.resulting, pt-self.position), pt)
 	
-	def transform(self, mat):
+	def transform(self, mat) -> 'Torsor':
 		''' changes the torsor from coordinate system '''
 		if isinstance(mat, mat4):
 			rot, trans = mat3(mat), vec3(mat[3])
@@ -93,11 +104,11 @@ def comomentum(t1, t2):
 class Solid:
 	''' Solid for kinematic definition, used as variable by the kinematic solver
 	
-	Attributes defined here:
-		* orientation - quat   as rotation from local to world space
-		* position - vec3      as displacement from local to world
-		* visuals	- list     of objects to display using the solid's pose
-		* name - str           optional name to display on the scheme
+	Attributes:
+		:orientation (quat):  rotation from local to world space
+		:position (vec3):     displacement from local to world
+		:visuals (list):      of objects to display using the solid's pose
+		:name (str):          optional name to display on the scheme
 	'''
 	def __init__(self, *args, pose=None, name=None):
 		if pose:
@@ -112,7 +123,7 @@ class Solid:
 	slvvars = 'position', 'orientation',
 	
 	#@property
-	def pose(self):
+	def pose(self) -> 'mat4':
 		''' transformation from local to global space, 
 			therefore containing the translation and rotation from the global origin 
 		'''
@@ -153,6 +164,10 @@ class Solid:
 
 
 def solvekin(joints, fixed=(), precision=1e-4, maxiter=None, damping=0.9):
+	''' solver for kinematic joint constraints.
+	
+		Unlike ``solve``, the present solver is dedicated to kinematic usage (and far more efficient and precise). It doesn't rely on variables as defined by solve, but instead use Solids as constraints.
+	'''
 	# register solids and corrections
 	solids = []		# list of solids found
 	register = {}	# solid index indexed by their id()
@@ -300,6 +315,7 @@ class Kinematic:
 			for disp in displays:
 				disp.control = lambda scene, grp, ident, evt, solid=solid:	manip.start(solid, scene, ident, evt)	# lambda default argument uncapture the variable
 				yield disp
+		manip.applyposes(scene)
 		yield manip
 
 
@@ -404,7 +420,10 @@ class Kinemanip:
 				try:	solvekin(self.joints, self.locked, precision=1e-4, maxiter=1000)
 				except constraints.SolveError as err:	print(err)
 			scene.tool = None
+			
+		self.applyposes(scene)
 		
+	def applyposes(self, scene):
 		# assign new positions to displays
 		for solid,displays in self.solids.values():
 			trans = fmat4(solid.pose())

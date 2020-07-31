@@ -480,6 +480,12 @@ class Punctiform:
 
 
 class Gear:
+	''' Gear interaction between two solids.
+	
+		`ratio` is the factor from the rotation of s1 to the rotation of s2
+		The two pinions are considered circular, but no assumption is made on their radius or relative inclination.
+		The interaction is symetric.
+	'''
 	def __init__(self, s1, s2, ratio, a1, a2=None, position=None):
 		self.ratio = ratio
 		self.solids = (s1, s2)
@@ -548,6 +554,11 @@ class Gear:
 
 
 class Helicoid:
+	''' Screw a solid into an other.
+	
+		`step` is the translation distance needed for that one solid turn by 2*pi around the other
+		The interaction is symetric.
+	'''
 	def __init__(self, s0, s1, step, b0, b1=None, position=None):
 		self.step = step	# m/tr
 		self.solids = s0, s1

@@ -1,0 +1,13 @@
+
+.wy-nav-side {
+	background: #e0e0e0;
+}
+
+.wy-side-nav-search {
+	background-color: #6df;
+}
+
+.toctree-l1 a, .toctree-l2 a, .toctree-l3 a {
+	color: #202020;
+	
+}

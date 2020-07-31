@@ -1,3 +1,41 @@
+''' Definition of 3D primitive objects
+
+	Primitives are parametrized objects, that can be baked into a mesh/web/wire object. A primitive object must have the following signature:
+	
+		class SomePrimitive:
+			# method baking the primitive in some general-purpose 3D object
+			def mesh(self) -> Mesh/Web/Wire:
+				...
+			
+			# for the solver
+			# primitive attributes the solver has to consider as variables or variable container
+			slvvars = 'fields', 'for', 'solver', 'variables'
+			# optional method constraining the primitive parameters (to keep points on a circle for instance)
+			def fit(self) -> err**2 as float:
+				...
+
+
+	Curve resolution
+	----------------
+
+	Some primitive types are curves, the discretisation is important for visual as well as for result quality (remember that even if something looks like a perfect curves, it's still polygons).
+	The resolution (subdivision) of curve is done following the following cirterions present in the 'settings' module
+
+	specification priority order:
+		
+		1. optional argument `resolution` passed to `primitive.mesh()` or to `web()` or `wire()`
+		2. optional attribute `resolution` of the primitive object
+		3. value of `settings.primitives['curve_resolution']` at bake time.
+
+	specification format:
+		
+		('fixed', 16)   # fixed amount of 16 subdivisions
+		('rad', 0.6)    # max polygon angle is 0.6 rad
+		('radm', 0.6)
+		('radm2', 0.6)
+
+'''
+
 from math import sqrt
 from .mathutils import vec3, mat3, normalize, anglebt, project, noproject, cos, sin, atan2, pi, length, distance, cross, vec2, mat2, determinant, inverse, dot, atan, acos, dirbase
 from . import settings
@@ -19,6 +57,7 @@ class Primitive(object):
 		return NotImplemented
 
 def isprimitive(obj):
+	''' return True if obj match the signature for primitives '''
 	return hasattr(obj, 'mesh') and hasattr(obj, 'slvvars')
 		
 Vector = Point = vec3
@@ -27,6 +66,7 @@ Vector = Point = vec3
 
 
 class Axis(object):
+	''' Mimic the behavior of a tuple, but with the primitive signature. '''
 	__slots__ = ('origin', 'dir', 'interval')
 	def __init__(self, origin, dir, interval=None):
 		self.origin, self.dir = origin, dir
@@ -47,6 +87,7 @@ class Axis(object):
 		yield displays.AxisDisplay(scene, (self.origin, self.dir), self.interval)
 
 class Segment(object):
+	''' segment from a to b '''
 	__slots__ = ('a', 'b')
 	def __init__(self, a, b):
 		self.a, self.b = a,b
@@ -63,6 +104,7 @@ class Segment(object):
 		return self.mesh().display(scene)
 
 class ArcThrough(object):	
+	''' arc from a to c, passing through b '''
 	__slots__ = ('a', 'b', 'c', 'resolution')
 	
 	def __init__(self, a,b,c, resolution=None):
@@ -98,6 +140,10 @@ class ArcThrough(object):
 		return self.mesh().display(scene)
 
 class ArcCentered(object):
+	''' arc from a to b, centered around the origin of the axis.
+	
+		An axis is requested instead of a point (that would be more intuitive), to solve the problem when a,b, center are aligned
+	'''
 	__slots__ = ('axis', 'a', 'b', 'resolution')
 	def __init__(self, axis, a, b, resolution=None):
 		self.axis = axis
@@ -168,6 +214,7 @@ class TangentEllipsis(object):
 		return self.mesh().display(scene)
 
 class Circle(object):
+	''' circle centered around the axis origin, with the given radius, in an orthogonal plane to the axis direction '''
 	__slots__ = ('axis', 'radius', 'alignment', 'resolution')
 	def __init__(self, axis, radius, alignment=vec3(1,0,0), resolution=None):
 		self.axis, self.radius = axis, radius
