@@ -1,3 +1,5 @@
+# This file is part of pymadcad,  distributed under license LGPL v3
+
 ''' This module defines the types and functions for kinematic manimulation and computation.
 
 	A kinematic in itself is a set of solids, observing movement relations. Those are modeled across the following classes: ``Solid`` and ``Kinematic``.

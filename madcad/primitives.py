@@ -1,3 +1,5 @@
+# This file is part of pymadcad,  distributed under license LGPL v3
+
 ''' Definition of 3D primitive objects
 
 	Primitives are parametrized objects, that can be baked into a mesh/web/wire object. A primitive object must have the following signature:
@@ -120,7 +122,7 @@ class ArcThrough(object):
 		return (self.c+self.b)/2 + cross(n, self.b-self.c) * h
 		
 	def radius(self):
-		return (self.a-self.center()).norm()
+		return length(self.a-self.center())
 	
 	def axis(self):
 		return (self.center(), normalize(cross(self.a-self.b, self.c-self.b)))

@@ -1,3 +1,5 @@
+# This file is part of pymadcad,  distributed under license LGPL v3
+
 '''	Display module of pymadcad
 	
 	This module provide a Qt widget 'Scene' to handle user events and implements a graphic pipeline for the displayed objects

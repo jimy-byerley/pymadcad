@@ -1,3 +1,5 @@
+# This file is part of pymadcad,  distributed under license LGPL v3
+
 from .mathutils import vec3, mat3, dmat3, dvec3, dot, cross, project, noproject, anglebt, sqrt, cos, acos, asin, spline, interpol1, normalize, distance, length, inverse, transpose, NUMPREC, COMPREC
 from .mesh import Mesh, Web, Wire, lineedges, connef, suites, line_simplification
 from . import generation as gt

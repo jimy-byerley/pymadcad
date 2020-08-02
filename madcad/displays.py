@@ -1,3 +1,5 @@
+# This file is part of pymadcad,  distributed under license LGPL v3
+
 from .mathutils import vec3, fvec3, fvec4, fmat4, mix, normalize, length, distance, dot, noproject, dirbase, Box, isnan, isinf
 from .mathutils import transform as mktransform
 from . import settings

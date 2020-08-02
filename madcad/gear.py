@@ -1,3 +1,5 @@
+# This file is part of pymadcad,  distributed under license LGPL v3
+
 from mathutils import pi, cos, sin, tan, asin, sqrt, interpol1, vec2, vec3, dot, distance, mat2, inverse, dirbase, scaledir, angleAxis, transform
 from mesh import Web
 import settings

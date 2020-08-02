@@ -1,3 +1,5 @@
+# This file is part of pymadcad,  distributed under license LGPL v3
+
 from math import inf
 from .mathutils import (glm,
 					vec2, dvec2, dmat2, vec3,

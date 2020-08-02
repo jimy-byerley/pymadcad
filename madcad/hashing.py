@@ -1,3 +1,5 @@
+# This file is part of pymadcad,  distributed under license LGPL v3
+
 from .mathutils import vec3, i64vec3, noproject, norminf, normalize, dot, glm, cross, length, NUMPREC
 from . import core
 from . import mesh

@@ -1,3 +1,5 @@
+# This file is part of pymadcad,  distributed under license LGPL v3
+
 from PIL import Image, ImageFont, ImageDraw
 import numpy.core as np
 import moderngl as mgl

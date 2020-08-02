@@ -1,3 +1,5 @@
+# This file is part of pymadcad,  distributed under license LGPL v3
+
 from .mathutils import (
 					vec2,mat2,dvec2,dmat2,vec3,vec4,mat3,mat4, mat3_cast, quat, 
 					rotate, translate, dot, cross, perpdot, project, noproject, scaledir, 

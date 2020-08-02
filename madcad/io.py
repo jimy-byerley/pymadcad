@@ -1,3 +1,5 @@
+# This file is part of pymadcad,  distributed under license LGPL v3
+
 import numpy as np
 import os
 from .mathutils import vec3, glm, inf

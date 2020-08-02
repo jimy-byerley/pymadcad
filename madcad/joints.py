@@ -1,3 +1,5 @@
+# This file is part of pymadcad,  distributed under license LGPL v3
+
 from .mathutils import (vec3, mat3, mat4, quat, quat,
 						isnan, inverse,
 						dot, cross, distance, length, normalize, project, noproject, dirbase,

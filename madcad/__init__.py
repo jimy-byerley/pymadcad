@@ -1,3 +1,5 @@
+# This file is part of pymadcad,  distributed under license LGPL v3
+
 '''     pymadcad
 		it's time to throw parametric softwares out !
 		
@@ -152,4 +154,4 @@ from .io import read, write, cache
 from .triangulation import TriangulationError
 
 from .text import Text
-from .view import Scene, isdisplay, displayable
+from .view import Scene, isdisplay, displayable, quickdisplay

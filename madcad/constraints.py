@@ -1,3 +1,5 @@
+# This file is part of pymadcad,  distributed under license LGPL v3
+
 ''' This modules defines the constraints definitions and the solver tools
 
 	Constraints can be any object referencing `variables` and implementing the following signature to guide the solver in the resolution:
@@ -92,9 +94,10 @@ class Radius(Constraint):
 	__slots__ = 'arc', 'radius', 'location'
 	slvvars = 'arc',	
 	def fit(self):
-		ra = length(noproject(self.arc.a - self.arc.axis[0], self.arc.axis[1]))
-		rb = length(noproject(self.arc.b - self.arc.axis[0], self.arc.axis[1]))
-		return (ra - self.radius) **2 + (rb - self.radius) **2
+		#ra = length(noproject(self.arc.a - self.arc.axis[0], self.arc.axis[1]))
+		#rb = length(noproject(self.arc.b - self.arc.axis[0], self.arc.axis[1]))
+		#return (ra - self.radius) **2 + (rb - self.radius) **2
+		return (self.arc.radius() - self.radius) **2
 	
 	def display(self, scene):
 		dra = abs(length(noproject(self.arc.a - self.arc.axis[0], self.arc.axis[1])) - self.radius)
