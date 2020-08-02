@@ -7,7 +7,7 @@ from .mathutils import (glm,
 					dirbase, 
 					NUMPREC)
 from .mesh import Mesh, Web, Wire, MeshError
-from nprint import nformat
+from .nprint import nformat
 
 
 class TriangulationError(Exception):	pass

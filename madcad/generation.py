@@ -12,7 +12,7 @@ from .mesh import Mesh, edgekey, MeshError, web, distance_pa
 from . import triangulation
 from . import settings
 from . import primitives
-from nprint import nprint
+from .nprint import nprint
 
 
 __all__ = [
