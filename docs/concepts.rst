@@ -70,7 +70,7 @@ It appeared that the GPU shader languages already fixed that for us, with a sort
 Mesh Data
 ~~~~~~~~~
 
-It's always a difficult way to stop a decision on the way to represent 3D objects. In most case we represent it by its exterior surface, but the problem of the polygons stays: `ngons, quads, triangles, bezier,` ... ? And the way to put it into memory also: `simple unit elements, dynamically typed polygons, halfedges, quadedges,` ... Or event the way to access it: `arrays, chained lists, octree, hashmaps`.
+It's always a difficult way to stop a decision on the way to represent 3D objects. In most cases we represent it by its exterior surface, but the problem of the polygons remains: `ngons, quads, triangles, bezier,` ... ? And the way to put it into memory also: `simple unit elements, dynamically typed polygons, halfedges, quadedges,` ... Or even the way to access it: `arrays, chained lists, octree, hashmaps`.
 
 Choice was not easy but is in favor of simplicity:
 	:array storage:   ``list`` for now
@@ -82,7 +82,7 @@ This structure is very simple and common in the 3D computing, and it makes easy 
 Display library
 ~~~~~~~~~~~~~~~
 
-As 3D manipulation can be complex, it's mendatory to visualize any kind of objects. A part of the library is dedicated to display the objects in an OpenGL scene. But to allow user interactions and allow to embeed the scene widget, we had to focus on one only panelling library.
+As 3D manipulation can be complex, it's mandatory to visualize any kind of objects. A part of the library is dedicated to display the objects in an OpenGL scene. But to allow user interactions and allow to embed the scene widget, we had to focus on one only panelling library.
 
 We prefered to bet on the most - advanced and feature-complete - free library despite its differences with the python environment.
 
