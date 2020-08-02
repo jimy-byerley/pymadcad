@@ -31,9 +31,9 @@ C = vec3(0,2,0)
 
 # create a list of primitives
 line = [
-	Line(O, A),          
+	Segment(O, A),          
 	ArcThrough(A, B, C),
-	Line(C,O),           
+	Segment(C,O),           
 	]
 
 # create and solve constraints
