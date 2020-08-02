@@ -1,2 +1,3 @@
+import os
 
-ressourcedir = __file__[:__file__.rfind('/')]
+ressourcedir = os.path.dirname(__file__)
