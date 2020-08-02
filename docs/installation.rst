@@ -24,11 +24,11 @@ From source
 
 You will need an archive of the `source directory <https://github.com/jimy-byerley/pymadcad>`. Extract it somewhere then type the following commands in the extracted directory.
 
+Make sure you installed the dependencies:
+
 .. code-block:: sh
 
-	python setup.py build_ext --inplace
-
-The source directory can now be used as is.
+	pip install moderngl pyglm cython pillow numpy scipy
 
 You still need the PyQt5 library. As there is many possible sources, you have to install it manually so you can use the version/source you prefer.
 Choose one of the following:
@@ -44,6 +44,14 @@ Choose one of the following:
 	.. code-block:: sh
 	
 		sudo apt install python3-pyqt5 python3-pyqt5.qtopengl
+
+Compile the module:		
+
+.. code-block:: sh
+
+	python setup.py build_ext --inplace
+
+The source directory can now be used as is.
 
 
 For Debian/Ubuntu
