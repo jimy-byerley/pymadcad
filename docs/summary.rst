@@ -1,7 +1,7 @@
 API summary
 ============
 
-Here is the most used functions and classes of madcad.
+Here are the most used functions and classes of madcad.
 
 
 Features
