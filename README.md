@@ -6,8 +6,8 @@
 
 Simple yet powerful CAD (Computer Aided Design) library, written with Python.
 
-- [Installation]()
-- [Documentation]()
+- [Installation](https://pymadcad.readthedocs.io/en/latest/installation.html)
+- [Documentation](https://pymadcad.readthedocs.io/en/latest/?)
 
 ## Features
 
@@ -41,7 +41,7 @@ solve([
 		Tangent(line[0], line[1], A),   
 		Tangent(line[1], line[2], C),   
 		Radius(line[1], 1.5),           
-	], fixed=[0])
+	], fixed=[O])
 
 # generate surfaces
 part = extrusion(vec3(0,0,1), web(line))
@@ -55,7 +55,9 @@ The result will be this window
 
 ## About
 
-MADCAD is born from the idea that the current approach of parametric CADs for mechanical engineering is not the best possible. This library is part of a project targeting the best possible mechanical design tool for both engineers and handymen. See the documentation for more details.
+MADCAD is born from the idea that the current approach of parametric CADs for mechanical engineering is not the best possible. This library is part of a project targeting the best possible mechanical design tool for both engineers and handymen. See the 
+[comparison](https://pymadcad.readthedocs.io/en/latest/concepts.html#comparison-with-existing-cad-softwares) 
+for more details.
 
 ## License   ![LGPL logo](https://www.gnu.org/graphics/lgplv3-88x31.png)
 
