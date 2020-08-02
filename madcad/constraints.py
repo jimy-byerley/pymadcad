@@ -20,7 +20,7 @@
 from collections import Counter
 import numpy as np
 from scipy.optimize import minimize
-from nprint import nprint
+from .nprint import nprint
 from .mathutils import project, normalize, length, vec3, distance, anglebt, cross, dot, noproject, atan2, pi, cos, sin
 from . import primitives
 from . import displays, text, settings
