@@ -50,8 +50,9 @@ class Container:
 		elif isinstance(trans, mat3):	transformer = lambda v: trans * v
 		elif isinstance(trans, mat4):	transformer = lambda v: vec3(trans * vec4(v,1))
 		elif callable(trans):	pass
-		for i in range(len(self.points)):
-			self.points[i] = transformer(self.points[i])
+		transformed = copy(self)
+		transformed.points = map(transformer, self.points)
+		return transformed
 			
 	def mergeclose(self, limit=None, start=0):
 		''' merge points below the specified distance, or below the precision 
@@ -210,8 +211,8 @@ class Mesh(Container):
 		else:
 			return NotImplemented
 	
-	def reverse(self):
-		''' reverse direction of all faces '''
+	def flip(self):
+		''' flip direction of all faces '''
 		self.faces = [(a,c,b)   for a,b,c in self.faces]
 		
 	# --- mesh optimization ---
@@ -605,7 +606,7 @@ class Web(Container):
 	
 	def flip(self):
 		''' reverse direction of all edges '''
-		self.faces = [(b,a)  for a,b in self.edges]
+		self.edges = [(b,a)  for a,b in self.edges]
 		
 	# --- mesh optimization ---
 	
@@ -819,6 +820,9 @@ class Wire:
 		if isinstance(i, int):		return self.points[self.indices[i]]
 		elif isinstance(i, slice):	return [self.points[j] for j in self.indices[i]]
 		else:						raise TypeError('item index must be int or slice')
+		
+	def flip(self):
+		self.indices = list(reversed(self.indices))
 	
 	def length(self):
 		''' curviform length of the wire (sum of all edges length) '''
