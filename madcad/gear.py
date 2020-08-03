@@ -1,9 +1,9 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
-from mathutils import pi, cos, sin, tan, asin, sqrt, interpol1, vec2, vec3, dot, distance, mat2, inverse, dirbase, scaledir, angleAxis, transform
-from mesh import Web
-import settings
-import generation
+from .mathutils import pi, cos, sin, tan, asin, sqrt, interpol1, vec2, vec3, dot, distance, mat2, inverse, dirbase, scaledir, angleAxis, transform
+from .mesh import Web
+from . import settings
+from . import generation
 
 # TODO: augmenter la surface disponible des dents en permettant un profil skysomorphique (utiliser des operations presques booleenes
 
@@ -71,7 +71,7 @@ def geartooth(profile, sector, m=1, resolution=None):
 		#if i > 0:	break
 	return tooth
 
-from mathutils import atan2, length, normalize
+from .mathutils import atan2, length, normalize
 
 def racktooth(inclin, h1, h2=None):
 	''' profile for iso normed gear
@@ -103,9 +103,9 @@ def gearprofile(profile, m, z, axis=(vec3(0,0,0), vec3(0,0,1)), align=vec3(1,0,0
 			d = r+p*m
 			web.points.append(d*cos(t)*x + d*sin(t)*y + o)
 	for i in range(len(web.points)-1):
-		web.lines.append((i,i+1))
+		web.edges.append((i,i+1))
 		web.tracks.append(0)
-	web.lines[-1] = (i,0)
+	web.edges[-1] = (i,0)
 	return web
 	
 
@@ -139,45 +139,3 @@ def surfscrewgear(profile, m, z, b, radius, n=1, axis=(vec3(0,0,0), vec3(0,0,1))
 			
 	return generation.extrans(line, trans(), ((i,i+1) for i in range(div-1)))
 
-
-if __name__ == '__main__':
-	from mathutils import radians
-	import numpy as np
-	from matplotlib import pyplot as plt
-	from time import time
-	
-	m = 1
-	z = 10
-	b = 3
-	
-	start = time()
-	linear = racktooth(radians(20), 0.4, 0.3)
-	angular = geartooth(linear, 2*pi/z)
-	print('computation time', time()-start)
-	
-	if True:
-		# display profile
-		plt.plot([p[0] for p in linear], [p[1] for p in linear], label='rack')
-		plt.plot([p[0] for p in angular], [p[1] for p in angular], '.-', label='gear')
-		plt.axes().set_aspect('equal')
-		plt.figlegend()
-		plt.show()
-	
-	if False:
-		import sys, view
-		from PyQt5.QtWidgets import QApplication
-		
-		# display gear surfaces
-		res = surfgear(angular, m, z, b)
-		#res = surfgear(angular, m, z, b, spin=radians(30))
-		#res = surfscrewgear(angular, m, z, b, 0.6*b, 3)
-		res.check()
-		assert res.issurface()
-		
-		app = QApplication(sys.argv)
-		main = scn3D = view.Scene()
-		#res.options['debug_display'] = True
-		scn3D.add(res)
-		scn3D.look(res.box())
-		main.show()
-		sys.exit(app.exec())
