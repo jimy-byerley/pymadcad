@@ -51,7 +51,7 @@ class Container:
 		elif isinstance(trans, mat4):	transformer = lambda v: vec3(trans * vec4(v,1))
 		elif callable(trans):	pass
 		transformed = copy(self)
-		transformed.points = map(transformer, self.points)
+		transformed.points = list(map(transformer, self.points))
 		return transformed
 			
 	def mergeclose(self, limit=None, start=0):

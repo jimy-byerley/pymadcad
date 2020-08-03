@@ -1,7 +1,7 @@
 from time import time
 from copy import deepcopy
 from nprint import nprint
-from madcad import vec3,mat4, rotate, Mesh
+from madcad import vec3,mat4, rotate, Mesh, quat, transform, normalize
 from madcad.boolean import difference, booleanwith, intersectwith
 from madcad import boolean
 
@@ -33,21 +33,8 @@ m1 = Mesh(
 	[	0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5	],
 	[None] * 6,
 	)
-m2 = deepcopy(m1)
-#
-#m2.transform(vec3(0.6, 0.3, 0.4))
-#m2.transform(rotate(mat4(1), 0.3, vec3(1,1,1)))
-#
-#m2.transform(vec3(0.6, 0.3, 0.4))
-#m2.transform(vec3(0.5, 0.3, 0.4))
-#m2.transform(rotate(mat4(1), 0.7, vec3(1,0,0)))
-#
-m2.transform(vec3(0.5, 0.3, 0.4))
-m2.transform(rotate(mat4(1), 0.7, vec3(1,1,0)))
-#
-#m2.transform(vec3(1.99, 0.52, 0.51))
-#
-#m2.transform(vec3(2, 0.5, 0.5))
+
+m2 = m1.transform(vec3(0.5, 0.3, 0.4)).transform(quat(0.7*vec3(1,1,0)))
 
 #boolean.debug_propagation = True
 #boolean.scn3D = scn3D
@@ -62,9 +49,9 @@ m3.check()
 assert m3.isenvelope()
 
 # debug purpose
-m3.options.update({'debug_display':True, 'debug_points':True, 'debug_faces':False})
-m2.options.update({'debug_display':True, 'debug_points':False, 'debug_faces':'indices'})
-m1.options.update({'debug_display':True, 'debug_points':False, 'debug_faces':'indices'})
+#m3.options.update({'debug_display':True, 'debug_points':True, 'debug_faces':False})
+#m2.options.update({'debug_display':True, 'debug_points':False, 'debug_faces':'indices'})
+#m1.options.update({'debug_display':True, 'debug_points':False, 'debug_faces':'indices'})
 #m3.groups = [None]*len(m3.faces)
 #m3.tracks = list(range(len(m3.faces)))
 # display

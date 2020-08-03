@@ -56,7 +56,7 @@ m4 = tube(
 m4.check()
 assert m4.issurface()
 #m4.options.update({'debug_display': True, 'debug_points': True})
-m4.transform(vec3(-4,0,0))
+m4 = m4.transform(vec3(-4,0,0))
 scn3D.add(m4)
 
 
@@ -83,7 +83,7 @@ m6 = icosurface(
 m6.check()
 assert m6.issurface()
 #m6.options.update({'debug_display': True, 'debug_points':True})
-m6.transform(vec3(0,0,-4))
+m6 = m6.transform(vec3(0,0,-4))
 scn3D.add(m6)
 
 m7 = icosphere(vec3(0,3,0), 1)
