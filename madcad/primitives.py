@@ -90,12 +90,14 @@ class Segment(object):
 	__slots__ = ('a', 'b')
 	def __init__(self, a, b):
 		self.a, self.b = a,b
+		
+	@property
 	def direction(self):
 		return normalize(self.b-self.a)
 		
 	slvvars = 'a', 'b'
 	def slv_tangent(self, pt):
-		return self.direction()
+		return self.direction
 	
 	def mesh(self):
 		return Wire([self.a, self.b], group='flat')
@@ -167,7 +169,8 @@ class ArcCentered(object):
 	slv_tangent = tangent
 	def fit(self):
 		return (	dot(self.a-self.axis[0], self.axis[1]) **2 
-				+	dot(self.b-self.axis[0], self.axis[1]) **2 
+				+	dot(self.b-self.axis[0], self.axis[1]) **2
+				+   (distance(self.a,self.axis[0]) - distance(self.b,self.axis[0])) **2
 				+	(length(self.axis[1])-1) **2
 				)
 	
@@ -199,6 +202,9 @@ class TangentEllipsis(object):
 	
 	def axis(self):
 		return (self.a+self.c - self.b, normalize(cross(self.a-self.b, self.c-self.b)))
+	
+	#def tangent(self, pt):
+		
 	
 	slvvars = ('a', 'b', 'c')
 	

@@ -75,8 +75,8 @@ class Angle(Constraint):
 	__slots__ = 's1', 's2', 'angle', 'location'
 	slvvars = 's1', 's2'
 	def fit(self):
-		d1 = self.s1.direction()
-		d2 = self.s2.direction()
+		d1 = self.s1.direction
+		d2 = self.s2.direction
 		a = atan2(length(cross(d1,d2)), dot(d1,d2))
 		return (a - self.angle)**2
 	#def display(self, scene):
@@ -97,7 +97,7 @@ class Radius(Constraint):
 		#ra = length(noproject(self.arc.a - self.arc.axis[0], self.arc.axis[1]))
 		#rb = length(noproject(self.arc.b - self.arc.axis[0], self.arc.axis[1]))
 		#return (ra - self.radius) **2 + (rb - self.radius) **2
-		return (self.arc.radius() - self.radius) **2
+		return (self.arc.radius - self.radius) **2
 	
 	def display(self, scene):
 		dra = abs(length(noproject(self.arc.a - self.arc.axis[0], self.arc.axis[1])) - self.radius)
