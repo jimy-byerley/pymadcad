@@ -9,12 +9,12 @@ from time import time
 from math import inf
 from .mathutils import (
 		vec3, mat3, dvec2, dvec3, dmat3, ivec3, 
-		sign, dot, cross, noproject, inverse, sqrt, normalize, length, distance,
+		sign, dot, cross, noproject, inverse, sqrt, normalize, length, distance, distance_pe,
 		find,
 		NUMPREC,
 		)
 from . import core
-from .mesh import Mesh, Web, edgekey, connef, line_simplification, distance_pe
+from .mesh import Mesh, Web, edgekey, connef, line_simplification
 from . import hashing
 from . import triangulation
 

@@ -1,8 +1,11 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
 import math
-from .mathutils import vec3, anglebt, cross, dot, length, distance, normalize, noproject
-from .mesh import Mesh, Web, edgekey, connpp, connef, distance_pp, distance_pa, distance_pe, distance_aa, distance_ae
+from .mathutils import (
+		vec3, anglebt, cross, dot, length, distance, normalize, noproject,
+		distance_pp, distance_pa, distance_pe, distance_aa, distance_ae,
+		)
+from .mesh import Mesh, Web, edgekey, connpp, connef
 
 __all__ = ['select', 'stopangle', 'crossover', 'straight', 'short', 'SelExpr', 'edgenear']
 

@@ -70,23 +70,20 @@ Vector = Point = vec3
 class Axis(object):
 	''' Mimic the behavior of a tuple, but with the primitive signature. '''
 	__slots__ = ('origin', 'dir', 'interval')
-	def __init__(self, origin, dir, interval=None):
-		self.origin, self.dir = origin, dir
+	def __init__(self, origin, direction, interval=None):
+		self.origin, self.direction = origin, direction
 		self.interval = interval
 	def __getitem__(self, i):
 		if i==0:	return self.origin
-		elif i==1:	return self.dir
+		elif i==1:	return self.direction
 		else:		raise IndexError('an axis has only 2 components')
-	
-	def direction(self):
-		return self.dir
 	
 	slvvars = ('origin', 'dir')
 	def slv_tangent(self, pt):
-		return self.dir
+		return self.direction
 	
 	def display(self, scene):
-		yield displays.AxisDisplay(scene, (self.origin, self.dir), self.interval)
+		yield displays.AxisDisplay(scene, (self.origin, self.direction), self.interval)
 
 class Segment(object):
 	''' segment from a to b '''
@@ -113,6 +110,7 @@ class ArcThrough(object):
 		self.a, self.b, self.c = a,b,c
 		self.resolution = resolution
 	
+	@property
 	def center(self):
 		a,c = self.a-self.b, self.c-self.b
 		l1,l2 = length(a),length(c)
@@ -120,22 +118,24 @@ class ArcThrough(object):
 		h = 0.5 * (l1/l2-t) * 1/sqrt(1-t**2)
 		n = normalize(cross(self.a-self.b, self.c-self.b))
 		return (self.c+self.b)/2 + cross(n, self.b-self.c) * h
-		
-	def radius(self):
-		return length(self.a-self.center())
 	
+	@property
+	def radius(self):
+		return length(self.a-self.center)
+	
+	@property
 	def axis(self):
-		return (self.center(), normalize(cross(self.a-self.b, self.c-self.b)))
+		return (self.center, normalize(cross(self.a-self.b, self.c-self.b)))
 	
 	def tangent(self, pt):
-		c = self.center()
+		c = self.center
 		return normalize(cross(pt-c, cross(self.a-c, self.c-c)))
 	
 	slvvars = ('a', 'b', 'c')
 	slv_tangent = tangent
 	
 	def mesh(self, resolution=None):
-		center = self.center()
+		center = self.center
 		z = normalize(cross(self.c-self.b, self.a-self.b))
 		return mkarc((center, z), self.a, self.c, resolution or self.resolution)
 	def display(self, scene):
@@ -152,9 +152,11 @@ class ArcCentered(object):
 		self.a, self.b = a, b
 		self.resolution = resolution
 	
+	@property
 	def center(self):
 		return self.axis[0]
 	
+	@property
 	def radius(self):
 		return (distance(self.axis[0], self.a) + distance(self.axis[0], self.b)) /2
 	
@@ -250,8 +252,3 @@ class Circle(object):
 		return Wire(pts, indices, group='arc')
 	def display(self, scene):
 		return self.mesh().display(scene)
-
-
-if __name__ == '__main__':
-	a = Arc(vec3(-1,0,0), vec3(0,1,0), vec3(1,0,0))
-	print(a.center())

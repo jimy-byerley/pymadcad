@@ -44,7 +44,7 @@ class Container:
 	# --- basic transformations of points ---
 	
 	def transform(self, trans):
-		''' apply the transform to the points of the mesh'''
+		''' apply the transform to the points of the mesh, returning the new transformed mesh'''
 		if isinstance(trans, quat):		trans = mat3_cast(trans)
 		if isinstance(trans, vec3):		transformer = lambda v: v + trans
 		elif isinstance(trans, mat3):	transformer = lambda v: trans * v
@@ -1017,40 +1017,5 @@ def suites(lines, oriented=True, cut=True, loop=False):
 					break
 	return suites
 
-# distances:
-
-distance_pp = distance
-
-def distance_pa(pt, axis):
-	''' point - axis distance '''
-	return length(noproject(pt-axis[0], axis[1]))
-
-def distance_pe(pt, edge):
-	''' point - edge distance '''
-	dir = edge[1]-edge[0]
-	l = length(dir)
-	x = dot(pt-edge[0], dir)/l**2
-	if   x < 0:	return distance(pt,edge[0])
-	elif x > 1:	return distance(pt,edge[1])
-	else:
-		return length(noproject(pt-edge[0], dir/l))
-
-def distance_aa(a1, a2):
-	''' axis - axis distance '''
-	return dot(a1[0]-a2[0], normalize(cross(a1[1], a2[1])))
-
-def distance_ae(axis, edge):
-	''' axis - edge distance '''
-	x = axis[1]
-	z = normalize(cross(x, edge[1]-edge[0]))
-	y = cross(z,x)
-	s1 = dot(edge[0]-axis[0], y)
-	s2 = dot(edge[1]-axis[0], y)
-	if s1*s2 < 0:
-		return dot(edge[0]-axis[1], z)
-	elif abs(s1) < abs(s2):
-		return distance_pa(edge[0], axis)
-	else:
-		return distance_pa(edge[1], axis)
 
 

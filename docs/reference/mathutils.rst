@@ -100,6 +100,14 @@ Scalar functions
 
 .. autofunction:: interpol2
 
+Distances
+~~~~~~~~~
+
+.. autofunction:: distance_pa
+.. autofunction:: distance_pe
+.. autofunction:: distance_aa
+.. autofunction:: distance_ae
+
 Constants
 ~~~~~~~~~
 

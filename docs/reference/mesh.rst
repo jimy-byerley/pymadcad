@@ -126,13 +126,9 @@ mesh internals manipulation
 .. autofunction:: connpp
 .. autofunction:: connef
 .. autofunction:: lineedges
+.. autofunction:: striplist
 .. autofunction:: line_simplification
 .. autofunction:: suites
-
-.. autofunction:: distance_pa
-.. autofunction:: distance_pe
-.. autofunction:: distance_aa
-.. autofunction:: distance_ae
 
 
 Exceptions defined here

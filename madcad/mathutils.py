@@ -124,7 +124,45 @@ def interpol2(a, b, x):
 			)
 
 spline = interpol2
+		
+# distances:
 
+distance_pp = distance
+
+def distance_pa(pt, axis):
+	''' point - axis distance '''
+	return length(noproject(pt-axis[0], axis[1]))
+
+def distance_pe(pt, edge):
+	''' point - edge distance '''
+	dir = edge[1]-edge[0]
+	l = length(dir)
+	x = dot(pt-edge[0], dir)/l**2
+	if   x < 0:	return distance(pt,edge[0])
+	elif x > 1:	return distance(pt,edge[1])
+	else:
+		return length(noproject(pt-edge[0], dir/l))
+
+def distance_aa(a1, a2):
+	''' axis - axis distance '''
+	return dot(a1[0]-a2[0], normalize(cross(a1[1], a2[1])))
+
+def distance_ae(axis, edge):
+	''' axis - edge distance '''
+	x = axis[1]
+	z = normalize(cross(x, edge[1]-edge[0]))
+	y = cross(z,x)
+	s1 = dot(edge[0]-axis[0], y)
+	s2 = dot(edge[1]-axis[0], y)
+	if s1*s2 < 0:
+		return dot(edge[0]-axis[1], z)
+	elif abs(s1) < abs(s2):
+		return distance_pa(edge[0], axis)
+	else:
+		return distance_pa(edge[1], axis)
+
+
+#-- algorithmic functions ---------
 
 def dichotomy_index(l, index, key=lambda x:x):
 	''' use dichotomy to get the index of `index` in a list sorted in ascending order
@@ -142,8 +180,6 @@ def dichotomy_index(l, index, key=lambda x:x):
 def find(iterator, predicate):
 	for e in iterator:
 		if predicate(e):	return e
-
-
 
 class Box:
 	__slots__ = ('min', 'max')

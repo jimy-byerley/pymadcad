@@ -6,9 +6,9 @@ from .mathutils import (
 					dirbase, transform, normalize, inverse, length, 
 					cos, asin, acos, sqrt, atan2, 
 					NUMPREC, COMPREC, pi, 
-					angleAxis, angle, distance, anglebt, interpol1, spline, mix,
+					distance, distance_pa, angleAxis, angle, anglebt, interpol1, spline, mix,
 					)
-from .mesh import Mesh, edgekey, MeshError, web, distance_pa
+from .mesh import Mesh, edgekey, MeshError, web
 from . import triangulation
 from . import settings
 from . import primitives
