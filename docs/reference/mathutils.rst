@@ -1,6 +1,5 @@
 .. _mathutils:
-.. py:module:: madcad
-.. py:currentmodule:: madcad.mathutils
+.. py:module:: madcad.mathutils
 
 mathutils    - all the basic math types and functions
 =====================================================

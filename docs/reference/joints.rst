@@ -1,6 +1,5 @@
 .. _joints:
-.. py:module:: madcad
-.. py:currentmodule:: madcad.joints
+.. py:module:: madcad.joints
 
 joints	- Kinematic Joints definition
 =====================================

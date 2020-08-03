@@ -4,7 +4,6 @@ primitives     - 3D Primitives for Wire generation
 ==================================================
 
 .. py:module:: madcad.primitives
-.. py:currentmodule:: madcad.primitives
 
 Primitives are parametrized objects, that can be baked into a mesh/web/wire object. A primitive object must have the following signature:
 	
@@ -63,7 +62,6 @@ primitives types
 	Alias to ``vec3``
 	
 .. autoclass:: Axis
-	:members: direction
 
 .. autoclass:: madcad.primitives.Segment
 	:members: direction

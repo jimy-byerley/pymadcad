@@ -1,6 +1,5 @@
 .. _io:
-.. py:module:: madcad
-.. py:currentmodule:: madcad.io
+.. py:module:: madcad.io
 
 io    - read/write mesh or data files
 =====================================
