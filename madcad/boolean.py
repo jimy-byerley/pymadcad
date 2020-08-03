@@ -635,10 +635,8 @@ def boolean(m1: Mesh, m2: Mesh, selector: (bool,bool), prec=None) -> Mesh:
 			mc1, mc2 = deepcopy((m1,m2))
 			booleanwith(mc1, m2, selector[0], prec)
 			booleanwith(mc2, m1, selector[1], prec)
-			if selector[0] and not selector[1]:
-				mc1.faces = [(f[0], f[2], f[1]) for f in mc1.faces]
-			if not selector[0] and selector[1]:
-				mc2.faces = [(f[0], f[2], f[1]) for f in mc2.faces]
+			if selector[0] and not selector[1]:		mc1 = mc1.flip()
+			if not selector[0] and selector[1]:		mc2 = mc2.flip()
 			res = mc1 + mc2
 			res.mergeclose()
 			return res

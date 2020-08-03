@@ -8,7 +8,7 @@ from .mathutils import (
 					NUMPREC, COMPREC, pi, 
 					distance, distance_pa, angleAxis, angle, anglebt, interpol1, spline, mix,
 					)
-from .mesh import Mesh, edgekey, MeshError, web
+from .mesh import Mesh, Web, Wire, edgekey, MeshError, web, wire
 from . import triangulation
 from . import settings
 from . import primitives
@@ -23,10 +23,28 @@ __all__ = [
 	'icosahedron', 'icosphere', 'uvsphere',
 	]
 
+	
+def extrans_pre(obj):
+	result = Mesh(groups=obj.groups)
+	face = None
+	if isinstance(obj, Web):	
+		web = Web(obj.points[:], obj.edges, obj.tracks, obj.groups)
+	elif isinstance(obj, Mesh):	
+		web = obj.outlines()
+		face = obj
+	else:
+		web = web(obj)
+	web.strippoints()
+	return web, face
+	
+def extrans_post(mesh, face, first, last):
+	if face:
+		mesh += face.transform(first) + face.transform(last).flip()
+		
 
 def extrusion(displt, web):
 	''' create a surface by extruding the given outline by a displacement vector '''
-	web.strippoints()
+	web, face = extrans_pre(web)
 	mesh = Mesh([], [], [], web.groups)
 	mesh.points.extend(web.points)
 	mesh.points.extend((p+displt for p in web.points))
@@ -36,6 +54,7 @@ def extrusion(displt, web):
 		mesh.faces.append((a, b+l, a+l))
 		mesh.tracks.append(t)
 		mesh.tracks.append(t)
+	extrans_post(mesh, face, vec3(0), displt)
 	return mesh
 
 def revolution(angle, axis, web, resolution=None):
@@ -110,12 +129,15 @@ def extrans(web, transformations, links):
 	''' create a surface by extruding and transforming the given outline.
 		transformations must be an iterable of mat4
 	'''
-	mesh = Mesh([], [], [], web.groups)
+	web, face = extrans_pre(web)
+	mesh = Mesh(groups=web.groups)
 	l = len(web.points)
 	transformations = iter(transformations)
+	first = trans = None
 	for k,trans in enumerate(transformations):
 		for p in web.points:
 			mesh.points.append(vec3(trans*vec4(p,1)))
+		if not first:	first = trans
 	for (a,b) in links:
 		al = a*l
 		bl = b*l
@@ -124,6 +146,7 @@ def extrans(web, transformations, links):
 			mesh.faces.append((al+c, bl+d, bl+c))
 			mesh.tracks.append(t)
 			mesh.tracks.append(t)
+	extrans_post(mesh, face, first, trans)
 	return mesh
 	
 def curvematch(line1, line2):
@@ -333,7 +356,7 @@ def closeenvelope(mesh):	# TODO: refaire
 def flatsurface(outline, normal=None):
 	m = triangulation.triangulation_outline(outline, normal)
 	if normal and dot(m.facenormal(0), normal) < 0:
-		m.flip()
+		m = m.flip()
 	return m
 
 def arclen(p1, p2, n1, n2):

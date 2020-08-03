@@ -236,7 +236,7 @@ class Mesh(Container):
 				i += 1
 	
 	def strippoints(self, used=None):
-		''' remove points that are used by no faces, return the reindex list 
+		''' remove points that are used by no faces, return the reindex list.
 			if used is provided, these points will be removed without usage verification
 		'''
 		if used is None:
@@ -253,8 +253,7 @@ class Mesh(Container):
 	
 	def flip(self):
 		''' flip all faces, getting the normals opposite '''
-		for i,f in enumerate(self.faces):
-			self.faces[i] = (f[0],f[2],f[1])
+		return Mesh(self.points, [(f[0],f[2],f[1]) for f in self.faces], self.tracks, self.groups)
 		
 	def issurface(self):
 		reached = set()
@@ -380,8 +379,8 @@ class Mesh(Container):
 		return edges
 	
 	def outlines(self):
-		''' return a Web of UNORIENTED edges '''
-		return Web(self.points, self.outlines_unoriented())
+		''' return a Web of ORIENTED edges '''
+		return Web(self.points, list(self.outlines_oriented()))
 		
 	def groupoutlines(self):
 		''' return a Web of UNORIENTED edges delimiting all the mesh groups '''
@@ -541,7 +540,7 @@ def reprarray(array, name):
 
 def striplist(list, used):
 	''' remove all elements of list that match a False in used, return a reindexation list '''
-	reindex = [0] * len(list)
+	reindex = [-1] * len(list)
 	j = 0
 	for i,u in enumerate(used):
 		if u:
@@ -606,7 +605,7 @@ class Web(Container):
 	
 	def flip(self):
 		''' reverse direction of all edges '''
-		self.edges = [(b,a)  for a,b in self.edges]
+		return Web(self.points, [(b,a)  for a,b in self.edges], self.tracks, self.groups)
 		
 	# --- mesh optimization ---
 	
@@ -822,7 +821,9 @@ class Wire:
 		else:						raise TypeError('item index must be int or slice')
 		
 	def flip(self):
-		self.indices = list(reversed(self.indices))
+		indices = self.indices[:]
+		indices.reverse()
+		return Wire(self.points, indices, self.groups)
 	
 	def length(self):
 		''' curviform length of the wire (sum of all edges length) '''

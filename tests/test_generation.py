@@ -1,6 +1,6 @@
 from nprint import nprint
 from math import pi
-from madcad import vec3, normalize, web, Web, Wire, ArcThrough, Segment, extrusion, revolution, saddle, tube, junction, icosurface
+from madcad import vec3, normalize, web, Web, Wire, ArcThrough, Segment, extrusion, revolution, saddle, tube, junction, icosurface, Mesh, wire, Circle
 from madcad.generation import *
 from madcad import view
 import sys
@@ -18,6 +18,7 @@ m1 = extrusion(vec3(0,0,0.5), Web(
 m1.check()
 assert m1.issurface()
 scn3D.add(m1)
+
 	
 # test revolution
 m2 = revolution(pi, (vec3(0,0,0), vec3(0,1,0)), web(
@@ -45,14 +46,17 @@ scn3D.add(m3)
 
 # test tubes
 m4 = tube(
-		Web(
-			[vec3(1,0,0), vec3(0,1,0), vec3(-1,0,0), vec3(0,-1,0), vec3(1,0,0)],
-			[(0,1),(1,2),(2,3),(3,0)],
-			[0,1,2,3],
-			),
+		#Web(
+			#[vec3(1,0,0), vec3(0,1,0), vec3(-1,0,0), vec3(0,-1,0), vec3(1,0,0)],
+			#[(0,1),(1,2),(2,3),(3,0)],
+			#[0,1,2,3],
+			#),
+		#Mesh([vec3(1,0,0), vec3(0,1,0), vec3(-1,0,0), vec3(0,-1,0), vec3(1,0,0)], [(0,1,2),(2,3,0)]),
+		flatsurface(wire(Circle((vec3(0),vec3(0,0,-1)), 1))),
 		#Arc(vec3(0,0,0), vec3(4,1,4), vec3(6,0,3)).mesh()[0],
 		[vec3(0,0,0), vec3(0,0,2), vec3(1,0,3), vec3(4,0,3)],
 		)
+m4.mergeclose()
 m4.check()
 assert m4.issurface()
 #m4.options.update({'debug_display': True, 'debug_points': True})
