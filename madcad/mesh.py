@@ -765,9 +765,14 @@ def glmarray(array, dtype='f4'):
 	return buff
 
 def web(*args):
-	''' build a web object from parts 
-		parts can be any of:	Web, Wire, Primitive, [vec3]
-		arguments can be of thos types, or list of those types
+	''' Build a web object from supported objects:
+	
+		:web:               return it with no copy
+		:wire:              reference points and generate edge couples
+		:primitive:         call its ``.mesh`` method and convert the result to web
+		:iterable:          convert each element to web and join them
+		:list of vec3:      reference it and generate trivial indices
+		:iterable of vec3:  get points and generate trivial indices
 	'''
 	if not args:	raise TypeError('web take at least one argument')
 	if len(args) == 1:	args = args[0]
@@ -775,7 +780,7 @@ def web(*args):
 	elif isinstance(args, Wire):	return Web(args.points, list(lineedges(args)), groups=[args.group])
 	elif hasattr(args, 'mesh'):
 		res = args.mesh()
-		if isinstance(res, tuple):
+		if isinstance(res, tuple):	# special behavior only for some old .mesh() implementations    TODO: remove it
 			pts,grp = res
 			return Web(pts, [(i,i+1) for i in range(len(pts)-1)], groups=[grp])
 		else:
@@ -855,6 +860,16 @@ class Wire:
 		yield from web(self).display(scene)
 
 def wire(*args):
+	''' Build a Wire object from the other compatible types.
+		Supported types are:
+		
+		:wire:              return it with no copy
+		:web:               find the edges to joint, keep the same point buffer
+		:primitive:         call its ``.mesh`` method and convert the result to wire
+		:iterable:          convert each element to Wire and joint them
+		:list of vec3:      reference it and put trivial indices
+		:iterable of vec3:  create internal point list from it, and put trivial indices
+	'''
 	if not args:	raise TypeError('web take at least one argument')
 	if len(args) == 1:	args = args[0]
 	if isinstance(args, Wire):		return args
