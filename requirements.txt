@@ -1,8 +1,8 @@
-shinx
+Shinx
 sphinx-rtd-theme
-pyglm>=1.2
+PyGlm>=1.2
 moderngl>=5.6
 numpy>=1.1
-pyqt5>=5
-pillow>=5.4
+PyQt5>=5
+Pillow>=5.4
 
