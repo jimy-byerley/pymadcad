@@ -806,6 +806,7 @@ class Wire:
 		Attributes:
 			:points:	points buffer
 			:indices:	indices of the line's points in the buffer
+			:group:		data associated to all the points, much like Web.groups but there is only one here
 	'''
 	def __init__(self, points, indices=None, group=None):
 		self.points = points
@@ -944,7 +945,11 @@ def lineedges(line, closed=False):
 	if closed:	yield (i,first)
 	
 def line_simplification(web, prec=None):
-	''' return a dictionnary of merges to simplify edges when there is points aligned '''
+	''' return a dictionnary of merges to simplify edges when there is points aligned.
+	
+		This function sort the points to remove on the height of the triangle with adjacent points.
+		The returned dictionnary is guaranteed without cycles
+	'''
 	if not prec:	prec = web.precision()
 	pts = web.points
 	

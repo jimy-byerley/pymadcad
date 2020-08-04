@@ -14,7 +14,7 @@ classes
 		
 	**Point container methods**
 	
-		Support for :code:`+, += Mesh`
+		Support for ``+, += Mesh``
 
 		.. automethod:: box
 		.. automethod:: transform
@@ -65,7 +65,7 @@ classes
 	
 	**Point container methods**
 	
-		Support for :code:`+, += Mesh`
+		Support for ``+, += Mesh``
 
 		.. automethod:: box
 		.. automethod:: transform

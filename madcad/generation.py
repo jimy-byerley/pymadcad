@@ -7,8 +7,9 @@ from .mathutils import (
 					cos, asin, acos, sqrt, atan2, 
 					NUMPREC, COMPREC, pi, 
 					distance, distance_pa, angleAxis, angle, anglebt, interpol1, spline, mix,
+					Box,
 					)
-from .mesh import Mesh, Web, Wire, edgekey, MeshError, web, wire
+from .mesh import Mesh, Web, Wire, edgekey, facekeyo, MeshError, web, wire
 from . import triangulation
 from . import settings
 from . import primitives
@@ -188,12 +189,12 @@ def join(mesh, line1, line2):
 			mkquad(mesh, (a,b,c,d), group)
 		last = couple
 			
-def matchexisting(line1, line2) -> [(vec3,vec3)]:
+def matchexisting(line1, line2) -> '[(vec3,vec3)]':
 	''' create couple of points using curvematch '''
 	return  ( (line1.points[i1], line2.points[i2]) 
 				for i1,i2 in curvematch(line1, line2))
 
-def matchclosest(line1, line2) -> [(vec3, vec3)]:
+def matchclosest(line1, line2) -> '[(vec3, vec3)]':
 	''' create couple of points by cutting each line at the curvilign absciss of the points of the other '''
 	l1, l2 = line1.length(), line2.length()
 	p1, p2 = line1.points[line1.indices[0]], line2.points[line2.indices[0]]
@@ -217,7 +218,7 @@ def matchclosest(line1, line2) -> [(vec3, vec3)]:
 			i1 += 1
 		yield (p1, p2)
 
-def dividematch(match, resolution=None):
+def dividematch(match, resolution=None) -> '[(vec3, vec3)]':
 	''' insert additional couples to ensure smoothness '''
 	match = iter(match)
 	last = next(match)
@@ -235,7 +236,7 @@ def dividematch(match, resolution=None):
 		yield couple
 		last = couple
 
-def junction(match, resolution=None) -> Mesh:
+def junction(match: '[(vec3,vec3)]', resolution=None) -> Mesh:
 	''' create a surface using couple of points
 		resolution is the segments curve resolution
 		linecut allow the function to subdivide portions of the given lines to get better result on smooth surfaces
@@ -295,11 +296,6 @@ def mkquad(mesh, pts, track):
 	mesh.tracks.append(track)
 	mesh.tracks.append(track)
 
-def facekeyo(a,b,c):
-	if a < b and b < c:		return (a,b,c)
-	elif a < b:				return (c,a,b)
-	else:					return (b,c,a)
-
 
 def prolongation(mesh, line): 	# TODO
 	''' donne les directions d'extrusion des points de la ligne pour prolonger les faces qui y donnent lieu '''
@@ -353,7 +349,8 @@ def closeenvelope(mesh):	# TODO: refaire
 		hole.pop()
 		triangulate(mesh, hole)
 
-def flatsurface(outline, normal=None):
+def flatsurface(outline, normal=None) -> Mesh:
+	''' generates a surface for a flat outline using the prefered triangulation method '''
 	m = triangulation.triangulation_outline(outline, normal)
 	if normal and dot(m.facenormal(0), normal) < 0:
 		m = m.flip()
@@ -366,10 +363,11 @@ def arclen(p1, p2, n1, n2):
 	return sqrt(dot(v,v) / (2-2*c)) * acos(c)
 			
 def icosurface(pts, ptangents, etangents=None, resolution=None):
-	''' generate a surface ICO (a subdivided triangle) with its points interpolated using interpol2tri 
-		if normals are given instead of point tangents (for ptangents), the surface will fit a sphere
-		else ptangents must be a list of couples (2 edge tangents each point)
-		if etangents is not given, it will be computed perpendicular the edge's point's normals
+	''' generate a surface ICO (a subdivided triangle) with its points interpolated using interpol2tri.
+	
+		- If normals are given instead of point tangents (for ptangents), the surface will fit a sphere.
+		- Else ptangents must be a list of couples (2 edge tangents each point).
+		- If etangents is not given, it will be computed perpendicular the edge's point's normals
 	'''
 	# compute normals to points
 	if isinstance(ptangents[0], tuple):
@@ -444,6 +442,7 @@ def interpol2tri(pts, ptangents, etangents, a,b):
 			)
 
 def icosahedron(center, radius):
+	''' a simple icosahedron (see https://en.wikipedia.org/wiki/Icosahedron) '''
 	phi = (1+ sqrt(5)) /2	# golden ratio
 	m = Mesh([
 		vec3(0, 1, phi),
@@ -507,6 +506,10 @@ def subdivide(mesh, div=1):
 
 
 def icosphere(center, radius, resolution=None):
+	''' a simple icosphere with an arbitrary resolution (see https://en.wikipedia.org/wiki/Geodesic_polyhedron).
+	
+		Points are obtained from a subdivided icosahedron and reprojected on the desired radius.
+	'''
 	ico = icosahedron(center, radius)
 	div = settings.curve_resolution(2/6*pi*radius, 2/6*pi, resolution)
 	ico = subdivide(ico, div-1)
@@ -515,6 +518,7 @@ def icosphere(center, radius, resolution=None):
 	return ico
 
 def uvsphere(center, radius, alignment=vec3(0,0,1), resolution=None):
+	''' a simple uvsphere (simple sphere obtained with a revolution of an arc) '''
 	x,y,z = dirbase(alignment)
 	mesh = revolution(2*pi, 
 			(center, z),
@@ -526,4 +530,36 @@ def uvsphere(center, radius, alignment=vec3(0,0,1), resolution=None):
 			resolution=resolution)
 	mesh.mergeclose()
 	return mesh
+	
+def brick(box: Box) -> Mesh:
+	''' a simple brick with rectangular sides '''
+	m = Mesh(
+		[
+			vec3(1.0, -1.0, -1.0),
+			vec3(1.0, -1.0, 1.0),
+			vec3(-1.0, -1.0, 1.0),
+			vec3(-1.0, -1.0, -1.0),
+			vec3(1.0, 1.0, -1.0),
+			vec3(1.0, 1.0, 1.0),
+			vec3(-1.0, 1.0, 1.0),
+			vec3(-1.0, 1.0, -1.0)],
+		[
+			(0, 1, 2),
+			(0, 2, 3),
+			(4, 7, 6),
+			(4, 6, 5),
+			(0, 4, 5),
+			(0, 5, 1),
+			(1, 5, 6),
+			(1, 6, 2),
+			(2, 6, 7),
+			(2, 7, 3),
+			(4, 0, 3),
+			(4, 3, 7)],
+		[	0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5	],
+		[None] * 6,
+		)
+	for i in range(len(mesh.points)):
+		mesh.points[i] = mesh.points[i]*box.width + box.center
+	return m
 

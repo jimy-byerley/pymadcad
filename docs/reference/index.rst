@@ -19,6 +19,7 @@ submodules
 	primitives.rst
 	constraints.rst
 	io.rst
+	generation.rst
 	mathutils.rst
 	settings.rst
 
@@ -50,4 +51,5 @@ generation functions
 
 .. autofunction:: extrans
 
-.. autofunction:: icosurface
+.. autofunction:: junction
+
