@@ -1,4 +1,4 @@
-Shinx
+Sphinx
 sphinx-rtd-theme
 PyGlm>=1.2
 moderngl>=5.6
