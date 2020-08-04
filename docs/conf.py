@@ -23,7 +23,7 @@ project = 'pymadcad'
 copyright = '2020, jimy byerley'
 author = 'jimy byerley'
 
-version = '0'			# The short X.Y version
+version = '0.2'			# The short X.Y version
 release = 'v'+version	# The full version, including alpha/beta/rc tags
 
 
@@ -38,10 +38,8 @@ release = 'v'+version	# The full version, including alpha/beta/rc tags
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
-    #'sphinx.ext.imgmath',
     'sphinx.ext.mathjax',
     'sphinx.ext.githubpages',
-    #'m2r',
     'recommonmark',
     'sphinx_rtd_theme',
 ]
