@@ -128,7 +128,11 @@ That's it ! The primitive list can now be converted to Wire or Web with the good
 version = '0'
 
 import os
-print(os.listdir(os.path.dirname(__file__)))
+from .nprint import nprint
+curdir = os.path.dirname(__file__)
+print('--- madcad ---------------------------')
+print('current dir', curdir)
+print(os.listdir(curdir))
 
 # computation
 from . import (
