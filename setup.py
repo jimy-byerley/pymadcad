@@ -5,7 +5,7 @@ from setuptools import setup, find_packages, Extension
 try:
 	from Cython.Build import cythonize
 except ImportError:
-	cython_modules = [Extension('madcad.core', ['core.c'])]
+	cython_modules = [Extension('madcad.core', ['madcad/core.c'])]
 else:
 	cython_modules = cythonize(['madcad/core.pyx'])
 
