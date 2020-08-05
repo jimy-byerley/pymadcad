@@ -127,6 +127,9 @@ That's it ! The primitive list can now be converted to Wire or Web with the good
 '''
 version = '0'
 
+import os
+print(os.listdir(os.path.dirname(__file__)))
+
 # computation
 from . import (
 		# base tools (defines types for the whole library)
