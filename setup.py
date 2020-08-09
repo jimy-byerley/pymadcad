@@ -2,12 +2,12 @@
 
 from setuptools import setup, find_packages, Extension
 
-#try:
-	#from Cython.Build import cythonize
-#except ImportError:
-	#cython_modules = [Extension('madcad.core', ['madcad/core.c'])]
-#else:
-	#cython_modules = cythonize(['madcad/core.pyx'])
+try:
+	from Cython.Build import cythonize
+except ImportError:
+	cython_modules = [Extension('madcad.core', ['madcad/core.c'])]
+else:
+	cython_modules = cythonize(['madcad/core.pyx'])
 
 setup(
 	# package declaration
@@ -22,8 +22,8 @@ setup(
 		},
 	# source declaration
 	packages=find_packages(),
-	ext_modules=cythonize(['madcad/core.pyx'], annotate=True),
-	#ext_modules=cython_modules,
+	#ext_modules=cythonize(['madcad/core.pyx'], annotate=True),
+	ext_modules=cython_modules,
 	package_data={
 		'madcad': ['shaders/*.frag', 'shaders/*.vert', 'textures/*.png', '*.py', '*.pyx', '*.c', '*.so'],
 		'': ['COPYING', 'COPYING.LESSER', 'README'],
