@@ -9,6 +9,9 @@ Simple yet powerful CAD (Computer Aided Design) library, written with Python.
 - [Installation](https://pymadcad.readthedocs.io/en/latest/installation.html)
 - [Documentation](https://pymadcad.readthedocs.io/en/latest/?)
 
+
+[![Documentation Status](https://readthedocs.org/projects/pymadcad/badge/?version=latest)](https://pymadcad.readthedocs.io/en/latest/?badge=latest)
+
 ## Features
 
 - surface generation (3D sketch primitives, extrusion, revolution, ...)
