@@ -16,6 +16,6 @@ formats: all
 python:
   version: 3.7
   install:
-    #- path: .
-    - method: setuptools
     - requirements: docs/requirements.txt
+    - method: setuptools
+      path: .
