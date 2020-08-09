@@ -5,6 +5,10 @@
 # Required
 version: 2
 
+submodules:
+    include:    
+        - core
+
 # Build documentation in the docs/ directory with Sphinx
 sphinx:
   configuration: docs/conf.py
@@ -19,5 +23,5 @@ python:
     - requirements: docs/requirements.txt
     #- method: setuptools
       #path: .
-    - method: pip
-      path: .
+    #- method: pip
+      #path: .
