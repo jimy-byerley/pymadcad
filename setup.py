@@ -25,7 +25,7 @@ setup(
 	#ext_modules=cythonize(['madcad/core.pyx'], annotate=True),
 	ext_modules=cython_modules,
 	package_data={
-		'madcad': ['shaders/*.frag', 'shaders/*.vert', 'textures/*.png', '*.py', '*.pyx', '*.c'],
+		'madcad': ['shaders/*.frag', 'shaders/*.vert', 'textures/*.png', '*.py', '*.pyx', '*.c', '*.so'],
 		'': ['COPYING', 'COPYING.LESSER', 'README'],
 		},
 	
