@@ -2,6 +2,12 @@
 
 ''' This module defines the types and functions for kinematic manimulation and computation.
 
+	
+	A Kinematic is a conceptual approach of mechanisms. It sort parts in several groups with the same movement (so in a solid, the solids are all bound together), and it links the defined solids by joints corresponding to the constraints each solid put to the other solids in the joint. 
+	That way no matter what are the parts, and what are their shape, even whan surfaces links the solids - the solid always have the same movements when there is the same joints between them.
+
+	So to analyse a mechanisme we look at its kinematic. And that can be done prior or after the part design as it is independant.
+	
 	A kinematic in itself is a set of solids, observing movement relations. Those are modeled across the following classes: ``Solid`` and ``Kinematic``.
 	
 	Solids are considered to be undeformable, this allows the to use the Screw theory to represent the force and movement variables (see https://en.wikipedia.org/wiki/Screw_theory). 
