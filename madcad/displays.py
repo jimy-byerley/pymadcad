@@ -431,7 +431,7 @@ class WebDisplay:
 	def __init__(self, scene, positions, lines, points, idents, color=None, transform=fmat4(1)):
 		self.options = scene.options
 		
-		color = fvec3(settings.display['line_color'])
+		color =  fvec3(color or settings.display['line_color'])
 		self.vertices = Vertices(scene.ctx, positions, idents, fmat4(transform))
 		self.disp_edges = LinesDisplay(scene, self.vertices, lines, color)
 		self.disp_groups = PointsDisplay(scene, self.vertices, points, color=color)
