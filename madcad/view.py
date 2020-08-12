@@ -139,7 +139,7 @@ class Scene(QOpenGLWidget):
 			due to Qt limitations, the OpenGL context behind this widget is changed at each reparenting, so be careful to never reparent this widget once you added content, or you will need to reconstruct the whole scene.
 	'''
 	
-	def __init__(self, objects=(), projection=None, manipulator=None, parent=None):
+	def __init__(self, objects=(), options=None, projection=None, manipulator=None, parent=None):
 		# vieille version: QGLWidget, qui plante quand on écrit du texte
 		#fmt = QGLFormat()
 		#fmt.setVersion(*opengl_version)
@@ -161,6 +161,8 @@ class Scene(QOpenGLWidget):
 		self.ressources = {}
 		# display rendering options
 		self.options = deepcopy(settings.scene)
+		if options:
+			self.options.update(options)
 		
 		self.displayed = set()
 		self.queue = {}
@@ -561,7 +563,7 @@ def snailaround(pt, box, radius):
 			yield x,y
 
 
-def quickdisplay(objs):
+def quickdisplay(objs, options=None):
 	''' shortcut to create a QApplication showing only one view with the given objects inside.
 		the functions returns when the window has been closed and all GUI destroyed
 	'''
@@ -571,7 +573,7 @@ def quickdisplay(objs):
 	
 	QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
 	app = QApplication(sys.argv)
-	scn = Scene(objs)
+	scn = Scene(objs, options)
 	scn.show()
 	err = app.exec()
 	if err != 0:	print('Qt exited with code', err)
