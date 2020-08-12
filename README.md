@@ -1,4 +1,4 @@
-![madcad-logo](docs/_static/logo.png)
+![madcad-logo](docs/logo.png)
 
 # Py-MADCAD
 
