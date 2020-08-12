@@ -54,7 +54,7 @@ quickdisplay([part])
 ```
 
 The result will be this window
-![example-window](docs/_static/screenshots/readme-example.png)
+![example-window](docs/screenshots/readme-example.png)
 
 ## About
 
