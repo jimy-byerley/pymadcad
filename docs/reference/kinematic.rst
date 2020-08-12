@@ -6,7 +6,6 @@ kinematic   - Kinematic solver/constraint system
 .. automodule:: madcad.kinematic
 
 
-
 .. autoclass:: Torsor
 	:members: locate, transform
 		

@@ -1,7 +1,7 @@
 .. _constraints:
 
-constraints    - primitive constraints
-======================================
+constraints    - geometric constraints on primitive
+===================================================
 
 .. py:module:: madcad.constraints
 
