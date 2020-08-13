@@ -20,10 +20,12 @@ __all__ = [
 	'extrans', 'extrusion', 'revolution', 'saddle', 'tube',
 	'curvematch', 'join', 'junction', 'junctioniter',
 	'matchexisting', 'matchclosest', 'dividematch',
-	'flatsurface',
+	'flatsurface', 'thicken',
 	'brick', 'icosahedron', 'icosphere', 'uvsphere', 
 	]
 
+	
+# --- extrusion things ---
 	
 def extrans_pre(obj):
 	result = Mesh(groups=obj.groups)
@@ -149,6 +151,38 @@ def extrans(web, transformations, links):
 			mesh.tracks.append(t)
 	extrans_post(mesh, face, first, trans)
 	return mesh
+
+def thicken(surf, thickness, alignment=0):
+	''' thicken a surface by extruding it, points displacements are mad along normal. 
+
+		:thickness:    determines the distance between the two surfaces (can be negative to go the opposite direction to the normal).
+		:alignment:    specifies which side is the given surface: 0 is for the first, 1 for the second side, 0.5 thicken all apart the given surface.
+	'''
+	pnormals = surf.vertexnormals()
+	lengths = [0]*len(pnormals)
+	for i,face in enumerate(surf.faces):
+		fnormal = surf.facenormal(i)
+		for p in face:
+			req = 1/dot(pnormals[p], fnormal)
+			if req > lengths[p]:	lengths[p] = req
+	displts = [pnormals[p]*lengths[p]   for p in range(len(pnormals))]
+	
+	a = thickness*alignment
+	b = thickness*(alignment-1)
+	m = (	Mesh([p+d*a  for p,d in zip(surf.points,displts)], surf.faces[:], surf.tracks[:], surf.groups)
+		+	Mesh([p+d*b  for p,d in zip(surf.points,displts)], surf.faces, surf.tracks, surf.groups)
+			.flip() 
+		)
+	t = len(m.groups)
+	l = len(surf.points)
+	m.groups.append('junction')
+	for e in surf.outlines_oriented():
+		mkquad(m, (e[0], e[1], e[1]+l, e[0]+l), t)
+	return m
+	
+	
+
+# --- junction things ---
 	
 def curvematch(line1, line2):
 	''' yield couples of point indices where the curved absciss are the closest '''
@@ -297,6 +331,7 @@ def mkquad(mesh, pts, track):
 	mesh.tracks.append(track)
 
 
+# --- filling things ---
 
 def flatsurface(outline, normal=None) -> Mesh:
 	''' generates a surface for a flat outline using the prefered triangulation method '''
@@ -453,6 +488,7 @@ def subdivide(mesh, div=1):
 	return new
 
 
+# --- standard shapes ---
 
 def icosphere(center, radius, resolution=None):
 	''' a simple icosphere with an arbitrary resolution (see https://en.wikipedia.org/wiki/Geodesic_polyhedron).

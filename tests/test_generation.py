@@ -91,9 +91,21 @@ m6 = m6.transform(vec3(0,0,-4))
 scn3D.add(m6)
 
 m7 = icosphere(vec3(0,3,0), 1)
+m7.options['color'] = (1, 0.5, 0.1)
 #m7.options = {'debug_display':True, 'debug_points':True}
 scn3D.add(m7)
 
-scn3D.look(m1.box())
+corner = Mesh(
+			[vec3(0), vec3(1,0,0), vec3(0,1,0), vec3(0,0,1)], 
+			[(0,1,2), (0,2,3), (0,3,1)],
+			[0,1,2]
+			).transform(vec3(0,-3,0)).flip()
+corner.options['color'] = (1, 0.5, 0.1)
+m8 = thicken(corner, 0.1, 0.5)
+scn3D.add(corner)
+scn3D.add(m8)
+
+#scn3D.options['display_wire'] = True
+scn3D.look(m8.box())
 main.show()
 sys.exit(app.exec())
