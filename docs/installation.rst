@@ -15,7 +15,7 @@ Optionnal dependencies
 There is some optionnal dependencies you can choose to install by yourself to enable some features of pymadcad.
 
 - `plyfile <https://github.com/dranjan/python-plyfile>`_		to read/write ``.ply`` files
-- `stl-numpy <https://github.com/pywavefront/PyWavefront>`_		to read/write ``.stl`` files
+- `stl-numpy <https://github.com/WoLpH/numpy-stl>`_		to read/write ``.stl`` files
 - `pywavefront <https://github.com/pywavefront/PyWavefront>`_	to read ``.obj`` files
 
 
