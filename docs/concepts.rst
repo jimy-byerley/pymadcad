@@ -63,7 +63,7 @@ Math library
 
 For efficient and simple linear algebra operations (vectors, matrices), We needed a library. It has to get very short type names (as often repeated in scripts and library). Few but universal operations. Compiled runtime and memory.
 
-It appeared that the GPU shader languages already fixed that for us, with a sort of universal API for 2-4 dimension types.
+It appeared that the GPU `shader languages <https://docs.gl/sl4/all>`_ already fixed that for us, with a sort of universal API for 2-4 dimension types.
 
 	Choice is `PyGLM <http://github.com/Zuzu-Typ/PyGLM>`_
 
