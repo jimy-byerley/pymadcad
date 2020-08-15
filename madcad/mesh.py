@@ -409,7 +409,7 @@ class Mesh(Container):
 				if e in edges and edges[e] == track:
 					del edges[e]
 				else:
-					tmp[(e[1],e[0])] = track
+					edges[(e[1],e[0])] = track
 		return edges
 	
 	def surface(self):
@@ -824,7 +824,7 @@ class Wire:
 	def flip(self):
 		indices = self.indices[:]
 		indices.reverse()
-		return Wire(self.points, indices, self.groups)
+		return Wire(self.points, indices, self.group)
 	
 	def length(self):
 		''' curviform length of the wire (sum of all edges length) '''
@@ -864,6 +864,12 @@ class Wire:
 	
 	def display(self, scene):
 		yield from web(self).display(scene)
+	
+	def __repr__(self):
+		return 'Wire(\n  points= {},\n  indices=  {},\n  group= {})'.format(
+					reprarray(self.points, 'points'),
+					reprarray(self.indices, 'indices'),
+					repr(self.group))
 
 def wire(*args):
 	''' Build a Wire object from the other compatible types.
@@ -895,7 +901,7 @@ def wire(*args):
 			add = wire(primitive)
 			l = len(pool.points)
 			pool.points.extend(add.points)
-			pool.points.extend((i+l  for i in add.indices))
+			pool.indices.extend((i+l  for i in add.indices))
 		return pool
 	else:
 		raise TypeError('incompatible data type for Wire creation')
