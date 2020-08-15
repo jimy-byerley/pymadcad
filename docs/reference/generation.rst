@@ -47,8 +47,8 @@ generation of common meshes
 Unsorted
 --------
 
-.. autofunction:: thicken
 .. autofunction:: flatsurface
+.. autofunction:: thicken
+.. autofunction:: multiple
 .. autofunction:: icosurface
 .. autofunction:: subdivide
-.. autofunction:: interpol2tri

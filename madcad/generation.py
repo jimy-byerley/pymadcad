@@ -20,7 +20,7 @@ __all__ = [
 	'extrans', 'extrusion', 'revolution', 'saddle', 'tube',
 	'curvematch', 'join', 'junction', 'junctioniter',
 	'matchexisting', 'matchclosest', 'dividematch',
-	'flatsurface', 'thicken', 'multiple',
+	'flatsurface', 'thicken', 'multiple', 'icosurface', 'subdivide',
 	'brick', 'icosahedron', 'icosphere', 'uvsphere', 
 	]
 
@@ -153,7 +153,7 @@ def extrans(web, transformations, links):
 	return mesh
 
 def thicken(surf, thickness, alignment=0):
-	''' thicken a surface by extruding it, points displacements are mad along normal. 
+	''' thicken a surface by extruding it, points displacements are made along normal. 
 
 		:thickness:    determines the distance between the two surfaces (can be negative to go the opposite direction to the normal).
 		:alignment:    specifies which side is the given surface: 0 is for the first, 1 for the second side, 0.5 thicken all apart the given surface.
@@ -270,7 +270,7 @@ def dividematch(match, resolution=None) -> '[(vec3, vec3)]':
 		yield couple
 		last = couple
 
-def junction(match: '[(vec3,vec3)]', resolution=None) -> Mesh:
+def junction(match: '[(vec3,vec3)]', resolution=None) -> 'Mesh':
 	''' create a surface using couple of points
 		resolution is the segments curve resolution
 		linecut allow the function to subdivide portions of the given lines to get better result on smooth surfaces
@@ -333,7 +333,7 @@ def mkquad(mesh, pts, track):
 
 # --- filling things ---
 
-def flatsurface(outline, normal=None) -> Mesh:
+def flatsurface(outline, normal=None) -> 'Mesh':
 	''' generates a surface for a flat outline using the prefered triangulation method '''
 	m = triangulation.triangulation_outline(outline, normal)
 	if normal and dot(m.facenormal(0), normal) < 0:
@@ -516,7 +516,7 @@ def uvsphere(center, radius, alignment=vec3(0,0,1), resolution=None):
 	mesh.mergeclose()
 	return mesh
 	
-def brick(box: Box) -> Mesh:
+def brick(box: 'Box') -> 'Mesh':
 	''' a simple brick with rectangular sides '''
 	mesh = Mesh(
 		[
@@ -549,9 +549,11 @@ def brick(box: Box) -> Mesh:
 	return mesh
 
 
-def multiple(pattern, n, trans=None, axis=None, angle=None) -> 'Mesh/Web':
-	''' create a mesh duplicating n times the given pattern, each time applying the given transform (can also be a Web).
-		`trans` is the transformation between each duplicate. If none, `axis` and `angle` must define a rotation around an axis.
+def multiple(pattern, n, trans=None, axis=None, angle=None):
+	''' create a mesh duplicating n times the given pattern, each time applying the given transform.
+		
+		:pattern:   can either be a `Mesh`, `Web` or `Wire`
+		:trans:     is the transformation between each duplicate. If none, `axis` and `angle` must define a rotation around an axis.
 	'''
 	if trans is None:
 		if isinstance(axis, tuple) and len(axis) == 2 and angle:
