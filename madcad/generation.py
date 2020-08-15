@@ -20,7 +20,7 @@ __all__ = [
 	'extrans', 'extrusion', 'revolution', 'saddle', 'tube',
 	'curvematch', 'join', 'junction', 'junctioniter',
 	'matchexisting', 'matchclosest', 'dividematch',
-	'flatsurface', 'thicken',
+	'flatsurface', 'thicken', 'multiple',
 	'brick', 'icosahedron', 'icosphere', 'uvsphere', 
 	]
 
@@ -549,50 +549,29 @@ def brick(box: Box) -> Mesh:
 	return mesh
 
 
+def multiple(pattern, n, trans=None, axis=None, angle=None) -> 'Mesh/Web':
+	''' create a mesh duplicating n times the given pattern, each time applying the given transform (can also be a Web).
+		`trans` is the transformation between each duplicate. If none, `axis` and `angle` must define a rotation around an axis.
+	'''
+	if trans is None:
+		if isinstance(axis, tuple) and len(axis) == 2 and angle:
+			trans = transform(axis[0]) * transform(angleAxis(angle, axis[1])) * transform(axis[0])
+		else:
+			raise TypeError('transform must be set, or axis and angle must be axis and angle for rotation')
+	
+	current = pattern
+	pool = type(pattern)()
+	if n:	pool += current
+	for i in range(1,n):
+		current = current.transform(trans)
+		print(id(current.points))
+		pool += current
+	return pool
+
 def prolongation(mesh, line):	# TODO
 	''' donne les directions d'extrusion des points de la ligne pour prolonger les faces qui y donnent lieu '''
 	indev()
 
-
-
-def regularizeloops(loops, faces=()):	# NOTE A REVOIR
-	''' cut the loops when tere is subloops inside it.
-		if faces are provided, this function also make sure loops are not enclosing faces 
-		preserves the orientation of each loop
-	'''
-	print('regularize', loops)
-	# cut the loops when there is subloops inside it
-	for i,loop in enumerate(loops):	
-		# merge with loops that share points with current loops
-		for j in range(len(loop)):
-			k = i+1
-			while k < len(loops):
-				if loops[k][0] == loop[j] and loops[k][-1] == loop[j]:	loop[j:j+1] = loops.pop(k)
-				else:	k += 1
-		# cut loop in subloops
-		j = 1
-		while j < len(loop):
-			p = loop[j]
-			try:	k = loop.index(p, j+1)
-			except ValueError:	
-				j += 1
-			else:
-				# avoid creating loops that enclose faces
-				tri = (loop[j], loop[j+1], loop[k-1])
-				if tri in faces or (tri[1],tri[2],tri[0]) in faces or (tri[2],tri[0],tri[1]) in faces:
-					j += 1
-					continue
-				cut = loop[j:k+1]
-				# reorient the cutted loop - for unoriented edges
-				#for edge in edges:
-					#if   edge[0]==cut[0] and edge[1]==cut[1]:		
-						#break
-					#elif edge[1]==cut[0] and edge[0]==cut[1]:
-						#cut.reverse()
-						#break
-				# correct loops
-				loops.append(cut)
-				loops[i] = loop = loop[:j]+loop[k:]
 
 def closeenvelope(mesh):	# TODO: refaire
 	''' create surfaces to close the loop holes in the envelope '''
