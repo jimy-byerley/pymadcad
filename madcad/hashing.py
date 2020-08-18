@@ -1,5 +1,10 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
+'''  This modules provide tools for accessing data using its space location (not for final user).
+	
+	The complexity and therefore the cost of those operations are most of the time close to the hashmap complexity O(1). It means data is found in time independently of the actual size of the mesh or whatever storage it is.
+'''
+
 from .mathutils import vec3, i64vec3, noproject, norminf, normalize, dot, glm, cross, length, NUMPREC
 from . import core
 from . import mesh
@@ -13,8 +18,8 @@ class PositionMap:
 		cellsize defines the box size for location hashing (the smaller it is, the bigger the memory footprint will be for non-point primitives)
 		
 		Attributes defined here:
-			cellsize   - the boxing parameter (DON'T CHANGE IT IF NON-EMPTY)
-			dict       - the hashmap from box to objects lists
+			:cellsize:    the boxing parameter (DON'T CHANGE IT IF NON-EMPTY)
+			:dict:        the hashmap from box to objects lists
 	'''
 	__slots__ = 'cellsize', 'dict', 'options'
 	def __init__(self, cellsize, iterable=None):
@@ -26,9 +31,9 @@ class PositionMap:
 	def keysfor(self, space):
 		''' rasterize the primitive, yielding the successive position keys 
 			currently allowed primitives are 
-				points -	vec3
-				segments -  (vec3,vec3)
-				triangles - (vec3,vec3,vec3)
+				points:	vec3
+				segments:  (vec3,vec3)
+				triangles: (vec3,vec3,vec3)
 		'''
 		cell = self.cellsize
 		# point
@@ -142,9 +147,9 @@ class PositionMap:
 	def keysfor(self, space):
 		''' rasterize the primitive, yielding the successive position keys 
 			currently allowed primitives are 
-				points -	vec3
-				segments -  (vec3,vec3)
-				triangles - (vec3,vec3,vec3)
+				:points: 	vec3
+				:segments:   (vec3,vec3)
+				:triangles:  (vec3,vec3,vec3)
 		'''
 		# point
 		if isinstance(space, vec3):
@@ -159,6 +164,7 @@ class PositionMap:
 			raise TypeError("PositionMap only supports keys of type:  points, segments, triangles")
 	
 	def update(self, other):
+		''' add the elements from an other PositionMap or from an iteravble '''
 		if isinstance(other, PositionMap):
 			assert self.cellsize == other.cellsize
 			for k,v in other.dict.items():
@@ -171,11 +177,13 @@ class PositionMap:
 			raise TypeError("update requires a PositionMap or an iterable of couples (space, obj)")
 	
 	def add(self, space, obj):
+		''' add an object associated with a primitive '''
 		for k in self.keysfor(space):
 			if k not in self.dict:	self.dict[k] = [obj]
 			else:					self.dict[k].append(obj)
 	
 	def get(self, space):
+		''' get the objects associated with the given primitive '''
 		for k in self.keysfor(space):
 			if k in self.dict:
 				yield from self.dict[k]
@@ -204,7 +212,10 @@ class PositionMap:
 		return web.display(scene)
 
 def meshcellsize(mesh):
-	''' returns a good cell size to index primitives of a mesh with a PositionMap '''
+	''' returns a good cell size to index primitives of a mesh with a PositionMap 
+		
+		See implementation.
+	'''
 	# the number of key for triangles is propotionate to the surface
 	# points are placed on this surface, so sqrt(len(pts)) is a good hint for the point density on the surface
 	return length(mesh.box().width) / sqrt(len(mesh.points))
@@ -218,9 +229,9 @@ class PointSet:
 		methods are inspired from the builtin type set
 		
 		Attributes defined here:
-			points     - the point buffer (READ-ONLY PURPOSE)
-			cellsize   - the boxing parameter (DON'T CHANGE IT IF NON-EMPTY)
-			dict       - the hashmap from box to point indices
+			:points:     the point buffer (READ-ONLY PURPOSE)
+			:cellsize:   the boxing parameter (DON'T CHANGE IT IF NON-EMPTY)
+			:dict:       the hashmap from box to point indices
 	'''
 	__slots__ = 'points', 'cellsize', 'dict'
 	def __init__(self, cellsize, iterable=None, manage=None):
@@ -235,14 +246,18 @@ class PointSet:
 			if iterable:	self.update(iterable)
 	
 	def keyfor(self, pt):
+		''' hash key for a point '''
 		return tuple(i64vec3(pt/self.cellsize))
 	
 	def update(self, iterable):
+		''' add the points from an iterable '''
 		for pt in iterable:	self.add(pt)
 	def difference_update(self, iterable):
+		''' remove the points from an iteravble '''
 		for pt in iterable:	self.discard(pt)
 		
 	def add(self, pt):
+		''' add a point '''
 		key = self.keyfor(pt)
 		if key not in self.dict:
 			self.dict[key] = l = len(self.points)
@@ -251,10 +266,12 @@ class PointSet:
 		else:
 			return self.dict[key]
 	def remove(self, pt):
+		''' remove a point '''
 		key = self.keyfor(p)
 		if key in self.dict:	del self.dict[k]
 		else:					raise IndexError("position doesn't exist in set")
 	def discard(self, pt):
+		''' remove the point at given location if any '''
 		key = self.keyfor(p)
 		if key in self.dict:	del self.dict[k]
 	
