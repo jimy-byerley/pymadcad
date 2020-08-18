@@ -197,7 +197,9 @@ def bevel(mesh, line, cutter, interpol=spline, resolution=None):
 		
 		lps = suites(s)
 		if len(lps) == 1:
-			mesh += gt.flatsurface(Wire(mesh.points, lps[0]))
+			# TODO
+			pass
+			#mesh += gt.flatsurface(Wire(mesh.points, lps[0]))
 		elif len(lps) == 2:
 			# match left and right lines
 			left,right = lps
@@ -326,12 +328,12 @@ def cutsegments(mesh, line, offsets):
 	return segments
 
 
-def cut(mesh, line, offsets, conn=None):
+def cut(mesh, line, offsets, conn=None, prec=None):
 	''' cut the mesh faces by planes, determined by the offsets to the lines '''
 	
 	toremove = set()		# faces to remove that match no replacements
 	result = []				# intersection segments for each offset
-	prec = mesh.precision()
+	if prec is None:	prec = mesh.precision()
 	# build connectivity
 	if not conn:
 		conn = connef(mesh.faces)
@@ -361,7 +363,6 @@ def cut(mesh, line, offsets, conn=None):
 		seen = set()
 		front = [(line[i],line[i-1]), (line[i-1],line[i])]
 		intersections = set()
-		last = None
 		while front:
 			# propagation affairs
 			frontedge = front.pop()
@@ -492,10 +493,71 @@ def cut(mesh, line, offsets, conn=None):
 	removefaces(mesh, lambda fi: fi in toremove or faceheight(mesh,fi) <= prec)
 	
 	return result
+	
+from .mathutils import find
+	
+def cut_corner(mesh, point, offset, conn=None, prec=None):
+	''' cut a mesh by the plane at an offset from the specified point (existing point in the mesh) '''
+	if prec is None:	prec = mesh.precision()
+	if conn is None:	conn = connef(mesh.faces)
+	cutplane = (mesh.points[point]+offset, -normalize(offset))
+	
+	# prepare propagation
+	toremove = {}
+	intersections = []
+	edge = find(conn, lambda e: point in e)
+	seen = set()
+	front = [edge, (edge[1], edge[0])]
+	while front:
+		# unstack
+		edge = front.pop()
+		if edge in seen:		continue
+		seen.add(edge)
+		if edge not in conn:	
+			front.append((edge[1], edge[0]))
+			continue
+		
+		fi = conn[edge]
+		f = mesh.faces[fi]
+		a,b = edge
+			
+		# find intersection with the offset plane
+		pt = intersection_edge_plane(cutplane, (mesh.points[a], mesh.points[b]), prec)
+		if pt and distance(pt, mesh.points[a]) > prec and distance(pt, mesh.points[b]) > prec:
+			pi = mesh.usepointat(pt)
+			c = None
+			for c in f:
+				if c != a and c != b:	break
+			
+			# cut face
+			mesh.faces[fi] = (a,pi,c)
+			mesh.faces.append((pi,b,c))
+			mesh.tracks.append(mesh.tracks[fi])
+			registerface(mesh, conn, fi)
+			registerface(mesh, conn, len(mesh.faces)-1)
+			
+			# register intersection and the face to remove
+			r,k = len(mesh.faces)-1, fi
+			if (	dot(mesh.points[a]-cutplane[0], cutplane[1]) > prec 
+				or	dot(mesh.points[b]-cutplane[0], cutplane[1]) < -prec):
+				r,k = k,r
+			if fi in toremove:	intersections.append((toremove[fi], pi))
+			if k in toremove:	del toremove[k]
+			toremove[r] = pi
+		else:
+			# faces on the way but not intersected are inside
+			toremove[fi] = None
+		
+		# propagate
+		goodside = [dot(mesh.points[f[i]]-cutplane[0], cutplane[1]) > prec		for i in range(3)]
+		for i in range(3):
+			if goodside[i-1] or goodside[i]:
+				front.append((f[i], f[i-1]))
+	
+	# delete inside faces and empty ones
+	removefaces(mesh, toremove.__contains__)
+	return intersections
 
-
-def insertpoint(mesh, pt, prec):
-	return mesh.usepointat(pt, prec)
 
 def registerface(mesh, conn, fi):
 	f = mesh.faces[fi]

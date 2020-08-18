@@ -2,6 +2,7 @@
 from madcad import vec3, saddle, tube, ArcThrough, Web, web, bevel, chamfer
 from madcad.mesh import suites
 from madcad import view, text
+from madcad import cut
 import sys
 from PyQt5.QtWidgets import QApplication
 from nprint import nprint
@@ -23,17 +24,21 @@ m = saddle(
 		)
 m.check()
 
-line = suites(list(m.group(1).outlines_unoriented() & m.group(2).outlines_unoriented()))[0]
+#cut.cut_corner(m, 87, 0.6*vec3(0,0.2,0.05))
+#m.check()
+line = suites(list(m.group(1).outlines_unoriented() & m.group(2).outlines_unoriented()))[0][:12]
 #chamfer(m, line, ('depth', 0.6))
 #bevel3(m, line, ('depth', 0.2))
 #beveltgt(m, line, ('depth', 0.6))
-bevel(m, line, ('depth', 0.6))
+bevel(m, line, ('width', 0.6))
 m.mergeclose()
+m.check()
 
 #m.check()	# TODO fix the face using the same point multiple times
 #assert m.issurface()
 
-#m.options.update({'debug_display': True, 'debug_points': False })
+#m.options.update({'debug_display': True, 'debug_points': True })
+scn3D.options.update({'display_wire':True})
 scn3D.add(m)
 scn3D.look(m.box())
 main.show()
