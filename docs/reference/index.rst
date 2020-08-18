@@ -21,6 +21,7 @@ submodules
 	io.rst
 	generation.rst
 	mathutils.rst
+	hashing.rst
 	settings.rst
 
 .. py:module:: madcad
