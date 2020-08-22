@@ -90,6 +90,8 @@ def skeleton(outline: Wire, prec=NUMPREC) -> Web:
 		the returned Web uses the same point buffer than the input Wire.
 		created points will be added into it
 		
+		https://en.wikipedia.org/wiki/Straight_skeleton
+		
 		NOTE: yet it only works with near-convex outlines
 	'''
 	skeleton = []
@@ -261,6 +263,8 @@ def sweepline_loops(lines: Web, normal=None):
 	''' sweep line algorithm to retreive monotone loops from a Web
 		the web edges should not be oriented, and thus the resulting face has no orientation
 		complexity: O(n*ln2(n))
+		
+		https://en.wikipedia.org/wiki/Monotone_polygon
 	'''
 	# selective debug function
 	#debprint = lambda *args, **kwargs: None

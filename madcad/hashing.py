@@ -230,8 +230,12 @@ class PointSet:
 		
 		Attributes defined here:
 			:points:     the point buffer (READ-ONLY PURPOSE)
-			:cellsize:   the boxing parameter (DON'T CHANGE IT IF NON-EMPTY)
+			:cellsize:   the boxing parameter (DON'T CHANGE IT IF NON-EMPTY). mendatory and is the distance at which you want to distinguish points
 			:dict:       the hashmap from box to point indices
+			
+		Build parameters:
+			:iterable:    use it to build the set by inserting elements
+			:manage:      pass a list for inplace use it, only indexing will be built
 	'''
 	__slots__ = 'points', 'cellsize', 'dict'
 	def __init__(self, cellsize, iterable=None, manage=None):
