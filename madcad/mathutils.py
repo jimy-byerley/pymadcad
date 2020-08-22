@@ -38,18 +38,22 @@ def norm1(x):
 
 norm2 = length
 
-def anglebt(x,y):
+def anglebt(x,y) -> float:
 	''' angle between two vectors '''
 	n = length(x)*length(y)
 	return acos(min(1,max(-1, dot(x,y)/n)))	if n else 0
 
-def project(vec, dir):
-	''' component of `vec` along `dir`, equivalent to dot(vec, dir) * dir '''
+def project(vec, dir) -> vec3:
+	''' component of `vec` along `dir`, equivalent to :code:`dot(vec, dir) * dir` '''
 	return dot(vec, dir) * dir
 	
-def noproject(x,dir):	
-	''' components of `vec` not along `dir`, equivalent to x - project(x,dir) '''
+def noproject(x,dir) -> vec3:	
+	''' components of `vec` not along `dir`, equivalent to :code:`x - project(x,dir)` '''
 	return x - project(x,dir)
+
+def unproject(vec, dir) -> vec3:
+	''' return the vector in the given direction as if `vec` was its projection on it, equivalent to :code:`dot(vec,vec) / dot(vec,dir) * dir` '''
+	return dot(vec,vec) / dot(vec,dir) * dir
 
 def perpdot(a:vec2, b:vec2) -> float:
 	return -a[1]*b[0] + a[0]*b[1]

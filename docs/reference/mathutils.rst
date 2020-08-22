@@ -13,19 +13,6 @@ But the goal is to harvest at one point, all the basic math functions and object
 Most common **glm** types
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-all glm types exists with several element types and in several precision: 
-
-- **'d'**  for double precisin floating point (float64)
-- **'f'** for simple precision floating point (float32)
-- **'i'** for integer (int32)
-- **'i16'** for int16
-- **'i8'** for byte (int8)
-- **'u'** for unsigned integer (uint32), 'u16' and 'u8' also exists
-- **'b'** for bit
-
-precision specification is put as prefix: :code:`dvec3, fvec3, imat4`. Notation without prefix refers to the madcad implementation precision: **default is float64** (prefix 'd').
-
-In this documentation, when we refer to a 'vector' without explicit type, we obviously mean a :code:`vec3` aka. :code:`dvec3`.
 
 all implements the common operators :code:`+ - * / <> ==`
 
@@ -37,6 +24,20 @@ all implements the common operators :code:`+ - * / <> ==`
 
 .. autoclass:: quat
 
+
+all glm types exists with several element types and in several precision: 
+
+- **'d'**  for double precisin floating point (float64)
+- **'f'** for simple precision floating point (float32)
+- **'i'** for integer (int32)
+- **'i16'** for int16
+- **'i8'** for byte (int8)
+- **'u'** for unsigned integer (uint32), 'u16' and 'u8' also exists
+- **'b'** for bit
+
+precision specification is put as prefix: :code:`dvec3, fvec3, imat4`. Notation without prefix refers to the madcad implementation precision: **float64** (prefix 'd').
+
+In this documentation, when we refer to a 'vector' without explicit type, we obviously mean a :code:`vec3` aka. :code:`dvec3`.
 
 .. note::
 	The default glm_ precision type is **float32** (prefix 'f'). For convenience, these are overriden in madcad to use a better precision.
@@ -51,14 +52,13 @@ Common vector operations
 .. autofunction:: mix
 
 .. autofunction:: length
-
 .. autofunction:: normalize
 
 .. autofunction:: anglebt
 
 .. autofunction:: project
-
 .. autofunction:: noproject
+.. autofunction:: unproject
 
 .. autofunction:: perp
 
