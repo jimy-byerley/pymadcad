@@ -53,72 +53,38 @@ def chamfer(mesh, line, cutter):
 			mesh.faces.extend(faces)
 			mesh.tracks.extend([group]*len(faces))
 
-def bevel3(mesh, line, cutter, interpol=spline, resolution=None):
-	''' create a round profile on the given suite of points, create faces form cylindric surfaces.
+def chamfer(mesh, edges, cutter):
+	''' create a chamfer on the given suite of points, create faces are planes.
 		cutter is described in function planeoffsets()
 	'''
+	normals = mesh.vertexnormals()
+	corners = {}
+	offs = []
+	lines = suites(edges)
+	for line in lines:
+		offsets = planeoffsets(mesh, line, cutter)
+		offs.append(offsets)
+		corners[line[0]]  = min(corners.get(line[0], 0), dot(offsets[0], offsets[0]) /dot(offsets[0],  normals[line[0]]))
+		corners[line[-1]] = min(corners.get(line[-1],0), dot(offsets[-1],offsets[-1])/dot(offsets[-1], normals[line[-1]]))
 	# cut faces
-	conn = connef(mesh.faces)
-	segments = cut(mesh, line, planeoffsets(mesh, line, cutter), conn)
-	conn = connef(mesh.faces)
+	segments = []
+	for point,offset in corners.items():
+		segments.extend(cut_corner(mesh, point, offset*normals[point]))
+	for line, offsets in zip(lines, offs):
+		segments.extend(cut(mesh, line, offsets))
 	
-	parts = []
-	for s in segments:
-		parts.extend(suites(s))
-	left,right = suies(parts)
-	right.reverse()
-	match = list(gt.matchcurves((mesh.points, left), (mesh.points, right)))
-	
-	# create parameters for the round profiles
-	params = []
-	for i in range(len(match)-1):
-		dir =	( mesh.points[match[i+1][0]] - mesh.points[match[i][0]]
-				+ mesh.points[match[i+1][1]] - mesh.points[match[i][1]] )
-		e = (match[i+1][0], match[i][0])
-		if e in conn:	tl = normalize(cross(mesh.facenormal(conn[e]), dir))
-		else:			tl = vec3(0)
-		e = (match[i][1], match[i+1][1])
-		if e in conn:	tr = -normalize(cross(mesh.facenormal(conn[e]), dir))
-		else:			tr = vec3(0)
-		params.append((dir, tl, tr))
-	
-	params.append((params[-1][0], normalize(params[-1][1]), normalize(params[-1][2])))
-	for i in range(1, len(params)-1):
-		params[i] = (
-				0.5*(params[i][0] + params[i-1][0]),
-				normalize(params[i][1] + params[i-1][1]),
-				normalize(params[i][2] + params[i-1][2]),
-				)
-	
-	# determine the number of segments
-	segts = 0
-	for (l,r),(dir,tl,tr) in zip(match, params):
-		angle = min(1, acos(dot(tl,tr)))
-		dist = distance(mesh.points[match[i][1]], mesh.points[match[i][0]])
-		div = settings.curve_resolution(dist, angle, resolution)+2
-		if div > segts:
-			segts = div
-	
-	# create points
-	startpt = len(mesh.points)
-	for (l,r),(dir,tl,tr) in zip(match, params):
-		nlink = distance(mesh.points[l], mesh.points[r])		
-		for j in range(segts):
-			x = j/(segts-1)
-			mesh.points.append(spline(
-				(mesh.points[l], nlink*tl),
-				(mesh.points[r], nlink*tr),
-				x))
-	# create faces
-	group = len(mesh.groups)
-	mesh.groups.append('junction')
-	for i in range(len(match)-1):
-		for j in range(segts-1):
-			s = startpt+i*segts+j
-			mesh.faces.append((s,         s+segts, s+1))
-			mesh.faces.append((s+1+segts,   s+1,   s+segts))
-			mesh.tracks.append(group)
-			mesh.tracks.append(group)
+	# create junctions
+	#group = len(mesh.groups)
+	#mesh.groups.append('junction')
+	#for i,s in enumerate(segments):
+		#if s:
+			#lp = []
+			#for part in suites(s):
+				#lp.extend(part)
+			#faces = gt.flatsurface(Wire(mesh.points, lp)).faces
+			#mesh.faces.extend(faces)
+			#mesh.tracks.extend([group]*len(faces))
+
 				
 def beveltgt(mesh, line, cutter, interpol=spline, resolution=None):
 	''' create a round profile on the given suite of points, create faces form cylindric surfaces.
@@ -289,7 +255,7 @@ def interpretcutter(cutter):
 	else:
 		raise TypeError("cutter must be a callable or a tuple (name, param)")
 
-def cutsegments(mesh, line, offsets):
+def separators(mesh, line, offsets):
 	''' separations between planes.
 		planes are determined by the offsets to the lines
 		segments are in format (origin, segt normal, axis direction)
@@ -314,32 +280,18 @@ def cutsegments(mesh, line, offsets):
 			segments.append((intersect, n, d))
 		else:
 			segments.append(None)
-		
+		'''
 		# display cut planes in the mesh (debug)
-		#grp = len(debmesh.groups)
-		#debmesh.groups.append(None)
-		#m = len(debmesh.points)
-		#d = normalize(d)
-		#debmesh.points.append(p)
-		#debmesh.points.append(intersect+d)
-		#debmesh.points.append(intersect-d)
-		#debmesh.faces.append((m,m+1,m+2))
-		#debmesh.tracks.append(grp)
-	return segments
-
-
-def cut(mesh, line, offsets, conn=None, prec=None):
-	''' cut the mesh faces by planes, determined by the offsets to the lines '''
-	
-	toremove = set()		# faces to remove that match no replacements
-	result = []				# intersection segments for each offset
-	if prec is None:	prec = mesh.precision()
-	# build connectivity
-	if not conn:
-		conn = connef(mesh.faces)
-	# segments planes and normals
-	segments = cutsegments(mesh, line, offsets)
-	circular = line[0] == line[-1]
+		grp = len(debmesh.groups)
+		debmesh.groups.append(None)
+		m = len(debmesh.points)
+		d = normalize(d)
+		debmesh.points.append(p)
+		debmesh.points.append(intersect+d)
+		debmesh.points.append(intersect-d)
+		debmesh.faces.append((m,m+1,m+2))
+		debmesh.tracks.append(grp)
+		'''
 	
 	# complete segments that cannot be computed locally (straight suite of points for example)
 	for i in range(1,len(segments)):
@@ -347,10 +299,22 @@ def cut(mesh, line, offsets, conn=None, prec=None):
 	for i in reversed(range(len(segments)-1)):
 		if not segments[i]:		segments[i] = segments[i+1]
 	
+	return segments
+
+
+def cut_line(mesh, line, offsets, conn=None, prec=None):
+	''' cut the mesh faces by planes, determined by the offsets to the lines '''
+	
+	removal = set()		# faces to remove that match no replacements
+	result = []				# intersection segments for each offset
+	if prec is None:	prec = mesh.precision()
+	if conn is None:	conn = connef(mesh.faces)
+	# segments planes and normals
+	segments = separators(mesh, line, offsets)
+	circular = line[0] == line[-1]
+	
 	# cut at each plane
-	for i in range(1,len(line)):
-		# propagate until cut
-		cutplane = (mesh.points[line[i-1]]+offsets[i-1], -normalize(offsets[i-1]))
+	for i in range(1,len(edge)):
 		# take segment limiting planes
 		if circular:
 			s1 = segments[i-2]
@@ -358,119 +322,10 @@ def cut(mesh, line, offsets, conn=None, prec=None):
 		else:
 			s1 = segments[i-2] if i >= 2 else None
 			s2 = segments[i-1] if i <= len(segments) else None
-		
-		# prepare propagation
-		seen = set()
-		front = [(line[i],line[i-1]), (line[i-1],line[i])]
-		intersections = set()
-		while front:
-			# propagation affairs
-			frontedge = front.pop()
 			
-			if frontedge not in conn:	continue
-			fi = conn[frontedge]
-			if fi in seen:	continue
-			f = mesh.faces[fi]
+		# propagate until cut
+		results.append(cut_edge(mesh, edge, offsets[i-1], s1, s2, conn, prec))
 			
-			# do not process empty faces (its a topology singularity), but propagate
-			if faceheight(mesh, fi) <= prec:	
-				seen.add(fi)
-				for j in range(3):
-					front.append((f[j],f[j-1]))
-				continue
-			
-			# find the intersection of the triangle with the common axis to the two cutplanes (current and next)
-			p = intersection_axis_face((s2[0], s2[2]), mesh.facepoints(fi)) if s2 else None
-			if p and distance(p, mesh.points[f[0]]) > prec and distance(p, mesh.points[f[1]]) > prec and distance(p, mesh.points[f[2]]) > prec:
-				# mark cutplane change
-				# empty faces can be generated, but they are necessary to keep the connectivity working
-				pi = mesh.usepointat(p, prec)
-				l = len(mesh.faces)
-				unregisterface(mesh, conn, fi)				
-				mesh.faces[fi] = (f[0], f[1], pi)
-				mesh.faces.append((f[1], f[2], pi))
-				mesh.faces.append((f[2], f[0], pi))
-				mesh.tracks.append(mesh.tracks[fi])
-				mesh.tracks.append(mesh.tracks[fi])
-				registerface(mesh, conn, fi)
-				registerface(mesh, conn, l)
-				registerface(mesh, conn, l+1)
-				front.append(frontedge)
-			else:
-				# mark this face as processed
-				seen.add(fi)
-				
-				#scn3D.add(text.Text(
-					#(mesh.points[f[0]] + mesh.points[f[1]] + mesh.points[f[2]]) /3,
-					#'  '+str(fi),
-					#8,
-					#color=(0.1, 1, 0.4),
-					#align=('left', 'center'),
-					#))
-				
-				# point side for propagation
-				goodside = [False]*3
-				for j,pi in enumerate(f):
-					goodside[j] = 	dot(mesh.points[pi]-cutplane[0], cutplane[1]) > -prec
-				goodx = [False]*3
-				for j,pi in enumerate(f):
-					p = mesh.points[pi]
-					goodx[j] = ( (not s1 or dot(p-s1[0], -s1[1]) >= -prec)
-							 and (not s2 or dot(p-s2[0],  s2[1]) >= -prec) )
-				
-				if not (goodside[0] or goodside[1] or goodside[2]):
-					continue
-				
-				# intersections of triangle's edges with the plane
-				cut = [None]*3
-				for j,e in enumerate(((f[0],f[1]), (f[1],f[2]), (f[2],f[0]))):
-					cut[j] = intersection_edge_plane(cutplane, (mesh.points[e[0]], mesh.points[e[1]]), prec)
-				for j in range(3):
-					if cut[j-1] and cut[j] and distance(cut[j-1], cut[j]) < prec:	cut[j] = None
-				
-				if goodside[0] and goodside[1] and goodside[2] and (goodx[0] or goodx[1] or goodx[2]):
-					toremove.add(fi)
-				
-				cutted = False
-				# cut the face
-				for j in range(3):
-					if cut[j] and cut[j-1]:
-						cutted = True
-						# cut only if the intersection segment is in the delimited area
-						if s1 and dot(cut[j-1]-s1[0],-s1[1]) < prec and dot(cut[j]-s1[0],-s1[1]) < prec:	continue
-						if s2 and dot(cut[j-1]-s2[0], s2[1]) < prec and dot(cut[j]-s2[0], s2[1]) < prec:	continue
-						
-						# cut the face (create face even for non kept side, necessary for propagation)
-						toremove.discard(fi)
-						p1 = mesh.usepointat(cut[j], prec)
-						p2 = mesh.usepointat(cut[j-1], prec)
-						unregisterface(mesh, conn, fi)
-						l = len(mesh.faces)
-						mesh.faces[fi] = (p1, f[j-2], f[j-1])
-						mesh.faces.append((p1, f[j-1], p2))
-						mesh.faces.append((p1, p2, f[j-0]))
-						mesh.tracks.append(mesh.tracks[fi])
-						mesh.tracks.append(mesh.tracks[fi])
-						registerface(mesh, conn, fi)
-						registerface(mesh, conn, l)
-						registerface(mesh, conn, l+1)
-						seen.update((fi, l, l+1))
-						# remove the faces outside
-						if dot(mesh.points[f[j]]-cutplane[0], cutplane[1]) < 0:
-							toremove.add(fi)
-							toremove.add(l)
-							intersections.add((p2,p1))
-						else:
-							toremove.add(l+1)
-							intersections.add((p1,p2))
-						break
-				# propagate if the face has been cutted or has a corner in the area
-				if cutted or (goodside[0] and goodx[0] or goodside[1] and goodx[1] or goodside[2] and goodx[2]):
-					for j in range(3):
-						front.append((f[j],f[j-1]))
-		
-		result.append(intersections)
-	
 	# simplify cuts
 	merges = {}
 	for i,grp in enumerate(result):
@@ -481,7 +336,7 @@ def cut(mesh, line, offsets, conn=None, prec=None):
 			if c != d:	lines.append((c,d))
 		result[i] = lines
 		merges.update(reindex)
-	# apply merges, but keeping the empty faces, to keep the toremove list valid
+	# apply merges, but keeping the empty faces, to keep the removal list valid
 	for i,f in enumerate(mesh.faces):
 		mesh.faces[i] = (
 			merges.get(f[0],f[0]),
@@ -490,22 +345,135 @@ def cut(mesh, line, offsets, conn=None, prec=None):
 			)
 	
 	# delete inside faces and empty ones
-	removefaces(mesh, lambda fi: fi in toremove or faceheight(mesh,fi) <= prec)
+	removefaces(mesh, lambda fi: fi in removal or faceheight(mesh,fi) <= prec)
 	
 	return result
+		
+def cut_edge(mesh, edge, offset, s1, s2, conn, prec):
+	''' propagation cut for an edge '''
+	cutplane = (mesh.points[edge[0]]+offset, -normalize(offset))
+	# prepare propagation
+	seen = set()
+	front = [(edge[i],edge[i-1]), (edge[i-1],edge[i])]
+	intersections = set()
+	while front:
+		# propagation affairs
+		frontedge = front.pop()
+		
+		if frontedge not in conn:	continue
+		fi = conn[frontedge]
+		if fi in seen:	continue
+		f = mesh.faces[fi]
+		
+		# do not process empty faces (its a topology singularity), but propagate
+		if faceheight(mesh, fi) <= prec:	
+			seen.add(fi)
+			for j in range(3):
+				front.append((f[j],f[j-1]))
+			continue
+		
+		# find the intersection of the triangle with the common axis to the two cutplanes (current and next)
+		p = None
+		if s2:				intersection_axis_face((s2[0], s2[2]), mesh.facepoints(fi))
+		if s1 and not s2:	intersection_axis_face((s1[0], s1[2]), mesh.facepoints(fi))
+		if p and distance(p, mesh.points[f[0]]) > prec and distance(p, mesh.points[f[1]]) > prec and distance(p, mesh.points[f[2]]) > prec:
+			# mark cutplane change
+			# empty faces can be generated, but they are necessary to keep the connectivity working
+			pi = mesh.usepointat(p, prec)
+			l = len(mesh.faces)
+			unregisterface(mesh, conn, fi)				
+			mesh.faces[fi] = (f[0], f[1], pi)
+			mesh.faces.append((f[1], f[2], pi))
+			mesh.faces.append((f[2], f[0], pi))
+			mesh.tracks.append(mesh.tracks[fi])
+			mesh.tracks.append(mesh.tracks[fi])
+			registerface(mesh, conn, fi)
+			registerface(mesh, conn, l)
+			registerface(mesh, conn, l+1)
+			front.append(frontedge)
+		else:
+			# mark this face as processed
+			seen.add(fi)
+			
+			#scn3D.add(text.Text(
+				#(mesh.points[f[0]] + mesh.points[f[1]] + mesh.points[f[2]]) /3,
+				#'  '+str(fi),
+				#8,
+				#color=(0.1, 1, 0.4),
+				#align=('left', 'center'),
+				#))
+			
+			# point side for propagation
+			goodside = [False]*3
+			for j,pi in enumerate(f):
+				goodside[j] = 	dot(mesh.points[pi]-cutplane[0], cutplane[1]) > -prec
+			goodx = [False]*3
+			for j,pi in enumerate(f):
+				p = mesh.points[pi]
+				goodx[j] = ( (not s1 or dot(p-s1[0], -s1[1]) >= -prec)
+							and (not s2 or dot(p-s2[0],  s2[1]) >= -prec) )
+			
+			if not (goodside[0] or goodside[1] or goodside[2]):
+				continue
+			
+			# intersections of triangle's edges with the plane
+			cut = [None]*3
+			for j,e in enumerate(((f[0],f[1]), (f[1],f[2]), (f[2],f[0]))):
+				cut[j] = intersection_edge_plane(cutplane, (mesh.points[e[0]], mesh.points[e[1]]), prec)
+			for j in range(3):
+				if cut[j-1] and cut[j] and distance(cut[j-1], cut[j]) < prec:	cut[j] = None
+			
+			if goodside[0] and goodside[1] and goodside[2] and (goodx[0] or goodx[1] or goodx[2]):
+				removal.add(fi)
+			
+			cutted = False
+			# cut the face
+			for j in range(3):
+				if cut[j] and cut[j-1]:
+					cutted = True
+					# cut only if the intersection segment is in the delimited area
+					if s1 and dot(cut[j-1]-s1[0],-s1[1]) < prec and dot(cut[j]-s1[0],-s1[1]) < prec:	continue
+					if s2 and dot(cut[j-1]-s2[0], s2[1]) < prec and dot(cut[j]-s2[0], s2[1]) < prec:	continue
+					
+					# cut the face (create face even for non kept side, necessary for propagation)
+					removal.discard(fi)
+					p1 = mesh.usepointat(cut[j], prec)
+					p2 = mesh.usepointat(cut[j-1], prec)
+					unregisterface(mesh, conn, fi)
+					l = len(mesh.faces)
+					mesh.faces[fi] = (p1, f[j-2], f[j-1])
+					mesh.faces.append((p1, f[j-1], p2))
+					mesh.faces.append((p1, p2, f[j-0]))
+					mesh.tracks.append(mesh.tracks[fi])
+					mesh.tracks.append(mesh.tracks[fi])
+					registerface(mesh, conn, fi)
+					registerface(mesh, conn, l)
+					registerface(mesh, conn, l+1)
+					seen.update((fi, l, l+1))
+					# remove the faces outside
+					if dot(mesh.points[f[j]]-cutplane[0], cutplane[1]) < 0:
+						removal.add(fi)
+						removal.add(l)
+						intersections.add((p2,p1))
+					else:
+						removal.add(l+1)
+						intersections.add((p1,p2))
+					break
+			# propagate if the face has been cutted or has a corner in the area
+			if cutted or (goodside[0] and goodx[0] or goodside[1] and goodx[1] or goodside[2] and goodx[2]):
+				for j in range(3):
+					front.append((f[j],f[j-1]))
 	
-from .mathutils import find
+	return intersections
 	
-def cut_corner(mesh, point, offset, conn=None, prec=None):
+def cut_corner(mesh, point, offset, conn, prec, removal):
 	''' cut a mesh by the plane at an offset from the specified point (existing point in the mesh) '''
-	if prec is None:	prec = mesh.precision()
-	if conn is None:	conn = connef(mesh.faces)
 	cutplane = (mesh.points[point]+offset, -normalize(offset))
 	
 	# prepare propagation
 	toremove = {}
 	intersections = []
-	edge = find(conn, lambda e: point in e)
+	edge = next(filter(lambda e: point in e, conn))
 	seen = set()
 	front = [edge, (edge[1], edge[0])]
 	while front:
@@ -555,9 +523,74 @@ def cut_corner(mesh, point, offset, conn=None, prec=None):
 				front.append((f[i], f[i-1]))
 	
 	# delete inside faces and empty ones
-	removefaces(mesh, toremove.__contains__)
+	#removefaces(mesh, removal.__contains__)
+	removal.update(toremove)
 	return intersections
 
+def cut(mesh, edges, offsets, conn=None, prec=None, removal=None):
+	if conn is None:	conn = connef(mesh.faces)
+	if prec is None:	prec = mesh.precision()
+	if removal is None:	t
+		removal = set()
+		final = True
+	else:
+		final = False
+	normals = mesh.vertexnormals()
+	juncconn = connpp(edges)
+	
+	separators = {}	# plans separateurs pour chaque arete
+	for i, prox in juncconn.items():
+		if len(prox) != 2:	continue
+		plane = (pts[i], normalize(pts[prox[0]] - pts[prox[1]]))
+		separators[(i,prox[0])] = plane
+		separators[(i,prox[1])] = plane
+	
+	corners = {}	# offset pour chaque coin
+	# pour chaque jonction
+	for junc, prox in juncconn.items():
+		if len(prox) < 3:	continue
+		# calculer le plan de distance max demandé par les aretes adjacentes
+		offset = offsets.get(junc, 0.)
+		# pour chaque arete adjacente (dans chaque sens)
+		for p in prox:
+			for e in ((junc,p), (p,junc)):
+				if e not in conn:	continue
+				# calculer la distance
+				a,b,c = arrangeface(conn[e], junc)
+				n = mesh.facenormal((a,b,c))
+				nb = normalize(cross(ab,n))
+				nc = normalize(cross(ac,n))
+				ib = nb**2 / dot(offsets[edgekey(a,b)], nb)
+				ic = nb**2 / dot(offsets[edgekey(a,c)], nc)
+				ai = (ib*dot(db,dc) + ic) / dot(nb,nc)
+				offset = max(offset, ai * dot(normalize(pts[b]-pts[c]), normals[a]))
+		# assignation du plan de coupe
+		corners[junc] = offset
+		plane = (pts[junc] - offset, normalize(offset))
+		for p in prox:
+			separators[(p,junc)] = plane
+	
+	outlines = []
+	# couper les aretes
+	for edge in edges:
+		outline += cut_edge(mesh, edge, separators[edge], separators[(edge[1], edge[0])], 
+								conn, prec, removal)
+	# couper les sommets
+	for corner,offset in corners.items():
+		outline += cut_corner(mesh, corner, offset, 
+								conn, prec, removal)
+	if final:
+		removefaces(mesh, removal)
+	return outlines
+	
+	
+def unproject(vec, dir):
+	return vec**2 / dot(vec,dir) * dir
+
+def arrangeface(f, p):
+	if   p == f[1]:	return f[1],f[2],f[0]
+	elif p == f[2]:	return f[2],f[0],f[1]
+	else:			return f
 
 def registerface(mesh, conn, fi):
 	f = mesh.faces[fi]
