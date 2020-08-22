@@ -1,7 +1,7 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
 from .mathutils import vec3, mat3, dmat3, dvec3, dot, cross, project, noproject, anglebt, sqrt, cos, acos, asin, spline, interpol1, normalize, distance, length, inverse, transpose, NUMPREC, COMPREC
-from .mesh import Mesh, Web, Wire, lineedges, connef, suites, line_simplification
+from .mesh import Mesh, Web, Wire, lineedges, connef, connpp, edgekey, suites, line_simplification
 from . import generation as gt
 from . import text
 from . import settings
@@ -13,21 +13,21 @@ __all__ = [	'chamfer', 'bevel', 'beveltgt',
 
 # ---- cut methods -----
 
-def cut_width(width, fn1, fn2):
+def cutter_width(width, fn1, fn2):
 	''' plane offset for a cut based on the width of the bevel '''
 	n = normalize(fn1+fn2)
 	s = dot(fn1,n)
 	return -width/2 * sqrt(1/s**2 - 1) * n
 
-def cut_distance(depth, fn1, fn2):
+def cutter_distance(depth, fn1, fn2):
 	''' plane offset for a cut based on the distance along the side faces '''
 	return -depth * normalize(fn1+fn2)
 
-def cut_depth(dist, fn1, fn2):
+def cutter_depth(dist, fn1, fn2):
 	''' plane offset for a cut based on the distance to the cutted edge '''
 	return -dist * cross(normalize(cross(fn1,fn2)), fn1-fn2)
 
-def cut_angle(depth, fn1, fn2):
+def cutter_angle(depth, fn1, fn2):
 	''' plane offset for a cut based on the angle between faces '''
 	s = dot(fn1,n)
 	return -depth/2 * (1/s - s) * n
@@ -214,8 +214,9 @@ def tangentjunction(points, match, tangents, resolution=None, interpol=spline):
 
 
 # ----- algorithm ------
+from nprint import nprint
 
-def planeoffsets(mesh, line, cutter):
+def planeoffsets(mesh, edges, cutter):
 	''' compute the offsets for cutting planes using the given method 
 		cutter is a tuple or a function
 		
@@ -224,30 +225,28 @@ def planeoffsets(mesh, line, cutter):
 				offset is the distance from segment to plane times the normal to the plane
 				
 			- ('method', distance) 				
-				the method is the string name of the method (a function named 'cut_'+method existing in this module)
+				the method is the string name of the method (a function named 'cutter_'+method existing in this module)
 				distance depends on the method and is the numeric parameter of the method
 	'''
 	cutter = interpretcutter(cutter)
 	# get adjacent faces' normals to lines
-	adjacents = ({}, {})	# (left adjacents, right adjacents)
-	segts = segmentsdict(line)
+	offsets = {edgekey(*e): [None,None]  for e in edges}
 	for f in mesh.faces:
 		for e in ((f[0],f[1]), (f[1],f[2]), (f[2],f[0])):
-			if e in segts:					adjacents[0][segts[e]] = mesh.facenormal(f)
-			elif (e[1],e[0]) in segts:		adjacents[1][segts[(e[1],e[0])]] = mesh.facenormal(f)
+			if e in offsets:					offsets[e][0] = mesh.facenormal(f)
+			elif (e[1],e[0]) in offsets:		offsets[(e[1],e[0])][1] = mesh.facenormal(f)
 	# compute offsets (displacement on depth)
-	offsets = []
-	for i in range(len(line)-1):
-		fn1,fn2 = adjacents[0][i], adjacents[1][i]
-		offset = cutter(fn1, fn2)		
-		if dot(cross(fn1, fn2), mesh.points[line[i+1]]-mesh.points[line[i]]) < 0:
+	for e, adjacents in offsets.items():
+		offset = cutter(*adjacents)
+		if dot(cross(*adjacents), mesh.points[e[0]]-mesh.points[e[1]]) < 0:
 			offset = -offset
-		offsets.append(offset)
+		offsets[e] = offset
+	
 	return offsets
 
 def interpretcutter(cutter):
 	if isinstance(cutter, tuple):
-		func = globals()['cut_'+cutter[0]]
+		func = globals()['cutter_'+cutter[0]]
 		arg = cutter[1]
 		return lambda fn1,fn2: func(arg, fn1, fn2)
 	elif callable(cutter):
@@ -348,13 +347,20 @@ def cut_line(mesh, line, offsets, conn=None, prec=None):
 	removefaces(mesh, lambda fi: fi in removal or faceheight(mesh,fi) <= prec)
 	
 	return result
+
 		
-def cut_edge(mesh, edge, offset, s1, s2, conn, prec):
+def cut_edge(mesh, edge, offset, s1, s2, conn, prec, removal):
 	''' propagation cut for an edge '''
 	cutplane = (mesh.points[edge[0]]+offset, -normalize(offset))
+	pts = mesh.points
+	# find the intersections axis between the planes
+	d = pts[edge[1]]-pts[edge[0]]
+	i1 = intersection_plane_plane(cutplane, s1, cross(d, s1[1]))	if s1 else None
+	i2 = intersection_plane_plane(cutplane, s2, cross(d, s2[1]))	if s2 else None
+	
 	# prepare propagation
 	seen = set()
-	front = [(edge[i],edge[i-1]), (edge[i-1],edge[i])]
+	front = [edge, (edge[1],edge[0])]
 	intersections = set()
 	while front:
 		# propagation affairs
@@ -374,9 +380,9 @@ def cut_edge(mesh, edge, offset, s1, s2, conn, prec):
 		
 		# find the intersection of the triangle with the common axis to the two cutplanes (current and next)
 		p = None
-		if s2:				intersection_axis_face((s2[0], s2[2]), mesh.facepoints(fi))
-		if s1 and not s2:	intersection_axis_face((s1[0], s1[2]), mesh.facepoints(fi))
-		if p and distance(p, mesh.points[f[0]]) > prec and distance(p, mesh.points[f[1]]) > prec and distance(p, mesh.points[f[2]]) > prec:
+		if s2:				intersection_axis_face(i2, mesh.facepoints(fi))
+		if s1 and not s2:	intersection_axis_face(i1, mesh.facepoints(fi))
+		if p and distance(p, pts[f[0]]) > prec and distance(p, pts[f[1]]) > prec and distance(p, pts[f[2]]) > prec:
 			# mark cutplane change
 			# empty faces can be generated, but they are necessary to keep the connectivity working
 			pi = mesh.usepointat(p, prec)
@@ -396,7 +402,7 @@ def cut_edge(mesh, edge, offset, s1, s2, conn, prec):
 			seen.add(fi)
 			
 			#scn3D.add(text.Text(
-				#(mesh.points[f[0]] + mesh.points[f[1]] + mesh.points[f[2]]) /3,
+				#(pts[f[0]] + pts[f[1]] + pts[f[2]]) /3,
 				#'  '+str(fi),
 				#8,
 				#color=(0.1, 1, 0.4),
@@ -406,10 +412,10 @@ def cut_edge(mesh, edge, offset, s1, s2, conn, prec):
 			# point side for propagation
 			goodside = [False]*3
 			for j,pi in enumerate(f):
-				goodside[j] = 	dot(mesh.points[pi]-cutplane[0], cutplane[1]) > -prec
+				goodside[j] = 	dot(pts[pi]-cutplane[0], cutplane[1]) > -prec
 			goodx = [False]*3
 			for j,pi in enumerate(f):
-				p = mesh.points[pi]
+				p = pts[pi]
 				goodx[j] = ( (not s1 or dot(p-s1[0], -s1[1]) >= -prec)
 							and (not s2 or dot(p-s2[0],  s2[1]) >= -prec) )
 			
@@ -419,7 +425,7 @@ def cut_edge(mesh, edge, offset, s1, s2, conn, prec):
 			# intersections of triangle's edges with the plane
 			cut = [None]*3
 			for j,e in enumerate(((f[0],f[1]), (f[1],f[2]), (f[2],f[0]))):
-				cut[j] = intersection_edge_plane(cutplane, (mesh.points[e[0]], mesh.points[e[1]]), prec)
+				cut[j] = intersection_edge_plane(cutplane, (pts[e[0]], pts[e[1]]), prec)
 			for j in range(3):
 				if cut[j-1] and cut[j] and distance(cut[j-1], cut[j]) < prec:	cut[j] = None
 			
@@ -451,7 +457,7 @@ def cut_edge(mesh, edge, offset, s1, s2, conn, prec):
 					registerface(mesh, conn, l+1)
 					seen.update((fi, l, l+1))
 					# remove the faces outside
-					if dot(mesh.points[f[j]]-cutplane[0], cutplane[1]) < 0:
+					if dot(pts[f[j]]-cutplane[0], cutplane[1]) < 0:
 						removal.add(fi)
 						removal.add(l)
 						intersections.add((p2,p1))
@@ -468,7 +474,8 @@ def cut_edge(mesh, edge, offset, s1, s2, conn, prec):
 	
 def cut_corner(mesh, point, offset, conn, prec, removal):
 	''' cut a mesh by the plane at an offset from the specified point (existing point in the mesh) '''
-	cutplane = (mesh.points[point]+offset, -normalize(offset))
+	cutplane = (pts[point]+offset, -normalize(offset))
+	pts = mesh.points
 	
 	# prepare propagation
 	toremove = {}
@@ -490,8 +497,8 @@ def cut_corner(mesh, point, offset, conn, prec, removal):
 		a,b = edge
 			
 		# find intersection with the offset plane
-		pt = intersection_edge_plane(cutplane, (mesh.points[a], mesh.points[b]), prec)
-		if pt and distance(pt, mesh.points[a]) > prec and distance(pt, mesh.points[b]) > prec:
+		pt = intersection_edge_plane(cutplane, (pts[a], pts[b]), prec)
+		if pt and distance(pt, pts[a]) > prec and distance(pt, pts[b]) > prec:
 			pi = mesh.usepointat(pt)
 			c = None
 			for c in f:
@@ -506,8 +513,8 @@ def cut_corner(mesh, point, offset, conn, prec, removal):
 			
 			# register intersection and the face to remove
 			r,k = len(mesh.faces)-1, fi
-			if (	dot(mesh.points[a]-cutplane[0], cutplane[1]) > prec 
-				or	dot(mesh.points[b]-cutplane[0], cutplane[1]) < -prec):
+			if (	dot(pts[a]-cutplane[0], cutplane[1]) > prec 
+				or	dot(pts[b]-cutplane[0], cutplane[1]) < -prec):
 				r,k = k,r
 			if fi in toremove:	intersections.append((toremove[fi], pi))
 			if k in toremove:	del toremove[k]
@@ -517,7 +524,7 @@ def cut_corner(mesh, point, offset, conn, prec, removal):
 			toremove[fi] = None
 		
 		# propagate
-		goodside = [dot(mesh.points[f[i]]-cutplane[0], cutplane[1]) > prec		for i in range(3)]
+		goodside = [dot(pts[f[i]]-cutplane[0], cutplane[1]) > prec		for i in range(3)]
 		for i in range(3):
 			if goodside[i-1] or goodside[i]:
 				front.append((f[i], f[i-1]))
@@ -528,15 +535,23 @@ def cut_corner(mesh, point, offset, conn, prec, removal):
 	return intersections
 
 def cut(mesh, edges, offsets, conn=None, prec=None, removal=None):
+	''' general purpose edge cutting function.
+		cut the given edges and the crossing corners, resolving the interference issues.
+		
+		offsets is `{edgekey: offset vector}` for each passed edge
+	'''
+	# perpare working objects
 	if conn is None:	conn = connef(mesh.faces)
 	if prec is None:	prec = mesh.precision()
-	if removal is None:	t
+	if removal is None:	
 		removal = set()
 		final = True
 	else:
 		final = False
+	
 	normals = mesh.vertexnormals()
 	juncconn = connpp(edges)
+	pts = mesh.points
 	
 	separators = {}	# plans separateurs pour chaque arete
 	for i, prox in juncconn.items():
@@ -560,8 +575,8 @@ def cut(mesh, edges, offsets, conn=None, prec=None, removal=None):
 				n = mesh.facenormal((a,b,c))
 				nb = normalize(cross(ab,n))
 				nc = normalize(cross(ac,n))
-				ib = nb**2 / dot(offsets[edgekey(a,b)], nb)
-				ic = nb**2 / dot(offsets[edgekey(a,c)], nc)
+				ib = dot(nb,nb) / dot(offsets[edgekey(a,b)], nb)
+				ic = dot(nc,nc) / dot(offsets[edgekey(a,c)], nc)
 				ai = (ib*dot(db,dc) + ic) / dot(nb,nc)
 				offset = max(offset, ai * dot(normalize(pts[b]-pts[c]), normals[a]))
 		# assignation du plan de coupe
@@ -573,19 +588,16 @@ def cut(mesh, edges, offsets, conn=None, prec=None, removal=None):
 	outlines = []
 	# couper les aretes
 	for edge in edges:
-		outline += cut_edge(mesh, edge, separators[edge], separators[(edge[1], edge[0])], 
+		outlines += cut_edge(mesh, edge, offsets[edge], separators.get(edge), separators.get((edge[1], edge[0])), 
 								conn, prec, removal)
 	# couper les sommets
 	for corner,offset in corners.items():
-		outline += cut_corner(mesh, corner, offset, 
+		outlines += cut_corner(mesh, corner, offset, 
 								conn, prec, removal)
 	if final:
-		removefaces(mesh, removal)
+		removefaces(mesh, removal.__contains__)
 	return outlines
-	
-	
-def unproject(vec, dir):
-	return vec**2 / dot(vec,dir) * dir
+
 
 def arrangeface(f, p):
 	if   p == f[1]:	return f[1],f[2],f[0]
@@ -608,8 +620,16 @@ def segmentsdict(line):
 		segments[(line[i],line[i+1])] = i
 	return segments
 
-# return intersection of an edge with a plane, or None
+def intersection_plane_plane(p0, p1, alignment=None):
+	''' return the intersection axis between two planes '''
+	if not alignment:	alignment = cross(p0[1], p1[1])
+	return vec3(
+		inverse(transpose(dmat3(p0[1], p1[1], alignment))) 
+		* dvec3(dot(p0[0],p0[1]), dot(p1[0],p1[1]), dot(p0[0],alignment))
+		), alignment
+
 def intersection_edge_plane(axis, edge, prec):
+	''' return intersection point of an edge with a plane, or None if it doesn't exist '''
 	dist = dot(axis[0]-edge[0], axis[1])
 	compl = dot(axis[0]-edge[1], axis[1])
 	if abs(dist) <= prec:		return edge[0]
@@ -621,6 +641,7 @@ def intersection_edge_plane(axis, edge, prec):
 	return edge[0] + dist * edgedir / dot(edgedir, axis[1])
 
 def intersection_axis_face(axis, face):
+	''' return the intersection point between an axis and a triangle, or None if it doesn't exist '''
 	coords = inverse(dmat3(face[1]-face[0], face[2]-face[0], axis[1])) * dvec3(axis[0] - face[0])
 	if 0 < coords[0] and 0 < coords[1] and coords[0]+coords[1] < 1 :
 		#return axis[0] - axis[1]*coords[2]	# can lead to huge precision loss when the triangle is thin
