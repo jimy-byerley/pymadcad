@@ -356,6 +356,7 @@ def cut_edge(mesh, edge, offset, s1, s2, conn, prec, removal):
 	# find the intersections axis between the planes
 	i1 = intersection_plane_plane(cutplane, s1)	if s1 else None
 	i2 = intersection_plane_plane(cutplane, s2)	if s2 else None
+	print('cutplane', edge, cutplane, bool(s1), bool(s2))
 	
 	# prepare propagation
 	seen = set()
@@ -479,9 +480,8 @@ def cut_corner(mesh, point, offset, conn, prec, removal):
 	# prepare propagation
 	toremove = {}
 	intersections = []
-	edge = next(filter(lambda e: point in e, conn))
 	seen = set()
-	front = [edge, (edge[1], edge[0])]
+	front = [e	for e in conn if point in e]
 	while front:
 		# unstack
 		edge = front.pop()
@@ -492,6 +492,7 @@ def cut_corner(mesh, point, offset, conn, prec, removal):
 			continue
 		
 		fi = conn[edge]
+		if fi in removal:	continue
 		f = mesh.faces[fi]
 		a,b = edge
 			
@@ -551,7 +552,6 @@ def cut(mesh, edges, offsets, conn=None, prec=None, removal=None):
 	normals = mesh.vertexnormals()
 	juncconn = connpp(edges)
 	pts = mesh.points
-	nprint('offsets', offsets)
 	
 	debmesh = mesh
 	separators = {}	# plans separateurs pour chaque arete
@@ -559,9 +559,10 @@ def cut(mesh, edges, offsets, conn=None, prec=None, removal=None):
 		if len(prox) != 2:	continue
 		o0 = offsets[edgekey(i,prox[0])]
 		o1 = offsets[edgekey(i,prox[1])]
-		axis = intersection_plane_plane((pts[prox[0]]+o0, o0), (pts[prox[1]]+o1, o1))	# BUG: fail when the two planes have the same orientation
+		axis = intersection_plane_plane((pts[prox[0]]+o0, o0), (pts[prox[1]]+o1, o1), pts[i])	# fail when the two planes have the same orientation
 		if axis:
-			n = cross(axis[1], pts[i]-axis[0])
+			n = cross(pts[i]-axis[0], axis[1])
+			if dot(n, pts[prox[0]]-pts[i]) < 0:		n = -n
 			separators[(i,prox[0])] = (axis[0], n)
 			separators[(i,prox[1])] = (axis[0],-n)
 		
@@ -574,6 +575,17 @@ def cut(mesh, edges, offsets, conn=None, prec=None, removal=None):
 			debmesh.points.append(axis[0]-axis[1])
 			debmesh.faces.append((m,m+1,m+2))
 			debmesh.tracks.append(grp)
+		else:
+			separators[(i,prox[0])] = None
+			separators[(i,prox[1])] = None
+	# fix the missing separators in case of straight lines
+	for e,sep in separators.items():
+		i,j = e
+		while not sep:
+			prox = juncconn[i]
+			if len(prox) != 2:	raise Exception('unagle to compute all separators')
+			j,i = i, prox[0] if prox[0] != j else prox[1]
+			separators[e] = sep = separators[(i,j)]
 	
 	corners = {}	# offset pour chaque coin
 	# pour chaque jonction
@@ -587,38 +599,59 @@ def cut(mesh, edges, offsets, conn=None, prec=None, removal=None):
 				a = junc
 				if b == c or b == a or c == a:	continue
 				# calculer la distance
-				ab = pts[b]-pts[a]
-				ac = pts[c]-pts[a]
+				ab = normalize(pts[b]-pts[a])
+				ac = normalize(pts[c]-pts[a])
 				n = cross(ab, ac)
-				nb = normalize(cross(pts[b]-pts[a], n))
+				nb = normalize(cross(n, pts[b]-pts[a]))
 				nc = normalize(cross(pts[c]-pts[a], n))
-				ib = dot(nb,nb) / dot(offsets[edgekey(a,b)], nb)
-				ic = dot(nc,nc) / dot(offsets[edgekey(a,c)], nc)
-				s = dot(nb,ac)/length(ac)
+				ob = offsets[edgekey(a,b)]
+				oc = offsets[edgekey(a,c)]
+				ib = dot(ob,ob) / dot(ob, nb)
+				ic = dot(oc,oc) / dot(oc, nc)
+				s = dot(nb,ac)
 				if not s:	continue
-				ai = (ib*dot(ab,ac) + ic) / s
-				offset = max(offset, ai * dot(normalize(ab), normals[a]))
+				abl = (ib*dot(ab,ac) + ic) / s
+				offset = min(offset, 2 * abl * dot(ab, normals[a]))
 		# assignation du plan de coupe
-		corners[junc] = -offset*normals[junc]
+		corners[junc] = offset*normals[junc]
 		plane = (pts[junc] + corners[junc], -normals[junc])
 		for p in prox:
-			separators[(p,junc)] = plane
-	#nprint('separators', separators)
-	#nprint('corners', corners)
+			separators[(junc,p)] = plane
 	
 	outlines = []
 	# couper les aretes
-	for edge in offsets:
-		outlines += cut_edge(mesh, edge, offsets[edge], separators.get(edge), separators.get((edge[1], edge[0])), 
-								conn, prec, removal)
+	for edge, offset in offsets.items():
+		outlines.append(cut_edge(mesh, edge, offset, separators.get(edge), separators.get((edge[1], edge[0])), 
+								conn, prec, removal))
 	# couper les sommets
 	for corner,offset in corners.items():
-		outlines += cut_corner(mesh, corner, offset, 
-								conn, prec, removal)
+		outlines.append(cut_corner(mesh, corner, offset, 
+								conn, prec, removal))
 	if final:
-		removefaces(mesh, removal.__contains__)
+		finalize(mesh, outlines, removal, prec)
 	return outlines
 
+def finalize(mesh, outlines, removal, prec):
+	# simplify cuts
+	merges = {}
+	for i,cuts in enumerate(outlines):
+		reindex = line_simplification(Web(mesh.points, cuts), prec)
+		lines = []
+		for a,b in cuts:
+			c,d = reindex.get(a,a), reindex.get(b,b)
+			if c != d:	lines.append((c,d))
+		outlines[i] = lines
+		merges.update(reindex)
+	# apply merges, but keeping the empty faces, to keep the removal list valid
+	for i,f in enumerate(mesh.faces):
+		mesh.faces[i] = (
+			merges.get(f[0],f[0]),
+			merges.get(f[1],f[1]),
+			merges.get(f[2],f[2]),
+			)
+	
+	# delete inside faces and empty ones
+	removefaces(mesh, lambda fi: fi in removal or faceheight(mesh,fi) <= prec)
 
 def arrangeface(f, p):
 	if   p == f[1]:	return f[1],f[2],f[0]
@@ -641,13 +674,14 @@ def segmentsdict(line):
 		segments[(line[i],line[i+1])] = i
 	return segments
 
-def intersection_plane_plane(p0, p1):
+def intersection_plane_plane(p0, p1, neigh=None):
 	''' return the intersection axis between two planes '''
+	if not neigh:	neigh = p0[0]
 	d = cross(p0[1], p1[1])
 	if length(d) <= NUMPREC:	return None
 	return vec3(
 		inverse(transpose(dmat3(p0[1], p1[1], d))) 
-		* dvec3(dot(p0[0],p0[1]), dot(p1[0],p1[1]), dot(p0[0],d))
+		* dvec3(dot(p0[0],p0[1]), dot(p1[0],p1[1]), dot(neigh,d))
 		), normalize(d)
 
 def intersection_edge_plane(axis, edge, prec):

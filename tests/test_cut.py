@@ -31,7 +31,7 @@ line = suites(list(w))[0][:12]
 #bevel3(m, line, ('depth', 0.2))
 #beveltgt(m, line, ('depth', 0.6))
 #bevel(m, line, ('width', 0.6))
-cut.cut(m, w, cut.planeoffsets(m, w, ('width', 0.6)))
+cut.cut(m, w, cut.planeoffsets(m, w, ('depth', 0.6)))
 m.mergeclose()
 m.check()
 
