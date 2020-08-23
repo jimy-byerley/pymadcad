@@ -189,7 +189,7 @@ class Box:
 	__slots__ = ('min', 'max')
 	def __init__(self, min=None, max=None, center=vec3(0), width=vec3(-inf)):
 		if min and max:			self.min, self.max = min, max
-		else:					self.min, self.max = center-width, center+width
+		else:					self.min, self.max = center-width/2, center+width/2
 	
 	@property
 	def center(self):

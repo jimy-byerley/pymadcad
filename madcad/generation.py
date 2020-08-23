@@ -520,14 +520,14 @@ def brick(box: 'Box') -> 'Mesh':
 	''' a simple brick with rectangular sides '''
 	mesh = Mesh(
 		[
-			vec3(1.0, -1.0, -1.0),
-			vec3(1.0, -1.0, 1.0),
-			vec3(-1.0, -1.0, 1.0),
-			vec3(-1.0, -1.0, -1.0),
-			vec3(1.0, 1.0, -1.0),
-			vec3(1.0, 1.0, 1.0),
-			vec3(-1.0, 1.0, 1.0),
-			vec3(-1.0, 1.0, -1.0)],
+			vec3(1, 0, 0),
+			vec3(1, 0, 1),
+			vec3(0, 0, 1),
+			vec3(0, 0, 0),
+			vec3(1, 1, 0),
+			vec3(1, 1, 1),
+			vec3(0, 1, 1),
+			vec3(0, 1, 0)],
 		[
 			(0, 1, 2),
 			(0, 2, 3),
@@ -545,7 +545,7 @@ def brick(box: 'Box') -> 'Mesh':
 		[None] * 6,
 		)
 	for i in range(len(mesh.points)):
-		mesh.points[i] = mesh.points[i]*box.width + box.center
+		mesh.points[i] = mesh.points[i]*box.width + box.min
 	return mesh
 
 
@@ -570,13 +570,16 @@ def multiple(pattern, n, trans=None, axis=None, angle=None):
 		pool += current
 	return pool
 
-def prolongation(mesh, line):	# TODO
+def prolongation(mesh, line):
 	''' donne les directions d'extrusion des points de la ligne pour prolonger les faces qui y donnent lieu '''
-	indev()
+	indev
 
 
-def closeenvelope(mesh):	# TODO: refaire
+def closeenvelope(mesh, crit='projclosest'):
+	''' find '''
+	islands = suites(mesh.outlines_oriented())
+	indev
+	
+def closeenvelope(mesh, junctype='simple'):
 	''' create surfaces to close the loop holes in the envelope '''
-	for hole in loopholes(mesh):
-		hole.pop()
-		triangulate(mesh, hole)
+	indev
