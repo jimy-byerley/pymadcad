@@ -26,12 +26,10 @@ m.check()
 
 #cut.cut_corner(m, 87, 0.6*vec3(0,0.2,0.05))
 w = m.group(1).outlines_unoriented() & m.group(2).outlines_unoriented()
-line = suites(list(w))[0][:12]
-#chamfer(m, line, ('depth', 0.6))
-#bevel3(m, line, ('depth', 0.2))
+#cut.cut(m, w, ('depth', 0.6))
+#chamfer(m, w, ('depth', 0.6))
+bevel(m, w, ('width', 0.6))
 #beveltgt(m, line, ('depth', 0.6))
-#bevel(m, line, ('width', 0.6))
-cut.cut(m, w, cut.planeoffsets(m, w, ('depth', 0.6)))
 m.mergeclose()
 m.check()
 
