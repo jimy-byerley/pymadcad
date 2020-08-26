@@ -32,212 +32,6 @@ def cutter_angle(depth, fn1, fn2):
 	s = dot(fn1,n)
 	return -depth/2 * (1/s - s) * n
 
-# ----- user functions ------
-
-def chamfer(mesh, edges, cutter):
-	''' create a chamfer on the given suite of points, create faces are planes.
-		cutter is described in function planeoffsets()
-	'''
-	# cut faces
-	segments = cut(mesh, edges, cutter)
-	
-	# create junctions
-	group = len(mesh.groups)
-	mesh.groups.append('junction')
-	for i,s in enumerate(segments):
-		if s:
-			lp = []
-			for part in suites(s):
-				lp.extend(part)
-			faces = gt.flatsurface(Wire(mesh.points, lp)).faces
-			mesh.faces.extend(faces)
-			mesh.tracks.extend([group]*len(faces))
-
-
-				
-def beveltgt(mesh, line, cutter, interpol=spline, resolution=None):
-	''' create a round profile on the given suite of points, create faces form cylindric surfaces.
-		tangents to cuted faces will be used for interpolation
-		cutter is described in function planeoffsets()
-		
-		WARNING: the tangency to cuted faces can lead to weired geometries in case of concave shape
-	'''
-	# cut faces
-	conn = connef(mesh.faces)
-	segments = cut(mesh, line, planeoffsets(mesh, line, cutter), conn)
-	conn = connef(mesh.faces)
-	group = Mesh(groups=['junction'])
-	tangents = {}
-	tmatch = []
-	
-	for (a,b),s in zip(lineedges(line), segments):
-		if not s:	continue
-		
-		dir = mesh.points[a] - mesh.points[b]
-		
-		lps = suites(s)
-		if len(lps) == 1:
-			mesh += gt.flatsurface(Wire(mesh.points, lps[0]))
-		else:
-			left,right = lps
-			if dot(dir, mesh.points[left[1]] - mesh.points[left[0]]) > 0:
-				left,right = right,left
-			right.reverse()
-			ll, lr = Wire(mesh.points, left).length(), Wire(mesh.points, right).length()
-			match = list(gt.curvematch(Wire(mesh.points, left), Wire(mesh.points, right)))
-			tmatch.extend(match)
-			
-			# create parameters for the round profiles
-			x = 0
-			for i in range(len(match)-1):
-				e = (match[i+1][0], match[i][0])
-				if e in conn:	tl = mesh.facenormal(conn[e])
-				else:			tl = None
-				e = (match[i][1], match[i+1][1])
-				if e in conn:	tr = mesh.facenormal(conn[e])
-				else:			tr = None
-				x += distance(mesh.points[match[i+1][0]], mesh.points[match[i][0]]) / ll
-				
-				for j in (0,1):
-					l,r = match[i+j]
-					o = interpol1(mesh.points[a], mesh.points[b], x)
-					plane = normalize(cross(mesh.points[r]-o, mesh.points[l]-o))
-					if tl:	tangents[l] = normalize(cross(plane, tl)) + tangents.get(l, 0)
-					if tr:	tangents[r] = normalize(cross(tr, plane)) + tangents.get(r, 0)
-	
-	mesh += tangentjunction(mesh.points, tmatch, tangents, resolution, interpol)
-			
-def bevel(mesh, edges, cutter, interpol=spline, resolution=None):
-	''' create a smooth interpolated profile at the given suite of points
-		tangents to edges' adjacents faces will be used for interpolation
-		cutter is described in function planeoffsets()
-		
-		WARNING: to use tangents from line adjacents faces can lead to matter add in case of concave shape
-	'''
-	# cut faces
-	conn = connef(mesh.faces)
-	normals = []
-	for e in edges:
-		normals.append((
-			mesh.facenormal(conn[(e[1],e[0])]),
-			mesh.facenormal(conn[e]),
-			))
-	
-	outlines = cut(mesh, edges, cutter, conn)
-	tangents = {}
-	tmatch = []
-	
-	for (a,b), cuts, (nl,nr) in zip(edges, outlines, normals):
-		if not cuts:	continue
-		
-		lps = suites(cuts)
-		print(lps)
-		if len(lps) == 1:
-			print('unhandled geometry')
-			#mesh += gt.flatsurface(Wire(mesh.points, lps[0]))
-		elif len(lps) == 2:
-			# match left and right lines
-			left,right = lps
-			if dot(mesh.points[a] - mesh.points[b], mesh.points[left[1]] - mesh.points[left[0]]) > 0:
-				left,right = right,left
-			right.reverse()
-			match = list(gt.curvematch(Wire(mesh.points, left), 
-									   Wire(mesh.points, right) ))
-			tmatch.extend(match)
-			
-			# create parameters for the round profiles
-			ll, lr = Wire(mesh.points, left).length(), Wire(mesh.points, right).length()
-			x = 0.
-			for i in range(len(match)):
-				if i:	x += distance(mesh.points[match[i-1][0]], mesh.points[match[i][0]]) / ll
-				l,r = match[i]
-				o = interpol1(mesh.points[a], mesh.points[b], x)
-				plane = normalize(cross(mesh.points[r]-o, mesh.points[l]-o))
-				tangents[l] = normalize(cross(plane, nl)) + tangents.get(l, 0)
-				tangents[r] = normalize(cross(nr, plane)) + tangents.get(r, 0)
-		else:
-			print('error in bevel: bevel sides are', lps)
-	
-	mesh += tangentjunction(mesh.points, tmatch, tangents, resolution, interpol)
-
-def bevel(mesh, edges, cutter, interpol=spline, resolution=None):
-	''' create a smooth interpolated profile at the given suite of points
-		tangents to edges' adjacents faces will be used for interpolation
-		cutter is described in function planeoffsets()
-		
-		WARNING: to use tangents from line adjacents faces can lead to matter add in case of concave shape
-	'''
-	# cut faces
-	conn = connef(mesh.faces)
-	normals = []
-	for e in edges:
-		normals.append((
-			mesh.facenormal(conn[(e[1],e[0])]),
-			mesh.facenormal(conn[e]),
-			))
-	
-	outlines = cut(mesh, edges, cutter, conn)
-	tangents = {}
-	tmatch = []
-	
-	for (a,b), cuts, (nl,nr) in zip(edges, outlines, normals):
-		if not cuts:	continue
-		
-		lps = suites(cuts)
-		if len(lps) == 1:
-			lp = lps[0]
-			side = mesh.points[a], nr-nl
-			left,right = [],[]
-			for p in lp:
-				if dot(mesh.points[p]-side[0], side[1]) < 0:		left.append(p)
-				else:												right.append(p)
-		elif len(lps) == 2:
-			left,right = lps
-			# match left and right lines
-			if dot(mesh.points[a] - mesh.points[b], mesh.points[left[1]] - mesh.points[left[0]]) > 0:
-				left,right = right,left
-		else:
-			print('error in bevel: bevel sides are', lps)
-		
-		right.reverse()
-		match = list(gt.curvematch(	Wire(mesh.points, left), 
-									Wire(mesh.points, right) ))
-		
-		# create parameters for the round profiles
-		ll, lr = Wire(mesh.points, left).length(), Wire(mesh.points, right).length()
-		x = 0.
-		for i in range(len(match)):
-			if i:	x += distance(mesh.points[match[i-1][0]], mesh.points[match[i][0]]) / ll
-			l,r = match[i]
-			o = interpol1(mesh.points[a], mesh.points[b], x)
-			plane = normalize(cross(mesh.points[r]-o, mesh.points[l]-o))
-			tangents[l] = normalize(cross(plane, nl)) + tangents.get(l, 0)
-			tangents[r] = normalize(cross(nr, plane)) + tangents.get(r, 0)
-			
-		mesh += tangentjunction(mesh.points, match, tangents, resolution, interpol)
-	
-
-def tangentjunction(points, match, tangents, resolution=None, interpol=spline):
-	''' create a surface between interpolated curves for each match '''
-	group = Mesh(groups=['junction'])
-	# determine the number of segments
-	div = 0
-	for l,r in match:
-		v = points[l]-points[r]
-		a = anglebt(tangents[l], tangents[r])
-		dist = distance(points[l], points[r]) / sqrt(2-2*cos(a)) * a
-		tangents[l] = tl = normalize(tangents[l]) * dist
-		tangents[r] = tr = normalize(tangents[r]) * dist
-		angle = min(1, acos(dot(tl,tr)))
-		dist = length(points[l]-points[r])
-		ldiv = settings.curve_resolution(dist, angle, resolution)
-		if ldiv > div:
-			div = ldiv
-	
-	return gt.junctioniter(
-			( ((points[r], tangents[r]), (points[l], tangents[l])) for l,r in match),
-			div, interpol)
-
 
 # ----- algorithm ------
 from nprint import nprint
@@ -350,10 +144,10 @@ def cut_edge(mesh, edge, offset, s1, s2, conn, prec, removal):
 			goodx = [False]*3
 			for j,pi in enumerate(f):
 				p = pts[pi]
-				goodx[j] = ( (not s1 or dot(p-s1[0], s1[1]) >= -prec)
+				goodx[j] = ( 	(not s1 or dot(p-s1[0], s1[1]) >= -prec)
 							and (not s2 or dot(p-s2[0],  s2[1]) >= -prec) )
 			
-			if not (goodside[0] or goodside[1] or goodside[2]):
+			if not any(goodside):
 				continue
 			
 			# intersections of triangle's edges with the plane
@@ -363,7 +157,7 @@ def cut_edge(mesh, edge, offset, s1, s2, conn, prec, removal):
 			for j in range(3):
 				if cut[j-1] and cut[j] and distance(cut[j-1], cut[j]) < prec:	cut[j] = None
 			
-			if goodside[0] and goodside[1] and goodside[2] and (goodx[0] or goodx[1] or goodx[2]):
+			if all(goodside) and any(goodx):
 				removal.add(fi)
 			
 			cutted = False
@@ -412,7 +206,8 @@ def cut_corner(mesh, point, offset, conn, prec, removal):
 	cutplane = (pts[point]+offset, -normalize(offset))
 	
 	# prepare propagation
-	toremove = {}
+	toremove = set()
+	cutted = {}
 	intersections = []
 	seen = set()
 	front = [e	for e in conn if point in e]
@@ -432,30 +227,35 @@ def cut_corner(mesh, point, offset, conn, prec, removal):
 			
 		# find intersection with the offset plane
 		pt = intersection_edge_plane(cutplane, (pts[a], pts[b]), prec)
-		if pt and distance(pt, pts[a]) > prec and distance(pt, pts[b]) > prec:
+		if pt:
 			pi = mesh.usepointat(pt)
-			c = None
-			for c in f:
-				if c != a and c != b:	break
-			
-			# cut face
-			mesh.faces[fi] = (a,pi,c)
-			mesh.faces.append((pi,b,c))
-			mesh.tracks.append(mesh.tracks[fi])
-			registerface(mesh, conn, fi)
-			registerface(mesh, conn, len(mesh.faces)-1)
-			
-			# register intersection and the face to remove
-			r,k = len(mesh.faces)-1, fi
-			if (	dot(pts[a]-cutplane[0], cutplane[1]) > prec 
-				or	dot(pts[b]-cutplane[0], cutplane[1]) < -prec):
-				r,k = k,r
-			if fi in toremove:	intersections.append((toremove[fi], pi))
-			if k in toremove:	del toremove[k]
-			toremove[r] = pi
+			if distance(pt, pts[a]) > prec and distance(pt, pts[b]) > prec:
+				c = None
+				for c in f:
+					if c != a and c != b:	break
+				
+				# cut face
+				mesh.faces[fi] = (a,pi,c)
+				mesh.faces.append((pi,b,c))
+				mesh.tracks.append(mesh.tracks[fi])
+				registerface(mesh, conn, fi)
+				registerface(mesh, conn, len(mesh.faces)-1)
+				
+				# register intersection and the face to remove
+				r,k = len(mesh.faces)-1, fi
+				if (	dot(pts[a]-cutplane[0], cutplane[1]) > prec 
+					or	dot(pts[b]-cutplane[0], cutplane[1]) < -prec):
+					r,k = k,r
+				if k in toremove:	toremove.discard(k)
+				toremove.add(r)
+				cutted[len(mesh.faces)-1] = pi
+			else:
+				toremove.add(fi)
+			if fi in cutted:	intersections.append((cutted[fi], pi))
+			cutted[fi] = pi
 		else:
 			# faces on the way but not intersected are inside
-			toremove[fi] = None
+			toremove.add(fi)
 		
 		# propagate
 		goodside = [dot(pts[f[i]]-cutplane[0], cutplane[1]) > prec		for i in range(3)]
@@ -463,11 +263,94 @@ def cut_corner(mesh, point, offset, conn, prec, removal):
 			if goodside[i-1] or goodside[i]:
 				front.append((f[i], f[i-1]))
 	
-	# delete inside faces and empty ones
-	#removefaces(mesh, removal.__contains__)
 	removal.update(toremove)
+	print('corner', intersections)
 	return intersections
 
+
+def cut_corner(mesh, point, offset, conn, prec, removal):
+	''' propagation cut for an edge '''
+	pts = mesh.points
+	cutplane = (pts[point]+offset, -normalize(offset))
+	
+	# prepare propagation
+	seen = set()
+	front = [e	for e in conn if point in e]
+	intersections = set()
+	while front:
+		# propagation affairs
+		frontedge = front.pop()
+		
+		if frontedge not in conn:	continue
+		fi = conn[frontedge]
+		if fi in seen or fi in removal:	continue
+		f = mesh.faces[fi]
+		
+		# do not process empty faces (its a topology singularity), but propagate
+		if faceheight(mesh, fi) <= prec:	
+			seen.add(fi)
+			for j in range(3):
+				front.append((f[j],f[j-1]))
+			continue
+			
+		# mark this face as processed
+		seen.add(fi)
+		
+		# point side for propagation
+		goodside = [False]*3
+		for j,pi in enumerate(f):
+			goodside[j] = 	dot(pts[pi]-cutplane[0], cutplane[1]) > -prec
+		
+		if not any(goodside):
+			continue
+		
+		# intersections of triangle's edges with the plane
+		cut = [None]*3
+		for j,e in enumerate(((f[0],f[1]), (f[1],f[2]), (f[2],f[0]))):
+			cut[j] = intersection_edge_plane(cutplane, (pts[e[0]], pts[e[1]]), prec)
+		for j in range(3):
+			if cut[j-1] and cut[j] and distance(cut[j-1], cut[j]) < prec:	cut[j] = None
+		
+		if all(goodside):
+			removal.add(fi)
+		
+		cutted = False
+		# cut the face
+		for j in range(3):
+			if cut[j] and cut[j-1]:
+				cutted = True
+				
+				# cut the face (create face even for non kept side, necessary for propagation)
+				removal.discard(fi)
+				p1 = mesh.usepointat(cut[j], prec)
+				p2 = mesh.usepointat(cut[j-1], prec)
+				unregisterface(mesh, conn, fi)
+				l = len(mesh.faces)
+				mesh.faces[fi] = (p1, f[j-2], f[j-1])
+				mesh.faces.append((p1, f[j-1], p2))
+				mesh.faces.append((p1, p2, f[j-0]))
+				mesh.tracks.append(mesh.tracks[fi])
+				mesh.tracks.append(mesh.tracks[fi])
+				registerface(mesh, conn, fi)
+				registerface(mesh, conn, l)
+				registerface(mesh, conn, l+1)
+				seen.update((fi, l, l+1))
+				# remove the faces outside
+				if dot(pts[f[j]]-cutplane[0], cutplane[1]) < 0:
+					removal.add(fi)
+					removal.add(l)
+					intersections.add((p2,p1))
+				else:
+					removal.add(l+1)
+					intersections.add((p1,p2))
+				break
+		# propagate if the face has been cutted or has a corner in the area
+		if cutted or any(goodside):
+			for j in range(3):
+				front.append((f[j],f[j-1]))
+	
+	return intersections
+	
 def cut(mesh, edges, cutter, conn=None, prec=None, removal=None):
 	''' general purpose edge cutting function.
 		cut the given edges and the crossing corners, resolving the interference issues.
@@ -519,7 +402,7 @@ def cut(mesh, edges, cutter, conn=None, prec=None, removal=None):
 		i,j = e
 		while not sep:
 			prox = juncconn[i]
-			if len(prox) != 2:	raise Exception('unagle to compute all separators')
+			if len(prox) != 2:	raise Exception('unable to compute all separators')
 			j,i = i, prox[0] if prox[0] != j else prox[1]
 			separators[e] = sep = separators[(i,j)]
 	
@@ -547,22 +430,22 @@ def cut(mesh, edges, cutter, conn=None, prec=None, removal=None):
 				s = dot(nb,ac)
 				if not s:	continue
 				abl = (ib*dot(ab,ac) + ic) / s
-				offset = min(offset, 2 * abl * dot(ab, normals[a]))
+				offset = min(offset, 3 * abl * dot(ab, normals[a]))
 		# assignation du plan de coupe
 		corners[junc] = offset*normals[junc]
 		plane = (pts[junc] + corners[junc], -normals[junc])
 		for p in prox:
 			separators[(junc,p)] = plane
 	
-	outlines = []
+	outlines = {}
 	# couper les aretes
 	for edge, offset in offsets.items():
-		outlines.append(cut_edge(mesh, edge, offset, separators.get(edge), separators.get((edge[1], edge[0])), 
-								conn, prec, removal))
+		outlines[edge] = cut_edge(mesh, edge, offset, separators.get(edge), separators.get((edge[1], edge[0])), 
+								conn, prec, removal)
 	# couper les sommets
 	for corner,offset in corners.items():
-		outlines.append(cut_corner(mesh, corner, offset, 
-								conn, prec, removal))
+		outlines[corner] = cut_corner(mesh, corner, offset, 
+								conn, prec, removal)
 	if final:
 		finalize(mesh, outlines, removal, prec)
 	return outlines
@@ -570,13 +453,13 @@ def cut(mesh, edges, cutter, conn=None, prec=None, removal=None):
 def finalize(mesh, outlines, removal, prec):
 	# simplify cuts
 	merges = {}
-	for i,cuts in enumerate(outlines):
+	for e,cuts in outlines.items():
 		reindex = line_simplification(Web(mesh.points, cuts), prec)
 		lines = []
 		for a,b in cuts:
 			c,d = reindex.get(a,a), reindex.get(b,b)
 			if c != d:	lines.append((c,d))
-		outlines[i] = lines
+		outlines[e] = lines
 		merges.update(reindex)
 	# apply merges, but keeping the empty faces, to keep the removal list valid
 	for i,f in enumerate(mesh.faces):
@@ -667,3 +550,264 @@ def faceheight(mesh, fi):
 	return min(heights)
 
 
+# ----- user functions ------
+
+def chamfer(mesh, edges, cutter):
+	''' create a chamfer on the given suite of points, create faces are planes.
+		cutter is described in function planeoffsets()
+	'''
+	# cut faces
+	segments = cut(mesh, edges, cutter)
+	
+	# create junctions
+	group = len(mesh.groups)
+	mesh.groups.append('junction')
+	for e,s in segments.items():
+		if s:
+			lp = []
+			for part in suites(s):
+				lp.extend(part)
+			faces = gt.flatsurface(Wire(mesh.points, lp)).faces
+			mesh.faces.extend(faces)
+			mesh.tracks.extend([group]*len(faces))
+
+from .triangulation import triangulation_outline
+from .generation import icosurface, junctioniter, curvematch
+
+def chamfer(mesh, edges, cutter):
+	''' create a chamfer on the given suite of points, create faces are planes.
+		cutter is described in function planeoffsets()
+	'''
+	# cut faces
+	segments = cut(mesh, edges, cutter)
+	
+	# create junctions
+	group = len(mesh.groups)
+	mesh.groups.append('junction')
+	juncs = {}
+	for e,s in segments.items():
+		if s:
+			# assemble the intersection segments in a single outline
+			lines = suites(s)
+			if len(lines) == 1:		
+				lp = lines[0]
+				juncs[lp[0]] = lp[-1]
+			elif len(lines) == 2:	
+				lp = lines[0] + lines[1]
+				juncs[lines[0][0]] = lines[1][-1]
+				juncs[lines[1][0]] = lines[0][-1]
+			else:
+				lp = lines.pop()
+				lines = {l[0]: l for l in lines}
+				while juncs[lp[-1]] != lp[0]:
+					lp.extend(lines[juncs[lp[-1]]])
+			# triangulate
+			faces = triangulation_outline(Wire(mesh.points, lp)).faces
+			mesh.faces.extend(faces)
+			mesh.tracks.extend([group]*len(faces))
+
+
+def bevel(mesh, edges, cutter, resolution=None):
+	''' create a chamfer on the given suite of points, create faces are planes.
+		cutter is described in function planeoffsets()
+	'''
+	conn = connef(mesh.faces)
+	normals = {}
+	for e in edges:
+		normals[e] = (
+			mesh.facenormal(conn[(e[1],e[0])]),
+			mesh.facenormal(conn[e]),
+			)
+	# cut faces
+	segments = cut(mesh, edges, cutter, conn)
+	
+	# create junctions
+	group = len(mesh.groups)
+	juncs = {}
+	new = Mesh()
+	pts = mesh.points
+	for e,s in segments.items():
+		if s:
+			# assemble the intersection segments in a single outline
+			lines = suites(s)
+			if len(lines) == 1:		
+				lp = lines[0]
+				juncs[lp[0]] = lp[-1]
+			elif len(lines) == 2:
+				juncs[lines[0][0]] = lines[1][-1]
+				juncs[lines[1][0]] = lines[0][-1]
+				# prepare tangents
+				match = list(curvematch(Wire(pts,lines[0]), Wire(pts,lines[1])))
+				tangents = {}
+				ll = Wire(pts,lines[0]).length()
+				x = 0.
+				for i in range(len(match)):
+					if i:	x += distance(pts[match[i-1][0]], pts[match[i][0]]) / ll
+					l,r = match[i]
+					o = interpol1(pts[e[0]], pts[e[1]], x)
+					plane = normalize(cross(pts[r]-o, pts[l]-o))
+					tangents[l] = normalize(cross(plane, normals[e][0])) + tangents.get(l, 0)
+					tangents[r] = normalize(cross(normals[e][1], plane)) + tangents.get(r, 0)
+				new += tangentjunction(pts, match, tangents, resolution, spline)
+			else:
+				lp = lines.pop()
+				nrm = {l[0]: l for l in lines}
+				normals = {}
+				while juncs[lp[-1]] != lp[0]:
+					lp.extend(lines[juncs[lp[-1]]])
+				# prepare normals
+				for i in range(1,len(lp)):
+					f = conn.get((lp[i], lp[i-1]))
+					if f:
+						n = mesh.facenormal(f)
+						nrm[lp[i]] = nrm.get(lp[i], 0) + n
+						nrm[lp[i-1]] = nrm.get(lp[i-1], 0) + n
+				# triangulate
+				for face in triangulation_outline(Wire(pts, lp)).faces:
+					new += icosurface(
+								(pts[a],pts[b],pts[c]), 
+								(nrm[a],nrm[b],nrm[c]),
+								resolution)
+	new.groups = ['junction']
+	new.tracks = [0] * len(new.faces)
+	new.mergeclose()
+	mesh += new
+	
+
+				
+def beveltgt(mesh, line, cutter, interpol=spline, resolution=None):
+	''' create a round profile on the given suite of points, create faces form cylindric surfaces.
+		tangents to cuted faces will be used for interpolation
+		cutter is described in function planeoffsets()
+		
+		WARNING: the tangency to cuted faces can lead to weired geometries in case of concave shape
+	'''
+	# cut faces
+	conn = connef(mesh.faces)
+	segments = cut(mesh, line, planeoffsets(mesh, line, cutter), conn)
+	conn = connef(mesh.faces)
+	group = Mesh(groups=['junction'])
+	tangents = {}
+	tmatch = []
+	
+	for (a,b),s in zip(lineedges(line), segments):
+		if not s:	continue
+		
+		dir = mesh.points[a] - mesh.points[b]
+		
+		lps = suites(s)
+		if len(lps) == 1:
+			mesh += gt.flatsurface(Wire(mesh.points, lps[0]))
+		else:
+			left,right = lps
+			if dot(dir, mesh.points[left[1]] - mesh.points[left[0]]) > 0:
+				left,right = right,left
+			right.reverse()
+			ll, lr = Wire(mesh.points, left).length(), Wire(mesh.points, right).length()
+			match = list(gt.curvematch(Wire(mesh.points, left), Wire(mesh.points, right)))
+			tmatch.extend(match)
+			
+			# create parameters for the round profiles
+			x = 0
+			for i in range(len(match)-1):
+				e = (match[i+1][0], match[i][0])
+				if e in conn:	tl = mesh.facenormal(conn[e])
+				else:			tl = None
+				e = (match[i][1], match[i+1][1])
+				if e in conn:	tr = mesh.facenormal(conn[e])
+				else:			tr = None
+				x += distance(mesh.points[match[i+1][0]], mesh.points[match[i][0]]) / ll
+				
+				for j in (0,1):
+					l,r = match[i+j]
+					o = interpol1(mesh.points[a], mesh.points[b], x)
+					plane = normalize(cross(mesh.points[r]-o, mesh.points[l]-o))
+					if tl:	tangents[l] = normalize(cross(plane, tl)) + tangents.get(l, 0)
+					if tr:	tangents[r] = normalize(cross(tr, plane)) + tangents.get(r, 0)
+	
+	mesh += tangentjunction(mesh.points, tmatch, tangents, resolution, interpol)
+
+def bevel2(mesh, edges, cutter, interpol=spline, resolution=None):
+	''' create a smooth interpolated profile at the given suite of points
+		tangents to edges' adjacents faces will be used for interpolation
+		cutter is described in function planeoffsets()
+		
+		WARNING: to use tangents from line adjacents faces can lead to matter add in case of concave shape
+	'''
+	# cut faces
+	conn = connef(mesh.faces)
+	normals = []
+	for e in edges:
+		normals.append((
+			mesh.facenormal(conn[(e[1],e[0])]),
+			mesh.facenormal(conn[e]),
+			))
+	
+	outlines = cut(mesh, edges, cutter, conn)
+	tangents = {}
+	mesh.groups.append('junction')
+	group = len(mesh.groups)
+	startfaces = len(mesh.faces)
+	
+	for (a,b), cuts, (nl,nr) in zip(edges, outlines, normals):		
+		lps = suites(cuts)
+		print(lps)
+		if len(lps) == 0:
+			continue
+		if len(lps) == 1:
+			lp = lps[0]
+			side = mesh.points[a], nr-nl
+			left,right = [],[]
+			for p in lp:
+				if dot(mesh.points[p]-side[0], side[1]) < 0:		left.append(p)
+				else:												right.append(p)
+		elif len(lps) == 2:
+			left,right = lps
+			# match left and right lines
+			if dot(mesh.points[a] - mesh.points[b], mesh.points[left[1]] - mesh.points[left[0]]) > 0:
+				left,right = right,left
+		else:
+			print('error in bevel: bevel sides are', lps)
+		
+		right.reverse()
+		match = list(gt.curvematch(	Wire(mesh.points, left), 
+									Wire(mesh.points, right) ))
+		
+		# create parameters for the round profiles
+		ll, lr = Wire(mesh.points, left).length(), Wire(mesh.points, right).length()
+		x = 0.
+		for i in range(len(match)):
+			if i:	x += distance(mesh.points[match[i-1][0]], mesh.points[match[i][0]]) / ll
+			l,r = match[i]
+			o = interpol1(mesh.points[a], mesh.points[b], x)
+			plane = normalize(cross(mesh.points[r]-o, mesh.points[l]-o))
+			tangents[l] = normalize(cross(plane, nl)) + tangents.get(l, 0)
+			tangents[r] = normalize(cross(nr, plane)) + tangents.get(r, 0)
+			
+		mesh += tangentjunction(mesh.points, match, tangents, resolution, interpol)
+	
+	for i in range(startfaces, len(mesh.faces)):
+		mesh.tracks[i] = group
+	mesh.mergeclose()
+	
+
+def tangentjunction(points, match, tangents, resolution=None, interpol=spline):
+	''' create a surface between interpolated curves for each match '''
+	group = Mesh(groups=['junction'])
+	# determine the number of segments
+	div = 0
+	for l,r in match:
+		v = points[l]-points[r]
+		a = anglebt(tangents[l], tangents[r])
+		dist = distance(points[l], points[r]) / sqrt(2-2*cos(a)) * a
+		tangents[l] = tl = normalize(tangents[l]) * dist
+		tangents[r] = tr = normalize(tangents[r]) * dist
+		angle = min(1, acos(dot(tl,tr)))
+		dist = length(points[l]-points[r])
+		ldiv = settings.curve_resolution(dist, angle, resolution)
+		if ldiv > div:
+			div = ldiv
+	
+	return gt.junctioniter(
+			( ((points[r], tangents[r]), (points[l], tangents[l])) for l,r in match),
+			div, interpol)
