@@ -412,11 +412,13 @@ class Scene(QOpenGLWidget):
 		# the events is submitted to the custom controls first
 		if hasattr(rdr, 'control'):
 			self.tool = rdr.control(self, rdri, subi, evt)
-		if not evt.isAccepted():
-			# left-click is the selection button
-			if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton and hasattr(rdr, 'select'):
-				rdr.select(subi, not rdr.select(subi))
-	
+			if evt.isAccepted():
+				return
+		# left-click is the selection button
+		if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton and hasattr(rdr, 'select'):
+			rdr.select(subi, not rdr.select(subi))
+			evt.accept()
+			self.update()
 	
 	
 	def refreshmaps(self):
