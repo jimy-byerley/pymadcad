@@ -389,7 +389,7 @@ def icosurface(pts, ptangents, etangents=None, resolution=None):
 				for i in range(3) ))
 	
 	# place points
-	mesh = Mesh(groups=['interptri', 'flat'])
+	mesh = Mesh(groups=['interptri'])
 	for i in range(div):
 		u = i/(div-1)				
 		for j in range(div-i):
