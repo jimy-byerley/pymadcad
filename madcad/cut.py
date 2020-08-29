@@ -544,10 +544,19 @@ def removefaces(mesh, crit):
 	#o,x,y = mesh.facepoints(fi)
 	#return length(cross(normalize(x-o), normalize(y-o)))
 	
+from math import inf
 def faceheight(mesh, fi):
 	f = mesh.facepoints(fi)
-	heights = [length(noproject(f[i-2]-f[i], normalize(f[i-1]-f[i])))	for i in range(3)]
-	return min(heights)
+	#heights = [length(noproject(f[i-2]-f[i], normalize(f[i-1]-f[i])))	for i in range(3)]
+	#print(mesh.faces[fi], min(heights))
+	#return min(heights)
+	m = inf
+	for i in range(3):
+		a,b = f[i]-f[i-1], f[i]-f[i-2]
+		if not dot(b,b):	return 0
+		v = sqrt(dot(a,a) - dot(a,b)/dot(b,b))
+		if v < m:	v = m
+	return m
 
 
 # ----- user functions ------
@@ -614,12 +623,16 @@ def bevel(mesh, edges, cutter, resolution=None):
 	conn = connef(mesh.faces)
 	normals = {}
 	for e in edges:
-		normals[e] = (
-			mesh.facenormal(conn[(e[1],e[0])]),
+		normals[edgekey(*e)] = (
 			mesh.facenormal(conn[e]),
+			mesh.facenormal(conn[(e[1],e[0])]),
 			)
+	from nprint import nprint, nformat
+	nprint('normals', normals)
 	# cut faces
 	segments = cut(mesh, edges, cutter, conn)
+	conn = connef(mesh.faces)
+	nprint('faces', mesh.faces)
 	
 	# create junctions
 	group = len(mesh.groups)
@@ -633,47 +646,74 @@ def bevel(mesh, edges, cutter, resolution=None):
 			if len(lines) == 1:		
 				lp = lines[0]
 				juncs[lp[0]] = lp[-1]
+				# find a separation to put a junction between 2 sides
+				side = pts[lp[0]]-pts[lp[-1]]
+				for i in range(1,len(lp)):
+					if dot(pts[lp[i-1]]-pts[e[0]], side) * dot(pts[lp[i]]-pts[e[0]], side) < 0:
+						left, right = lp[:i], lp[i:]
+						break
 			elif len(lines) == 2:
-				juncs[lines[0][0]] = lines[1][-1]
-				juncs[lines[1][0]] = lines[0][-1]
+				left,right = lines
+				juncs[left[0]] = right[-1]
+				juncs[right[0]] = left[-1]
+			
+			if len(lines) in (1,2):
 				# prepare tangents
-				match = list(curvematch(Wire(pts,lines[0]), Wire(pts,lines[1])))
+				if dot(pts[e[1]]-pts[e[0]], pts[right[1]]-pts[right[0]]) < 0:
+					left,right = right,left
+				right.reverse()
+				match = list(curvematch(Wire(pts,left), Wire(pts,right)))
 				tangents = {}
-				ll = Wire(pts,lines[0]).length()
+				ll = Wire(pts,left).length()
 				x = 0.
 				for i in range(len(match)):
 					if i:	x += distance(pts[match[i-1][0]], pts[match[i][0]]) / ll
 					l,r = match[i]
-					o = interpol1(pts[e[0]], pts[e[1]], x)
-					plane = normalize(cross(pts[r]-o, pts[l]-o))
+					o = interpol1(pts[e[1]], pts[e[0]], x)
+					plane = cross(pts[r]-o, pts[l]-o)
 					tangents[l] = normalize(cross(plane, normals[e][0])) + tangents.get(l, 0)
 					tangents[r] = normalize(cross(normals[e][1], plane)) + tangents.get(r, 0)
+				# put a junction
 				new += tangentjunction(pts, match, tangents, resolution, spline)
+			
 			else:
 				lp = lines.pop()
-				nrm = {l[0]: l for l in lines}
-				normals = {}
+				lines = {l[0]: l for l in lines}
 				while juncs[lp[-1]] != lp[0]:
 					lp.extend(lines[juncs[lp[-1]]])
 				# prepare normals
+				normals = {}
 				for i in range(1,len(lp)):
 					f = conn.get((lp[i], lp[i-1]))
 					if f:
 						n = mesh.facenormal(f)
-						nrm[lp[i]] = nrm.get(lp[i], 0) + n
-						nrm[lp[i-1]] = nrm.get(lp[i-1], 0) + n
+						normals[lp[i]] = normals.get(lp[i], 0) + n
+						normals[lp[i-1]] = normals.get(lp[i-1], 0) + n
+				for k,n in normals.items():
+					normals[k] = normalize(n)
+				# compute the common points to all triangular regions
+				p = len(pts)
+				center = reduce(vec3.__add__, (pts[i] for i in lp)) / len(lp)
+				normals[p] = n = normalize(reduce(vec3.__add__, normals.values()))
+				radius = sum(dot(pts[i]-center, normals[i]) for i in lp) / len(lp)/2
+				pts.append(center + n*radius)
+				i = lp[0]
 				# triangulate
-				for face in triangulation_outline(Wire(pts, lp)).faces:
+				#for a,b,c in triangulation_outline(Wire(pts, lp)).faces:
+				for i in range(len(lp)):
+					a,b,c = lp[i-1], lp[i], p
 					new += icosurface(
 								(pts[a],pts[b],pts[c]), 
-								(nrm[a],nrm[b],nrm[c]),
-								resolution)
+								(normals[a],normals[b],normals[c]),
+								resolution=('div',6))
+					
 	new.groups = ['junction']
 	new.tracks = [0] * len(new.faces)
 	new.mergeclose()
 	mesh += new
-	
 
+from functools import reduce
+from .mathutils import interpol2, reflect
 				
 def beveltgt(mesh, line, cutter, interpol=spline, resolution=None):
 	''' create a round profile on the given suite of points, create faces form cylindric surfaces.

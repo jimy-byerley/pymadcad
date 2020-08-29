@@ -343,8 +343,11 @@ def flatsurface(outline, normal=None) -> 'Mesh':
 def arclen(p1, p2, n1, n2):
 	''' approximated length of an arc between p1 and p2, with associated normals '''
 	c = dot(n1,n2)
+	if abs(c-1) < NUMPREC:	return 0
 	v = p1-p2
 	return sqrt(dot(v,v) / (2-2*c)) * acos(c)
+	
+from .mathutils import isnan
 			
 def icosurface(pts, ptangents, etangents=None, resolution=None):
 	''' generate a surface ICO (a subdivided triangle) with its points interpolated using interpol2tri.
@@ -360,28 +363,34 @@ def icosurface(pts, ptangents, etangents=None, resolution=None):
 			normals[i] = normalize(cross(ptangents[i][0], ptangents[i][1]))
 	else:
 		normals = ptangents
+		ptangents = None
 	
 	# compute tangents to side splines
 	if etangents is None:
 		etangents = [None]*3
 		for i in range(3):
-			etangents[i] = normalize(cross(normals[i-2], normals[i-1]))
+			#etangents[i] = normalize(cross(normals[i-2], normals[i-1]))
+			#if isnan(etangents[i]):
+			etangents[i] = normalize(cross(normals[i-2]+normals[i-1], pts[i-1]-pts[i-2]))
+			#etangents[i] = normalize(normals[i])
 	
 	# if normals are given instead of tangents, compute tangents to fit a sphere surface
-	if not isinstance(ptangents[0], tuple):
+	if not ptangents:
 		ptangents = [None]*3
 		for i in range(3):
-			n = (pts[i], normals[i])
-			dist = (  distance_pa(pts[i-1], n) 
-					+ distance_pa(pts[i-2], n) )/2
-			angle = anglebt(normals[i], normalize(normals[i-1]+normals[i-2]))
-			etangents[i] *= dist*angle
+			#n = (pts[i], normals[i])
+			#dist = abs(mix(distance_pa(pts[i-1], n), distance_pa(pts[i-2], n), 0.5))
+			#angle = anglebt(normalize(normals[i-1]+normals[i-2]), normals[i])
+			#etangents[i] *= dist*angle
+			etangents[i] *= arclen(pts[i], mix(pts[i-1],pts[i-2],0.5), normals[i], normalize(normals[i-1]+normals[i-2]))
+			#etangents[i] *= 0
+			#etangents[i] *= mix(dot(pts[i]-pts[i-1],normals[i]), dot(pts[i]-pts[i-1], normals[i]), 0.5)
 			ptangents[i] = (
 				normalize(noproject(pts[i-2]-pts[i], normals[i])) * arclen(pts[i], pts[i-2], normals[i], normals[i-2]),
 				normalize(noproject(pts[i-1]-pts[i], normals[i])) * arclen(pts[i], pts[i-1], normals[i], normals[i-1]),
 				)
 	
-	# evaluate resolution (using a bad approximation of the distance for now)
+	# evaluate resolution (using a bad approximation of the length for now)
 	div = max(( settings.curve_resolution(
 					distance(pts[i-1], pts[i-2]), 
 					anglebt(normals[i-1], normals[i-2]), 
@@ -420,9 +429,57 @@ def interpol2tri(pts, ptangents, etangents, a,b):
 			+	a**2 * (A + b*ta[0] + c*ta[1])
 			+	b**2 * (B + c*tb[0] + a*tb[1])
 			+	c**2 * (C + a*tc[0] + b*tc[1])
-			+	2*(b*a) * ((a*A + b*B)/(a+b+1e-5) + c*tab)
-			+	2*(c*b) * ((b*B + c*C)/(b+c+1e-5) + a*tbc)
-			+	2*(a*c) * ((c*C + a*A)/(c+a+1e-5) + b*tca)
+			+	2*(b*c) * ((b*B + c*C)/(b+c+1e-5) + a*tbc)
+			+	2*(c*a) * ((c*C + a*A)/(c+a+1e-5) + b*tca)
+			+	2*(a*b) * ((a*A + b*B)/(a+b+1e-5) + c*tab)
+			)
+			
+from .mathutils import interpol2
+def interpol2tri_(pts, ptangents, etangents, a,b):
+	''' cubic interpolation like interpol2, but interpolates over a triangle (2d parameter space) '''
+	A,B,C = pts
+	ta,tb,tc = ptangents
+	tbc,tca,tab = etangents
+	c = 1-a-b
+	P = A*a + B*b + C*c
+	a,b,c = 1-a,1-b,1-c
+	return (	0
+			+	a**2 * interpol2((B,tb[0]), (C,tc[1]), c/(b+c))
+			+	b**2 * interpol2((C,tc[0]), (A,ta[1]), a/(c+a))
+			+	c**2 * interpol2((A,ta[0]), (B,tb[1]), b/(a+b))
+			+	2*(b*c) * P
+			+	2*(c*a) * P
+			+	2*(a*b) * P
+			)
+			
+def interpol2tri(pts, ptangents, etangents, a,b):
+	''' cubic interpolation like interpol2, but interpolates over a triangle (2d parameter space) '''
+	A,B,C = pts
+	ta,tb,tc = ptangents
+	tbc,tca,tab = etangents
+	c = 1-a-b
+	#P = a*A + b*B + c*C +  3*a*b*c * (tbc + tab + tca)
+	P = a*A + b*B + c*C +  a*b*c * (ta[0] + ta[1] + tb[0] + tb[1] + tc[0] + tc[1])
+	return (	0
+			+	a**2 * (A + b*ta[0] + c*ta[1])
+			+	b**2 * (B + c*tb[0] + a*tb[1])
+			+	c**2 * (C + a*tc[0] + b*tc[1])
+			+	2*(b*c + c*a + a*b) * P
+			)
+
+def interpol2tri_(pts, ptangents, etangents, a,b):
+	A,B,C = pts
+	ta,tb,tc = ptangents
+	tbc,tca,tab = etangents
+	c = 1-a-b
+	return (	0
+			+	a**3 * (A + b*ta[0] + c*ta[1])
+			+	b**3 * (B + c*tb[0] + a*tb[1])
+			+	c**3 * (C + a*tc[0] + b*tc[1])
+			+	3*b**2*c * (B + tb[0]*b) + 3*c**2*b * (C + tc[1]*c)
+			+	3*c**2*a * (C + tc[0]*c) + 3*a**2*c * (A + ta[1]*a)
+			+	3*a**2*b * (A + ta[0]*a) + 3*b**2*a * (B + tb[1]*b)
+			+	6*a*b*c * (a*A + b*B + c*C)
 			)
 
 def icosahedron(center, radius):
