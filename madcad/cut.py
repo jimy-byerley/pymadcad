@@ -6,8 +6,8 @@ from . import generation as gt
 from . import text
 from . import settings
 
-__all__ = [	'chamfer', 'bevel', 'beveltgt', 'tangentjunction', 
-			'cut', 'planeoffsets',
+__all__ = [	'chamfer', 'bevel', 'beveltgt',
+			'cut', 'multicut', 'planeoffsets',
 			'cutter_width', 'cutter_distance', 'cutter_depth', 'cutter_angle',
 			]
 
@@ -78,7 +78,7 @@ def interpretcutter(cutter):
 		raise TypeError("cutter must be a callable or a tuple (name, param)")
 
 		
-def cut(mesh, start, cutplane, stops, conn, prec, removal):
+def cut(mesh, start, cutplane, stops, conn, prec, removal, cutghost):
 	''' propagation cut for an edge '''
 	pts = mesh.points
 	stops = list(filter(lambda e:e, stops))
@@ -86,7 +86,6 @@ def cut(mesh, start, cutplane, stops, conn, prec, removal):
 	axis = [intersection_plane_plane(cutplane, stop)	for stop in stops]
 	
 	# prepare propagation
-	seen = set()
 	if isinstance(start, tuple):
 		front = [start, (start[1],start[0])]
 	elif isinstance(start, int):
@@ -94,6 +93,7 @@ def cut(mesh, start, cutplane, stops, conn, prec, removal):
 	else:
 		raise TypeError('wrong start: {}, cut can only start from a point or an edge'.format(start))
 	intersections = set()
+	seen = set()
 	while front:
 		# propagation affairs
 		frontedge = front.pop()
@@ -101,10 +101,6 @@ def cut(mesh, start, cutplane, stops, conn, prec, removal):
 		if frontedge not in conn:	continue
 		fi = conn[frontedge]
 		if fi in seen:	continue
-		#if fi in removal:
-			#for j in range(3):
-				#front.append((f[j],f[j-1]))
-			#continue
 		f = mesh.faces[fi]
 		
 		# do not process empty faces (its a topology singularity), but propagate
@@ -159,21 +155,22 @@ def cut(mesh, start, cutplane, stops, conn, prec, removal):
 				continue
 			
 			# intersections of triangle's edges with the plane
+			cutted = False
+			ghostface = fi in removal and cutghost
 			cut = [None]*3
-			if fi not in removal:
-				for j,e in enumerate(((f[0],f[1]), (f[1],f[2]), (f[2],f[0]))):
-					cut[j] = intersection_edge_plane(cutplane, (pts[e[0]], pts[e[1]]), prec)
-				for j in range(3):
-					if cut[j-1] and cut[j] and distance(cut[j-1], cut[j]) < prec:	cut[j] = None
-			
+			for j,e in enumerate(((f[0],f[1]), (f[1],f[2]), (f[2],f[0]))):
+				cut[j] = intersection_edge_plane(cutplane, (pts[e[0]], pts[e[1]]), prec)
+			for j in range(3):
+				if cut[j-1] and cut[j] and distance(cut[j-1], cut[j]) < prec:	cut[j] = None
+		
 			if all(goodside) and any(goodx):
 				removal.add(fi)
 			
-			cutted = False
 			# cut the face
 			for j in range(3):
 				if cut[j] and cut[j-1]:
 					cutted = True
+					if ghostface:	break	# NOTE: this is a ugly trick to make the current multicut implementation work with the same function for corners and edges
 					# cut only if the intersection segment is in the delimited area
 					if any(	dot(cut[j-1]-stop[0], stop[1]) < prec 
 						and	dot(cut[j]  -stop[0], stop[1]) < prec
@@ -181,7 +178,6 @@ def cut(mesh, start, cutplane, stops, conn, prec, removal):
 						continue
 					
 					# cut the face (create face even for non kept side, necessary for propagation)
-					removal.discard(fi)
 					p1 = mesh.usepointat(cut[j], prec)
 					p2 = mesh.usepointat(cut[j-1], prec)
 					unregisterface(mesh, conn, fi)
@@ -195,6 +191,7 @@ def cut(mesh, start, cutplane, stops, conn, prec, removal):
 					registerface(mesh, conn, l)
 					registerface(mesh, conn, l+1)
 					seen.update((fi, l, l+1))
+					removal.discard(fi)
 					# remove the faces outside
 					if dot(pts[f[j]]-cutplane[0], cutplane[1]) < 0:
 						removal.add(fi)
@@ -306,13 +303,13 @@ def multicut(mesh, edges, cutter, conn=None, prec=None, removal=None):
 		outlines[edge] = cut(mesh, edge, 
 								(pts[edge[0]]+offset, -normalize(offset)), 
 								(separators.get(edge), separators.get((edge[1], edge[0]))), 
-								conn, prec, removal)
+								conn, prec, removal, False)
 	# couper les sommets
 	for corner,offset in corners.items():
 		outlines[corner] = cut(mesh, corner, 
 								(pts[corner]+offset, -normalize(offset)), 
 								(),
-								conn, prec, removal)
+								conn, prec, removal, True)
 	if final:
 		finalize(mesh, outlines, removal, prec)
 	return outlines
@@ -414,16 +411,12 @@ def removefaces(mesh, crit):
 from math import inf
 def faceheight(mesh, fi):
 	f = mesh.facepoints(fi)
-	#heights = [length(noproject(f[i-2]-f[i], normalize(f[i-1]-f[i])))	for i in range(3)]
-	#print(mesh.faces[fi], min(heights))
-	#return min(heights)
 	m = inf
 	for i in range(3):
 		a,b = f[i]-f[i-1], f[i]-f[i-2]
 		if not dot(b,b):	return 0
-		v = sqrt(dot(a,a) - dot(a,b)/dot(b,b))
-		if v < m:	v = m
-	return m
+		m = min(m, dot(a,a) - dot(a,b)**2/dot(b,b))
+	return sqrt(max(0,m))
 
 
 # ----- user functions ------
@@ -443,25 +436,25 @@ def chamfer(mesh, edges, cutter):
 	mesh.groups.append('junction')
 	juncs = {}
 	for e,s in segments.items():
-		if s:
-			# assemble the intersection segments in a single outline
-			lines = suites(s)
-			if len(lines) == 1:		
-				lp = lines[0]
-				juncs[lp[0]] = lp[-1]
-			elif len(lines) == 2:	
-				lp = lines[0] + lines[1]
-				juncs[lines[0][0]] = lines[1][-1]
-				juncs[lines[1][0]] = lines[0][-1]
-			else:
-				lp = lines.pop()
-				lines = {l[0]: l for l in lines}
-				while juncs[lp[-1]] != lp[0]:
-					lp.extend(lines[juncs[lp[-1]]])
-			# triangulate
-			faces = triangulation_outline(Wire(mesh.points, lp)).faces
-			mesh.faces.extend(faces)
-			mesh.tracks.extend([group]*len(faces))
+		if not s:	continue
+		# assemble the intersection segments in a single outline
+		lines = suites(s)
+		if len(lines) == 1:		
+			lp = lines[0]
+			juncs[lp[0]] = lp[-1]
+		elif len(lines) == 2:	
+			lp = lines[0] + lines[1]
+			juncs[lines[0][0]] = lines[1][-1]
+			juncs[lines[1][0]] = lines[0][-1]
+		else:
+			lp = lines.pop()
+			lines = {l[0]: l for l in lines}
+			while juncs[lp[-1]] != lp[0]:
+				lp.extend(lines[juncs[lp[-1]]])
+		# triangulate
+		faces = triangulation_outline(Wire(mesh.points, lp)).faces
+		mesh.faces.extend(faces)
+		mesh.tracks.extend([group]*len(faces))
 
 from nprint import nprint, nformat
 
@@ -491,11 +484,9 @@ def bevel(mesh, edges, cutter, resolution=None):
 	junctions = []
 	corners = []
 	for e,s in segments.items():
-		if not s:	continue
-		
+		if not s or isinstance(e, int):	continue
 		# assemble the intersection segments in a single outline
 		frags = suites(s)
-		print('e', e, frags)
 		
 		# one loop:  bevel extremity
 		if len(frags) == 1:
@@ -515,8 +506,7 @@ def bevel(mesh, edges, cutter, resolution=None):
 			# identify the two sides
 			if dot(pts[e[1]]-pts[e[0]], pts[right[1]]-pts[right[0]]) < 0:
 				left,right = right,left
-			#if dot(sum(enormals[e]), cross(pts[e[1]]-pts[e[0]], pts[left[0]]-pts[right[0]])) < 0:
-				#left,right = right,left
+			
 			juncs[left[0]] = right[-1], (e[1],e[0])
 			juncs[right[0]] = left[-1], e
 			# match the curves
@@ -534,33 +524,40 @@ def bevel(mesh, edges, cutter, resolution=None):
 				tangents[l] = normalize(cross(plane, enormals[e][0])) + tangents.get(l, 0)
 				tangents[r] = normalize(cross(enormals[e][1], plane)) + tangents.get(r, 0)
 			junctions.append(match)
-		# corner
 		else:
-			# assemble a loop by merging cuts with juncs
-			lp = frags.pop()
-			frags = {l[0]: l for l in frags}	# line for each start
-			holes = []	# holes in loop, there is junctions there
-			while True:
-				step = juncs[lp[-1]]
-				holes.append((lp[-1], *step))
-				if step[0] == lp[0]:	break
-				last = frags[step[0]][-1]
-				lp.extend(frags[step[0]])
-			# prepare normals
-			normals = {}
-			for i in range(1,len(lp)):
-				f = conn.get((lp[i], lp[i-1]))
-				if not f:	continue
-				n = mesh.facenormal(f)
-				normals[lp[i]] = normals.get(lp[i], 0) + n
-				normals[lp[i-1]] = normals.get(lp[i-1], 0) + n
-			for k,n in normals.items():
-				normals[k] = normalize(n)
-			# set neighboring tangents
-			for a,b, edge in holes:
-				tangents[a] = normalize(cross(normals[a], pts[edge[1]]-pts[edge[0]]))
-				tangents[b] = normalize(cross(normals[b], pts[edge[0]]-pts[edge[1]]))
-			corners.append(lp)
+			print('edge bevel issue', e, frags)
+	
+	# corner
+	for e,s in segments.items():
+		if not s or not isinstance(e,int):	continue
+		# assemble the intersection segments in a single outline
+		frags = suites(s)
+		
+		# assemble a loop by merging cuts with juncs
+		lp = frags.pop()
+		frags = {l[0]: l for l in frags}	# line for each start
+		holes = []	# holes in loop, there is junctions there
+		while True:
+			step = juncs[lp[-1]]
+			holes.append((lp[-1], *step))
+			if step[0] == lp[0]:	break
+			last = frags[step[0]][-1]
+			lp.extend(frags[step[0]])
+		# prepare normals
+		normals = {}
+		for i in range(1,len(lp)):
+			f = conn.get((lp[i], lp[i-1]))
+			if not f:	continue
+			n = mesh.facenormal(f)
+			normals[lp[i]] = normals.get(lp[i], 0) + n
+			normals[lp[i-1]] = normals.get(lp[i-1], 0) + n
+		for k,n in normals.items():
+			normals[k] = normalize(n)
+		# set neighboring tangents
+		for a,b, edge in holes:
+			tangents[a] = normalize(cross(normals[a], pts[edge[1]]-pts[edge[0]]))
+			tangents[b] = normalize(cross(normals[b], pts[edge[0]]-pts[edge[1]]))
+		corners.append(lp)
 			
 	nprint('juncs', juncs)
 	nprint('normals', normals)
@@ -645,6 +642,9 @@ def beveltgt(mesh, line, cutter, interpol=spline, resolution=None):
 	
 	mesh += tangentjunction(mesh.points, tmatch, tangents, resolution, interpol)
 	
+
+def isedge(o):
+	return isinstance(o,tuple) and len(o) == 2
 
 def tangentjunction(points, match, tangents, div, interpol=spline):
 	''' create a surface between interpolated curves for each match '''
