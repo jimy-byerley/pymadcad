@@ -26,11 +26,10 @@ m.check()
 
 #cut.cut_corner(m, 87, 0.6*vec3(0,0.2,0.05))
 w = m.group(1).outlines_unoriented() & m.group(2).outlines_unoriented()
-#cut.cut(m, w, ('depth', 0.6))
+cut.cut(m, w, ('depth', 0.6))
 #chamfer(m, w, ('depth', 0.6))
-bevel(m, w, ('width', 0.6))
-#beveltgt(m, line, ('depth', 0.6))
-m.mergeclose()
+#bevel(m, w, ('depth', 0.6))
+#beveltgt(m, w, ('depth', 0.6))
 m.check()
 
 #m.check()	# TODO fix the face using the same point multiple times
