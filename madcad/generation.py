@@ -277,18 +277,16 @@ def junction(match: '[(vec3,vec3)]', resolution=None) -> 'Mesh':
 	'''	
 	match = list(match)
 	# get the discretisation
-	segts = 0
+	div = 0
 	for i in range(1, len(match)):
 		a,d = match[i-1]
 		b,c = match[i]
 		v = normalize((a+b) - (d+c))
 		angle = anglebt(a-b - project(a-b,v), d-c - project(d-c,v))
 		dist = min(distance(a,b), distance(d,c))
-		lsegts = settings.curve_resolution(dist, angle, resolution) + 2
-		if lsegts > segts:
-			segts = lsegts
+		div = max(div, settings.curve_resolution(dist, angle, resolution))
 	
-	return junctioniter(match, segts-2, interpol1)
+	return junctioniter(match, div, interpol1)
 
 def junctioniter(parameters, div, interpol) -> Mesh:
 	''' create a junction surface using the matching parameters and the given interpolation 
@@ -296,7 +294,7 @@ def junctioniter(parameters, div, interpol) -> Mesh:
 		interpol receive the elements iterated and the interpolation position at the end
 	'''
 	segts = div+2
-	mesh = Mesh([], [], [], ['junction'])
+	mesh = Mesh(groups=['junction'])
 	group = 0
 	# create interpolation points
 	steps = 0
@@ -370,9 +368,7 @@ def icosurface(pts, ptangents, etangents=None, resolution=None):
 		etangents = [None]*3
 		for i in range(3):
 			#etangents[i] = normalize(cross(normals[i-2], normals[i-1]))
-			#if isnan(etangents[i]):
 			etangents[i] = normalize(cross(normals[i-2]+normals[i-1], pts[i-1]-pts[i-2]))
-			#etangents[i] = normalize(normals[i])
 	
 	# if normals are given instead of tangents, compute tangents to fit a sphere surface
 	if not ptangents:
@@ -391,23 +387,23 @@ def icosurface(pts, ptangents, etangents=None, resolution=None):
 				)
 	
 	# evaluate resolution (using a bad approximation of the length for now)
-	div = max(( settings.curve_resolution(
+	segts = max(( settings.curve_resolution(
 					distance(pts[i-1], pts[i-2]), 
 					anglebt(normals[i-1], normals[i-2]), 
 					resolution)
-				for i in range(3) ))
+				for i in range(3) )) +2
 	
 	# place points
 	mesh = Mesh(groups=['interptri'])
-	for i in range(div):
-		u = i/(div-1)				
-		for j in range(div-i):
-			v = j/(div-1)
+	for i in range(segts):
+		u = i/(segts-1)				
+		for j in range(segts-i):
+			v = j/(segts-1)
 			p = interpol2tri(pts, ptangents, etangents, u,v)
 			mesh.points.append(p)
 	# create faces
 	c = 0
-	for i in reversed(range(1,div+1)):
+	for i in reversed(range(1,segts+1)):
 		for j in range(i-1):
 			s = c+j
 			mesh.faces.append((s, s+i, s+1))
@@ -419,7 +415,7 @@ def icosurface(pts, ptangents, etangents=None, resolution=None):
 
 	return mesh
 
-def interpol2tri(pts, ptangents, etangents, a,b):
+def interpol2tri_(pts, ptangents, etangents, a,b):
 	''' cubic interpolation like interpol2, but interpolates over a triangle (2d parameter space) '''
 	A,B,C = pts
 	ta,tb,tc = ptangents
