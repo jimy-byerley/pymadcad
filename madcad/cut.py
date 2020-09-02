@@ -160,8 +160,10 @@ def cut(mesh, start, cutplane, stops, conn, prec, removal, cutghost):
 			cut = [None]*3
 			for j,e in enumerate(((f[0],f[1]), (f[1],f[2]), (f[2],f[0]))):
 				cut[j] = intersection_edge_plane(cutplane, (pts[e[0]], pts[e[1]]), prec)
+				
 			for j in range(3):
-				if cut[j-1] and cut[j] and distance(cut[j-1], cut[j]) < prec:	cut[j] = None
+				if cut[j-1] and cut[j] and distance(cut[j-1], cut[j]) < prec:	
+					cut[j] = None
 		
 			if all(goodside) and any(goodx):
 				removal.add(fi)
@@ -281,8 +283,8 @@ def multicut(mesh, edges, cutter, conn=None, prec=None, removal=None):
 				ab = normalize(pts[b]-pts[a])
 				ac = normalize(pts[c]-pts[a])
 				n = cross(ab, ac)
-				nb = normalize(cross(n, pts[b]-pts[a]))
-				nc = normalize(cross(pts[c]-pts[a], n))
+				nb = cross(n, ab)
+				nc = cross(ac, n)
 				ob = offsets[edgekey(a,b)]
 				oc = offsets[edgekey(a,c)]
 				ib = dot(ob,ob) / dot(ob, nb)
@@ -290,7 +292,7 @@ def multicut(mesh, edges, cutter, conn=None, prec=None, removal=None):
 				s = dot(nb,ac)
 				if not s:	continue
 				abl = (ib*dot(ab,ac) + ic) / s
-				offset = min(offset, 3 * abl * dot(ab, normals[a]))
+				offset = dot(abl*ab + ib*nb, normals[a])
 		# assignation du plan de coupe
 		corners[junc] = offset*normals[junc]
 		plane = (pts[junc] + corners[junc], -normals[junc])
@@ -544,7 +546,6 @@ def bevel(mesh, edges, cutter, resolution=None):
 			last = frags[step[0]][-1]
 			lp.extend(frags[step[0]])
 		# prepare normals
-		normals = {}
 		for i in range(1,len(lp)):
 			f = conn.get((lp[i], lp[i-1]))
 			if not f:	continue
@@ -558,20 +559,16 @@ def bevel(mesh, edges, cutter, resolution=None):
 			tangents[a] = normalize(cross(normals[a], pts[edge[1]]-pts[edge[0]]))
 			tangents[b] = normalize(cross(normals[b], pts[edge[0]]-pts[edge[1]]))
 		corners.append(lp)
-			
-	nprint('juncs', juncs)
-	nprint('normals', normals)
-	nprint('tangents', tangents)
 	
 	new = Mesh()					
 	for match in junctions:
 		# put a junction
 		new += tangentjunction(pts, match, tangents, resolution[1], interpol2)
-	for loop in corners:
+	for lp in corners:
 		# compute the common points to all triangular regions
 		p = len(pts)
-		center = reduce(vec3.__add__, (pts[i] for i in lp)) / len(lp)
-		normals[p] = n = normalize(reduce(vec3.__add__, normals.values()))
+		center = sum(pts[i] for i in lp) / len(lp)
+		normals[p] = n = normalize(sum(normals[i] for i in lp))
 		radius = sum(dot(pts[i]-center, normals[i]) for i in lp) / len(lp)/2
 		pts.append(center + n*radius)
 		# triangulate
@@ -581,7 +578,7 @@ def bevel(mesh, edges, cutter, resolution=None):
 						(pts[a],pts[b],pts[c]), 
 						(normals[a],normals[b],normals[c]),
 						resolution=resolution)
-					
+	
 	new.groups = ['junction']
 	new.tracks = [0] * len(new.faces)
 	mesh += new
