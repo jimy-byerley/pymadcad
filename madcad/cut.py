@@ -436,25 +436,39 @@ def chamfer(mesh, edges, cutter):
 	# create junctions
 	group = len(mesh.groups)
 	mesh.groups.append('junction')
-	juncs = {}
+	# edges for corners surfaces
+	corners = {}
+	def cornerreg(c, edge):
+		if c not in corners:	corners[c] = []
+		corners[c].append(edge)
+	
 	for e,s in segments.items():
 		if not s:	continue
-		# assemble the intersection segments in a single outline
-		lines = suites(s)
-		if len(lines) == 1:		
-			lp = lines[0]
-			juncs[lp[0]] = lp[-1]
-		elif len(lines) == 2:	
-			lp = lines[0] + lines[1]
-			juncs[lines[0][0]] = lines[1][-1]
-			juncs[lines[1][0]] = lines[0][-1]
+		# corner cuts
+		if isinstance(e,int):
+			if c not in corners:	corners[c] = []
+			corners[c].extend(s)
+		# edge cuts
 		else:
-			lp = lines.pop()
-			lines = {l[0]: l for l in lines}
-			while juncs[lp[-1]] != lp[0]:
-				lp.extend(lines[juncs[lp[-1]]])
-		# triangulate
-		faces = triangulation_outline(Wire(mesh.points, lp)).faces
+			# assemble the intersection segments in a single outline
+			lines = suites(s)
+			if len(lines) == 1:		
+				lp = lines[0]
+				cornerreg(e[0], (lp[0],lp[-1]))
+			elif len(lines) == 2:	
+				lp = lines[0] + lines[1]
+				cornerreg(e[0], (lines[0][0], lines[1][-1]))
+				cornerreg(e[1], (lines[1][0], lines[0][-1]))
+			else:
+				raise Exception('a cutted edge has more than 2 cutted sides')
+			# triangulate cutted edge
+			faces = triangulation_outline(Wire(mesh.points, lp)).faces
+			mesh.faces.extend(faces)
+			mesh.tracks.extend([group]*len(faces))
+	
+	for c,s in corners.items():
+		# triangulate cutted corner
+		faces = triangulation_outline(Wire(mesh.points, suites(s)[0])).faces
 		mesh.faces.extend(faces)
 		mesh.tracks.extend([group]*len(faces))
 
