@@ -338,16 +338,7 @@ def flatsurface(outline, normal=None) -> 'Mesh':
 		m = m.flip()
 	return m
 
-def arclength(p1, p2, n1, n2):
-	''' approximated length of an arc between p1 and p2, with associated normals '''
-	c = dot(n1,n2)
-	if abs(c-1) < NUMPREC:	return 0
-	v = p1-p2
-	return sqrt(dot(v,v) / (2-2*c)) * acos(c)
-
-	
-	
-from .mathutils import isnan, arclengthgth
+from .mathutils import isnan, arclength
 			
 def icosurface(pts, ptangents, etangents=None, resolution=None):
 	''' generate a surface ICO (a subdivided triangle) with its points interpolated using interpol2tri.

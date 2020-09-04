@@ -597,7 +597,7 @@ def bevel(mesh, edges, cutter, resolution=None):
 	#mesh.mergeclose()
 
 from functools import reduce
-from .mathutils import interpol2, reflect, unproject, arglength
+from .mathutils import interpol2, reflect, unproject, arclength
 
 beveltgt = None
 
