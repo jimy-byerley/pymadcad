@@ -446,19 +446,19 @@ def chamfer(mesh, edges, cutter):
 		if not s:	continue
 		# corner cuts
 		if isinstance(e,int):
-			if c not in corners:	corners[c] = []
-			corners[c].extend(s)
+			if e not in corners:	corners[e] = []
+			corners[e].extend(s)
 		# edge cuts
 		else:
 			# assemble the intersection segments in a single outline
-			lines = suites(s)
-			if len(lines) == 1:		
-				lp = lines[0]
+			frags = suites(s)
+			if len(frags) == 1:		
+				lp = frags[0]
 				cornerreg(e[0], (lp[0],lp[-1]))
-			elif len(lines) == 2:	
-				lp = lines[0] + lines[1]
-				cornerreg(e[0], (lines[0][0], lines[1][-1]))
-				cornerreg(e[1], (lines[1][0], lines[0][-1]))
+			elif len(frags) == 2:	
+				lp = frags[0] + frags[1]
+				cornerreg(e[0], (frags[0][0], frags[1][-1]))
+				cornerreg(e[1], (frags[1][0], frags[0][-1]))
 			else:
 				raise Exception('a cutted edge has more than 2 cutted sides')
 			# triangulate cutted edge
@@ -492,39 +492,53 @@ def bevel(mesh, edges, cutter, resolution=None):
 	pts = mesh.points
 	resolution = ('div', 4)
 	
+	# edges for corners surfaces
+	corners = {}
+	holes = {}
+	def cornerreg(c, n, edge):
+		if c not in corners:	corners[c] = []
+		corners[c].append(edge)
+		holes[edge] = (c,n)
+	
 	# create junctions
 	group = len(mesh.groups)
-	juncs = {}
 	tangents = {}	# tangent at each point
 	normals = {}	# face normal at each point
 	junctions = []
-	corners = []
 	for e,s in segments.items():
-		if not s or isinstance(e, int):	continue
-		# assemble the intersection segments in a single outline
-		frags = suites(s)
-		
-		# one loop:  bevel extremity
-		if len(frags) == 1:
-			lp = frags[0]
-			# find a separation to put a junction between 2 sides
-			side = pts[lp[0]]-pts[lp[-1]]
-			for i in range(1,len(lp)):
-				if dot(pts[lp[i-1]]-pts[e[0]], side) * dot(pts[lp[i]]-pts[e[0]], side) < 0:
-					left, right = lp[:i], lp[i:]
-					break
-		# two parts: cutted edge
-		elif len(frags) == 2:
-			left,right = frags
-		
-		# cutted edges (extremity or not)
-		if len(frags) <= 2:
+		if not s:	continue
+		# corner cuts
+		if isinstance(e, int):	
+			if e not in corners:	corners[e] = []
+			corners[e].extend(s)
+		# edge cuts
+		else:
+			# assemble the intersection segments in a single outline
+			frags = suites(s)
+			
+			# one loop:  bevel extremity
+			if len(frags) == 1:
+				lp = frags[0]
+				# find a separation to put a junction between 2 sides
+				side = pts[lp[0]]-pts[lp[-1]]
+				for i in range(1,len(lp)-1):
+					if dot(pts[lp[i-1]]-pts[e[0]], side) * dot(pts[lp[i]]-pts[e[0]], side) < 0:
+						left, right = lp[:i], lp[i:]
+						break
+				cornerreg(e[0], e[1], (lp[0],lp[-1]))
+			# two parts: cutted edge
+			elif len(frags) == 2:
+				left,right = frags
+				cornerreg(e[0], e[1], (frags[0][0], frags[1][-1]))
+				cornerreg(e[1], e[0], (frags[1][0], frags[0][-1]))
+			else:
+				raise Exception('a cutted edge has more than 2 cutted sides')
+			
+			# cutted edges (extremity or not)
 			# identify the two sides
 			if dot(pts[e[1]]-pts[e[0]], pts[right[1]]-pts[right[0]]) < 0:
 				left,right = right,left
 			
-			juncs[left[0]] = right[-1], (e[1],e[0])
-			juncs[right[0]] = left[-1], e
 			# match the curves
 			right.reverse()
 			match = list(curvematch(Wire(pts,left), Wire(pts,right)))
@@ -539,46 +553,39 @@ def bevel(mesh, edges, cutter, resolution=None):
 				plane = cross(pts[r]-o, pts[l]-o)
 				tangents[l] = normalize(cross(plane, enormals[e][0])) + tangents.get(l, 0)
 				tangents[r] = normalize(cross(enormals[e][1], plane)) + tangents.get(r, 0)
+				print('tangents', l, tangents[l], r, tangents[r])
 			junctions.append(match)
-		else:
-			print('edge bevel issue', e, frags)
 	
-	# corner
-	for e,s in segments.items():
-		if not s or not isinstance(e,int):	continue
+	new = Mesh()
+	
+	# round cutted corner
+	for e,s in corners.items():
+		if len(s) < 3:	continue
 		# assemble the intersection segments in a single outline
-		frags = suites(s)
+		lp = suites(s)[0]
+		lp.pop()	# remove the redundant point
 		
-		# assemble a loop by merging cuts with juncs
-		lp = frags.pop()
-		frags = {l[0]: l for l in frags}	# line for each start
-		holes = []	# holes in loop, there is junctions there
-		while True:
-			step = juncs[lp[-1]]
-			holes.append((lp[-1], *step))
-			if step[0] == lp[0]:	break
-			last = frags[step[0]][-1]
-			lp.extend(frags[step[0]])
 		# prepare normals
-		for i in range(1,len(lp)):
-			f = conn.get((lp[i], lp[i-1]))
-			if not f:	continue
-			n = mesh.facenormal(f)
-			normals[lp[i]] = normals.get(lp[i], 0) + n
-			normals[lp[i-1]] = normals.get(lp[i-1], 0) + n
+		for i in range(len(lp)):
+			a,b = lp[i-1], lp[i]
+			if (a,b) in holes:
+				edge = holes[(a,b)]
+				d = normalize(pts[edge[1]] - pts[edge[0]])
+				if edge in enormals:	nb, na = enormals[edge]
+				else:					na, nb = enormals[(edge[1], edge[0])]
+				normals[a] = na
+				normals[b] = nb
+				# set neighboring tangents
+				tangents[a] = cross(na,  d)		# ISSUE:  there is several tangents for one point at a corner
+				tangents[b] = cross(nb, -d)
+			elif (b,a) in conn:
+				n = mesh.facenormal(conn[(b,a)])
+				normals[b] = normals.get(b, 0) + n
+				normals[a] = normals.get(a, 0) + n
+			
 		for k,n in normals.items():
 			normals[k] = normalize(n)
-		# set neighboring tangents
-		for a,b, edge in holes:
-			tangents[a] = normalize(cross(normals[a], pts[edge[1]]-pts[edge[0]]))
-			tangents[b] = normalize(cross(normals[b], pts[edge[0]]-pts[edge[1]]))
-		corners.append(lp)
-	
-	new = Mesh()					
-	for match in junctions:
-		# put a junction
-		new += tangentjunction(pts, match, tangents, resolution[1], interpol2)
-	for lp in corners:
+		
 		# compute the common points to all triangular regions
 		p = len(pts)
 		center = sum(pts[i] for i in lp) / len(lp)
@@ -593,10 +600,16 @@ def bevel(mesh, edges, cutter, resolution=None):
 						(normals[a],normals[b],normals[c]),
 						resolution=resolution)
 	
+	nprint('tangents', tangents)
+	# round cutted edges
+	for match in junctions:
+		# put a junction
+		new += tangentjunction(pts, match, tangents, resolution[1], interpol2)
+	
 	new.groups = ['junction']
 	new.tracks = [0] * len(new.faces)
 	mesh += new
-	mesh.mergeclose()
+	#mesh.mergeclose()
 
 from functools import reduce
 from .mathutils import interpol2, reflect
@@ -656,14 +669,20 @@ def beveltgt(mesh, line, cutter, interpol=spline, resolution=None):
 
 def isedge(o):
 	return isinstance(o,tuple) and len(o) == 2
+	
+def arclen(p1, p2, t1, t2):
+	''' approximated length of an arc between p1 and p2, with associated normals '''
+	c = max(0,-dot(t1,t2))
+	if abs(c-1) < NUMPREC:	return 0
+	v = p1-p2
+	return sqrt(dot(v,v) / (2-2*c)) * acos(c)
 
 def tangentjunction(points, match, tangents, div, interpol=spline):
 	''' create a surface between interpolated curves for each match '''
 	# estimate normals
 	for l,r in match:
-		v = points[l]-points[r]
-		a = anglebt(tangents[l], tangents[r])
-		dist = distance(points[l], points[r]) / sqrt(2-2*cos(a)) * a
+		dist = arclen(points[l], points[r], tangents[l], tangents[r])
+		print(dist)
 		tangents[l] = tl = normalize(tangents[l]) * dist
 		tangents[r] = tr = normalize(tangents[r]) * dist
 	
