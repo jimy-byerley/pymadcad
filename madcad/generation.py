@@ -338,14 +338,16 @@ def flatsurface(outline, normal=None) -> 'Mesh':
 		m = m.flip()
 	return m
 
-def arclen(p1, p2, n1, n2):
+def arclength(p1, p2, n1, n2):
 	''' approximated length of an arc between p1 and p2, with associated normals '''
 	c = dot(n1,n2)
 	if abs(c-1) < NUMPREC:	return 0
 	v = p1-p2
 	return sqrt(dot(v,v) / (2-2*c)) * acos(c)
+
 	
-from .mathutils import isnan
+	
+from .mathutils import isnan, arclengthgth
 			
 def icosurface(pts, ptangents, etangents=None, resolution=None):
 	''' generate a surface ICO (a subdivided triangle) with its points interpolated using interpol2tri.
@@ -378,12 +380,12 @@ def icosurface(pts, ptangents, etangents=None, resolution=None):
 			#dist = abs(mix(distance_pa(pts[i-1], n), distance_pa(pts[i-2], n), 0.5))
 			#angle = anglebt(normalize(normals[i-1]+normals[i-2]), normals[i])
 			#etangents[i] *= dist*angle
-			etangents[i] *= arclen(pts[i], mix(pts[i-1],pts[i-2],0.5), normals[i], normalize(normals[i-1]+normals[i-2]))
+			etangents[i] *= arclength(pts[i], mix(pts[i-1],pts[i-2],0.5), normals[i], normalize(normals[i-1]+normals[i-2]))
 			#etangents[i] *= 0
 			#etangents[i] *= mix(dot(pts[i]-pts[i-1],normals[i]), dot(pts[i]-pts[i-1], normals[i]), 0.5)
 			ptangents[i] = (
-				normalize(noproject(pts[i-2]-pts[i], normals[i])) * arclen(pts[i], pts[i-2], normals[i], normals[i-2]),
-				normalize(noproject(pts[i-1]-pts[i], normals[i])) * arclen(pts[i], pts[i-1], normals[i], normals[i-1]),
+				normalize(noproject(pts[i-2]-pts[i], normals[i])) * arclength(pts[i], pts[i-2], normals[i], normals[i-2]),
+				normalize(noproject(pts[i-1]-pts[i], normals[i])) * arclength(pts[i], pts[i-1], normals[i], normals[i-1]),
 				)
 	
 	# evaluate resolution (using a bad approximation of the length for now)

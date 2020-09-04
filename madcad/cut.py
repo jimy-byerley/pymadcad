@@ -597,19 +597,13 @@ def bevel(mesh, edges, cutter, resolution=None):
 	#mesh.mergeclose()
 
 from functools import reduce
-from .mathutils import interpol2, reflect, unproject
+from .mathutils import interpol2, reflect, unproject, arglength
 
 beveltgt = None
 
 def isedge(o):
 	return isinstance(o,tuple) and len(o) == 2
 
-def arclength(p1, p2, n1, n2):
-	''' length of an arc between p1 and p2, with associated normals '''
-	c = max(0, dot(n1,n2))
-	if abs(c-1) < NUMPREC:	return 0
-	v = p1-p2
-	return sqrt(dot(v,v) / (2-2*c)) * acos(c)
 
 def tangentjunction(points, match, normals, div, interpol=interpol2):
 	''' create a surface between interpolated curves for each match '''

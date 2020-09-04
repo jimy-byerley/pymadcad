@@ -42,6 +42,13 @@ def anglebt(x,y) -> float:
 	''' angle between two vectors '''
 	n = length(x)*length(y)
 	return acos(min(1,max(-1, dot(x,y)/n)))	if n else 0
+	
+def arclength(p1, p2, n1, n2):
+	''' length of an arc between p1 and p2, normal to the given vectors in respective points '''
+	c = max(0, dot(n1,n2))
+	if abs(c-1) < NUMPREC:	return 0
+	v = p1-p2
+	return sqrt(dot(v,v) / (2-2*c)) * acos(c)
 
 def project(vec, dir) -> vec3:
 	''' component of `vec` along `dir`, equivalent to :code:`dot(vec, dir) * dir` '''
