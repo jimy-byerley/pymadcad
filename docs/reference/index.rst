@@ -20,6 +20,7 @@ submodules
 	constraints.rst
 	io.rst
 	generation.rst
+	cut.rst
 	mathutils.rst
 	hashing.rst
 	settings.rst
@@ -31,26 +32,25 @@ solvers
 ~~~~~~~
 
 .. autofunction:: solve
-
 .. autofunction:: solvekin
 
 volume boolean operators
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. autofunction:: difference
-
 .. autofunction:: union
-
 .. autofunction:: intersection
 
 generation functions
 ~~~~~~~~~~~~~~~~~~~~
 
 .. autofunction:: extrusion
-
 .. autofunction:: revolution
-
 .. autofunction:: extrans
-
 .. autofunction:: junction
 
+cut functions
+~~~~~~~~~~~~~
+
+.. autofunction:: chamfer
+.. autofunction:: bevel
