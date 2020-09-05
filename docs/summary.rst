@@ -168,9 +168,9 @@ Suppose we want a torus, let's make a simple revolution around an axis, the extr
 	revolution(
 	    radians(180),       # 180 degrees converted into radiaus 
 	    (O,Z),              # revolution axis
-	    web(Circle((A,X), 0.1)),
+	    web(Circle((A,Y), 0.5)),
 	    )
-	    
+
 .. image:: /screenshots/revolution-circle.png
 
 Joint two arbitrary lines by a smooth surface, to close a complex surface for instance:
