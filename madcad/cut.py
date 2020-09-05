@@ -490,7 +490,6 @@ def bevel(mesh, edges, cutter, resolution=None):
 	segments = multicut(mesh, edges, cutter, conn)
 	conn = connef(mesh.faces)
 	pts = mesh.points
-	div = 4
 	
 	# edges for corners surfaces
 	corners = {}
@@ -523,10 +522,8 @@ def bevel(mesh, edges, cutter, resolution=None):
 						left, right = lp[:i], lp[i:]
 						break
 				cornerreg(e[0], (lp[0],lp[-1]))
-				#if dot(lp[i-1]-pts[e[0]], side) < dot(lp[i]-pts[e[0]], side):
-				ends.append((lp[i-1], lp[i]))
-				#else:
-					#ends.append((lp[i-1], lp[i]))
+				if (lp[i], lp[i-1]) in conn:
+					ends.append((lp[i-1], lp[i]))
 			# two parts: cutted edge
 			elif len(frags) == 2:
 				left,right = frags
@@ -571,6 +568,15 @@ def bevel(mesh, edges, cutter, resolution=None):
 	# normalize all contributions
 	for k,n in normals.items():
 		normals[k] = normalize(n)
+	
+	# compute resolution based on adjacent faces to edges
+	div = 0
+	for match in junctions:
+		for a,b in match:
+			div = max(div, settings.curve_resolution(
+						arclength(a,b,normals[a],normals[b]), 
+						anglebt(normals[a], normals[b]),
+						resolution))//2
 	
 	new = Mesh()
 	# round cutted corner	
