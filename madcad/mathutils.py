@@ -135,6 +135,19 @@ def interpol2(a, b, x):
 			)
 
 spline = interpol2
+
+def interpol2tri(pts, ptangents, a,b):
+	''' cubic interpolation like interpol2, but interpolates over a triangle (2d parameter space) '''
+	A,B,C = pts
+	ta,tb,tc = ptangents
+	c = 1-a-b
+	P = a*A + b*B + c*C +  a*b*c * (ta[0] + ta[1] + tb[0] + tb[1] + tc[0] + tc[1])
+	return (	0
+			+	a**2 * (A + b*ta[0] + c*ta[1])
+			+	b**2 * (B + c*tb[0] + a*tb[1])
+			+	c**2 * (C + a*tc[0] + b*tc[1])
+			+	2*(b*c + c*a + a*b) * P
+			)
 		
 # distances:
 

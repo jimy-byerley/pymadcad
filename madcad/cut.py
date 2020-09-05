@@ -1,13 +1,21 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
-from .mathutils import vec3, mat3, dmat3, dvec3, dot, cross, project, noproject, anglebt, sqrt, cos, acos, asin, spline, interpol1, normalize, distance, length, inverse, transpose, NUMPREC, COMPREC
+from .mathutils import (
+					vec3, mat3, dmat3, dvec3, 
+					dot, cross, project, noproject, unproject, normalize, distance, length, arclength,
+					anglebt, sqrt, cos, acos, asin, 
+					spline, interpol1, interpol2, inverse, transpose, 
+					NUMPREC, COMPREC, inf,
+					)
 from .mesh import Mesh, Web, Wire, lineedges, connef, connpp, edgekey, suites, line_simplification
 from . import generation as gt
 from . import text
 from . import settings
+from .nprint import nprint, nformat
 
-__all__ = [	'chamfer', 'bevel', 'beveltgt',
+__all__ = [	'chamfer', 'bevel',
 			'cut', 'multicut', 'planeoffsets',
+			'tangentend', 'tangentcorner', 'tangentjunction',
 			'cutter_width', 'cutter_distance', 'cutter_depth', 'cutter_angle',
 			]
 
@@ -34,7 +42,6 @@ def cutter_angle(depth, fn1, fn2):
 
 
 # ----- algorithm ------
-from nprint import nprint
 
 def planeoffsets(mesh, edges, cutter):
 	''' compute the offsets for cutting planes using the given method 
@@ -78,8 +85,15 @@ def interpretcutter(cutter):
 		raise TypeError("cutter must be a callable or a tuple (name, param)")
 
 		
-def cut(mesh, start, cutplane, stops, conn, prec, removal, cutghost):
-	''' propagation cut for an edge '''
+def cut(mesh, start, cutplane, stops, conn, prec, removal, cutghost=False):
+	''' propagation cut for an edge 
+		
+		:start:		the edge or point to start propagation from
+		:cutplane:	the plane cutting the faces. Its normal must be oriented toward the propagation area.
+		:stops:     the planes stopping the propagation. Their normal must be oriented toward the propagation area.
+		:removal:   the set in wich the function will put the indices of faces inside
+		:cutghost:  whether the function should propagate on faces already marked for removal (previously or during the propagation)
+	'''
 	pts = mesh.points
 	stops = list(filter(lambda e:e, stops))
 	# find the intersections axis between the planes
@@ -317,6 +331,9 @@ def multicut(mesh, edges, cutter, conn=None, prec=None, removal=None):
 	return outlines
 
 def finalize(mesh, outlines, removal, prec):
+	''' function finalizing the mesh for multicut
+		removing faces and simplifying outlines
+	'''
 	# simplify cuts
 	merges = {}
 	for e,cuts in outlines.items():
@@ -409,8 +426,7 @@ def removefaces(mesh, crit):
 #def faceangle(mesh, fi):
 	#o,x,y = mesh.facepoints(fi)
 	#return length(cross(normalize(x-o), normalize(y-o)))
-	
-from math import inf
+
 def faceheight(mesh, fi):
 	f = mesh.facepoints(fi)
 	m = inf
@@ -422,7 +438,6 @@ def faceheight(mesh, fi):
 
 
 # ----- user functions ------
-
 from .triangulation import triangulation_outline
 from .generation import icosurface, junctioniter, curvematch
 
@@ -471,8 +486,6 @@ def chamfer(mesh, edges, cutter):
 		faces = triangulation_outline(Wire(mesh.points, suites(s)[0])).faces
 		mesh.faces.extend(faces)
 		mesh.tracks.extend([group]*len(faces))
-
-from nprint import nprint, nformat
 
 def bevel(mesh, edges, cutter, resolution=None):
 	''' create a chamfer on the given suite of points, create faces are planes.
@@ -599,11 +612,6 @@ def bevel(mesh, edges, cutter, resolution=None):
 	new.tracks = [0] * len(new.faces)
 	mesh += new
 	mesh.mergeclose()
-
-from functools import reduce
-from .mathutils import interpol2, reflect, unproject, arclength
-
-beveltgt = None
 
 
 def tangentend(points, edge, normals, div):
