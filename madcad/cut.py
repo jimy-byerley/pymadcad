@@ -490,7 +490,7 @@ def bevel(mesh, edges, cutter, resolution=None):
 	segments = multicut(mesh, edges, cutter, conn)
 	conn = connef(mesh.faces)
 	pts = mesh.points
-	resolution = ('div', 4)
+	div = 4
 	
 	# edges for corners surfaces
 	corners = {}
@@ -501,6 +501,7 @@ def bevel(mesh, edges, cutter, resolution=None):
 	# create junctions
 	normals = {}	# face normal at each point
 	junctions = []
+	ends = []
 	for e,s in segments.items():
 		if not s:	continue
 		# corner cuts
@@ -522,6 +523,10 @@ def bevel(mesh, edges, cutter, resolution=None):
 						left, right = lp[:i], lp[i:]
 						break
 				cornerreg(e[0], (lp[0],lp[-1]))
+				#if dot(lp[i-1]-pts[e[0]], side) < dot(lp[i]-pts[e[0]], side):
+				ends.append((lp[i-1], lp[i]))
+				#else:
+					#ends.append((lp[i-1], lp[i]))
 			# two parts: cutted edge
 			elif len(frags) == 2:
 				left,right = frags
@@ -550,63 +555,96 @@ def bevel(mesh, edges, cutter, resolution=None):
 				normals[l] = enormals[e][0] + normals.get(l, 0)
 				normals[r] = enormals[e][1] + normals.get(r, 0)
 			junctions.append(match)
-	
-	new = Mesh()
-	
-	# round cutted corner
-	for e,s in corners.items():
-		if len(s) < 3:	continue
-		# assemble the intersection segments in a single outline
-		lp = suites(s)[0]
-		if lp[-1] == lp[0]:	lp.pop()	# remove the redundant point
 		
-		# prepare normals
-		for i in range(len(lp)):
-			a,b = lp[i-1], lp[i]
+	# normals neighbooring corners
+	for e,s in corners.items():
+		for a,b in s:
 			if (b,a) in conn:
 				n = mesh.facenormal(conn[(b,a)])
 				normals[b] = normals.get(b, 0) + n
 				normals[a] = normals.get(a, 0) + n
-		
-		for k,n in normals.items():
-			normals[k] = normalize(n)
-		
-		# compute the common points to all triangular regions
-		p = len(pts)
-		normals[p] = n = normalize(sum(normals[i] for i in lp))
-		med = sum(pts[i] for i in lp) / len(lp)
-		center = sum(pts[i] + unproject(med-pts[i], normals[i])	for i in lp) / len(lp)
-		radius = sum(distance(pts[i], center) for i in lp) / len(lp)
-		pts.append(center + n*radius)
-		# triangulate
-		for i in range(len(lp)):
-			a,b,c = lp[i-1], lp[i], p
-			new += icosurface(
-						(pts[a],pts[b],pts[c]), 
-						(normals[a],normals[b],normals[c]),
-						resolution=resolution)
+	# normals neighbooring cut ends
+	for a,b in ends:
+		n = mesh.facenormal(conn[(b,a)])
+		normals[a] = noproject(normals[a], n)
+		normals[b] = noproject(normals[b], n)
+	# normalize all contributions
+	for k,n in normals.items():
+		normals[k] = normalize(n)
 	
+	new = Mesh()
+	# round cutted corner	
+	for e,s in corners.items():
+		if len(s) < 3:	continue
+		# assemble the intersection segments in a single outline
+		lp = suites(s)[0]
+		if lp[-1] == lp[0]:	lp.pop()	# remove the redundant point if there is (not all the time due to some BUG)
+		new += tangentcorner(pts, lp, normals, div)
+	# fill gap between existing surface and round extremities
+	for edge in ends:
+		n = mesh.facenormal(conn[(edge[1],edge[0])])
+		new += tangentend(pts, edge, normals, div)
 	# round cutted edges
 	for match in junctions:
 		# put a junction
-		new += tangentjunction(pts, match, normals, resolution[1], interpol2)
+		new += tangentjunction(pts, match, normals, div)
 	
 	new.groups = ['junction']
 	new.tracks = [0] * len(new.faces)
 	mesh += new
-	#mesh.mergeclose()
+	mesh.mergeclose()
 
 from functools import reduce
 from .mathutils import interpol2, reflect, unproject, arclength
 
 beveltgt = None
 
-def isedge(o):
-	return isinstance(o,tuple) and len(o) == 2
 
+def tangentend(points, edge, normals, div):
+	''' join a tangent surface resulting of `tangentcorner` or `tangentjunction` to a straight edge e 
+		normals is the same dict as for tangentcorner and tangentjunction
+	'''
+	l, r = edge
+	pl, pr = points[l], points[r]
+	dist = arclength(points[l], points[r], normals[l], normals[r])
+	e = points[r]-points[l]
+	tl = normalize(noproject( e, normals[l])) * dist
+	tr = normalize(noproject(-e, normals[r])) * dist
+	
+	def infos():
+		for i in range(div+2):
+			x = i/(div+1)
+			yield interpol2((pl,tl), (pr,tr), x),  interpol1(pl,pr, x)
+	return junctioniter(infos(), 0, interpol1)
+	
 
-def tangentjunction(points, match, normals, div, interpol=interpol2):
-	''' create a surface between interpolated curves for each match '''
+def tangentcorner(pts, lp, normals, div):
+	''' create a rounded surface tangent to the loop given
+		`normals` is a dict {point: normal}
+	'''
+	new = Mesh()
+	# compute the common points to all triangular regions
+	n = normalize(sum(normals[i] for i in lp))
+	med = sum(pts[i] for i in lp) / len(lp)
+	center = sum(pts[i] + unproject(med-pts[i], normals[i])	for i in lp) / len(lp)
+	radius = sum(distance(pts[i], center) for i in lp) / len(lp)
+	# place a central point
+	p = len(pts)
+	pts.append(center + n*radius)
+	normals[p] = n
+	# triangulate
+	for i in range(len(lp)):
+		a,b,c = lp[i-1], lp[i], p
+		new += icosurface(
+					(pts[a],pts[b],pts[c]), 
+					(normals[a],normals[b],normals[c]),
+					resolution=('div',div))
+	return new
+
+def tangentjunction(points, match, normals, div):
+	''' create a surface joining the given couples of points, tangent to the two sides
+		`normals` is a dict {point: normal}
+	'''
 	def infos():
 		# estimate normals
 		for l,r in match:
@@ -614,7 +652,6 @@ def tangentjunction(points, match, normals, div, interpol=interpol2):
 			e = points[r]-points[l]
 			tl = normalize(noproject( e, normals[l])) * dist
 			tr = normalize(noproject(-e, normals[r])) * dist
-			print('m', (l,r), tl, tr)
 			yield (points[r], tr), (points[l], tl)
 	
-	return gt.junctioniter(infos(), div, interpol)
+	return junctioniter(infos(), div, interpol2)
