@@ -55,6 +55,7 @@ Common vector operations
 .. autofunction:: normalize
 
 .. autofunction:: anglebt
+.. autofunction:: arclength
 
 .. autofunction:: project
 .. autofunction:: noproject
@@ -98,6 +99,8 @@ Scalar functions
 .. autofunction:: interpol1
 
 .. autofunction:: interpol2
+
+.. autofunction:: interpol2tri
 
 Distances
 ~~~~~~~~~

@@ -81,11 +81,16 @@ def dirbase(dir, align=vec3(1,0,0)):
 	y = cross(dir, x)
 	return x,y,dir
 
-def scaledir(dir, factor):
-	''' return a mat3 scaling in the given direction, with the given factor (1 means original scale) '''
+def scaledir(dir, factor=None) -> mat3:
+	''' return a mat3 scaling in the given direction, with the given factor (1 means original scale) 
+		if factor is None, the length of dir is used, but it can leads to precision loss on direction when too small.
+	'''
+	if factor is None:
+		factor = length(dir)
+		dir /= factor
 	return mat3(1) + (factor-1)*mat3(dir[0]*dir, dir[1]*dir, dir[2]*dir)
 
-def transform(*args):
+def transform(*args) -> mat4:
 	''' create an affine transformation matrix.
 		
 		supported inputs:

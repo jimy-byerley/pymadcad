@@ -19,9 +19,10 @@ submodules
 	primitives.rst
 	constraints.rst
 	io.rst
+	mathutils.rst
+	
 	generation.rst
 	cut.rst
-	mathutils.rst
 	hashing.rst
 	settings.rst
 
