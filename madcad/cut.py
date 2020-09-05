@@ -1,4 +1,10 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
+''' This module provides the chamfer and bevel functions, and the associated tools.
+
+	`multicut`, `chamfer`, and `bevel` are built in the same cutting algorithm. It cuts the mesh faces by propagation from the given edges. The cutting planes are determined by an offset vector from the original primitive (point or edge). 
+	
+	Most of the time you don't need to set the offset yourself. It can be automatically calculated by several methods, depending on the shape you want to get. Those methods are called `cutters` and are executed using `planeoffsets`_.
+'''
 
 from .mathutils import (
 					vec3, mat3, dmat3, dvec3, 
