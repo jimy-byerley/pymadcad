@@ -2,7 +2,7 @@
 from madcad import vec3, saddle, tube, ArcThrough, Web, web, bevel, chamfer
 from madcad.mesh import suites
 from madcad import view, text
-from madcad import cut
+from madcad.cut import multicut
 import sys
 from PyQt5.QtWidgets import QApplication
 from nprint import nprint
@@ -26,9 +26,9 @@ m.check()
 
 #cut.cut_corner(m, 87, 0.6*vec3(0,0.2,0.05))
 w = m.group(1).outlines_unoriented() & m.group(2).outlines_unoriented()
-cut.cut(m, w, ('depth', 0.6))
+#multicut(m, w, ('depth', 0.6))
 #chamfer(m, w, ('depth', 0.6))
-#bevel(m, w, ('depth', 0.6))
+bevel(m, w, ('depth', 0.6))
 #beveltgt(m, w, ('depth', 0.6))
 m.check()
 
