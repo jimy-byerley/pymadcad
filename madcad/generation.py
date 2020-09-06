@@ -186,7 +186,7 @@ def thicken(surf, thickness, alignment=0, method='face') -> 'Mesh':
 		:alignment:    specifies which side is the given surface: 0 is for the first, 1 for the second side, 0.5 thicken all apart the given surface.
 		:method:       determines if the thickness is from the old to the new faces, edges or points
 	'''
-	displts = thickoffset(surf, thickness, method)
+	displts = inflateoffsets(surf, thickness, method)
 	
 	a = thickness*alignment
 	b = thickness*(alignment-1)
@@ -555,7 +555,6 @@ def multiple(pattern, n, trans=None, axis=None, angle=None) -> 'Mesh':
 	if n:	pool += current
 	for i in range(1,n):
 		current = current.transform(trans)
-		print(id(current.points))
 		pool += current
 	return pool
 
