@@ -148,7 +148,7 @@ from .mathutils import *
 from .mesh import Mesh, Web, Wire, MeshError, web, wire, suites
 from .boolean import difference, union, intersection
 from .cut import chamfer, bevel, multicut, planeoffsets
-from .generation import flatsurface, junction, extrans, extrusion, revolution, saddle, tube, icosurface, brick, icosahedron, icosphere, uvsphere, thicken, multiple
+from .generation import flatsurface, junction, extrans, extrusion, revolution, saddle, tube, icosurface, brick, icosahedron, icosphere, uvsphere, thicken, inflate, multiple
 from .primitives import isprimitive, Point, Axis, Segment, ArcThrough, ArcCentered, Circle
 from .constraints import isconstraint, SolveError, Tangent, Distance, Angle, Parallel, Radius, Projected, PointOn, OnPlane, solve
 from .kinematic import Torsor, comomentum, Pressure, Solid, solvekin, Kinematic
