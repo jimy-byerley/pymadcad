@@ -9,10 +9,11 @@ from .nprint import nprint
 
 
 __all__ = [
-	'extrans', 'extrusion', 'revolution', 'saddle', 'tube',
+	'extrans', 'extrusion', 'revolution', 'saddle', 'tube', 
+	'multiple', 'thicken', 'inflate', 'inflateoffsets',
 	'curvematch', 'join', 'junction', 'junctioniter',
 	'matchexisting', 'matchclosest', 'dividematch',
-	'flatsurface', 'thicken', 'multiple', 'icosurface', 'subdivide',
+	'flatsurface', 'icosurface', 'subdivide',
 	'brick', 'icosahedron', 'icosphere', 'uvsphere', 
 	]
 
@@ -120,7 +121,7 @@ def tube(web, path, end=True, section=True):
 	return extrans(web, trans, ((i,i+1) for i in range(len(path)-1)))
 
 
-def extrans(web, transformations, links):
+def extrans(web, transformations, links) -> 'Mesh':
 	''' create a surface by extruding and transforming the given outline.
 		transformations must be an iterable of mat4
 	'''
@@ -144,20 +145,48 @@ def extrans(web, transformations, links):
 	extrans_post(mesh, face, first, trans)
 	return mesh
 
-def thicken(surf, thickness, alignment=0):
+def inflateoffsets(surf, distance, method='face') -> '[vec3]':
+	''' displacements vectors for points of a surface we want to inflate.
+		
+		:method:     determines if the distance is from the old to the new faces, edges or points
+	'''
+	pnormals = surf.vertexnormals()
+	if method == 'face':
+		lengths = [0]*len(pnormals)
+		for i,face in enumerate(surf.faces):
+			fnormal = surf.facenormal(i)
+			for p in face:
+				lengths[p] = max(lengths[p], 1/dot(pnormals[p], fnormal))
+		return [pnormals[p]*lengths[p]   for p in range(len(pnormals))]
+	
+	elif method == 'edge':
+		lengths = [0]*len(pnormals)
+		for edge,enormal in surf.edgenormals():
+			for p in edge:
+				lengths[p] = max(lengths[p], 1/dot(pnormal[p], enormal))
+		return [pnormals[p]*lengths[p]	for p in range(len(pnormals))]
+		
+	elif method == 'point':
+		return [pnormals[p]*distance	for p in range(len(pnormals))]
+
+def inflate(surf, distance, method='face') -> 'Mesh':
+	''' move all points of the surface to make a new one at a certain distance of the last one
+
+		:method:       determines if the distance is from the old to the new faces, edges or points
+	'''
+	return Mesh([p+d   for p,d in zip(surf.points, inflateoffsets(surf, distance, method))],
+				surf.faces,
+				surf.tracks,
+				surf.groups)
+
+def thicken(surf, thickness, alignment=0, method='face') -> 'Mesh':
 	''' thicken a surface by extruding it, points displacements are made along normal. 
 
 		:thickness:    determines the distance between the two surfaces (can be negative to go the opposite direction to the normal).
 		:alignment:    specifies which side is the given surface: 0 is for the first, 1 for the second side, 0.5 thicken all apart the given surface.
+		:method:       determines if the thickness is from the old to the new faces, edges or points
 	'''
-	pnormals = surf.vertexnormals()
-	lengths = [0]*len(pnormals)
-	for i,face in enumerate(surf.faces):
-		fnormal = surf.facenormal(i)
-		for p in face:
-			req = 1/dot(pnormals[p], fnormal)
-			if req > lengths[p]:	lengths[p] = req
-	displts = [pnormals[p]*lengths[p]   for p in range(len(pnormals))]
+	displts = thickoffset(surf, thickness, method)
 	
 	a = thickness*alignment
 	b = thickness*(alignment-1)
@@ -176,7 +205,7 @@ def thicken(surf, thickness, alignment=0):
 
 # --- junction things ---
 	
-def curvematch(line1, line2):
+def curvematch(line1, line2) -> '[(int,int)]':
 	''' yield couples of point indices where the curved absciss are the closest '''
 	yield line1.indices[0], line2.indices[0]
 	l1, l2 = line1.length(), line2.length()
@@ -331,7 +360,7 @@ def flatsurface(outline, normal=None) -> 'Mesh':
 	return m
 
 
-def icosurface(pts, ptangents, resolution=None):
+def icosurface(pts, ptangents, resolution=None) -> 'Mesh':
 	''' generate a surface ICO (a subdivided triangle) with its points interpolated using interpol2tri.
 	
 		- If normals are given instead of point tangents (for ptangents), the surface will fit a sphere.
@@ -384,36 +413,8 @@ def icosurface(pts, ptangents, resolution=None):
 
 	return mesh
 
-def icosahedron(center, radius):
-	''' a simple icosahedron (see https://en.wikipedia.org/wiki/Icosahedron) '''
-	phi = (1+ sqrt(5)) /2	# golden ratio
-	m = Mesh([
-		vec3(0, 1, phi),
-		vec3(1, phi, 0),
-		vec3(phi, 0, 1),
-		vec3(0, -1, phi),
-		vec3(-1, phi, 0),
-		vec3(phi, 0, -1),
-		vec3(0, 1, -phi),
-		vec3(1, -phi, 0),
-		vec3(-phi, 0, 1),
-		vec3(0, -1, -phi),
-		vec3(-1, -phi, 0),
-		vec3(-phi, 0, -1),
-		],
-		[
-		(0,1,4), (0,2,1), (0,3,2), (0,8,3), (0,4,8),
-		(2,5,1), (1,6,4), (4,11,8), (8,10,3), (3,7,2),
-		(3,10,7), (2,7,5), (1,5,6), (4,6,11), (8,11,10),
-		(7,9,5), (5,9,6), (6,9,11), (11,9,10), (10,9,7),
-		],
-		)
-	f = radius/length(m.points[0])
-	for i,p in enumerate(m.points):
-		m.points[i] = f*p + center
-	return m
 
-def subdivide(mesh, div=1):
+def subdivide(mesh, div=1) -> 'Mesh':
 	''' subdivide all faces by the number of cuts '''
 	n = div+2
 	pts = []
@@ -448,32 +449,6 @@ def subdivide(mesh, div=1):
 
 
 # --- standard shapes ---
-
-def icosphere(center, radius, resolution=None):
-	''' a simple icosphere with an arbitrary resolution (see https://en.wikipedia.org/wiki/Geodesic_polyhedron).
-	
-		Points are obtained from a subdivided icosahedron and reprojected on the desired radius.
-	'''
-	ico = icosahedron(center, radius)
-	div = settings.curve_resolution(2/6*pi*radius, 2/6*pi, resolution)
-	ico = subdivide(ico, div-1)
-	for i,p in enumerate(ico.points):
-		ico.points[i] = center + radius * normalize(p-center)
-	return ico
-
-def uvsphere(center, radius, alignment=vec3(0,0,1), resolution=None):
-	''' a simple uvsphere (simple sphere obtained with a revolution of an arc) '''
-	x,y,z = dirbase(alignment)
-	mesh = revolution(2*pi, 
-			(center, z),
-			web(primitives.ArcCentered(
-				(center,x), 
-				center+radius*z, 
-				center-radius*z, 
-				resolution=resolution)),
-			resolution=resolution)
-	mesh.mergeclose()
-	return mesh
 	
 def brick(box: 'Box') -> 'Mesh':
 	''' a simple brick with rectangular sides '''
@@ -507,8 +482,63 @@ def brick(box: 'Box') -> 'Mesh':
 		mesh.points[i] = mesh.points[i]*box.width + box.min
 	return mesh
 
+def icosahedron(center, radius) -> 'Mesh':
+	''' a simple icosahedron (see https://en.wikipedia.org/wiki/Icosahedron) '''
+	phi = (1+ sqrt(5)) /2	# golden ratio
+	m = Mesh([
+		vec3(0, 1, phi),
+		vec3(1, phi, 0),
+		vec3(phi, 0, 1),
+		vec3(0, -1, phi),
+		vec3(-1, phi, 0),
+		vec3(phi, 0, -1),
+		vec3(0, 1, -phi),
+		vec3(1, -phi, 0),
+		vec3(-phi, 0, 1),
+		vec3(0, -1, -phi),
+		vec3(-1, -phi, 0),
+		vec3(-phi, 0, -1),
+		],
+		[
+		(0,1,4), (0,2,1), (0,3,2), (0,8,3), (0,4,8),
+		(2,5,1), (1,6,4), (4,11,8), (8,10,3), (3,7,2),
+		(3,10,7), (2,7,5), (1,5,6), (4,6,11), (8,11,10),
+		(7,9,5), (5,9,6), (6,9,11), (11,9,10), (10,9,7),
+		],
+		)
+	f = radius/length(m.points[0])
+	for i,p in enumerate(m.points):
+		m.points[i] = f*p + center
+	return m
 
-def multiple(pattern, n, trans=None, axis=None, angle=None):
+def icosphere(center, radius, resolution=None) -> 'Mesh':
+	''' a simple icosphere with an arbitrary resolution (see https://en.wikipedia.org/wiki/Geodesic_polyhedron).
+	
+		Points are obtained from a subdivided icosahedron and reprojected on the desired radius.
+	'''
+	ico = icosahedron(center, radius)
+	div = settings.curve_resolution(2/6*pi*radius, 2/6*pi, resolution)
+	ico = subdivide(ico, div-1)
+	for i,p in enumerate(ico.points):
+		ico.points[i] = center + radius * normalize(p-center)
+	return ico
+
+def uvsphere(center, radius, alignment=vec3(0,0,1), resolution=None) -> 'Mesh':
+	''' a simple uvsphere (simple sphere obtained with a revolution of an arc) '''
+	x,y,z = dirbase(alignment)
+	mesh = revolution(2*pi, 
+			(center, z),
+			web(primitives.ArcCentered(
+				(center,x), 
+				center+radius*z, 
+				center-radius*z, 
+				resolution=resolution)),
+			resolution=resolution)
+	mesh.mergeclose()
+	return mesh
+
+
+def multiple(pattern, n, trans=None, axis=None, angle=None) -> 'Mesh':
 	''' create a mesh duplicating n times the given pattern, each time applying the given transform.
 		
 		:pattern:   can either be a `Mesh`, `Web` or `Wire`

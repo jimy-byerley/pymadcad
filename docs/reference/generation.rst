@@ -48,7 +48,9 @@ Unsorted
 --------
 
 .. autofunction:: flatsurface
-.. autofunction:: thicken
-.. autofunction:: multiple
 .. autofunction:: icosurface
 .. autofunction:: subdivide
+.. autofunction:: inflateoffsets
+.. autofunction:: inflate
+.. autofunction:: thicken
+.. autofunction:: multiple
