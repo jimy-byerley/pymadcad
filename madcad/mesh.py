@@ -308,7 +308,7 @@ class Mesh(Container):
 	# --- extraction methods ---
 		
 	def facenormal(self, face):
-		''' normal for each face '''
+		''' normal for a face '''
 		if isinstance(face, int):	
 			face = self.faces[face]
 		p0 = self.points[face[0]]
@@ -316,8 +316,24 @@ class Mesh(Container):
 		e2 = self.points[face[2]] - p0
 		return normalize(cross(e1, e2))
 	
+	def facenormals(self):
+		''' list normals for each face '''
+		return list(map(self.facenormal, self.faces))
+	
+	def edgenormals(self):
+		''' dict of normals for each UNORIENTED edge '''
+		normals = {}
+		for face in self.faces:
+			normal = self.facenormal(face)
+			for edge in ((face[0], face[1]), (face[1], face[2]), (face[2],face[0])):
+				e = edgekey(*edge)
+				normals[e] = normals.get(e,0) + normal
+		for e,normal in normals.items():
+			normals[e] = normalize(normal)
+		return normals
+	
 	def vertexnormals(self):
-		''' normal for each point '''
+		''' list of normals for each point '''
 		l = len(self.points)
 		normals = [vec3(0) for _ in range(l)]
 		for face in self.faces:
@@ -329,6 +345,8 @@ class Mesh(Container):
 		for i in range(l):
 			normals[i] = normalize(normals[i])
 		return normals
+	
+			
 	
 	def facepoints(self, index):
 		''' shorthand to get the points of a face (index is an int or a triplet) '''

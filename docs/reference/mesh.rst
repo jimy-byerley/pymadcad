@@ -43,7 +43,10 @@ classes
 	**extraction methods**
 	
 		.. automethod:: facenormal
+		.. automethod:: facenormals
+		.. automethod:: edgenormals
 		.. automethod:: vertexnormals
+		
 		.. automethod:: edges
 		.. automethod:: group
 		.. automethod:: outlines_oriented
