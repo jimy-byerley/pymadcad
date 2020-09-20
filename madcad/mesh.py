@@ -27,6 +27,7 @@ from copy import copy, deepcopy
 from random import random
 import numpy as np
 from array import array
+from collections import OrderedDict
 import math
 from .mathutils import Box, vec3, vec4, mat3, mat4, quat, mat3_cast, cross, dot, normalize, length, distance, project, noproject, anglebt, NUMPREC
 from . import view
@@ -173,12 +174,12 @@ class Mesh(Container):
 	
 	# --- standard point container methods ---
 	
-	def __init__(self, points=None, faces=None, tracks=None, groups=None):
+	def __init__(self, points=None, faces=None, tracks=None, groups=None, options=None):
 		self.points = points or []
 		self.faces = faces or []
 		self.tracks = tracks or [0] * len(self.faces)
 		self.groups = groups or [None] * (max(self.tracks, default=-1)+1)
-		self.options = {}
+		self.options = options or {}
 	
 	
 	def __add__(self, other):
@@ -429,13 +430,36 @@ class Mesh(Container):
 				else:
 					edges[(e[1],e[0])] = track
 		return edges
+		
+	def frontiers(self, groups:set=None):
+		''' return a Web of UNORIENTED edges between the given groups '''
+		edges = []
+		groups = OrderedDict()
+		belong = {}
+		for i,face in enumerate(self.faces):
+			if groups and self.tracks[i] not in groups:	continue
+			for edge in ((face[0],face[1]),(face[1],face[2]),(face[2],face[0])):
+				e = edgekey(*edge)
+				if e in belong:
+					if belong[e] != self.tracks[i]:
+						edges.append(e)
+						g = edgekey(self.tracks[i],e)
+						if g not in groups:	
+							groups[g] = len(groups)
+							tracks.append(len(groups)-1)
+						else:
+							tracks.append(groups[g])
+					del belong[e]
+				else:
+					belong[e] = self.tracks[i]
+		return Web(self.points, edges, tracks, list(groups))
 	
 	def surface(self):
 		''' total surface of triangles '''
 		s = 0
 		for f in self.faces:
 			a,b,c = self.facepoints(f)
-			s += length(cross(a-b, a,c))
+			s += length(cross(a-b, a,c))/2
 		return s
 	
 	def splitgroups(self, edges=None):
@@ -584,12 +608,12 @@ class Web(Container):
 
 	# --- standard point container methods ---
 	
-	def __init__(self, points=None, edges=None, tracks=None, groups=None):
+	def __init__(self, points=None, edges=None, tracks=None, groups=None, options=None):
 		self.points = points or []
 		self.edges = edges or []
 		self.tracks = tracks or [0] * len(self.edges)
 		self.groups = groups or [None] * (max(self.tracks, default=-1)+1)
-		self.options = {}
+		self.options = options or {}
 			
 	def __add__(self, other):
 		''' append the faces and points of the other mesh '''
@@ -955,6 +979,13 @@ def connef(faces):
 		for e in ((f[0],f[1]), (f[1],f[2]), (f[2],f[0])):
 			conn[e] = i
 	return conn
+	
+def connexity(links):
+	reach = {}
+	for l in links:
+		for p in l:
+			reach[p] = reach.get(p,0) +1
+	return reach
 		
 
 def lineedges(line, closed=False):
