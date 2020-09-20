@@ -209,7 +209,7 @@ def planeproject(pts, normal=None):
 	''' project an outline in a plane, to get its points as vec2 '''
 	x,y,z = guessbase(pts, normal)
 	i = min(range(len(pts)), key=lambda i: dot(pts[i],x))
-	l = len(pts.indices)
+	l = len(pts)
 	if dot(z, cross(pts[(i+1)%l]-pts[i], pts[(i-1)%l]-pts[i])) < 0:
 		y = -y
 	return [vec2(dot(p,x), dot(p,y))	for p in pts]
@@ -463,3 +463,275 @@ def triangulation_sweepline(outline: Web, normal=None, prec=0) -> Mesh:
 	for loop in sweepline_loops(outline, normal):
 		m += triangulation_outline(Wire(outline.points, loop), normal)
 	return m
+	
+from .mesh import connef
+
+def arrangeface(f, p):
+	if   p == f[1]:	return f[1],f[2],f[0]
+	elif p == f[2]:	return f[2],f[0],f[1]
+	else:			return f
+
+def retriangulate(mesh):
+	''' switch diagonals to improve the surface smoothness '''
+	pts = mesh.points
+	faces = mesh.faces
+	# second pass:	improve triangles by switching quand diagonals
+	conn = connef(faces)
+	scores = {}
+	def update_score(edge):
+		a,b,c = arrangeface(faces[conn[edge]], edge[0])
+		ab = pts[b]-pts[a]
+		lab = length(ab)
+		# check if diagonal is good for exchange
+		x = dot(pts[c]-pts[a], ab) / (lab*lab) 
+		if x < 0 or 1 < x:
+			scores[edge] = 0
+		else:
+			# if then, record the difference of heights
+			h = length(noproject(pts[c]-pts[a], ab/lab))
+			scores[edge] = lab/h - 2
+	for edge in conn:
+		update_score(edge)
+	
+	while True:
+		a,b = min(scores, key=lambda e:scores[e])
+		if scores[edge] <= NUMPREC:	break
+		fc = conn[(a,b)]
+		fd = conn[(b,a)]
+		_,_,c = arrangeface(faces[fc], a)
+		_,_,d = arrangeface(faces[fd], b)
+		faces[fc] = (d,a,c)
+		faces[fd] = (c,b,d)
+		registerface(conn, fc)
+		registerface(conn, fd)
+		# update scores
+		update_scores((d,a))
+		update_scures((a,c))
+		update_scores((c,d))
+		update_scores((d,a))
+		update_scures((a,c))
+		update_scores((c,d))
+	
+def cloud_normal(pts: '[vec3]', start=None) -> vec3:
+	if not start:	start = vec3(1)
+	center = sum(pts) / len(pts)
+	return normalize(sum(noproject(start, p-center)	for p in pts))
+
+from .mesh import suites
+from .mathutils import distance_pe
+from .nprint import nprint
+	
+def planenormals(web: 'Web', z) -> '[vec3]':
+	pts = web.points
+	normals = [vec3(0)	for _ in range(len(pts))]
+	for edge in web.edges:
+		normal = normalize(cross(pts[edge[1]]-pts[edge[0]], z))
+		for p in edge:
+			normals[p] += normal
+	for i in range(len(pts)):
+		normals[i] = normalize(normals[i])
+	return normals
+
+def line_bridges(parts: 'Web', z=None) -> '[edges]':
+	''' find the shortest couples of points to make the wire islands connex 
+		
+		if z is given, the lines will be considered oriented and there will be no bridge connecting edges on their exterior side
+	'''
+	initial = parts
+	pts = parts.points
+	normals = planenormals(parts, z)
+	parts = suites(parts.edges)
+	
+	l = len(pts)
+	g = len(initial.groups)
+	initial.groups.append(None)
+	for i in range(len(pts)):
+		initial.edges.append((i, l+i))
+		initial.tracks.append(g)
+	initial.points.extend(0.5*n+p for n,p in zip(normals, pts))
+		
+	
+	closests = [(inf, None, None)] * len(parts)
+	# compute closest point from the line to each remaning point
+	def update_distance(line):
+		for j,part in enumerate(parts):
+			closest = closests[j]
+			for i in range(1,len(line)):
+				a,b = line[i-1], line[i]
+				nab = cross(pts[b]-pts[a], z)
+				for p in part:
+					if z and (dot(nab, normals[p]) > 0 or dot(normals[p], pts[a]-pts[p]) > 0):
+						continue
+					dist = distance_pe(pts[p], (pts[a], pts[b]))
+					if dist < closest[0]:
+						matched = b if distance(pts[a], pts[p]) > distance(pts[b], pts[p]) else a
+						closest = (dist, p, matched)
+			
+				for p in (part[0], part[-1]):
+					if dot(pts[p]-pts[b], nab) > 0:	continue
+					dist = distance(pts[p], pts[b])
+					if dist < closest[0]:
+						closest = (dist, p, b)
+			
+			assert closest[1] is not None, 'unable to compare distances'
+			closests[j] = closest
+	
+	bridges = []
+	# start from one line
+	closests.pop()
+	update_distance(parts.pop())
+	while parts: 
+		# take the closest part in remains
+		i = min(range(len(closests)), key=lambda i:closests[i][0])
+		dist, p, closest = closests.pop(i)
+		bridges.append((p, closest))
+		# update the closests with the new junction and part edges
+		update_distance(parts.pop(i))
+		update_distance((p, closest))
+		update_distance((closest, p))
+	
+	return bridges
+
+def discretise_from(func: 'f(float) -> vec', start, end, initial=1e-3) -> '[(x, f(x)]':
+	''' discretise the function in the [start, end] interval, the step is increasing with the parameter.
+		Its suited for monoton functions.
+	'''
+	step = (end-start)*initial
+	pts = []
+	x = start
+	while x < end:
+		y = func(x)
+		pts.append((x, y))
+		x += max(step, length(y))
+	pts.append((end, func(end)))
+	return pts
+
+from .mathutils import atan, mix
+from . import settings
+	
+def discretise_refine(curve: '[(x, f(x))]', func: 'f(float) -> float', resolution=None, simplify=True):
+	''' improve discretisation to reach a certain resolution '''
+	if resolution and resolution[0] == 'div':
+		raise ValueError("resolution must have a local meaning, so not 'div'")
+	
+	r = 1/2		# refinement placement, 1/3 ensure that the points are placed regularly
+	pts = [curve[0], curve[1]]	# use a new list to improve insertion efficiencies (we will always insert close to the end)
+	i = 2	# index in pts
+	j = 2	# index in curve
+	target = len(curve)
+	
+	# check curve around b
+	def goodcorner(a, b, c):
+		length = distance(a, b) + distance(b, c)
+		d1 = (c[1] - b[1]) / (c[0] - b[0])
+		d2 = (b[1] - a[1]) / (b[0] - a[0])
+		angle = abs(atan(d1) - atan(d2))
+		return settings.curve_resolution(length, angle, resolution) <= 1
+	
+	while True:
+		# load following if necessary
+		if i >= len(pts):
+			if j >= target:	
+				break
+			pts.append(curve[j])
+			j += 1
+		
+		# check resolution around i-1
+		if not goodcorner(pts[i-2], pts[i-1], pts[i]):
+			# refine around i-1
+			r1 = mix(pts[i-1][0], pts[i][0],	r)
+			r2 = mix(pts[i-1][0], pts[i-2][0],	r)
+			p1 = (r1, func(r1))
+			p2 = (r2, func(r2))
+			if goodcorner(pts[i-2], pts[i-1], p1):
+				pts.insert(i, p1)
+			elif goodcorner(p2, pts[i-1], pts[i]):
+				pts.insert(i-1, p2)
+			else:
+				pts.insert(i, 	p1)
+				pts.insert(i-1,	p2)
+		else:
+			# go to next point
+			i += 1
+			
+	# simplify overresolution
+	i = 4
+	while i < len(pts):
+		if goodcorner(pts[i-4], pts[i-3], pts[i-1]) and goodcorner(pts[i-3], pts[i-1], pts[i]):
+			pts.pop(i-2)
+		else:
+			i += 1
+	
+	return pts
+		
+def convexhull_2d(points):
+	envelope = points + list(reversed(points))
+	i = 0
+	while i < len(envelope):
+		if dot(perp(envelope[i-2]-envelope[i-1]), envelope[i]-envelope[i-1]) < 0:
+			i += 1
+		else:
+			envelope.pop(i-1)
+			i -= 1
+	return envelope
+	
+	
+def loop_closer(lines: Web, ending=0) -> 'Web':
+	''' generate closing lines to create a loop.
+	
+		:ending:	the thickness along normals, for exterior geometries
+	'''
+	# the lines are simple lines, no junction at all
+	if not line.isline():
+		raise ValueError("the given web is not only made of lines, there is junctions")
+	
+	pts = lines.pts
+	# create independant unclosed loops with parts cutted by bridges
+	bridges = line_bridges(lines, normal)
+	junctions = set()
+	for a,b in bridges:
+		junctions.add(a)
+		junctions.add(b)
+	parts = suites(parts)
+	loops = []
+	while parts:
+		assembly = [parts.pop()]	# suites of points to extend
+		for i,p in enumerate(assembly):
+			# junction created by a bridge
+			if p in bridges:
+				for j,bridge in enumerate(bridges):
+					if p in bridge:
+						n = bridge[int(p == bridge[0])]
+						bridges.pop(j)
+						break
+				else:
+					continue
+				n = bridges[p]
+				# restack the rest of the current part
+				parts.append(assembly[i+1:])
+				assembly = assembly[:i+1]
+				# search the junction index in the new part
+				for part in parts:
+					if n in part:	break
+				else:
+					raise Exception('algorithm failure: bridge with no matching river')
+				j = part.index(n)
+				# append the new part
+				assembly += part[j:]
+				if part[-1] == part[0]:	
+					assembly += part[:j]
+		loops.append(assembly)
+	
+	for loop in loops:
+		# get a convex outline for the opened part, take not of which part is a real edge and what is bridge
+		outline = convexhull(Wire(pts, reversed(loop)), start=loop[0], stop=loop[-1])
+		# thicken the convex outline based on the curviline absciss
+		pts.extend(pts[p] + thickness*normals[p] 	for p in outline[1:-1])
+		l = len(pts)
+		lines.append((outline[0], l))
+		lines.append((l+len(outline), outline[-1]))
+		lines.extend((i,i+1)	for i in range(len(outline)-1))
+	
+def envolope_closer(parts: Mesh) -> Mesh:
+	indev
+	
