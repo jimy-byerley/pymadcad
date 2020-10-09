@@ -12,6 +12,8 @@ from PIL import Image
 import numpy.core as np
 import moderngl as mgl
 
+from PyQt5.QtCore import Qt, QEvent
+
 
 class PointDisplay(Display):
 	def __init__(self, scene, position, size=10, color=None):
@@ -378,20 +380,36 @@ class SolidDisplay(Display):
 			wire.append((f[1], f[2]))
 			wire.append((f[2], f[0]))
 		self.disp_wire = LinesDisplay(scene, self.vertices, wire, 
-							fvec4(settings.display['line_color'],0.3)
-						) if len(wire) else None
+							mix(color, settings.display['line_color'], 0.3)
+						)
+
+	def prerender(self, view):
+		if self.vertices.flags_updated:
+			self.vertices.vb_flags.write(self.vertices.flags)
+			self.vertices.flags_updated = False
 		
 	def stack(self, scene):
+		yield ((), 'screen', -1, self.prerender)
 		if self.options['display_faces']:	yield ((), 'screen', 0, self.disp_faces.render)
 		if self.options['display_groups']:	yield ((), 'screen', 1, self.disp_groups.render)
 		if self.options['display_points']:	yield ((), 'screen', 2, self.disp_points.render)
-		if self.options['display_wire']:	yield ((), 'screen', 1, self.disp_wire.render)
+		if self.options['display_wire']:	yield ((), 'screen', 2, self.disp_wire.render)
 		yield ((), 'ident', 0, self.disp_faces.identify)
 	
 	@property
 	def world(self):	return self.vertices.world
 	@world.setter
 	def world(self, value):	self.vertices.world = value
+
+	def control(self, view, key, sub, evt):
+		if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
+			sub = sub[0]
+			flags, idents = self.vertices.flags, self.vertices.idents
+			for i in range(len(idents)):
+				flags[i] ^= idents[i] == sub
+			self.vertices.flags_updated = True
+			view.update()
+			evt.accept()
 	
 
 class WebDisplay(Display):
@@ -405,8 +423,14 @@ class WebDisplay(Display):
 		self.disp_edges = LinesDisplay(scene, self.vertices, lines, color=color)
 		self.disp_groups = PointsDisplay(scene, self.vertices, points)
 		self.disp_points = PointsDisplay(scene, self.vertices)
+		
+	def prerender(self, view):
+		if self.vertices.flags_updated:
+			self.vertices.vb_flags.write(self.vertices.flags)
+			self.vertices.flags_updated = False
 
 	def stack(self, scene):
+		yield ((), 'screen', -1, self.prerender)
 		if self.options['display_groups']:		yield ((), 'screen', 2, self.disp_groups.render)
 		if self.options['display_points']:		yield ((), 'screen', 2, self.disp_points.render)
 		yield ((), 'screen', 1, self.disp_edges.render)
@@ -417,6 +441,15 @@ class WebDisplay(Display):
 	@world.setter
 	def world(self, value):	self.vertices.world = value
 
+	def control(self, view, key, sub, evt):
+		if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
+			sub = sub[0]
+			flags, idents = self.vertices.flags, self.vertices.idents
+			for i in range(len(idents)):
+				flags[i] ^= idents[i] == sub
+			self.vertices.flags_updated = True
+			view.update()
+			evt.accept()
 
 
 class Vertices(object):
@@ -495,8 +528,8 @@ class FacesDisplay:
 	def identify(self, view):
 		if self.va:
 			self.ident_shader['start_ident'] = view.identstep(self.vertices.nident)
-			self.shader['view'].write(view.uniforms['view'] * self.vertices.world)
-			self.shader['proj'].write(view.uniforms['proj'])
+			self.ident_shader['view'].write(view.uniforms['view'] * self.vertices.world)
+			self.ident_shader['proj'].write(view.uniforms['proj'])
 			# render on self.context
 			self.va_ident.render(mgl.TRIANGLES)
 

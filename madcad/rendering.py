@@ -569,6 +569,8 @@ class View(QOpenGLWidget):
 				self.fb_ident.read_into(self.map_ident, viewport=self.fb_ident.viewport, components=2)
 				self.fb_ident.read_into(self.map_depth, viewport=self.fb_ident.viewport, components=1, attachment=-1, dtype='f4')
 			self.fresh.add('fb_ident')
+			#from PIL import Image
+			#Image.fromarray(self.map_ident*16, 'I;16').show()
 	
 	def render(self):
 		# set the opengl current context from Qt (doing it only from moderngl interferes with Qt)
