@@ -1,6 +1,6 @@
 from madcad.mathutils import *
 from madcad.gear import *
-from madcad import quickdisplay
+from madcad import show
 import numpy as np
 from matplotlib import pyplot as plt
 from time import time
@@ -30,4 +30,4 @@ if True:
 	res.check()
 	assert res.issurface()
 	
-	quickdisplay([res])
+	show([res])

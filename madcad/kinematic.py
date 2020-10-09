@@ -20,7 +20,7 @@
 from copy import copy, deepcopy
 import numpy.core as np
 import moderngl as mgl
-from PyQt5.QtCore import QEvent	
+from PyQt5.QtCore import Qt, QEvent	
 
 from .common import ressourcedir
 from .mathutils import (fvec3, fmat4, vec3, vec4, mat3, mat4, quat, mat4_cast, quat_cast,
@@ -28,12 +28,13 @@ from .mathutils import (fvec3, fmat4, vec3, vec4, mat3, mat4, quat, mat4_cast, q
 						dot, cross, length, normalize, project, noproject, dirbase, distance,
 						atan2, acos, angle, axis, angleAxis,
 						pi, inf, glm,
-						Box, transform)
+						Box, boundingbox, transform)
 from .mesh import Mesh
 from . import settings
 from . import constraints
 from . import text
-
+from . import rendering
+from .displays import BoxDisplay
 
 __all__ = ['Torsor', 'comomentum', 'Pressure', 'Solid', 'Kinematic', 'Kinemanip', 'solvekin',
 			'makescheme', 'Scheme', 'WireDisplay',
@@ -156,11 +157,10 @@ class Solid:
 		self.position += trans
 	
 	def display(self, scene):
-		from .mathutils import boundingbox
-		from .displays import BoxDisplay
-		for visu in self.visuals:
-			yield from scene.display(visu)
+		return rendering.Group(scene, self.visuals)
 		
+		#from .mathutils import boundingbox
+		#from .displays import BoxDisplay
 		#box = boundingbox(self.visuals)
 		#m = min(box.width)
 		#box.min -= 0.2*m
@@ -316,15 +316,7 @@ class Kinematic:
 		indev
 	def display(self, scene):
 		''' renderer for kinematic manipulation, linked to the current object '''
-		manip = Kinemanip(scene, self)
-		for solid in self.solids:
-			displays = list(solid.display(scene))
-			manip.solids[id(solid)][1].extend(displays)
-			for disp in displays:
-				disp.control = lambda scene, grp, ident, evt, solid=solid:	manip.start(solid, scene, ident, evt)	# lambda default argument uncapture the variable
-				yield disp
-		manip.applyposes(scene)
-		yield manip
+		return Kinemanip(scene, self)
 
 
 class Pressure:
@@ -382,82 +374,97 @@ def store(dst, src):
 	for i in range(len(dst)):
 		dst[i] = src[i]
 
-class Kinemanip:
+
+class Kinemanip(rendering.Group):
 	''' Display that holds a kinematic structure and allows the user to move it
 	'''
-	renderindex = 0
 	
 	def __init__(self, scene, kinematic):
+		super().__init__(scene)
+		self.update(scene, kinematic)
+	
+	def update(self, scene, kinematic):
 		self.joints = kinematic.joints
 		self.fixed = kinematic.fixed
-		self.solids = {id(solid): (solid, [])   for solid in kinematic.solids}
 		self.locked = set(kinematic.fixed)
-	
-	def render(self, scene):	pass
-	def identify(self, scene, startident):	pass	
+		self.solids = {id(solid): solid   for solid in kinematic.solids}
+		super().update(scene, self.solids)
 		
-	def start(self, solid, scene, ident, evt):
-		if id(solid) in self.fixed:		return
-		evt.accept()
+	def control(self, view, key, sub, evt):
+		if sub[0] in self.fixed:	return
 		
-		self.startpt = scene.ptat(scene.objnear((evt.x(), evt.y())))
-		self.ptoffset = inverse(quat(solid.orientation)) * (solid.position - self.startpt)
-		self.actsolid = solid
-		self.moved = False
-		return self.move
+		if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
+			evt.accept()
+			solid = self.solids[sub[0]]
+			self.startpt = view.ptat(view.somenear(evt.pos()))
+			self.ptoffset = inverse(quat(solid.orientation)) * (solid.position - self.startpt)
+			view.tool.append(rendering.Tool(self.move, view, solid))
 	
-	def move(self, scene, evt):
-		evt.accept()
-		if evt.type() == QEvent.MouseMove:
-			# unlock moving solid
-			self.lock(self.actsolid, False)
-			self.moved = True
-			# displace the moved object
-			pt = scene.ptfrom((evt.x(), evt.y()), self.startpt)
-			self.startpt = self.actsolid.position - quat(self.actsolid.orientation)*self.ptoffset
-			#store(self.actsolid.position, pt+quat(self.actsolid.orientation)*self.ptoffset)
-			self.actsolid.position = pt+quat(self.actsolid.orientation)*self.ptoffset
-			# solve
-			try:	solvekin(self.joints, self.locked, precision=1e-2, maxiter=50)
-			except constraints.SolveError as err:	pass
-		else:
-			if not self.moved:
-				self.lock(self.actsolid, id(self.actsolid) not in self.locked)
-			else:
-				# finish on a better precision
-				try:	solvekin(self.joints, self.locked, precision=1e-4, maxiter=1000)
-				except constraints.SolveError as err:	print(err)
-			scene.tool = None
+	def move(self, dispatcher, view, solid):
+		moved = False
+		while True:
+			evt = yield
 			
-		self.applyposes(scene)
+			if evt.type() == QEvent.MouseMove:
+				evt.accept()
+				# unlock moving solid
+				self.lock(view, solid, False)
+				moved = True
+				# displace the moved object
+				pt = view.ptfrom(evt.pos(), self.startpt)
+				self.startpt = solid.position - quat(solid.orientation)*self.ptoffset
+				#store(solid.position, pt+quat(solid.orientation)*self.ptoffset)
+				solid.position = pt+quat(solid.orientation)*self.ptoffset
+				# solve
+				self.solve(view, temp=True)
+			
+			elif evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
+				evt.accept()
+				break
 		
-	def applyposes(self, scene):
-		# assign new positions to displays
-		for solid,displays in self.solids.values():
-			trans = fmat4(solid.pose())
-			for disp in displays:
-				if hasattr(disp, 'transform'):
-					disp.transform = trans
-		scene.update()
-		return True
+		if not moved:
+			self.lock(view, solid, id(solid) not in self.locked)
+		else:
+			# finish on a better precision
+			self.solve(view)
 	
-	def lock(self, solid, lock):
+	def solve(self, view, temp=False):
+		try:	
+			if temp:	solvekin(self.joints, self.locked, precision=1e-2, maxiter=50)
+			else:		solvekin(self.joints, self.locked, precision=1e-4, maxiter=1000)
+		except constraints.SolveError as err:	
+			for key in self.locked:
+				if 'solid-fixed' in self.displays[key].displays:
+					self.displays[key].displays['solid-fixed'].color = fvec3(settings.display['solver_error_color'])
+		else:
+			for key in self.locked:
+				if 'solid-fixed' in self.displays[key].displays:
+					print('color', settings.display['schematics_color'])
+					self.displays[key].displays['solid-fixed'].color = fvec3(settings.display['schematics_color'])
+		self.applyposes(view)
+	
+	def applyposes(self, view):
+		# assign new positions to displays
+		for key, solid in self.solids.items():
+			self.displays[key].world = fmat4(solid.pose())
+		view.update()
+	
+	def lock(self, view, solid, lock):
+		from .generation import brick
 		key = id(solid)
-		if key in self.fixed:	return
+		if key in self.fixed or lock == (key in self.locked):	
+			return
 		if lock:
-			if key in self.locked:	return
 			# add solid's variables to fixed
 			self.locked.add(key)
-			# grey display for locked solid
-			for disp in self.solids[key][1]:
-				disp.color = fvec3(0.5, 0.5, 0.5)
+			self.displays[key].displays['solid-fixed'] = BoxDisplay(view.scene, self.displays[key].box)
+			self.applyposes(view)
 		else:
-			if key not in self.locked:	return
 			# remove solid's variables from fixed
-			self.locked.discard(key)
-			# reset solid color
-			for disp in self.solids[key][1]:
-				disp.color = fvec3(settings.display['schematics_color'])
+			self.locked.remove(key)
+			del self.displays[key].displays['solid-fixed']
+		view.scene.touch()
+		view.update()
 		
 
 
@@ -482,7 +489,7 @@ def makescheme(joints, color=None):
 	size = (max(diag) or 1) / len(joints)
 	
 	for info in solids.values():
-		scheme = Scheme([], [], [], [], color, solid.pose())
+		scheme = Scheme([], [], [], [], color)
 		center = info[2]/info[3]
 		if glm.any(isnan(center)):	center = vec3(0)
 		for cst in info[1]:
@@ -494,13 +501,12 @@ def makescheme(joints, color=None):
 
 class Scheme:
 	''' buffer holder to construct schemes, for now it's only usefull to append to buffer '''
-	def __init__(self, points, transpfaces, opacfaces, lines, color=None, transform=None):
-		self.color = color or settings.display['schematics_color']
+	def __init__(self, points, transpfaces, opacfaces, lines, color=None):
+		self.color = color
 		self.points = points
 		self.transpfaces = transpfaces
 		self.opaqfaces = opacfaces
 		self.lines = lines
-		self.transform = transform
 	
 	def extend(self, other):
 		l = len(self.points)
@@ -511,27 +517,20 @@ class Scheme:
 	
 	def box(self):
 		''' return the extreme coordinates of the mesh (vec3, vec3) '''
-		if not self.points:		return None
-		max = deepcopy(self.points[0])
-		min = deepcopy(self.points[0])
-		for pt in self.points:
-			for i in range(3):
-				if pt[i] < min[i]:	min[i] = pt[i]
-				if pt[i] > max[i]:	max[i] = pt[i]
-		return Box(min, max)
+		return boundingbox(self.points)
 	
 	def display(self, scene):
-		return WireDisplay(scene, self.points, self.transpfaces, self.opaqfaces, self.lines, self.color, self.transform),
+		return WireDisplay(scene, self.points, self.transpfaces, self.opaqfaces, self.lines, self.color)
 
 
-class WireDisplay:
+class WireDisplay(rendering.Display):
 	''' wireframe display for schemes, like kinematic schemes '''
-	renderindex = 2
 	
-	def __init__(self, scene, points, transpfaces, opaqfaces, lines, color=None, transform=fmat4(1)):
+	def __init__(self, scene, points, transpfaces, opaqfaces, lines, color):
 		ctx = scene.ctx
-		self.transform = fmat4(transform)
-		self.color = fvec3(color or settings.display['wire_color'])
+		self.color = fvec3(color or settings.display['schematics_color'])
+		print('color', color, settings.display['schematics_color'])
+		self.box = boundingbox(points).cast(fvec3)
 		
 		def load(scene):
 			return scene.ctx.program(
@@ -546,6 +545,7 @@ class WireDisplay:
 						fragment_shader=open(ressourcedir+'/shaders/glowenvelope.frag').read(),
 						)
 		self.transpshader = scene.ressource('shader_glowenvelope', load)
+		self.identshader = scene.ressource('shader_ident')
 		
 		normals = Mesh(points, transpfaces).vertexnormals()
 		#print('normals', normals)
@@ -562,7 +562,7 @@ class WireDisplay:
 					self.vb_transpfaces,
 					)
 			self.va_ident_faces = ctx.vertex_array(
-					scene.ident_shader,
+					self.identshader,
 					[(self.vb_vertices, '3f4 12x', 'v_position')],
 					self.vb_transpfaces,
 					)
@@ -585,45 +585,49 @@ class WireDisplay:
 					self.vb_lines,
 					)
 			self.va_ident_lines = ctx.vertex_array(
-					scene.ident_shader,
+					self.identshader,
 					[(self.vb_vertices, '3f4 12x', 'v_position')],
 					self.vb_lines,
 					)
 		else:
 			self.vb_lines = None
 	
-	def render(self, scene):		
-		viewmat = scene.view_matrix * self.transform
+	def render(self, view):		
+		viewmat = view.uniforms['view'] * self.world
 		
-		#scene.ctx.blend_func = mgl.SRC_ALPHA, mgl.ONE_MINUS_SRC_ALPHA
-		#scene.ctx.blend_equation = mgl.FUNC_ADD
+		#view.ctx.blend_func = mgl.SRC_ALPHA, mgl.ONE_MINUS_SRC_ALPHA
+		#view.ctx.blend_equation = mgl.FUNC_ADD
 		
 		self.uniformshader['color'].write(self.color)
 		self.uniformshader['view'].write(viewmat)
-		self.uniformshader['proj'].write(scene.proj_matrix)
+		self.uniformshader['proj'].write(view.uniforms['proj'])
 		
-		scene.ctx.disable(mgl.DEPTH_TEST)
-		scene.ctx.disable(mgl.CULL_FACE)
+		ctx = view.scene.ctx
+		ctx.disable(mgl.DEPTH_TEST)
+		ctx.disable(mgl.CULL_FACE)
 		if self.vb_opaqfaces:	self.va_opaqfaces.render(mgl.TRIANGLES)
 		if self.vb_lines:		self.va_lines.render(mgl.LINES)
 		
-		scene.ctx.enable(mgl.CULL_FACE)
+		ctx.enable(mgl.CULL_FACE)
 		if self.vb_transpfaces:	
 			self.transpshader['color'].write(self.color)
 			self.transpshader['view'].write(viewmat)
-			self.transpshader['proj'].write(scene.proj_matrix)
+			self.transpshader['proj'].write(view.uniforms['proj'])
 			self.va_transpfaces.render(mgl.TRIANGLES)
-		scene.ctx.enable(mgl.DEPTH_TEST)
-		scene.ctx.disable(mgl.CULL_FACE)
+		ctx.enable(mgl.DEPTH_TEST)
+		ctx.disable(mgl.CULL_FACE)
 	
-	def identify(self, scene, startident):
-		viewmat = scene.view_matrix * self.transform
-		scene.ident_shader['ident'] = startident
-		scene.ident_shader['view'].write(viewmat)
-		scene.ident_shader['proj'].write(scene.proj_matrix)
+	def identify(self, view):
+		viewmat = view.uniforms['view'] * self.world
+		self.identshader['ident'] = view.identstep(1)
+		self.identshader['view'].write(viewmat)
+		self.identshader['proj'].write(view.uniforms['proj'])
 		
 		if self.vb_transpfaces:		self.va_ident_faces.render(mgl.TRIANGLES)
 		if self.vb_lines:			self.va_ident_lines.render(mgl.LINES)
-		return 1
+
+	def stack(self, scene):
+		return ( ((), 'screen', 1, self.render),
+				 ((), 'ident', 1, self.identify))
 
 

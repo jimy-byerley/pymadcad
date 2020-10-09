@@ -141,7 +141,7 @@ from . import (
 		io, hashing, triangulation,
 	)
 # gui
-from . import view, text, displays
+from . import rendering, displays, text
 
 # the most common tools, imported to access it directly from madcad
 from .mathutils import *
@@ -158,4 +158,4 @@ from .io import read, write, cache
 from .triangulation import TriangulationError
 
 from .text import Text
-from .view import Scene, isdisplay, displayable, quickdisplay
+from .rendering import Scene, Display, displayable, show

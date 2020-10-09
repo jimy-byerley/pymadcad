@@ -6,7 +6,7 @@
 in vec3 v_position;	// vertex position
 in vec3 v_normal;	// vertex normal
 in int v_flags;
-uniform mat4 pose;	// object pose
+uniform mat4 world;	// world matrix (object pose)
 uniform mat4 view;	// view matrix (camera orientation)
 uniform mat4 proj;	// projection matrix (perspective or orthographic)
 
@@ -18,7 +18,7 @@ flat out int flags;
 void main() {
 	flags = v_flags;
 	
-	vec4 p = pose * vec4(v_position, 1);
+	vec4 p = world * vec4(v_position, 1);
 	// world space vectors for the fragment shader
 	sight = - v_position - transpose(mat3(view)) * vec3(view[3]);
 	normal = v_normal;

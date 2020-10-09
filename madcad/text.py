@@ -5,7 +5,7 @@ import numpy.core as np
 import moderngl as mgl
 from .common import ressourcedir
 from .mathutils import fvec3, fvec4, fmat4, ceil, sqrt
-from . import settings
+from . import settings, rendering
 
 # TODO: utiliser les methodes et attributs ImgeFont.size, .getmetrics(), etc pour avoir les hauteur et largeur de police
 
@@ -32,13 +32,13 @@ def create_font_texture(font, maxchar=1100):
 class Text:
 	def __init__(self, position, text, size=None, color=(1,1,1), align=(0,0)):
 		self.text = text
-		self.position = position
+		self.position = fvec3(position)
 		self.size = size or settings.display['view_font_size']
 		self.color = color
 		self.align = align
 	
 	def display(self, scene):
-		return TextDisplay(scene, self.position, self.text, self.size, self.color, self.align),
+		return TextDisplay(scene, self.position, self.text, self.size, self.color, self.align)
 
 def char_placement(fontsize, c, l, n):
 	fontsize += 4
@@ -53,13 +53,11 @@ pointsdef = [
 	[1, 0],
 	]
 
-class TextDisplay:
-	renderindex = 3
+class TextDisplay(rendering.Display):
 	
-	def __init__(self, scene, position, text, size=None, color=None, align=(0,0), transform=fmat4(1)):
+	def __init__(self, scene, position, text, size=None, color=None, align=(0,0)):
 		if not color:	color = settings.display['annotation_color']
 		if not size:	size = settings.display['view_font_size']
-		self.transform = fmat4(*transform)
 		self.position = fvec3(position)
 		self.color = fvec3(color)
 		self.size = size
@@ -116,20 +114,20 @@ class TextDisplay:
 			[(self.vb_points, '2f 2f', 'v_position', 'v_uv')],
 			)
 	
-	def render(self, scene):		
+	def render(self, view):		
 		self.shader['color'].write(self.color)
-		self.shader['position'].write(fvec3(self.transform * fvec4(self.position,1)))
-		self.shader['view'].write(scene.view_matrix)
-		self.shader['proj'].write(scene.proj_matrix)
+		self.shader['position'].write(fvec3(self.world * fvec4(self.position,1)))
+		self.shader['view'].write(view.uniforms['view'])
+		self.shader['proj'].write(view.uniforms['proj'])
 		self.shader['ratio'].value = (
-				(self.size-2.5) / scene.width()*2,
-				(self.size-2.5) / scene.height()*4,
+				(self.size-2.5) / view.width()*2,
+				(self.size-2.5) / view.height()*4,
 				)
 		self.fonttex.use(0)
 		self.va.render(mgl.TRIANGLES)
 
-	def identify(self, scene, ident):
-		pass
+	def stack(self, view):
+		return ((), 'screen', 2, self.render),
 
 def processalign(align, size):
 	if isinstance(align, str):

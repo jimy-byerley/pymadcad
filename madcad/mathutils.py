@@ -98,9 +98,9 @@ def transform(*args) -> mat4:
 		*	mat4
 		*	vec3                                    - translation only
 		*	quat, mat3, mat4                        - rotation only
-		*	(vec3,vec3), (vec3,mat3), (vec3,quat)   - translation and rotation
-		*	(vec3,vec3,vec3)                        - base of vectors for rotation
-		*	(vec3,vec3,vec3,vec3)                   - translation and base of vectors for rotation
+		*	(vec3,vec3), (vec3,mat3), (vec3,quat)   - (o,T) translation and rotation
+		*	(vec3,vec3,vec3)                        - (x,y,z) base of vectors for rotation
+		*	(vec3,vec3,vec3,vec3)                   - (o,x,y,z) translation and base of vectors for rotation
 	'''
 	if len(args) == 1 and isinstance(args[0], (tuple,list)):
 		args = args[0]
@@ -123,7 +123,24 @@ def transform(*args) -> mat4:
 		m[3] = vec4(args[0], 1)
 		return m
 	
-	raise TypeError('a transformation must be a  mat3, mat4, quat, (O,mat3), (O,quat), (0,x,y,z)')
+	raise TypeError('a transformation must be a  mat3, mat4, quat, (O,mat3), (O,quat), (0,x,y,z), not {}'.format(args))
+	
+def transformer(trans):
+	''' return an function to apply the given transform on vectors
+		
+		:vec3:  translate the given position
+		:mat3:  rotate the given position
+		:quat:  rotate the given position
+		:mat4:  affine transform (rotate then translate)
+	'''
+	if isinstance(trans, (dquat, fquat)):		trans = mat3_cast(trans)
+	if callable(trans):							return trans
+	if isinstance(trans, (dvec3, fvec3)):		return lambda v: v + trans
+	if isinstance(trans, (dmat3, fmat3)):		return lambda v: trans * v
+	if isinstance(trans, dmat4):				return lambda v: dvec3(trans * dvec4(v,1))
+	if isinstance(trans, fmat4):				return lambda v: fvec3(trans * fvec4(v,1))
+	raise TypeError('a transformer must be a  vec3, quat, mat3, mat4 or callable, not {}'.format(trans))
+
 
 
 def interpol1(a, b, x):
@@ -193,7 +210,7 @@ def distance_ae(axis, edge):
 
 #-- algorithmic functions ---------
 
-def dichotomy_index(l, index, key=lambda x:x):
+def bisect(l, index, key=lambda x:x):
 	''' use dichotomy to get the index of `index` in a list sorted in ascending order
 		key can be used to specify a function that gives numerical value for list elements
 	'''
@@ -211,6 +228,7 @@ def find(iterator, predicate):
 		if predicate(e):	return e
 
 class Box:
+	''' box always orthogonal to the base axis, used as convex for area delimitations '''
 	__slots__ = ('min', 'max')
 	def __init__(self, min=None, max=None, center=vec3(0), width=vec3(-inf)):
 		if min and max:			self.min, self.max = min, max
@@ -224,6 +242,15 @@ class Box:
 	def width(self):
 		''' diagonal vector of the box '''
 		return self.max - self.min
+	
+	def corners(self):
+		''' create a list of the corners of the box '''
+		c = self.min, self.max
+		t = type(self.min)
+		return [
+			t(c[i&1][0], c[(i>>1)&1][1], c[(i>>2)&1][2])
+			for i in range(8)
+			]
 	
 	def isvalid(self):
 		''' return True if the box defines a valid space (min coordinates <= max coordinates) '''
@@ -251,59 +278,67 @@ class Box:
 		elif isinstance(other, Box):	return Box(other.min, other.max)
 		else:
 			return NotImplemented
+	
 	def __or__(self, other):	return deepcopy(self).union(other)
 	def __and__(self, other):	return deepcopy(self).intersection(other)
 	def union(self, other):
-		if isinstance(other, vec3):
+		''' extend the area of the box to bound the given point or box '''
+		if isinstance(other, (dvec3, fvec3)):
 			self.min = glm.min(self.min, other)
 			self.max = glm.max(self.max, other)
 		elif isinstance(other, Box):
 			self.min = glm.min(self.min, other.min)
 			self.max = glm.max(self.max, other.max)
 		else:
-			return NotImplemented
+			raise TypeError('unable to integrate {}'.format(type(other)))
 		return self
 	def intersection(self, other):
-		if isinstance(other, vec3):
-			self.min = glm.max(self.min, other)
-			self.max = glm.min(self.max, other)
-		elif isinstance(other, Box):
+		''' intersection area between the 2 boxes '''
+		if isinstance(other, Box):
 			self.min = glm.max(self.min, other.min)
 			self.max = glm.min(self.max, other.max)
 		else:
-			return NotImplemented
-		for i in range(3):
-			if self.min[i] > self.max[i]:
-				self.min[i] = self.max[i] = (self.min[i]+self.max[i])/2
-				break
+			raise TypeError('expected a Box'.format(type(other)))
 		return self
+	def transform(self, trans):
+		''' box bounding the current one in a transformed space '''
+		if self.isvalid():	return self
+		trans = transformer(trans)
+		box = boundingbox((trans(p)  for p in self.corners())) #, vec=type(self.min))
+		return box
+	def cast(self, vec):
+		return Box(vec(self.min), vec(self.max))
+	
 	def __bool__(self):
-		for i in range(3):
-			if self.min[i] >= self.max[i]:	return False
-		return True
+		return self.isvalid()
 	def __repr__(self):
 		return '{}({}, {})'.format(self.__class__.__name__, repr(self.min), repr(self.max))
 
-def boundingbox(*args, ignore=True) -> Box:
-	''' return a bounding box for the objects passed
-		will search recursively in sub iterables
-		if ignore is False, a TypeError is raised when one of the passed objects doesn't contribute to the bounding box
+def boundingbox(obj, ignore=False, default=Box(width=vec3(-inf))) -> Box:
+	''' return a box containing the object passed
+		obj can be a vec3, Box, object with a `box()` method, or an iterable of such objects
 	'''
-	box = Box(vec3(inf), vec3(-inf))
-	for obj in args:
-		if hasattr(obj, 'box'):
-			part = obj.box()
-		elif isinstance(obj, vec3):
-			part = obj
-		elif isinstance(obj, tuple) and isinstance(obj[0], vec3):
-			part = obj[0]
-		elif hasattr(obj, '__iter__'):
+	if isinstance(obj, Box):			return obj
+	if isinstance(obj, (dvec3, fvec3)):	return Box(obj,obj)
+	if hasattr(obj, 'box'):				return obj.box()
+	if hasattr(obj, '__iter__'):
+		obj = iter(obj)
+		if ignore:
+			bound = default
 			for e in obj:
-				box.union(boundingbox(e))
-			continue
+				try:	bound = boundingbox(e)
+				except TypeError:	continue
+				break
+			for e in obj:
+				try:	bound.union(e)
+				except TypeError:	continue
 		else:
-			if not ignore:	raise TypeError('unable to get a boundingbox from', obj)
-			continue
-		box.union(part)
-	return box
+			bound = boundingbox(next(obj, default))
+			for e in obj:	bound.union(e)
+		return bound
+	if ignore:
+		return default
+	else:
+		raise TypeError('unable to get a boundingbox from {}'.format(type(obj)))
 
+	

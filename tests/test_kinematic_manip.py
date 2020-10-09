@@ -1,4 +1,4 @@
-from madcad.mathutils import vec3, normalize
+from madcad import vec3, normalize, show, Box
 from madcad.kinematic import *
 from madcad.joints import *
 
@@ -48,6 +48,7 @@ csts = [
 	Ball(s2,s4, vec3(0,0,3), O),
 	]
 
+# gears
 csts = [
 	Pivot(s0,s1, (vec3(0,1,0),Y), (O,Z)),
 	Pivot(s0,s2, (vec3(1,0,0),X), (O,Z)),
@@ -59,7 +60,6 @@ csts = [
 	Track(s0,s5, (vec3(0,2,1),Z,X), (Z,X,Y)),
 	]
 
-from madcad.view import quickdisplay
 solvekin(csts, [s0], precision=1e-2)
 makescheme(csts)
-quickdisplay([Kinematic(csts, [s0]), O, X, Y, Z])
+show([Kinematic(csts, [s0]), O, X, Y, Z])

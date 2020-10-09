@@ -137,7 +137,7 @@ else:
 		stlmesh = stl.mesh.Mesh.from_file(file, calculate_normals=False)
 		trinum = stlmesh.points.shape[0]
 		ptsbuff = stlmesh.points.reshape(trinum*3, 3).astype('f8')
-		pts = glm.array(a).to_list()
+		pts = glm.array(ptsbuff).to_list()
 		faces = [(i, i+1, i+2)  for i in range(0, 3*trinum, 3)]
 		mesh = Mesh(pts, faces)
 		mesh.options['name'] = stlmesh.name

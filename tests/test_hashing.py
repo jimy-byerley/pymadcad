@@ -1,5 +1,4 @@
-from madcad.mathutils import vec3
-from madcad.mesh import Mesh, Web
+from madcad import vec3, Mesh, Web, show
 from madcad.hashing import *
 from nprint import nprint
 
@@ -34,16 +33,6 @@ m = PositionMap(1, [
 nprint(m.dict)
 print(set( m.get((vec3(8,0,0),vec3(0,8,0),vec3(-2,-2,8))) ))
 
-from madcad.mathutils import Box,fvec3
-from madcad import view
-import sys
-from PyQt5.QtWidgets import QApplication
-app = QApplication(sys.argv)
-scn = view.Scene()
 m.options['color'] = (0.7, 0.9, 1)
-scn.add(m)
-scn.add(triangles)
-scn.add(lines)
-scn.look(Box(center=fvec3(0,0,3), width=fvec3(4)))
-scn.show()
-sys.exit(app.exec())
+
+show([m, triangles, lines])

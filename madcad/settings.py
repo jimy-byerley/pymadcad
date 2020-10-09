@@ -12,36 +12,47 @@ from PyQt5.QtCore import Qt
 
 
 display = {
-	'view_font_size': 8,
 	'field_of_view': pi/6,
-	'view_limits': (0.1, 1024.),
+	'view_font_size': 8,
+	'line_width': 1.,
+	
+	'background_color': (0,0,0),
+	'select_color_face': (0.01, 0.05, 0.03),
+	'select_color_line': (0.5, 1, 0.6),
+	'highlight_color': (0.1, 0.2, 0.2),
 	
 	'solid_color': (0.2, 0.2, 0.2),
 	'solid_color_front': 1.,
 	'solid_color_side': 0.2,
 	'line_color': (0.9, 0.9, 0.9),
-	'select_color_face': (0.01, 0.05, 0.03),
-	'select_color_line': (0.5, 1, 0.6),
+	'point_color': (0.9, 0.9, 0.9),
 	'schematics_color': (0.3, 0.8, 1),
+	'solver_error_color': (1, 0.3, 0.2),
 	'annotation_color': (0.2, 0.7, 1),
-	'line_width': 1.,
+	
+	'system_theme': True,
 	}
 
 scene = {
+	'projection': 'Perspective',
+	
 	'display_faces': True,
 	'display_groups': True,
 	'display_points': False,
 	'display_wire': False,
+	'surface_shading': True,
+	
+	'debug_points': False,
+	'debug_faces': False,
+	'debug_groups': False,
 	}
 		
 controls = {
-	'zoom_sensitivity':	1.,
-	'orbit_sensitivity': 4.,
-	'pan_sensitivity': 0.8,
+	'navigation': 'Turntable',
+	'snap_dist': 10,	# pixel distance to click items
 	}
 
 primitives = {
-	'merge_limit': 0.01,	# distance minimale avant fusion des points lors de la simplification
 	'curve_resolution': ('rad', pi/16),	# angle maximal pour discretisation des courbes
 	}
 
@@ -75,3 +86,25 @@ def getparam(levels: list, key):
 		if d is not None:
 			if key in d:	return d[key]
 	return None
+
+def use_qt_colors():
+	from .mathutils import fvec3, mix, distance
+	from PyQt5.QtWidgets import QApplication
+	palette = QApplication.instance().palette()
+	
+	def qtc(role):
+		c = palette.color(role)
+		return (c.red()/255, c.green()/255, c.blue()/255)
+	
+	selection = mix(fvec3(0.4, 1, 0), qtc(palette.Highlight), 0.6)
+	selection *= mix(1/max(selection), max(qtc(palette.Text)), 0.3)
+	display.update({
+		'background_color': qtc(palette.Base),
+		'select_color_face': tuple(selection * 0.05),
+		'select_color_line': tuple(selection * 1.1),
+		'line_color': qtc(palette.Text),
+		'point_color': qtc(palette.Text),
+		'solid_color': qtc(palette.Midlight),
+		'schematics_color': qtc(palette.Link),
+		'annotation_color': fvec3(qtc(palette.Highlight)),
+		})

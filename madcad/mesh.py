@@ -29,8 +29,11 @@ import numpy as np
 from array import array
 from collections import OrderedDict
 import math
-from .mathutils import Box, vec3, vec4, mat3, mat4, quat, mat3_cast, cross, dot, normalize, length, distance, project, noproject, anglebt, NUMPREC
-from . import view
+from .mathutils import (
+				Box, vec3, vec4, mat3, mat4, quat, mat3_cast, transformer,
+				cross, dot, normalize, length, distance, project, noproject, anglebt, 
+				NUMPREC,
+				)
 from . import displays
 from . import text
 from . import hashing
@@ -46,13 +49,9 @@ class Container:
 	
 	def transform(self, trans):
 		''' apply the transform to the points of the mesh, returning the new transformed mesh'''
-		if isinstance(trans, quat):		trans = mat3_cast(trans)
-		if isinstance(trans, vec3):		transformer = lambda v: v + trans
-		elif isinstance(trans, mat3):	transformer = lambda v: trans * v
-		elif isinstance(trans, mat4):	transformer = lambda v: vec3(trans * vec4(v,1))
-		elif callable(trans):	pass
+		trans = transformer(trans)
 		transformed = copy(self)
-		transformed.points = list(map(transformer, self.points))
+		transformed.points = list(map(trans, self.points))
 		return transformed
 			
 	def mergeclose(self, limit=None, start=0):
@@ -557,13 +556,25 @@ class Mesh(Container):
 				edges,
 				idents,
 				color = self.options.get('color'),
-				),
+				)
 	
 	def display(self, scene):
-		if self.options.get('debug_display', False):
-			yield from self.display_triangles(scene)
-		else:
-			yield from self.display_groups(scene)
+		m = copy(self)
+		idents = m.splitgroups()
+		edges = m.groupoutlines().edges
+		normals = m.vertexnormals()
+		
+		return displays.SolidDisplay(scene, 
+				glmarray(m.points), 
+				glmarray(normals), 
+				m.faces, 
+				edges,
+				idents,
+				color = self.options.get('color'),
+				)
+	
+	def display_update(self, scene, display):
+		indev
 	
 	def __repr__(self):
 		return 'Mesh(\n  points= {},\n  faces=  {},\n  tracks= {},\n  groups= {},\n  options= {})'.format(
@@ -756,17 +767,7 @@ class Web(Container):
 					reprarray(self.groups, 'groups'),
 					repr(self.options))
 					
-	def display(self, scene):
-		if self.options.get('debug_points', False):
-			for i,p in enumerate(self.points):
-				yield from text.Text(
-					p, 
-					' '+str(i), 
-					size=8, 
-					color=(0.2, 0.8, 1),
-					align=('left', 'center'),
-					).display(scene)
-		
+	def display(self, scene):		
 		points = []
 		idents = []
 		edges = []
@@ -792,7 +793,7 @@ class Web(Container):
 			for p in frontier:
 				frontiers.append(used[p])
 				
-		yield displays.WebDisplay(scene,
+		return displays.WebDisplay(scene,
 				glmarray(points), 
 				edges,
 				frontiers,
@@ -905,7 +906,7 @@ class Wire:
 		return Wire(self.points, self.indices+other.indices)
 	
 	def display(self, scene):
-		yield from web(self).display(scene)
+		return web(self).display(scene)
 	
 	def __repr__(self):
 		return 'Wire(\n  points= {},\n  indices=  {},\n  group= {})'.format(

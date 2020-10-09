@@ -5,7 +5,7 @@ from madcad import vec3,mat4, rotate, Mesh, quat, transform, normalize
 from madcad.boolean import difference, booleanwith, intersectwith
 from madcad import boolean
 
-from madcad.view import quickdisplay
+from madcad import show
 
 m1 = Mesh(
 	[
@@ -55,5 +55,5 @@ assert m3.isenvelope()
 #m3.groups = [None]*len(m3.faces)
 #m3.tracks = list(range(len(m3.faces)))
 # display
-quickdisplay([m3])
+show([m3])
 
