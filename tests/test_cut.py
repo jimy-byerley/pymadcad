@@ -1,15 +1,9 @@
 # test intersections
-from madcad import vec3, saddle, tube, ArcThrough, Web, web, bevel, chamfer
+from madcad import vec3, saddle, tube, ArcThrough, Web, web, bevel, chamfer, show
 from madcad.mesh import suites
-from madcad import view, text
 from madcad.cut import multicut
-import sys
-from PyQt5.QtWidgets import QApplication
 from nprint import nprint
 from copy import deepcopy
-
-app = QApplication(sys.argv)
-main = scn3D = view.Scene()
 
 m = saddle(
 		Web(
@@ -36,8 +30,5 @@ m.check()
 #assert m.issurface()
 
 #m.options.update({'debug_display': True, 'debug_points': True })
-scn3D.options.update({'display_wire':True})
-scn3D.add(m)
-scn3D.look(m.box())
-main.show()
-sys.exit(app.exec())
+show([m], {'display_wire':True})
+

@@ -1,4 +1,4 @@
-from madcad import vec3, Box, brick, quickdisplay
+from madcad import vec3, Box, brick, show
 from madcad.mesh import suites
 from madcad.cut import *
 from madcad import scaledir, normalize
@@ -12,4 +12,4 @@ bevel(cube, w, ('width', 0.3))
 cube.mergeclose()
 cube.check()
 #cube.options = {'debug_display':True, 'debug_points':True}
-quickdisplay([cube], options={'display_wire':True})
+show([cube], options={'display_wire':True})
