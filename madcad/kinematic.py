@@ -439,7 +439,6 @@ class Kinemanip(rendering.Group):
 		else:
 			for key in self.locked:
 				if 'solid-fixed' in self.displays[key].displays:
-					print('color', settings.display['schematics_color'])
 					self.displays[key].displays['solid-fixed'].color = fvec3(settings.display['schematics_color'])
 		self.applyposes(view)
 	
@@ -529,7 +528,6 @@ class WireDisplay(rendering.Display):
 	def __init__(self, scene, points, transpfaces, opaqfaces, lines, color):
 		ctx = scene.ctx
 		self.color = fvec3(color or settings.display['schematics_color'])
-		print('color', color, settings.display['schematics_color'])
 		self.box = boundingbox(points).cast(fvec3)
 		
 		def load(scene):
