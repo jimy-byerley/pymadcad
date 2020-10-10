@@ -48,6 +48,7 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 pygments_style = None
 add_module_names = False	# remove module names from function docs
 default_role = 'code'
+primary_domain = 'py'
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -73,4 +74,4 @@ epub_exclude_files = ['search.html']
 def setup(app):
     #app.add_css_file('css/theme.css')
     #app.add_css_file('pygments.css')
-    app.add_css_file('custom.css')
+    app.add_css_file('css/custom.css')
