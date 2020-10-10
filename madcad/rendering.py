@@ -91,6 +91,13 @@ def show(objs, options=None, interest=None):
 class Display:
 	''' Blanket implementation for displays.
 		This class signature is exactly the display protocol specification
+		
+		Attributes:
+		
+			:world(fmat4):  matrix from local space to parent space
+			:box(Box):      boudingbox of the display in local space
+			
+			These attributes are variable members by default but can be overriden as properties if needed.
 	'''
 	
 	# mendatory part of the protocol
@@ -102,18 +109,30 @@ class Display:
 		''' displays are obviously displayable as themselves '''
 		return self
 	def stack(self, scene) -> '[(key, target, priority, callable)]':
-		''' rendering functions to insert in the renderpipeline 
-			callables is provided the used view as argument. The view contains the uniforms, rendering targets and the scene for common ressources
+		''' rendering functions to insert in the renderpipeline.
+		
+			the expected result can be any iterable providing the values as in the signature
+			
+			:key:	    a tuple with the successive keys in the displays tree, most of the time implementers set it to `()`  because it doesn't belong to a subpart of the Display.
+			:target:    the name of the render target in the view that will be rendered (see View)
+			:priority:  a float that is used to insert the callable at the proper place in the rendering stack
+			:callable:  a function that renders, signature is  `func(view)`			
+			
+			The view contains the uniforms, rendering targets and the scene for common ressources
 		'''
 		return ()
 	def duplicate(self, src, dst) -> 'display/None':
-		''' duplicate the display for an other scene (other context) but keeping the same memory buffers when possible '''
+		''' duplicate the display for an other scene (other context) but keeping the same memory buffers when possible.
+			
+			return None if not possible or not implemented.
+		'''
 		return None
 	def __getitem__(self, key) -> 'display':
 		''' get a subdisplay by its index/key in this display (like in a scene) '''
 		raise IndexError('{} has no sub displays'.format(type(self).__name__))
 	def update(self, scene, displayable) -> bool:
-		''' update the current displays internal datas with the given displayable 
+		''' update the current displays internal datas with the given displayable .
+			
 			if the display cannot be upgraded, it must return False to be replaced by a fresh new display created from the displayable
 		'''
 		return False
@@ -122,12 +141,13 @@ class Display:
 	
 	selected = False
 	
-	def control(self, scene, key, sub, evt: 'QEvent'):
+	def control(self, view, key, sub, evt: 'QEvent'):
 		''' handle input events occuring on the area of this display (or of one of its subdisplay).
 			for subdisplay events, the parents control functions are called first, and the sub display controls are called only if the event is not accepted by parents
 			
 			:key:    the key path for the current display
 			:sub:    the key path for the subdisplay
+			:evt:    the Qt event (see Qt doc)
 		'''
 		pass
 
@@ -264,11 +284,13 @@ class Orbit:
 
 
 class Perspective:
+	''' parameter holder for a perspective projection '''
 	def __init__(self, fov=None):
 		self.fov = fov or settings.display['field_of_view']
 	def matrix(self, ratio, distance) -> fmat4:
 		return perspective(self.fov, ratio, distance*1e-2, distance*1e4)
 class Orthographic:
+	''' parameter holder for an orthographic projection '''
 	def matrix(self, ratio, distance) -> fmat4:
 		return fmat4(1/ratio/distance, 0, 0, 0,
 		            0,       1/distance, 0, 0,
@@ -588,6 +610,9 @@ class View(QOpenGLWidget):
 		self.scene.render(self)
 	
 	def identstep(self, nidents):
+		''' updates the amount of rendered idents and return the start ident for the calling rendering pass 
+			method to call during a renderstep
+		'''
 		s = self.step
 		self.step += nidents
 		self.steps[self.stepi] = self.step-1

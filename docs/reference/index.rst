@@ -25,6 +25,7 @@ submodules
 	cut.rst
 	hashing.rst
 	settings.rst
+	rendering.rst
 
 .. py:module:: madcad
 
@@ -32,26 +33,26 @@ submodules
 solvers
 ~~~~~~~
 
-.. autofunction:: solve
-.. autofunction:: solvekin
+	.. autofunction:: solve
+	.. autofunction:: solvekin
 
 volume boolean operators
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. autofunction:: difference
-.. autofunction:: union
-.. autofunction:: intersection
+	.. autofunction:: difference
+	.. autofunction:: union
+	.. autofunction:: intersection
 
 generation functions
 ~~~~~~~~~~~~~~~~~~~~
 
-.. autofunction:: extrusion
-.. autofunction:: revolution
-.. autofunction:: extrans
-.. autofunction:: junction
+	.. autofunction:: extrusion
+	.. autofunction:: revolution
+	.. autofunction:: extrans
+	.. autofunction:: junction
 
 cut functions
 ~~~~~~~~~~~~~
 
-.. autofunction:: chamfer
-.. autofunction:: bevel
+	.. autofunction:: chamfer
+	.. autofunction:: bevel
