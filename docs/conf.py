@@ -46,6 +46,8 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = None
+add_module_names = False	# remove module names from function docs
+default_role = 'code'
 
 
 # -- Options for HTML output -------------------------------------------------
