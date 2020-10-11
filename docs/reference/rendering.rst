@@ -12,18 +12,21 @@ a displayable is an object that implements the signatue of Display:
 
 .. code-block:: python
 	
-	class display:
-		box (Box)                      delimiting the display, can be an empty or invalid box
-		pose (fmat4)                    local transformation
-		
-		stack(scene)                   rendering routines (can be methods, or any callable)
-		duplicate(src,dst)             copy the display object for an other scene if possible
-		upgrade(scene,displayable)     upgrade the current display to represent the given displayable
-		control(...)                   handle events
-		
-		__getitem__                    access to subdisplays if there is
-
+		class display:
+			box (Box)                      # delimiting the display, can be an empty or invalid box
+			pose (fmat4)                   # local transformation
+			
+			stack(scene)                   # rendering routines (can be methods, or any callable)
+			duplicate(src,dst)             # copy the display object for an other scene if possible
+			upgrade(scene,displayable)     # upgrade the current display to represent the given displayable
+			control(...)                   # handle events
+			
+			__getitem__                    # access to subdisplays if there is
+	
 For more details, see class Display below
+	
+.. note::
+	As the GPU native precision is *f4* (float 32 bits), all the vector stuff regarding rendering is made using simple precision types: `fvec3, fvec4, fmat3, fmat4, ...` instead of the usual double precision `vec3`
 
 .. note::
 	There is some restrictions using the widget. This is due to some Qt limitations (and design choices), that Qt is using separated opengl contexts for each independent widgets or window.
@@ -41,6 +44,10 @@ Module content
 
 .. autofunction:: madcad.show
 
+.. py:data:: overrides
+	
+	dictionnary of callables used by `Scene.display` to override the classes `.display(scene)` method
+
 .. autoclass:: madcad.rendering.Display
 	
 	- Mendatory part for the scene
@@ -54,12 +61,15 @@ Module content
 	
 	- Optional part for Qt interaction
 	
-		:selected(bool):  flag set to True by left-clicking on the object
+		:selected (bool):  flag set to True by left-clicking on the object
 		
 		.. automethod:: control
+		
+
 
 .. autoclass:: madcad.rendering.Scene
 	:members:
+
 
 .. autoclass:: madcad.rendering.View
 

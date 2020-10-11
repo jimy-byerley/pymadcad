@@ -135,14 +135,8 @@
 
 /* search bar */
 
-.wy-side-nav-search input[type="text"] {
-    width: 100%;
-    border-radius: 50px;
-    padding: 6px 12px;
+.wy-side-nav-search input {
     border-color: #2472a4;
-}
-input[type="color"], input[type="date"], input[type="datetime-local"], input[type="datetime"], input[type="email"], input[type="month"], input[type="number"], input[type="password"], input[type="search"], input[type="tel"], input[type="text"], input[type="time"], input[type="url"], input[type="week"] {
-    transition: none;
     background: #000;
     color: #fff;
 	box-shadow: none;
@@ -307,12 +301,14 @@ a:visited { /* links visited */
 /* module items */
 .rst-content dl.class > dt,
 .rst-content dl.function > dt,
-.rst-content dl.data > dt {
+.rst-content dl.data > dt,
+.rst-content dl.exception > dt {
     background: #6ab0de12 !important;
     color: #319ADF !important; 
     border-top: solid 3px #5087aa !important;
 }
-.rst-content dl.method > dt {
+.rst-content dl.method > dt,
+.rst-content dl.attribute > dt {
     border-left: 3px solid #6eaa96 !important;
 	background: #243435 !important;
 	color: #649d8a !important;

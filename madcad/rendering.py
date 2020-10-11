@@ -10,17 +10,21 @@
 		a displayable is an object that implements the signatue of Display:
 		
 			class display:
-				box (Box)                      delimiting the display, can be an empty or invalid box
-				pose (fmat4)                    local transformation
+				box (Box)                      # delimiting the display, can be an empty or invalid box
+				pose (fmat4)                   # local transformation
 				
-				stack(scene)                   rendering routines (can be methods, or any callable)
-				duplicate(src,dst)             copy the display object for an other scene if possible
-				upgrade(scene,displayable)     upgrade the current display to represent the given displayable
-				control(...)                   handle events
+				stack(scene)                   # rendering routines (can be methods, or any callable)
+				duplicate(src,dst)             # copy the display object for an other scene if possible
+				upgrade(scene,displayable)     # upgrade the current display to represent the given displayable
+				control(...)                   # handle events
 				
-				__getitem__                    access to subdisplays if there is
+				__getitem__                    # access to subdisplays if there is
 		
 		For more details, see class Display below
+		
+	ATTENTION
+	---------
+		As the GPU native precision is f4 (float 32 bits), all the vector stuff regarding rendering is made using simple precision types: `fvec3, fvec4, fmat3, fmat4, ...`
 	
 	NOTE
 	----
@@ -236,6 +240,7 @@ def navigation_tool(dispatcher, view):
 				
 
 class Turntable:
+	''' navigation rotating on yaw and pitch around a center '''
 	def __init__(self, center:fvec3=0, distance:float=1, yaw:float=0, pitch:float=0):
 		self.center = fvec3(center)
 		self.yaw = yaw
@@ -262,6 +267,7 @@ class Turntable:
 		return mat
 
 class Orbit:
+	''' navigation rotating on the 3 axis around a center '''
 	def __init__(self, center:fvec3=0, distance:float=1, orient:fvec3=fvec3(1,0,0)):
 		self.center = fvec3(center)
 		self.distance = float(distance)
@@ -302,6 +308,25 @@ class Scene:
 	''' rendeing pipeline for madcad displayable objects 
 		
 		This class is gui-agnostic, it only relys on opengl, and the context has to be created by te user.
+		
+		Attributes:
+		
+		- scene stuff
+			
+			:ctx:           moderngl Context (must be the same for all views using this scene)
+			:ressources:    dictionnary of scene ressources (like textures, shaders, etc) index by name
+			:options:       dictionnary of options for rendering, innitialized with a copy of `settings.scene`
+			
+		- rendering pipeline stuff
+			
+			:displays:      dictionnary of items in the scheme `{'name': Display}`
+			:stacks:        lists of callables to render each target `{'target': [(key, priority, callable)]}`
+			:setup:         callable for setup of each rendering target
+			
+			:touched:       flag set to True if the stack must be recomputed at the next render time (there is a change in a Display or in one of its children)
+			
+		When an object is added to the scene, a Display is not immediately created for it, the object is put into the queue and the Display is created at the next render.
+		If the object is removed from the scene before the next render, it is dequeued.
 	'''
 	
 	def __init__(self, objs=(), options=None, ctx=None, setup=None):
@@ -314,10 +339,10 @@ class Scene:
 		if options:	self.options.update(options)
 		
 		# render elements
-		self.setup = setup or {}	# callable for each target
 		self.queue = {}	# list of objects to display, not yet loaded on the GPU
 		self.displays = {} # displays created from the inserted objects, associated to their insertion key
 		self.stacks = {}	# dict of list of callables, that constitute the render pipeline:  (key,  priority, callable)
+		self.setup = setup or {}	# callable for each target
 		
 		self.touched = False
 		self.update(objs)
@@ -341,6 +366,7 @@ class Scene:
 		''' get the displayable for the given key, raise when there is no object or when the object is still in queue. '''
 		return self.displays[key]
 	def __delitem__(self, key):
+		''' remove an item from the scene, at the root level '''
 		if key in self.displays:
 			del self.displays[key]
 		if key in self.queue:
@@ -351,6 +377,10 @@ class Scene:
 					self.stacks.pop(i)
 					
 	def item(self, key):
+		''' get the Display associated with the given key, descending the parenting tree 
+		
+			The parents must all make their children accessible via `__getitem__`
+		'''
 		disp = self.displays
 		for i in range(1,len(key)):
 			disp = disp[key[i-1]]
@@ -370,6 +400,7 @@ class Scene:
 		self.update(objs)
 	
 	def touch(self):
+		''' shorthand for `self.touched = True` '''
 		self.touched = True
 		
 	def dequeue(self):
@@ -397,10 +428,12 @@ class Scene:
 								bisect(stack, priority, lambda s:s[1]), 
 								((key,*sub), priority, func))
 			self.touched = False
-			#nprint(self.stacks)
 	
 	def render(self, view):
-		''' render to the view targets '''
+		''' render to the view targets. 
+			
+			This must be called by the view widget, once the the opengl context is set.
+		'''
 		empty = ()
 		with self.ctx:
 			# apply changes that need opengl runtime
@@ -435,7 +468,9 @@ class Scene:
 			raise KeyError("ressource {} doesn't exist or is not loaded".format(repr(name)))
 					
 	def display(self, obj):
-		''' create a display for the given object for the current scene 
+		''' create a display for the given object for the current scene.
+		
+			this is the actual function converting objects into displays.
 			you don't need to call this method if you just want to add an object to the scene, use add() instead
 		'''
 		if type(obj) in overrides:
@@ -463,6 +498,10 @@ class Step(Display):
 	def stack(self, scene):		return self.step,
 
 class Displayable:
+	''' simple displayable initializeing the given Display class with arguments 
+		
+		at the display creation time, it will simply execute `build(*args, **kwargs)`
+	'''
 	def __init__(self, build, *args, **kwargs):
 		self.args, self.kwargs = args, kwargs
 		self.build = build
@@ -670,7 +709,7 @@ class View(QOpenGLWidget):
 			if ident:
 				return QPoint(x,y)
 	
-	def ptat(self, point: QPoint) -> vec3:
+	def ptat(self, point: QPoint) -> fvec3:
 		''' return the point of the rendered surfaces that match the given window coordinates '''
 		self.refreshmaps()
 		viewport = self.fb_ident.viewport
@@ -694,7 +733,7 @@ class View(QOpenGLWidget):
 						-depth,
 						1)))
 	
-	def ptfrom(self, point: QPoint, center: vec3) -> vec3:
+	def ptfrom(self, point: QPoint, center: fvec3) -> fvec3:
 		''' 3D point below the cursor in the plane orthogonal to the sight, with center as origin '''
 		view = self.uniforms['view']
 		proj = self.uniforms['proj']
