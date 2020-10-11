@@ -187,3 +187,20 @@ Joint two arbitrary lines by a smooth surface, to close a complex surface for in
 
 .. image:: /screenshots/junction-closest.png
 
+
+Reworking
+*********
+
+For some geometries it is much faster to rework the already generated mesh to add complex geometries. Putting a hole in a surface for instance. Thus you won't need to generate all the intersection surfaces by hand.
+
+.. code-block:: python
+
+	# obtain two different shapes that has noting to to with each other
+	m1 = brick(Box(width=vec3(2)))
+	m2 = m1.transform(vec3(0.5, 0.3, 0.4)) .transform(quat(0.7*vec3(1,1,0)))
+	
+	# remove the volue of the second to the first
+	difference(m1, m2)
+	
+.. image:: /screenshots/boolean-cube.png
+
