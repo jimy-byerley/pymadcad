@@ -10,6 +10,8 @@ Current CAD softwares, are based on a full GUI oriented approach, with parametri
 	
 	- The software has to be very complex to handle all possible behaviors in parameters change in order to update the model.
 	
+	- The primitives is always limited to a small set fixed by design.
+	
 	- The GUI has to be very complex to allow the user to deal with every aspect of the objects (thus many tools, many object menus, sub-menus, context-dependent behaviors). The softwares are very hard to maintain, and often buggy
 	
 	- When a CAD file grow in complexity, we must avoid to modify it deeply or the entire build-tree fails and it's no more possible to repair.
@@ -90,4 +92,10 @@ We prefered to bet on the most - advanced and feature-complete - free library de
 	
 .. note::
 	Qt5 is not very pythonic (it's designed for c++, no functional programming, huge inheritance instead of python protocols, string typing, enums, camelcase, ...). But it may evolve in the future, according to the `Qt6 guidelines <https://www.qt.io/blog/2019/08/07/technical-vision-qt-6>`_
+
+References
+~~~~~~~~~~
+
+- `Other kind of mesh structures <https://en.wikipedia.org/wiki/Polygon_mesh>`_
+- `The non-mesh parametric structure of most of CAD softwares <https://en.wikipedia.org/wiki/Constructive_solid_geometry>`_
 
