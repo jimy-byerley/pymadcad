@@ -156,19 +156,16 @@ class Solid:
 		self.orientation = rot*self.orientation
 		self.position += trans
 	
-	def display(self, scene):
-		return rendering.Group(scene, self.visuals)
-		
-		#from .mathutils import boundingbox
-		#from .displays import BoxDisplay
-		#box = boundingbox(self.visuals)
-		#m = min(box.width)
-		#box.min -= 0.2*m
-		#box.max += 0.2*m
-		#yield BoxDisplay(scene, box)
-		
-		#if self.name:	
-			#yield text.Text(box.max, self.name)
+	#def display(self, scene):
+		#return rendering.Group(scene, self.visuals)
+	
+	class display(rendering.Group):
+		def __init__(self, scene, solid):
+			super().__init__(scene, solid.visuals)
+		def update(self, scene, solid):
+			if isinstance(solid, Solid):
+				super().update(scene, solid.visuals)
+				return True
 
 
 def solvekin(joints, fixed=(), precision=1e-4, maxiter=None, damping=0.9):
@@ -275,6 +272,7 @@ class Kinematic:
 		if isinstance(joints, set):	self.fixed = fixed
 		else:						self.fixed = set(id(solid) for solid in fixed)
 		if not solids:	self._detectsolids()
+		else:			self.solids = solids
 		self.options = {}
 	def _detectsolids(self):
 		solids = []
@@ -464,7 +462,6 @@ class Kinemanip(rendering.Group):
 			del self.displays[key].displays['solid-fixed']
 		view.scene.touch()
 		view.update()
-		
 
 
 
