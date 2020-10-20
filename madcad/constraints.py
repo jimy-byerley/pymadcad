@@ -53,7 +53,7 @@ class Tangent(Constraint):
 		return length(cross(self.c1.slv_tangent(self.p), self.c2.slv_tangent(self.p))) **2
 	
 	def display(self, scene):
-		return displays.TangentDisplay(scene, (self.p, self.c2.slv_tangent(self.p)), self.size),
+		return displays.TangentDisplay(scene, (self.p, self.c2.slv_tangent(self.p)), self.size)
 
 class Distance(Constraint):
 	''' Makes two points distant of the fixed given distance '''

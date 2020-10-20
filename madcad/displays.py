@@ -5,7 +5,7 @@ from .mathutils import (vec3, fvec3, fvec4, fmat4,
 						Box, isnan, isinf,
 						)
 from math import log, exp
-from .rendering import Display, overrides
+from .rendering import Display, overrides, writeproperty
 from .common import ressourcedir
 from . import settings
 from PIL import Image
@@ -137,8 +137,12 @@ class TangentDisplay(Display):
 		self.arrow2.render(view)
 	
 	def identify(self, view):
-		self.arrow1.identify(view, ident)
-		self.arrow2.identify(view, ident)
+		self.arrow1.identify(view)
+		self.arrow2.identify(view)
+		
+	@writeproperty
+	def world(self, world):
+		self.arrow1.world = self.arrow2.world = world
 	
 	def stack(self, scene):
 		return ( ((), 'ident', 2, self.identify),
@@ -631,6 +635,7 @@ class PointsDisplay:
 			self.va_ident.render(mgl.POINTS)
 
 def digitfit(n):
+	''' return the number of zeros in the digital representation of n '''
 	s = 0
 	while n:
 		if not n%10:	s += 1
@@ -672,7 +677,7 @@ class GridDisplay(Display):
 		zlog = log(-center.z)/log(10)
 		sizelog = int(zlog)
 		
-		view.scene.ctx.point_size = 1.5
+		view.scene.ctx.point_size = 1/400 * view.fb_screen.height
 		self.shader['color'].write(fvec4(
 				self.color.rgb, 
 				self.color.a * exp(self.contrast*(-1+sizelog-zlog)),
@@ -689,7 +694,7 @@ class GridDisplay(Display):
 
 
 overrides.update({
-	vec3: 	lambda p,scene: PointDisplay(scene,p),
-	tuple:	lambda a,scene: AxisDisplay(scene,a),
-	Box:	lambda a,scene: BoxDisplay(scene,a),
+	vec3:   PointDisplay,
+	tuple:  AxisDisplay,
+	Box:    BoxDisplay,
 	})
