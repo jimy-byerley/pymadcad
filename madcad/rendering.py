@@ -46,7 +46,7 @@ from PyQt5.QtWidgets import QOpenGLWidget
 from PyQt5.QtGui import QSurfaceFormat, QMouseEvent, QInputEvent, QKeyEvent, QTouchEvent
 
 from .mathutils import (fvec3, fvec4, fmat3, fmat4, fquat, vec3, Box, mat4_cast, mat3_cast,
-						sin, cos, tan, atan2, pi, inf,
+						sin, cos, tan, atan2, pi, inf, exp,
 						length, project, noproject, transpose, inverse, affineInverse, 
 						perspective, ortho, translate, 
 						bisect, boundingbox,
@@ -177,7 +177,7 @@ def navigation_tool(dispatcher, view):
 			elif ctrl:				curr = 'pan'
 			elif alt:				curr = 'rotate'
 			else:					curr = None
-			evt.accept()
+			evt.ignore()	# no accept because the shortcuts need to get the keys also
 		elif evt.type() == QEvent.MouseButtonPress:
 			last = evt.pos()
 			if evt.button() == Qt.MiddleButton:
@@ -199,6 +199,10 @@ def navigation_tool(dispatcher, view):
 				view.update()
 				last = evt.pos()
 				evt.accept()
+		elif evt.type() == QEvent.Wheel:
+			view.navigation.zoom(exp(evt.angleDelta().y()/(8*90)))	# the 8 factor is there because of the Qt documentation
+			evt.accept()
+	
 				
 		elif isinstance(evt, QTouchEvent):
 			pts = evt.touchPoints()
@@ -391,11 +395,12 @@ class Scene:
 			update former displays if possible instead of replacing it
 		'''
 		self.queue.update(objs)
+		self.touch()
 	
 	def sync(self, objs:dict):
 		''' update the scene from a dictionnary of displayables, the former values that cannot be updated are discarded '''
-		for key in objs:
-			if key not in self.displays:
+		for key in list(self.displays):
+			if key not in objs:
 				del self.displays[key]
 		self.update(objs)
 	
@@ -410,7 +415,11 @@ class Scene:
 			# update displays
 			for key,displayable in self.queue.items():
 				if key not in self.displays or not self.displays[key].update(self, displayable):
-					self.displays[key] = self.display(displayable)
+					try:	self.displays[key] = self.display(displayable)
+					except Exception as err:
+						self.touched = True
+						self.queue.clear()
+						raise
 			self.touched = True
 			self.queue.clear()
 		
@@ -474,14 +483,19 @@ class Scene:
 			you don't need to call this method if you just want to add an object to the scene, use add() instead
 		'''
 		if type(obj) in overrides:
-			disp = overrides[type(obj)](obj, self)
+			disp = overrides[type(obj)](self, obj)
 		elif hasattr(obj, 'display'):
-			disp = obj.display(self)
+			if isinstance(obj.display, type):
+				disp = obj.display(self, obj)
+			elif callable(obj.display):
+				disp = obj.display(self)
+			else:
+				raise TypeError("member 'display' must be a method or a type")
 		else:
 			raise TypeError('the type {} is displayable'.format(type(obj)))
 		
 		if not isinstance(disp, Display):
-			raise TypeError('the display for {} is not a subclass of Display: {}'.format(type(obj), disp))
+			raise TypeError('the display for {} is not a subclass of Display: {}'.format(type(obj), type(disp)))
 		return disp
 	
 
@@ -523,7 +537,7 @@ class Group(Display):
 		self._pose = fmat4(pose)
 		self._world = fmat4(1)
 		self.displays = {}
-		if objs:	self.update(scene, objs)
+		if objs:	self.dequeue(scene, objs)
 	
 	def __getitem__(self, key):
 		return self.displays[key]
@@ -534,9 +548,10 @@ class Group(Display):
 		with scene.ctx:
 			scene.ctx.finish()
 			for key, displayable in items:
-				if key not in self.displays or not self.displays[key].update(self, displayable):
+				if key not in self.displays or not self.displays[key].update(scene, displayable):
 					self.displays[key] = scene.display(displayable)
 		scene.touch()
+	dequeue = update
 	
 	def stack(self, scene):
 		for key,display in self.displays.items():
@@ -572,6 +587,18 @@ overrides[list] = Group
 class View(QOpenGLWidget):
 	''' Qt widget to render and interact with displayable objects 
 		it holds a scene as renderpipeline
+		
+		Attributes:
+		
+			:scene:        the `Scene` object displayed
+			:projection:   `Perspective` or `Orthographic`
+			:navigation:   `Orbit` or `Turntable`
+			:tool:         list of callables in priority order to receive events
+		
+		* render stuff
+		
+			:targets:     render targets matching those in `scene.stacks`
+			:uniforms:    parameters for rendering, used in shaders
 	'''
 	def __init__(self, scene, projection=None, navigation=None, parent=None):
 		# super init
@@ -817,6 +844,8 @@ class View(QOpenGLWidget):
 			The usual subhandlers are used to implement the navigation through the scene (that is considered to be intrinsic to the scene widget).
 		'''
 		if isinstance(evt, QInputEvent):
+			# set the opengl current context from Qt (doing it only from moderngl interferes with Qt)
+			self.makeCurrent()
 			evt.ignore()
 			self.inputEvent(evt)
 			if evt.isAccepted():	return True
@@ -828,8 +857,6 @@ class View(QOpenGLWidget):
 			
 			This function can be overwritten to change the view widget behavior.
 		'''
-		# set the opengl current context from Qt (doing it only from moderngl interferes with Qt)
-		self.makeCurrent()
 		
 		# send the event to the current tools using the view
 		if self.tool:	
@@ -867,19 +894,25 @@ class View(QOpenGLWidget):
 	
 	# -- Qt things --
 	
-	def initializeGL(self):	pass
-
-	def paintGL(self):
+	def initializeGL(self):
+		self.makeCurrent()
 		self.scene.ctx = mgl.create_context()
 		self.init()
 		self.preload()
+
+	def paintGL(self):
+		self.makeCurrent()
 		self.render()
-		self.paintGL = self.render
-		
+	
 	def resizeEvent(self, evt):
 		super().resizeEvent(evt)
 		self.init()
 		self.update()
+	
+	def changeEvent(self, evt):
+		super().changeEvent(evt)
+		if evt.type() == QEvent.PaletteChange and settings.display['system_theme']:
+			settings.use_qt_colors()
 
 
 def snail(radius):
