@@ -42,7 +42,7 @@ import moderngl as mgl
 import numpy.core as np
 
 from PyQt5.QtCore import Qt, QPoint, QEvent
-from PyQt5.QtWidgets import QOpenGLWidget
+from PyQt5.QtWidgets import QOpenGLWidget, QApplication
 from PyQt5.QtGui import QSurfaceFormat, QMouseEvent, QInputEvent, QKeyEvent, QTouchEvent
 
 from .mathutils import (fvec3, fvec4, fmat3, fmat4, fquat, vec3, Box, mat4_cast, mat3_cast,
@@ -60,6 +60,7 @@ from .nprint import nprint
 # minimum opengl required version
 opengl_version = (3,3)
 
+global_context = None
 
 
 def show(objs, options=None, interest=None):
@@ -69,10 +70,8 @@ def show(objs, options=None, interest=None):
 	if isinstance(objs, list):	objs = dict(enumerate(objs))
 	
 	import sys
-	from PyQt5.QtCore import Qt, QCoreApplication
-	from PyQt5.QtWidgets import QApplication
 	
-	QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts, True)
+	QApplication.setAttribute(Qt.AA_ShareOpenGLContexts, True)
 	app = QApplication(sys.argv)
 	
 	# use the Qt color scheme if specified
@@ -895,8 +894,15 @@ class View(QOpenGLWidget):
 	# -- Qt things --
 	
 	def initializeGL(self):
-		self.makeCurrent()
-		self.scene.ctx = mgl.create_context()
+		# retrieve global shared context if available
+		global global_context
+		if QApplication.testAttribute(Qt.AA_ShareOpenGLContexts):
+			if not global_context:
+				global_context = mgl.create_context()
+			self.scene.ctx = global_context
+		# or create a context
+		else:
+			self.scene.ctx = mgl.create_context()
 		self.init()
 		self.preload()
 
@@ -913,6 +919,7 @@ class View(QOpenGLWidget):
 		super().changeEvent(evt)
 		if evt.type() == QEvent.PaletteChange and settings.display['system_theme']:
 			settings.use_qt_colors()
+
 
 
 def snail(radius):
