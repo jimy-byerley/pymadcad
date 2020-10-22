@@ -50,7 +50,7 @@ solve([
 part = extrusion(vec3(0,0,1), web(line))
 
 # display in a 3D scene
-quickdisplay([part])
+show([part])
 ```
 
 The result will be this window
