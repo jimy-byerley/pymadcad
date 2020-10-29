@@ -306,10 +306,12 @@ a:visited { /* links visited */
     background: #6ab0de12 !important;
     color: #319ADF !important; 
     border-top: solid 3px #5087aa !important;
+	border-left: none !important;
 }
 .rst-content dl.method > dt,
 .rst-content dl.attribute > dt {
     border-left: 3px solid #6eaa96 !important;
+	border-top: none !important;
 	background: #243435 !important;
 	color: #649d8a !important;
 }
