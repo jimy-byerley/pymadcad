@@ -47,7 +47,7 @@ from PyQt5.QtGui import QSurfaceFormat, QMouseEvent, QInputEvent, QKeyEvent, QTo
 
 from .mathutils import (fvec3, fvec4, fmat3, fmat4, fquat, vec3, Box, mat4_cast, mat3_cast,
 						sin, cos, tan, atan2, pi, inf, exp,
-						length, project, noproject, transpose, inverse, affineInverse, 
+						dot, cross, length, project, noproject, transpose, inverse, affineInverse, 
 						perspective, ortho, translate, 
 						bisect, boundingbox,
 						)
@@ -163,7 +163,7 @@ def qt2glm(v):
 def navigation_tool(dispatcher, view):
 	''' internal navigation tool '''	
 	ctrl = alt = slow = False
-	curr = None
+	nav = curr = None
 	while True:
 		evt = yield
 		if isinstance(evt, QKeyEvent):
@@ -195,11 +195,12 @@ def navigation_tool(dispatcher, view):
 					f = (	(last-middle).manhattanLength()
 						/	(evt.pos()-middle).manhattanLength()	)
 					view.navigation.zoom(f)
-				view.update()
 				last = evt.pos()
+				view.update()
 				evt.accept()
 		elif evt.type() == QEvent.Wheel:
-			view.navigation.zoom(exp(evt.angleDelta().y()/(8*90)))	# the 8 factor is there because of the Qt documentation
+			view.navigation.zoom(exp(-evt.angleDelta().y()/(8*90)))	# the 8 factor is there because of the Qt documentation
+			view.update()
 			evt.accept()
 	
 				
@@ -491,7 +492,7 @@ class Scene:
 			else:
 				raise TypeError("member 'display' must be a method or a type")
 		else:
-			raise TypeError('the type {} is displayable'.format(type(obj)))
+			raise TypeError('the type {} is not displayable'.format(type(obj)))
 		
 		if not isinstance(disp, Display):
 			raise TypeError('the display for {} is not a subclass of Display: {}'.format(type(obj), type(disp)))
@@ -791,31 +792,33 @@ class View(QOpenGLWidget):
 	# -- view stuff --
 	
 	def look(self, position: fvec3=None):
-		''' Make the scene manipulator look at the position.
-			This is changing the camera direction.
+		''' Make the scene navigation look at the position.
+			This is changing the camera direction, center and distance.
 		'''
 		if not position:	position = self.scene.box().center
+		dir = position - fvec3(affineInverse(self.navigation.matrix())[3])
+		if dot(dir,dir) < 1e-6:	return
 		
-		if isinstance(self.manipulator, Turntable):
-			dir = position - self.manipulator.center
-			self.manipulator.yaw = atan(dir.y, dir.x)
-			self.manipulator.pitch = atan(dir.z, length(dir.xy))
-		elif isinstance(self.manipulator, Orbit):
-			dir = position - self.manipulator.center
+		if isinstance(self.navigation, Turntable):
+			self.navigation.yaw = atan2(dir.x, dir.y)
+			self.navigation.pitch = -atan2(dir.z, length(dir.xy))
+			self.navigation.center = position
+			self.navigation.distance = length(dir)
+		elif isinstance(self.navigation, Orbit):
 			focal = self.orient * fvec3(0,0,1)
-			self.manipulator.orient = quat(dir, focal) * self.manipulator.orient
+			self.navigation.orient = quat(dir, focal) * self.navigation.orient
 		else:
-			raise TypeError('manipulator {} is not supported'.format(type(self.manipulator)))
+			raise TypeError("navigation {} is not supported by 'look'".format(type(self.navigation)))
 		self.update()
 	
 	def adjust(self, box:Box=None):
-		''' Make the manipulator camera large enough to get the given box in .
+		''' Make the navigation camera large enough to get the given box in .
 			This is changing the zoom level
 		'''
 		if not box:	box = self.scene.box()
 		# get the most distant point to the focal axis
-		view = self.navigation.matrix()
-		camera, look = fvec3(view[3]), fvec3(view[2])
+		invview = affineInverse(self.navigation.matrix())
+		camera, look = fvec3(invview[3]), fvec3(invview[2])
 		dist = length(noproject(box.center-camera, look)) + length(box.width)/2
 		# adjust navigation distance
 		if isinstance(self.projection, Perspective):
@@ -824,9 +827,10 @@ class View(QOpenGLWidget):
 			self.navigation.distance = dist
 		else:
 			raise TypeError('projection {} not supported'.format(type(self.projection)))
+		self.update()
 	
 	def center(self, center: fvec3=None):
-		''' Relocate the manipulator to the given position .
+		''' Relocate the navigation to the given position .
 			This is translating the camera.
 		'''
 		if not center:	center = self.scene.box().center
@@ -885,10 +889,12 @@ class View(QOpenGLWidget):
 		
 		if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
 			disp = self.scene.item(key)
-			disp.selected = not disp.selected
 			if type(disp).__name__ in ('SolidDisplay', 'WebDisplay'):
 				disp.vertices.flags[key[-1]] ^= 0x1
 				disp.vertices.vb_flags.write(disp.vertices.flags[disp.vertices.idents])
+				disp.selected = any(disp.vertices.flags & 0x1)
+			else:
+				disp.selected = not disp.selected
 			self.update()
 	
 	# -- Qt things --
