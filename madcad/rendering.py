@@ -164,6 +164,7 @@ def navigation_tool(dispatcher, view):
 	''' internal navigation tool '''	
 	ctrl = alt = slow = False
 	nav = curr = None
+	moving = False
 	while True:
 		evt = yield
 		if isinstance(evt, QKeyEvent):
@@ -185,6 +186,7 @@ def navigation_tool(dispatcher, view):
 				nav = curr
 		elif evt.type() == QEvent.MouseMove:
 			if nav:
+				moving = True
 				gap = evt.pos() - last
 				dx = gap.x()/view.height()
 				dy = gap.y()/view.height()
@@ -198,6 +200,10 @@ def navigation_tool(dispatcher, view):
 				last = evt.pos()
 				view.update()
 				evt.accept()
+		elif evt.type() == QEvent.MouseButtonRelease:
+			if moving:
+				moving = False
+				evt.accept()
 		elif evt.type() == QEvent.Wheel:
 			view.navigation.zoom(exp(-evt.angleDelta().y()/(8*90)))	# the 8 factor is there because of the Qt documentation
 			view.update()
@@ -205,6 +211,7 @@ def navigation_tool(dispatcher, view):
 	
 				
 		elif isinstance(evt, QTouchEvent):
+			nav = None
 			pts = evt.touchPoints()
 			if len(pts) == 2:
 				startlength = (pts[0].lastPos()-pts[1].lastPos()).manhattanLength()
