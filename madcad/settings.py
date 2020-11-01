@@ -40,6 +40,7 @@ scene = {
 	'display_groups': True,
 	'display_points': False,
 	'display_wire': False,
+	'display_grid': True,
 	'surface_shading': True,
 	
 	'debug_points': False,
