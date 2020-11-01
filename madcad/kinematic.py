@@ -618,11 +618,13 @@ class WireDisplay(rendering.Display):
 		self.identshader['view'].write(viewmat)
 		self.identshader['proj'].write(view.uniforms['proj'])
 		
+		ctx = view.scene.ctx
+		ctx.blend_func = mgl.ZERO, mgl.ONE
 		if self.vb_transpfaces:		self.va_ident_faces.render(mgl.TRIANGLES)
 		if self.vb_lines:			self.va_ident_lines.render(mgl.LINES)
 
 	def stack(self, scene):
 		return ( ((), 'screen', 1, self.render),
-				 ((), 'ident', 1, self.identify))
+				 ((), 'ident', 2, self.identify))
 
 
