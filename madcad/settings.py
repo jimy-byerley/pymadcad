@@ -8,6 +8,7 @@ dictionnaries:
 '''
 
 from math import pi, ceil, floor, sqrt
+from glm import fvec3
 import os, json
 from os.path import dirname, exists
 
@@ -17,19 +18,19 @@ display = {
 	'view_font_size': 8,
 	'line_width': 1.,
 	
-	'background_color': (0,0,0),
-	'select_color_face': (0.01, 0.05, 0.03),
-	'select_color_line': (0.5, 1, 0.6),
-	'highlight_color': (0.1, 0.2, 0.2),
+	'background_color': fvec3(0,0,0),
+	'select_color_face': fvec3(0.01, 0.05, 0.03),
+	'select_color_line': fvec3(0.5, 1, 0.6),
+	'highlight_color': fvec3(0.1, 0.2, 0.2),
 	
-	'solid_color': (0.2, 0.2, 0.2),
+	'solid_color': fvec3(0.2, 0.2, 0.2),
 	'solid_color_front': 1.,
 	'solid_color_side': 0.2,
-	'line_color': (0.9, 0.9, 0.9),
-	'point_color': (0.9, 0.9, 0.9),
-	'schematics_color': (0.3, 0.8, 1),
-	'solver_error_color': (1, 0.3, 0.2),
-	'annotation_color': (0.2, 0.7, 1),
+	'line_color': fvec3(0.9, 0.9, 0.9),
+	'point_color': fvec3(0.9, 0.9, 0.9),
+	'schematics_color': fvec3(0.3, 0.8, 1),
+	'solver_error_color': fvec3(1, 0.3, 0.2),
+	'annotation_color': fvec3(0.2, 0.7, 1),
 	
 	'system_theme': True,
 	}
@@ -83,8 +84,8 @@ def load(file=None):
 		for k,v in group.items():
 			if k not in changes:	continue
 			# adaptation
-			if isinstance(group[k], tuple):
-				group[k] = tuple(v)
+			if isinstance(group[k], fvec3):
+				group[k] = fvec3(v)
 			else:
 				group[k] = change[k]
 
@@ -92,7 +93,11 @@ def dump(file=None):
 	''' load the current settings into the specified file or to the default one '''
 	if not file:	file = config
 	if isinstance(file, str):	file = open(file, 'w')
-	json.dump(settings, file, indent='\t', ensure_ascii=True)
+	def default(obj):
+		if isinstance(obj, fvec3):	return tuple(obj)
+		else:
+			raise TypeError('Object of type {} is not JSON serializable'.format(type(obj)))
+	json.dump(settings, file, indent='\t', ensure_ascii=True, default=default)
 	
 
 
@@ -135,19 +140,19 @@ def use_qt_colors():
 	
 	def qtc(role):
 		c = palette.color(role)
-		return (c.red()/255, c.green()/255, c.blue()/255)
+		return fvec3(c.red(), c.green(), c.blue()) / 255
 	
 	selection = mix(fvec3(0.4, 1, 0), qtc(palette.Highlight), 0.6)
 	selection *= mix(1/max(selection), max(qtc(palette.Text)), 0.3)
 	display.update({
 		'background_color': qtc(palette.Base),
-		'select_color_face': tuple(selection * 0.05),
-		'select_color_line': tuple(selection * 1.1),
+		'select_color_face': selection * 0.05,
+		'select_color_line': selection * 1.1,
 		'line_color': qtc(palette.Text),
 		'point_color': qtc(palette.Text),
 		'solid_color': qtc(palette.Midlight),
 		'schematics_color': qtc(palette.Link),
-		'annotation_color': fvec3(qtc(palette.Highlight)),
+		'annotation_color': qtc(palette.Highlight),
 		})
 
 

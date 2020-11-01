@@ -491,7 +491,7 @@ class FacesDisplay:
 						)
 			# setup some uniforms
 			shader['reflectmap'] = 0
-			shader['select_color'] = settings.display['select_color_face']
+			shader['select_color'].write(settings.display['select_color_face'])
 			return shader
 		self.shader = scene.ressource('shader_solid', load)
 		self.ident_shader = scene.ressource('shader_subident')
@@ -549,7 +549,7 @@ class LinesDisplay:
 						vertex_shader=open(ressourcedir+'/shaders/wire.vert').read(),
 						fragment_shader=open(ressourcedir+'/shaders/wire.frag').read(),
 						)
-			shader['select_color'] = settings.display['select_color_line']
+			shader['select_color'].write(settings.display['select_color_line'])
 			return shader
 		self.shader = scene.ressource('shader_wire', load)
 		self.ident_shader = scene.ressource('shader_subident')
@@ -597,7 +597,7 @@ class PointsDisplay:
 						vertex_shader=open(ressourcedir+'/shaders/wire.vert').read(),
 						fragment_shader=open(ressourcedir+'/shaders/wire.frag').read(),
 						)
-			shader['select_color'] = settings.display['select_color_line']
+			shader['select_color'].write(settings.display['select_color_line'])
 			return shader
 		self.shader = scene.ressource('shader_wire', load)
 		self.ident_shader = scene.ressource('shader_subident')
