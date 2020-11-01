@@ -223,6 +223,7 @@ def bisect(l, index, key=lambda x:x):
 		else:	return mid
 	return start
 
+# TODO rename it first
 def find(iterator, predicate):
 	for e in iterator:
 		if predicate(e):	return e
@@ -302,7 +303,7 @@ class Box:
 		return self
 	def transform(self, trans):
 		''' box bounding the current one in a transformed space '''
-		if self.isvalid():	return self
+		if self.isempty():	return self
 		trans = transformer(trans)
 		box = boundingbox((trans(p)  for p in self.corners())) #, vec=type(self.min))
 		return box

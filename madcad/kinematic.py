@@ -378,6 +378,7 @@ class Kinemanip(rendering.Group):
 	
 	def __init__(self, scene, kinematic):
 		super().__init__(scene)
+		kinematic.solve()
 		self.update(scene, kinematic)
 	
 	def update(self, scene, kinematic):
@@ -446,14 +447,16 @@ class Kinemanip(rendering.Group):
 		view.update()
 	
 	def lock(self, view, solid, lock):
-		from .generation import brick
 		key = id(solid)
 		if key in self.fixed or lock == (key in self.locked):	
 			return
 		if lock:
 			# add solid's variables to fixed
 			self.locked.add(key)
-			self.displays[key].displays['solid-fixed'] = BoxDisplay(view.scene, self.displays[key].box)
+			box = Box(center=fvec3(0), width=fvec3(-inf))
+			for display in self.displays[key].displays.values():
+				box.union(display.box)
+			self.displays[key].displays['solid-fixed'] = BoxDisplay(view.scene, box)
 			self.applyposes(view)
 		else:
 			# remove solid's variables from fixed
@@ -588,15 +591,13 @@ class WireDisplay(rendering.Display):
 	
 	def render(self, view):		
 		viewmat = view.uniforms['view'] * self.world
+		color = self.color if not self.selected else settings.display['select_color_line']
+		ctx = view.scene.ctx
 		
-		#view.ctx.blend_func = mgl.SRC_ALPHA, mgl.ONE_MINUS_SRC_ALPHA
-		#view.ctx.blend_equation = mgl.FUNC_ADD
-		
-		self.uniformshader['color'].write(self.color)
+		self.uniformshader['color'].write(color)
 		self.uniformshader['view'].write(viewmat)
 		self.uniformshader['proj'].write(view.uniforms['proj'])
 		
-		ctx = view.scene.ctx
 		ctx.disable(mgl.DEPTH_TEST)
 		ctx.disable(mgl.CULL_FACE)
 		if self.vb_opaqfaces:	self.va_opaqfaces.render(mgl.TRIANGLES)
@@ -604,7 +605,7 @@ class WireDisplay(rendering.Display):
 		
 		ctx.enable(mgl.CULL_FACE)
 		if self.vb_transpfaces:	
-			self.transpshader['color'].write(self.color)
+			self.transpshader['color'].write(color)
 			self.transpshader['view'].write(viewmat)
 			self.transpshader['proj'].write(view.uniforms['proj'])
 			self.va_transpfaces.render(mgl.TRIANGLES)

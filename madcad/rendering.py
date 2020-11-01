@@ -584,8 +584,8 @@ class Group(Display):
 		''' computes the boundingbox of the scene, with the current object poses '''
 		box = Box(center=fvec3(0), width=fvec3(-inf))
 		for display in self.displays.values():
-			box.union(display.box.transform(display.world))
-		return box
+			box.union(display.box)
+		return box.transform(self._pose)
 
 
 # dictionnary to store procedures to override default object displays
