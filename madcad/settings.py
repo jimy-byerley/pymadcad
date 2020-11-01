@@ -8,7 +8,8 @@ dictionnaries:
 '''
 
 from math import pi, ceil, floor, sqrt
-from PyQt5.QtCore import Qt
+import os, json
+from os.path import dirname, exists
 
 
 display = {
@@ -57,6 +58,44 @@ primitives = {
 	'curve_resolution': ('rad', pi/16),	# angle maximal pour discretisation des courbes
 	}
 
+
+config = os.getenv('HOME')+'/.config/madcad/pymadcad.json'
+settings = {'display':display, 'scene':scene, 'controls':controls, 'primitives':primitives}
+
+
+def install():
+	''' create and fill the config directory if not already existing '''
+	if not exists(config):
+		os.makedirs(dirname(config), exist_ok=True)
+		dump()
+		
+def clean():
+	''' delete the default configuration file '''
+	os.rm(config)
+
+def load(file=None):
+	''' load the settings directly in this module, from the specified file or the default one '''
+	if not file:	file = config
+	if isinstance(file, str):	file = open(file, 'r')
+	changes = json.load(file)
+	for key,group in settings.items():
+		if key not in changes:	continue
+		for k,v in group.items():
+			if k not in changes:	continue
+			# adaptation
+			if isinstance(group[k], tuple):
+				group[k] = tuple(v)
+			else:
+				group[k] = change[k]
+
+def dump(file=None):
+	''' load the current settings into the specified file or to the default one '''
+	if not file:	file = config
+	if isinstance(file, str):	file = open(file, 'w')
+	json.dump(settings, file, indent='\t', ensure_ascii=True)
+	
+
+
 def curve_resolution(length, angle, param=None):
 	''' return the subdivision number for a curve, using the given or setting specification
 
@@ -89,6 +128,7 @@ def getparam(levels: list, key):
 	return None
 
 def use_qt_colors():
+	''' set the color settings to fit the current system colors '''
 	from .mathutils import fvec3, mix, distance
 	from PyQt5.QtWidgets import QApplication
 	palette = QApplication.instance().palette()
@@ -109,3 +149,8 @@ def use_qt_colors():
 		'schematics_color': qtc(palette.Link),
 		'annotation_color': fvec3(qtc(palette.Highlight)),
 		})
+
+
+# automatically load settings in the file exist
+try:	load()
+except FileNotFoundError:	pass
