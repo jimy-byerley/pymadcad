@@ -156,15 +156,14 @@ class Solid:
 		self.orientation = rot*self.orientation
 		self.position += trans
 	
-	#def display(self, scene):
-		#return rendering.Group(scene, self.visuals)
-	
 	class display(rendering.Group):
 		def __init__(self, scene, solid):
 			super().__init__(scene, solid.visuals)
+			self.pose = fmat4(solid.pose())
 		def update(self, scene, solid):
 			if isinstance(solid, Solid):
 				super().update(scene, solid.visuals)
+				self.pose = fmat4(solid.pose())
 				return True
 
 
@@ -443,7 +442,7 @@ class Kinemanip(rendering.Group):
 	def applyposes(self, view):
 		# assign new positions to displays
 		for key, solid in self.solids.items():
-			self.displays[key].world = fmat4(solid.pose())
+			self.displays[key].pose = fmat4(solid.pose())
 		view.update()
 	
 	def lock(self, view, solid, lock):

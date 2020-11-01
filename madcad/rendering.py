@@ -167,6 +167,8 @@ def navigation_tool(dispatcher, view):
 	moving = False
 	while True:
 		evt = yield
+		evt.ignore()	# ignore the keys to pass shortcuts to parents
+		
 		if isinstance(evt, QKeyEvent):
 			k = evt.key()
 			press = evt.type() == QEvent.KeyPress
@@ -177,7 +179,7 @@ def navigation_tool(dispatcher, view):
 			elif ctrl:				curr = 'pan'
 			elif alt:				curr = 'rotate'
 			else:					curr = None
-			evt.ignore()	# no accept because the shortcuts need to get the keys also
+			# no accept because the shortcuts need to get the keys also
 		elif evt.type() == QEvent.MouseButtonPress:
 			last = evt.pos()
 			if evt.button() == Qt.MiddleButton:
