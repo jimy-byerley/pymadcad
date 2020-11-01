@@ -14,7 +14,15 @@ setup(
 	name='pymadcad',
 	version='0.4',
 	python_requires='>=3.5',
-	install_requires=['pyglm>=1.2', 'moderngl>=5.6', 'numpy>=1.1', 'scipy>=0.17', 'PyQt5>=5', 'Pillow>=5.4', 'cython>=0.29'],
+	install_requires=[
+		'pyglm>=1.2', 
+		'moderngl>=5.6', 
+		'numpy>=1.1', 
+		'scipy>=0.17', 
+		'PyQt5>=5', 
+		'Pillow>=5.4', 
+		'cython>=0.29',
+		],
 	extras_require={
 		'PLY': ['plyfile>=0.7'],
 		'STL': ['numpy-stl>=2'],
@@ -25,7 +33,15 @@ setup(
 	#ext_modules=cythonize(['madcad/core.pyx'], annotate=True),
 	ext_modules=cython_modules,
 	package_data={
-		'madcad': ['shaders/*.frag', 'shaders/*.vert', 'textures/*.png', '*.py', '*.pyx', '*.c', '*.so'],
+		'madcad': [
+			'shaders/*.frag', 
+			'shaders/*.vert', 
+			'textures/*.png', 
+			'*.py', 
+			'*.pyx', 
+			'*.c', 
+			'*.so',
+			],
 		'': ['COPYING', 'COPYING.LESSER', 'README'],
 		},
 	
