@@ -450,8 +450,10 @@ def subdivide(mesh, div=1) -> 'Mesh':
 
 # --- standard shapes ---
 	
-def brick(box: 'Box') -> 'Mesh':
+def brick(*args, **kwargs) -> 'Mesh':
 	''' a simple brick with rectangular sides '''
+	if len(args) == 1 and isinstance(args[0], Box):		box = args[0]
+	else:												box = Box(*args, **kwargs)
 	mesh = Mesh(
 		[
 			vec3(1, 0, 0),
