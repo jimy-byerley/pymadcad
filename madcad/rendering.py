@@ -158,7 +158,7 @@ def qt2glm(v):
 	if isinstance(v, (QPoint, QPointF)):	return vec2(v.x(), v.y())
 	elif isinstance(v, (QSize, QSizeF)):	return vec2(v.width(), v.height())
 	else:
-		raise TypeError("can't convert {} to vec2".format(type(v)))
+		raise TypeError("can't convert {} to vec2".format(type(v).__name__))
 
 def navigation_tool(dispatcher, view):
 	''' internal navigation tool '''	
@@ -501,10 +501,10 @@ class Scene:
 			else:
 				raise TypeError("member 'display' must be a method or a type")
 		else:
-			raise TypeError('the type {} is not displayable'.format(type(obj)))
+			raise TypeError('type {} is not displayable'.format(type(obj).__name__))
 		
 		if not isinstance(disp, Display):
-			raise TypeError('the display for {} is not a subclass of Display: {}'.format(type(obj), type(disp)))
+			raise TypeError('the display for {} is not a subclass of Display: {}'.format(type(obj).__name__, type(disp)))
 		return disp
 	
 
@@ -556,9 +556,10 @@ class Group(Display):
 		# update displays
 		with scene.ctx:
 			scene.ctx.finish()
-			for key, displayable in items:
-				if key not in self.displays or not self.displays[key].update(scene, displayable):
-					self.displays[key] = scene.display(displayable)
+			for key, obj in items:
+				if not displayable(obj):	continue
+				if key not in self.displays or not self.displays[key].update(scene, obj):
+					self.displays[key] = scene.display(obj)
 		scene.touch()
 	dequeue = update
 	
@@ -899,8 +900,7 @@ class View(QOpenGLWidget):
 		if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
 			disp = self.scene.item(key)
 			if type(disp).__name__ in ('SolidDisplay', 'WebDisplay'):
-				disp.vertices.flags[key[-1]] ^= 0x1
-				disp.vertices.vb_flags.write(disp.vertices.flags[disp.vertices.idents])
+				disp.vertices.selectsub(key[-1])
 				disp.selected = any(disp.vertices.flags & 0x1)
 			else:
 				disp.selected = not disp.selected

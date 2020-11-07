@@ -386,14 +386,9 @@ class SolidDisplay(Display):
 		self.disp_wire = LinesDisplay(scene, self.vertices, wire, 
 							mix(color, settings.display['line_color'], 0.3)
 						)
-
-	def prerender(self, view):
-		if self.vertices.flags_updated:
-			self.vertices.vb_flags.write(self.vertices.flags)
-			self.vertices.flags_updated = False
 		
 	def stack(self, scene):
-		yield ((), 'screen', -1, self.prerender)
+		yield ((), 'screen', -1, self.vertices.prerender)
 		if self.options['display_faces']:	yield ((), 'screen', 0, self.disp_faces.render)
 		if self.options['display_groups']:	yield ((), 'screen', 1, self.disp_groups.render)
 		if self.options['display_points']:	yield ((), 'screen', 2, self.disp_points.render)
@@ -405,15 +400,15 @@ class SolidDisplay(Display):
 	@world.setter
 	def world(self, value):	self.vertices.world = value
 
-	def control(self, view, key, sub, evt):
-		if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
-			sub = sub[0]
-			flags, idents = self.vertices.flags, self.vertices.idents
-			for i in range(len(idents)):
-				flags[i] ^= idents[i] == sub
-			self.vertices.flags_updated = True
-			view.update()
-			evt.accept()
+	#def control(self, view, key, sub, evt):
+		#if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
+			#sub = sub[0]
+			#flags, idents = self.vertices.flags, self.vertices.idents
+			#for i in range(len(idents)):
+				#flags[i] ^= idents[i] == sub
+			#self.vertices.flags_updated = True
+			#view.update()
+			#evt.accept()
 	
 
 class WebDisplay(Display):
@@ -428,13 +423,9 @@ class WebDisplay(Display):
 		self.disp_groups = PointsDisplay(scene, self.vertices, points)
 		self.disp_points = PointsDisplay(scene, self.vertices)
 		
-	def prerender(self, view):
-		if self.vertices.flags_updated:
-			self.vertices.vb_flags.write(self.vertices.flags)
-			self.vertices.flags_updated = False
 
 	def stack(self, scene):
-		yield ((), 'screen', -1, self.prerender)
+		yield ((), 'screen', -1, self.vertices.prerender)
 		if self.options['display_groups']:		yield ((), 'screen', 2, self.disp_groups.render)
 		if self.options['display_points']:		yield ((), 'screen', 2, self.disp_points.render)
 		yield ((), 'screen', 1, self.disp_edges.render)
@@ -445,15 +436,15 @@ class WebDisplay(Display):
 	@world.setter
 	def world(self, value):	self.vertices.world = value
 
-	def control(self, view, key, sub, evt):
-		if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
-			sub = sub[0]
-			flags, idents = self.vertices.flags, self.vertices.idents
-			for i in range(len(idents)):
-				flags[i] ^= idents[i] == sub
-			self.vertices.flags_updated = True
-			view.update()
-			evt.accept()
+	#def control(self, view, key, sub, evt):
+		#if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
+			#sub = sub[0]
+			#flags, idents = self.vertices.flags, self.vertices.idents
+			#for i in range(len(idents)):
+				#flags[i] ^= idents[i] == sub
+			#self.vertices.flags_updated = True
+			#view.update()
+			#evt.accept()
 
 
 class Vertices(object):
@@ -468,7 +459,16 @@ class Vertices(object):
 		self.vb_idents = ctx.buffer(np.array(idents, dtype='u2', copy=False))
 		self.vb_flags = self.vb_flags = ctx.buffer(self.flags, dynamic=True)
 		self.world = fmat4(1)
+		
+	def prerender(self, view):
+		if self.flags_updated:
+			self.vb_flags.write(self.flags)
+			self.flags_updated = False
 	
+	def selectsub(self, sub):
+		for i,id in enumerate(self.idents):
+			self.flags[i] ^= id == sub
+		self.flags_updated = True
 			
 
 
