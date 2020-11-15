@@ -42,7 +42,7 @@ from math import sqrt
 from .mathutils import vec3, mat3, normalize, anglebt, project, noproject, cos, sin, atan2, pi, length, distance, cross, vec2, mat2, determinant, inverse, dot, atan, acos, dirbase
 from . import settings
 from . import displays
-from .mesh import Wire
+from . import mesh
 
 class Primitive(object):
 	__slots__ = ('annotations',)
@@ -84,6 +84,10 @@ class Axis(object):
 	
 	def display(self, scene):
 		yield displays.AxisDisplay(scene, (self.origin, self.direction), self.interval)
+			
+def isaxis(obj):
+	return isinstance(obj, Axis) or isinstance(obj, tuple) and len(obj)==2 and isinstance(obj[0],vec3) and isinstance(obj[1],vec3)
+
 
 class Segment(object):
 	''' segment from a to b '''
@@ -100,7 +104,7 @@ class Segment(object):
 		return self.direction
 	
 	def mesh(self):
-		return Wire([self.a, self.b], group='flat')
+		return mesh.Wire([self.a, self.b], group='flat')
 	def display(self, scene):
 		return self.mesh().display(scene)
 
@@ -191,7 +195,7 @@ def mkarc(axis, start, end, resolution=None):
 	for i in range(div):
 		a = angle * i/(div-1)
 		pts.append(x*r*cos(a) + y*r*sin(a) + center)
-	return Wire(pts, group='arc')
+	return mesh.Wire(pts, group='arc')
 	
 
 class TangentEllipsis(object):
@@ -219,7 +223,7 @@ class TangentEllipsis(object):
 		for i in range(div+1):
 			u = pi/2 * i/div
 			pts.append(x*a*(1-cos(u)) + y*b*(1-sin(u)) + origin)
-		return Wire(pts, group='ellipsis')
+		return mesh.Wire(pts, group='ellipsis')
 	def display(self, scene):
 		return self.mesh().display(scene)
 
@@ -255,6 +259,6 @@ class Circle(object):
 			pts.append(x*r*cos(a) + y*r*sin(a) + center)
 		indices = list(range(div))
 		indices.append(0)
-		return Wire(pts, indices, group='arc')
+		return mesh.Wire(pts, indices, group='arc')
 	def display(self, scene):
 		return self.mesh().display(scene)
