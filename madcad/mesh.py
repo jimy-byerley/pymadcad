@@ -74,7 +74,8 @@ class Container:
 		merges = {}
 		points = hashing.PointSet(limit)
 		for i in range(start, len(self.points)):
-			merges[i] = points.add(self.points[i])
+			used = points.add(self.points[i])
+			if used != i:	merges[i] = used
 		self.mergepoints(merges)
 		self.points = points.points
 		return merges
@@ -430,10 +431,11 @@ class Mesh(Container):
 					edges[(e[1],e[0])] = track
 		return edges
 		
-	def frontiers(self, groups:set=None):
+	def frontiers(self, groups:set=None, *args):
 		''' return a Web of UNORIENTED edges between the given groups '''
 		edges = []
-		groups = OrderedDict()
+		tracks = []
+		couples = {}
 		belong = {}
 		for i,face in enumerate(self.faces):
 			if groups and self.tracks[i] not in groups:	continue
@@ -441,17 +443,13 @@ class Mesh(Container):
 				e = edgekey(*edge)
 				if e in belong:
 					if belong[e] != self.tracks[i]:
+						g = edgekey(belong[e],self.tracks[i])
 						edges.append(e)
-						g = edgekey(self.tracks[i],e)
-						if g not in groups:	
-							groups[g] = len(groups)
-							tracks.append(len(groups)-1)
-						else:
-							tracks.append(groups[g])
+						tracks.append(couples.setdefault(g, len(couples)))
 					del belong[e]
 				else:
 					belong[e] = self.tracks[i]
-		return Web(self.points, edges, tracks, list(groups))
+		return Web(self.points, edges, tracks, list(couples))
 	
 	def surface(self):
 		''' total surface of triangles '''
@@ -572,9 +570,6 @@ class Mesh(Container):
 				idents,
 				color = self.options.get('color'),
 				)
-	
-	def display_update(self, scene, display):
-		indev
 	
 	def __repr__(self):
 		return 'Mesh(\n  points= {},\n  faces=  {},\n  tracks= {},\n  groups= {},\n  options= {})'.format(
@@ -792,7 +787,7 @@ class Web(Container):
 					else:				frontier.add(p)
 			for p in frontier:
 				frontiers.append(used[p])
-				
+		
 		return displays.WebDisplay(scene,
 				glmarray(points), 
 				edges,
@@ -822,12 +817,7 @@ def web(*args):
 	if isinstance(args, Web):		return args
 	elif isinstance(args, Wire):	return Web(args.points, list(lineedges(args)), groups=[args.group])
 	elif hasattr(args, 'mesh'):
-		res = args.mesh()
-		if isinstance(res, tuple):	# special behavior only for some old .mesh() implementations    TODO: remove it
-			pts,grp = res
-			return Web(pts, [(i,i+1) for i in range(len(pts)-1)], groups=[grp])
-		else:
-			return web(res)
+		return web(args.mesh())
 	elif isinstance(args, list) and isinstance(args[0], vec3):
 		return Web(args, [(i,i+1) for i in range(len(args)-1)])
 	elif isinstance(args, tuple) and isinstance(args[0], vec3):
@@ -928,10 +918,11 @@ def wire(*args):
 	if not args:	raise TypeError('web take at least one argument')
 	if len(args) == 1:	args = args[0]
 	if isinstance(args, Wire):		return args
-	elif isinstance(args, Web):		
+	elif isinstance(args, Web):
 		indices = suites(args.edges)
 		if len(indices) > 1:	raise ValueError('the given web has junctions')
-		return Wire(args.points, indices[0])
+		return Wire(args.points, indices[0], 
+					group=args.groups[0] if len(args.groups)==1 else None)
 	elif hasattr(args, 'mesh'):
 		return wire(args.mesh())
 	elif isinstance(args, list) and isinstance(args[0], vec3):
