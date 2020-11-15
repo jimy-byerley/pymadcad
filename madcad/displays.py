@@ -1,13 +1,14 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
+from math import log, exp, floor
 from .mathutils import (vec3, fvec3, fvec4, fmat4, 
 						mix, normalize, length, distance, dot, noproject, dirbase, transform,
 						Box, isnan, isinf,
 						)
-from math import log, exp
 from .rendering import Display, overrides, writeproperty
 from .common import ressourcedir
 from . import settings
+from . import primitives
 from PIL import Image
 import numpy.core as np
 import moderngl as mgl
@@ -377,7 +378,7 @@ class SolidDisplay(Display):
 		self.vertices = Vertices(scene.ctx, positions, idents)
 		self.disp_faces = FacesDisplay(scene, self.vertices, normals, faces, color=color)
 		self.disp_groups = LinesDisplay(scene, self.vertices, lines)
-		self.disp_points = PointsDisplay(scene, self.vertices)
+		self.disp_points = PointsDisplay(scene, self.vertices, range(len(positions)))
 		wire = []
 		for f in faces:
 			wire.append((f[0], f[1]))
@@ -421,7 +422,7 @@ class WebDisplay(Display):
 		self.vertices = Vertices(scene.ctx, positions, idents)
 		self.disp_edges = LinesDisplay(scene, self.vertices, lines, color=color)
 		self.disp_groups = PointsDisplay(scene, self.vertices, points)
-		self.disp_points = PointsDisplay(scene, self.vertices)
+		self.disp_points = PointsDisplay(scene, self.vertices, range(len(positions)))
 		
 
 	def stack(self, scene):
@@ -602,8 +603,8 @@ class PointsDisplay:
 		self.shader = scene.ressource('shader_wire', load)
 		self.ident_shader = scene.ressource('shader_subident')
 		# allocate GPU objects
-		if vertices.vb_positions:
-			vb_indices = scene.ctx.buffer(np.array(indices, dtype='u4', copy=False)) if indices else None
+		if indices and vertices.vb_positions:
+			vb_indices = scene.ctx.buffer(np.array(indices, dtype='u4', copy=False))
 			self.va = scene.ctx.vertex_array(
 						self.shader,
 						[	(vertices.vb_positions, '3f', 'v_position'),
@@ -675,7 +676,7 @@ class GridDisplay(Display):
 	def render(self, view):
 		center = fvec3( view.uniforms['view'] * self.world * fvec4(self.center,1) )
 		zlog = log(-center.z)/log(10)
-		sizelog = int(zlog)
+		sizelog = floor(zlog)
 		
 		view.scene.ctx.point_size = 1/400 * view.fb_screen.height
 		self.shader['color'].write(fvec4(
@@ -692,9 +693,11 @@ class GridDisplay(Display):
 		return ((), 'screen', 3, self.render),
 
 
+def tupledisplay(scene, t):
+	if primitives.isaxis(t):	return AxisDisplay(scene, t)
 
 overrides.update({
 	vec3:   PointDisplay,
-	tuple:  AxisDisplay,
+	tuple:  tupledisplay,
 	Box:    BoxDisplay,
 	})
