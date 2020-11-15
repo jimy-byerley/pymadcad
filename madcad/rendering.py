@@ -46,7 +46,7 @@ from PyQt5.QtWidgets import QOpenGLWidget, QApplication
 from PyQt5.QtGui import QSurfaceFormat, QMouseEvent, QInputEvent, QKeyEvent, QTouchEvent
 
 from .mathutils import (fvec3, fvec4, fmat3, fmat4, fquat, vec3, Box, mat4_cast, mat3_cast,
-						sin, cos, tan, atan2, pi, inf, exp,
+						sin, cos, tan, atan2, pi, inf, exp, isnan, isinf, isfinite,
 						dot, cross, length, project, noproject, transpose, inverse, affineInverse, 
 						perspective, ortho, translate, 
 						bisect, boundingbox,
@@ -807,7 +807,7 @@ class View(QOpenGLWidget):
 		'''
 		if not position:	position = self.scene.box().center
 		dir = position - fvec3(affineInverse(self.navigation.matrix())[3])
-		if dot(dir,dir) < 1e-6:	return
+		if not dot(dir,dir) > 1e-6 or not isfinite(position):	return
 		
 		if isinstance(self.navigation, Turntable):
 			self.navigation.yaw = atan2(dir.x, dir.y)
@@ -830,6 +830,8 @@ class View(QOpenGLWidget):
 		invview = affineInverse(self.navigation.matrix())
 		camera, look = fvec3(invview[3]), fvec3(invview[2])
 		dist = length(noproject(box.center-camera, look)) + length(box.width)/2
+		if not dist > 1e-6:	return
+		
 		# adjust navigation distance
 		if isinstance(self.projection, Perspective):
 			self.navigation.distance = dist / tan(self.projection.fov/2)
@@ -844,6 +846,7 @@ class View(QOpenGLWidget):
 			This is translating the camera.
 		'''
 		if not center:	center = self.scene.box().center
+		if not isfinite(center):	return
 		
 		self.navigation.center = center
 		self.update()

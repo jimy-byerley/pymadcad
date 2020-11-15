@@ -28,6 +28,9 @@ COMPREC = 1-NUMPREC
 #NUMPREC = 1e-6
 #COMPREC = 1-NUMPREC
 
+def isfinite(x):
+	return not (isinf(x) or isnan(x))
+
 def norminf(x):
 	''' norm L infinite  ie.  max(abs(x), abs(y), abs(z)) '''
 	return max(glm.abs(x))
