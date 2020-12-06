@@ -100,7 +100,9 @@ Scalar functions
 
 .. autofunction:: interpol2
 
-.. autofunction:: interpol2tri
+.. autofunction:: intri_smooth
+.. autofunction:: intri_sphere
+.. autofunction:: intri_parabolic
 
 Distances
 ~~~~~~~~~

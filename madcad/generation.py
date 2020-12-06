@@ -372,11 +372,8 @@ def icosurface(pts, ptangents, resolution=None) -> 'Mesh':
 		for i in range(3):
 			normals[i] = normalize(cross(ptangents[i][0], ptangents[i][1]))
 	else:
+		# if normals are given instead of tangents, compute tangents to fit a sphere surface
 		normals = ptangents
-		ptangents = None
-		
-	# if normals are given instead of tangents, compute tangents to fit a sphere surface
-	if not ptangents:
 		ptangents = [None]*3
 		for i in range(3):
 			ptangents[i] = (
@@ -385,19 +382,23 @@ def icosurface(pts, ptangents, resolution=None) -> 'Mesh':
 				)
 	
 	# evaluate resolution (using a bad approximation of the length for now)
-	segts = max(( settings.curve_resolution(
+	div = max(( settings.curve_resolution(
 					distance(pts[i-1], pts[i-2]), 
 					anglebt(normals[i-1], normals[i-2]), 
 					resolution)
-				for i in range(3) )) +2
+				for i in range(3) ))
 	
+	return dividedtriangle(lambda u,v: intri_sphere(pts, ptangents, u,v), div)
+	
+def dividedtriangle(placement, div=1) -> 'Mesh':
+	segts = div+2
 	# place points
-	mesh = Mesh(groups=['interptri'])
+	mesh = Mesh(groups=['blend'])
 	for i in range(segts):
 		u = i/(segts-1)				
 		for j in range(segts-i):
 			v = j/(segts-1)
-			p = interpol2tri(pts, ptangents, u,v)
+			p = placement(u,v)
 			mesh.points.append(p)
 	# create faces
 	c = 0
@@ -553,7 +554,7 @@ def multiple(pattern, n, trans=None, axis=None, angle=None) -> 'Mesh':
 			raise TypeError('transform must be set, or axis and angle must be axis and angle for rotation')
 	
 	current = pattern
-	pool = type(pattern)()
+	pool = type(pattern)(groups=pattern.groups)
 	if n:	pool += current
 	for i in range(1,n):
 		current = current.transform(trans)

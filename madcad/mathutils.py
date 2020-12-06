@@ -161,8 +161,16 @@ def interpol2(a, b, x):
 
 spline = interpol2
 
-def interpol2tri(pts, ptangents, a,b):
-	''' cubic interpolation like interpol2, but interpolates over a triangle (2d parameter space) '''
+def intri_flat(pts, a,b):
+	c = 1-a-b
+	return a*A + b*B + c*C
+
+def intri_sphere(pts, ptangents, a,b, etangents=None):
+	''' cubic interpolation over a triangle (2 dimension space), edges are guaranteed to fit an interpol2 curve using the edge tangents
+	
+	.. note::
+		if the tangents lengths are set to the edge lenghts, that version gives a result close to a sphere surface
+	'''
 	A,B,C = pts
 	ta,tb,tc = ptangents
 	c = 1-a-b
@@ -173,7 +181,35 @@ def interpol2tri(pts, ptangents, a,b):
 			+	c**2 * (C + a*tc[0] + b*tc[1])
 			+	2*(b*c + c*a + a*b) * P
 			)
-		
+
+def intri_smooth(pts, ptangents, a,b):
+	''' cubic interpolation over a triangle, edges are guaranteed to fit an interpol2 curve using the edge tangents
+	
+	.. note::
+		if the tangents lengths are set to the edge lenghts, that version gives a result that only blends between the curved edges, a less bulky result than `intri_sphere`
+	'''
+	A,B,C = pts
+	ta,tb,tc = ptangents
+	c = 1-a-b
+	return (	0
+			+	a**2 * (A + b*ta[0] + c*ta[1] + b*c*(ta[0]+ta[1]))
+			+	b**2 * (B + c*tb[0] + a*tb[1] + c*a*(tb[0]+tb[1]))
+			+	c**2 * (C + a*tc[0] + b*tc[1] + a*b*(tc[0]+tc[1]))
+			+	2*(b*c + c*a + a*b) * (a*A + b*B + c*C)
+			)
+
+def intri_parabolic(pts, ptangents, a,b, etangents=None):
+	''' quadratic interpolation over a triangle, edges are NOT fitting an interpol2 curve '''
+	A,B,C = pts
+	ta,tb,tc = ptangents
+	c = 1-a-b
+	return (	0
+			+	a * (A + b*ta[0] + c*ta[1])
+			+	b * (B + c*tb[0] + a*tb[1])
+			+	c * (C + a*tc[0] + b*tc[1])
+			)
+
+
 # distances:
 
 distance_pp = distance
@@ -227,9 +263,22 @@ def bisect(l, index, key=lambda x:x):
 	return start
 
 # TODO rename it first
-def find(iterator, predicate):
+def find(iterator, predicate, default=None):
 	for e in iterator:
 		if predicate(e):	return e
+	return default
+			
+def imax(iterable, default=None):
+	''' return the index of the max of the iterable '''
+	best = default
+	score = -inf
+	for i,o in enumerate(iterable):
+		if o > score:
+			score = o
+			best = i
+	if best is None:	raise IndexError('iterable is empty')
+	return i
+
 
 class Box:
 	''' box always orthogonal to the base axis, used as convex for area delimitations '''
@@ -345,4 +394,4 @@ def boundingbox(obj, ignore=False, default=Box(width=vec3(-inf))) -> Box:
 	else:
 		raise TypeError('unable to get a boundingbox from {}'.format(type(obj)))
 
-	
+
