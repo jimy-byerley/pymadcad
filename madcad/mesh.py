@@ -363,6 +363,13 @@ class Mesh(Container):
 			edges.add(edgekey(face[2], face[0]))
 		return edges
 	
+	def edges_oriented(self):
+		''' iterator of oriented edges, directly retreived of each face '''
+		for face in self.faces:
+			yield face[0], face[1]
+			yield face[1], face[2]
+			yield face[2], face[0]
+	
 	def group(self, groups):
 		''' return a new mesh linked with this one, containing only the faces belonging to the given groups '''
 		if isinstance(groups, set):			pass
@@ -953,6 +960,11 @@ def facekeyo(a,b,c):
 	if a < b and b < c:		return (a,b,c)
 	elif a < b:				return (c,a,b)
 	else:					return (b,c,a)
+	
+def arrangeface(f, p):
+	if   p == f[1]:	return f[1],f[2],f[0]
+	elif p == f[2]:	return f[2],f[0],f[1]
+	else:			return f
 
 def connpp(edges):
 	''' point to point connectivity '''
@@ -971,7 +983,7 @@ def connef(faces):
 		for e in ((f[0],f[1]), (f[1],f[2]), (f[2],f[0])):
 			conn[e] = i
 	return conn
-	
+
 def connexity(links):
 	reach = {}
 	for l in links:

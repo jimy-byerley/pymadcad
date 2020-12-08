@@ -391,6 +391,10 @@ def icosurface(pts, ptangents, resolution=None) -> 'Mesh':
 	return dividedtriangle(lambda u,v: intri_sphere(pts, ptangents, u,v), div)
 	
 def dividedtriangle(placement, div=1) -> 'Mesh':
+	''' generate a subdivided triangle with points placed according to the placement closure
+		`placement(a,b) -> vec3`
+		with a,b such as a+b+c = 1 with a,b,c within [0;1]
+	'''
 	segts = div+2
 	# place points
 	mesh = Mesh(groups=['blend'])
