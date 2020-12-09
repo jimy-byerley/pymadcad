@@ -32,7 +32,7 @@ import math
 from .mathutils import (
 				Box, vec3, vec4, mat3, mat4, quat, mat3_cast, transformer,
 				cross, dot, normalize, length, distance, project, noproject, anglebt, 
-				NUMPREC,
+				NUMPREC, isnan, glm,
 				)
 from . import displays
 from . import text
@@ -346,8 +346,23 @@ class Mesh(Container):
 		for i in range(l):
 			normals[i] = normalize(normals[i])
 		return normals
+		
+	def tangents(self):
+		''' tangents to outline points '''
+		# outline with associated face normals
+		edges = {}
+		for face in self.faces:
+			for e in ((face[0], face[1]), (face[1], face[2]), (face[2],face[0])):
+				if e in edges:	del edges[e]
+				else:			edges[(e[1], e[0])] = self.facenormal(face)
+		# cross neighbooring normals
+		tangents = {}
+		for loop in suites(edges):
+			for i in range(len(loop)):
+				tangents[loop[i-1]] = normalize(cross(	edges[(loop[i-1],loop[i-2])], 
+														edges[(loop[i],loop[i-1])] ))
+		return tangents
 	
-			
 	
 	def facepoints(self, index):
 		''' shorthand to get the points of a face (index is an int or a triplet) '''
@@ -355,7 +370,7 @@ class Mesh(Container):
 		return self.points[f[0]], self.points[f[1]], self.points[f[2]]
 	
 	def edges(self):
-		''' set of unoriented edges present in the mesh '''
+		''' set of UNORIENTED edges present in the mesh '''
 		edges = set()
 		for face in self.faces:
 			edges.add(edgekey(face[0], face[1]))
@@ -364,7 +379,7 @@ class Mesh(Container):
 		return edges
 	
 	def edges_oriented(self):
-		''' iterator of oriented edges, directly retreived of each face '''
+		''' iterator of ORIENTED edges, directly retreived of each face '''
 		for face in self.faces:
 			yield face[0], face[1]
 			yield face[1], face[2]
@@ -500,6 +515,39 @@ class Mesh(Container):
 		self.points = points
 		self.faces = faces
 		return idents
+		
+	def islands(self):
+		''' return the unconnected parts of the mesh as several meshes '''
+		conn = connef(self.faces)
+		# propagation
+		islands = []
+		reached = [False] * len(self.faces)	# faces reached
+		stack = []
+		start = 0
+		while True:
+			# search start point
+			for start in range(start,len(reached)):
+				if not reached[start]:
+					stack.append(start)
+					break
+			# end when everything reached
+			if not stack:	break
+			# propagate
+			island = Mesh(self.points, [], [], self.groups)
+			while stack:
+				i = stack.pop()
+				reached[i] = True
+				island.faces.append(self.faces[i])
+				island.faces.append(self.tracks[i])
+				f = self.faces[i]
+				for i in range(3):
+					e = f[i],f[i-1]
+					if e in conn and not reached[conn[e]]:
+						stack.append(conn[e])
+			islands.append(island)
+		return islands
+					
+			
 	
 	
 	# --- renderable interfaces ---
@@ -759,7 +807,9 @@ class Web(Container):
 		return s
 	
 	def segments(self):
+		''' return the contiguous portions of this web '''
 		return [Wire(self.points, loop)		for loop in suites(self.edges, oriented=False)]
+	
 		
 	def __repr__(self):
 		return 'Web(\n  points= {},\n  edges=  {},\n  tracks= {},\n  groups= {},\n  options= {})'.format(
@@ -848,6 +898,8 @@ class Wire:
 			:indices:	indices of the line's points in the buffer
 			:group:		data associated to all the points, much like Web.groups but there is only one here
 	'''
+	__slots__ = 'points', 'indices', 'group'
+	
 	def __init__(self, points, indices=None, group=None):
 		self.points = points
 		if indices is None:	self.indices = list(range(len(points))) #arraylike(lambda i: i, lambda: len(points))
@@ -865,13 +917,6 @@ class Wire:
 		indices = self.indices[:]
 		indices.reverse()
 		return Wire(self.points, indices, self.group)
-	
-	def length(self):
-		''' curviform length of the wire (sum of all edges length) '''
-		s = 0
-		for i in range(1,len(self.indices)):
-			s += distance(self.points[self.indices[i-1]], self.points[self.indices[i]])
-		return s
 		
 	def isvalid(self):
 		''' return True if the internal data are consistent '''
@@ -891,6 +936,69 @@ class Wire:
 	def edges(self):
 		''' list of successive edges of the wire '''
 		return [self.edge(i)  for i in range(len(self.indices)-1)]
+		
+	
+	def length(self):
+		''' curviform length of the wire (sum of all edges length) '''
+		s = 0
+		for i in range(1,len(self.indices)):
+			s += distance(self.points[self.indices[i-1]], self.points[self.indices[i]])
+		return s
+	
+	def vertexnormals(self, loop=False):
+		''' return the opposed direction to the curvature in each point 
+			this is called normal because it would be the normal to a surface whose section would be that wire
+		'''
+		normals = [None] * len(self.indices)
+		for i in range(len(self.indices)):
+			a,b,c = self.indices[i-2], self.indices[i-1], self.indices[i]
+			normals[i-1] = normalize(normalize(self.points[b]-self.points[a]) + normalize(self.points[b]-self.points[c]))
+		self._make_loop_consistency(normals, loop)
+		return normals
+		
+	def tangents(self, loop=False):
+		''' return approximated tangents to the curve as if it was a surface section.
+			if this is not a loop the result is undefined.
+		'''
+		tangents = [None] * len(self.indices)
+		for i in range(len(self.indices)):
+			a,b,c = self.indices[i-2], self.indices[i-1], self.indices[i]
+			tangents[i-1] = normalize(cross(self.points[b]-self.points[a], self.points[b]-self.points[c]))
+		self._make_loop_consistency(tangents, loop)
+		return tangents
+	
+	def _make_loop_consistency(self, normals, loop):
+		l = len(self.indices)
+		# propagate to erase undefined normals
+		for _ in range(2):
+			for i in range(l):
+				if glm.any(isnan(normals[i])):	
+					normals[i] = normals[i-1]
+		# make normals consistent if asked
+		if loop:
+			# get an outermost point as it is always well oriented
+			dir = self.points[self.indices[l//2]] - self.points[self.indices[0]]	# WARNING: if those two points are too close the computation is misleaded
+			i = max(self.indices, key=lambda i: dot(self.points[i], dir))
+			# propagation reorient
+			# WARNING: if there is a cusp in the curve (2 consecutive segments with opposite directions) the final result can be wrong
+			for i in range(i+1, i+l):
+				j = i%l
+				if dot(normals[j], normals[j-1]) < 0:
+					normals[j-1] = -normals[j-1]
+		# propagate to borders if not loop
+		else:
+			normals[0] = normals[1]
+			normals[-1] = normals[-2]
+	
+	def normal(self):
+		''' return an approximated normal to the curve as if it was the outline of a flat surface.
+			if this is not a loop the result is undefined.
+		'''
+		area = vec3(0)
+		c = self.points[self.indices[0]]
+		for i in range(len(self.indices)):
+			area += cross(self.points[self.indices[i]]-c, self.indices[i-1]-c)
+		return normalize(area)
 	
 	def __iadd__(self, other):
 		if not isinstance(other, Wire):		return NotImplemented
@@ -966,12 +1074,14 @@ def arrangeface(f, p):
 	elif p == f[2]:	return f[2],f[0],f[1]
 	else:			return f
 
-def connpp(edges):
-	''' point to point connectivity '''
+def connpp(ngons):
+	''' point to point connectivity 
+		input is a list of ngons (tuple of 2 to n indices)
+	'''
 	conn = {}
-	for line in edges:
-		for i in range(len(line)):
-			for a,b in ((line[i-1],line[i]), (line[i],line[i-1])):
+	for loop in ngons:
+		for i in range(len(loop)):
+			for a,b in ((loop[i-1],loop[i]), (loop[i],loop[i-1])):
 				if a not in conn:		conn[a] = [b]
 				elif b not in conn[a]:	conn[a].append(b)
 	return conn
