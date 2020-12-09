@@ -5,7 +5,7 @@ mathutils    - all the basic math types and functions
 =====================================================
 
 Most of the names here are coming from the `glm <http://github.com/Zuzu-Typ/PyGLM>`_ module.
-But the goal is to harvest at one point, all the basic math functions and objects that are used all around madcad.
+But the goal is to harvest at one point all the basic math functions and objects that are used all around madcad.
 
 .. tip::
 	All the present functions and types are present in the root madcad module.
@@ -77,26 +77,26 @@ Common vector operations
 
 .. autofunction:: perp
 
-.. function:: norm1
+.. function:: norm1(x) -> float
 
 	norm L1  ie.  `abs(x) + abs(y) + abs(z)`
 	
 	Alias to `glm.l1Norm`
 
-.. function:: norm2(x)
+.. function:: norm2(x) -> float
 	
 	norm L2  ie.  `sqrt(x**2 + y**2 + z**2)`   the usual distance also known as manhattan distance
 	
 	Alias to `glm.l2Norm` alias `glm.length`
 
-.. function:: norminf
+.. function:: norminf(x) -> float
 
 	norm L infinite  ie.  `max(abs(x), abs(y), abs(z))`
 	
 	Alias to `glm.lxNorm`
 
-	
 See `the glm complete reference <https://github.com/Zuzu-Typ/PyGLM/blob/master/wiki/function-reference/README.md>`_
+
 
 Transformations
 ~~~~~~~~~~~~~~~
