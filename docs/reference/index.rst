@@ -1,5 +1,5 @@
-API reference
-=============
+Reference
+=========
 
 .. warning::
 	The module is still in alpha version and the API may change a lot before release.
