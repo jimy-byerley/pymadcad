@@ -358,3 +358,20 @@ code {
 	border: 1px solid rgb(43, 58, 72);
 	box-shadow: none;
 }
+
+/* tables */
+.rst-content table.docutils td {
+	border: 1px solid #20484a !important;
+}
+.rst-content table.docutils th {
+	border: 1px solid #20484a !important;
+    border-bottom: 1px solid #e1e4e5 !important;
+}
+.rst-content table.docutils thead, 
+.rst-content table.field-list thead, 
+.wy-table thead {
+    color: inherit;
+}
+.rst-content table.docutils:not(.field-list) tr:nth-child(2n-1) td {
+    background-color: #243435 !important;
+}
