@@ -8,8 +8,11 @@ Simple yet powerful CAD (Computer Aided Design) library, written with Python.
 
 - [Installation](https://pymadcad.readthedocs.io/en/latest/installation.html)
 - [Documentation](https://pymadcad.readthedocs.io/en/latest/?)
+- [Repository](https://github.com/jimy-byerley/pymadcad)
 
 
+[![support-version](https://img.shields.io/pypi/pyversions/pymadcad.svg)](https://img.shields.io/pypi/pyversions/pymadcad)
+[![PyPI version shields.io](https://img.shields.io/pypi/v/pymadcad.svg)](https://pypi.org/project/pymadcad/)
 [![Documentation Status](https://readthedocs.org/projects/pymadcad/badge/?version=latest)](https://pymadcad.readthedocs.io/en/latest/?badge=latest)
 
 ## Features
