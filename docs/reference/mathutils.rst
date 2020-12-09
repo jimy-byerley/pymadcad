@@ -77,21 +77,21 @@ Common vector operations
 
 .. autofunction:: perp
 
-.. autofunction:: norm1
+.. function:: norm1
 
-	norm L1  ie.  abs(x)+abs(y)+abs(z)
+	norm L1  ie.  `abs(x) + abs(y) + abs(z)`
 	
 	Alias to `glm.l1Norm`
 
 .. function:: norm2(x)
 	
-	norm L2  ie.  sqrt(x**2 + y**2 + z**2)   the usual distance also known as manhattan distance
+	norm L2  ie.  `sqrt(x**2 + y**2 + z**2)`   the usual distance also known as manhattan distance
 	
-	Alias to `glm.length`
+	Alias to `glm.l2Norm` alias `glm.length`
 
-.. autofunction:: norminf
+.. function:: norminf
 
-	norm L infinite  ie.  max(abs(x), abs(y), abs(z))
+	norm L infinite  ie.  `max(abs(x), abs(y), abs(z))`
 	
 	Alias to `glm.lxNorm`
 
