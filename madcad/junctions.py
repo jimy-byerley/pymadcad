@@ -1,36 +1,43 @@
+# This file is part of pymadcad,  distributed under license LGPL v3
 '''
-arg:
-	Wire
-	Web
-	Mesh
-	Interface(wire, tangents)
-	Interface(wire, tangents, center)
-	Interface(wire, tangents, center, blend)
-		Wire,Web,Mesh,'auto'
-		None,'mesh','center',[vec3]
-		float
-Node(interfaces ..., 
-	method='straight'/'normal'/'cup',
-	center='mean','boundary',vec3)
-junction(interf1, interf2, interf3, ..., tangents=None/'mesh'/'center', center='mean'/'boundary', blend=1.)
-JunctionGraph(
-	[interfaces],
-	[nodes],
-	)
-	.mesh()
+	This module focuses on automated envelope generations, based on interface outlines
+	the user has only to define the interface outlines or surfaces to join, and the algorithm makes the surface. No more pain to imagine some fancy geometries.
 	
-junction(
-	surf1,
-	interf2,
-	*,
-	generate='normal',
-	)
+	formal definitions:
+	
+	interface   a surface or an outline (a loop) with associated exterior normals.
+	node        a group of interfaces meant to be attached together by a blended surface.
+	
+	In order to generate envelopes, this module asks for cutting all the surfaces to join into 'nodes'. The algorithm decides how to join shortly all the outlines in a node. Once splited in nodes, you only need to generate node junctions for each, and concatenate the resulting meshes.
+	
+	details
+	-------
+	
+	The blended surfaces are created between interfaces, linked as the points of a convex polyedron of the interfaces directions to the node center.
 
-multijunction(
-	Some(surf1, surf2, 42, *, generate='normal'),
-	Some(42, surf3, surf4),
-	generate='straight',
-	)
+		
+	example
+	-------
+	
+	>>> x,y,z = vec3(1,0,0), vec3(0,1,0), vec3(0,0,1)
+	>>> m = junction(
+			# can pass a surface: the surface outlines and normals will be used as the generated surface tangents 
+			extrusion(2*z, web(Circle((vec3(0),z), 1))),	
+			# can pass wire or primitives: the wire loops are used and the approximate normal to the  wire plane
+			Circle((2*x,x), 0.5),	
+			# more parameters when building directly the interfqce
+			Interface(Circle((2*y,y), 0.5), tangents='center', blend=2.),	
+			
+			generate='normal',
+			)
+			
+	# to come in a next version
+	# create junction for each iterable of interface, if some are not interfaces, they are used as placeholder objects for auto-determined interfaces
+	>> multijunction(
+			(surf1, surf2, 42, *),
+			(42, surf3, surf4),
+			generate='straight',
+			)
 '''
 
 from .mesh import Mesh, Wire, Web, wire, connef, edgekey, glmarray, suites, arrangeface
@@ -45,7 +52,6 @@ class Interface:
 	''' data class for a junction interface '''
 	def __init__(self, base, tangents='normal', blend=1.):
 		# get the interface outline to connect to the others
-		# TODO handle multiple outlines for a surface
 		self.points = base.points
 		if isinstance(base, Wire):		self.loops = [base.indices]
 		elif isinstance(base, Web):		self.loops = suites(base.edges)
@@ -55,39 +61,34 @@ class Interface:
 			raise TypeError('expected one of Wire,Web,Mesh   and not {}'.format(type(base).__name__))
 		# normal to each point
 		if tangents:
-			if isinstance(tangents, list):
+			# tangents provided explicitely
+			if isinstance(tangents, (list,dict)):
 				self.tangents = tangents
+			# one tangent shared by all points
 			elif isinstance(tangents, vec3):
-				self.tangents = [tangents]*len(self.points)	
+				self.tangents = [tangents]*len(self.points)
+			
 			elif tangents == 'normal':
+				# tangents normal to surface
 				if isinstance(base,Mesh):
 					self.tangents = base.vertexnormals()
+				# tangents are in the common direction of adjacent faces
 				else:
-					# guess the normals to the line
-					self.tangents = [None]*len(self.points)
-					for loop in self.loops:
-						for i in range(len(loop)):
-							self.tangents[loop[i-1]] = normalize(cross(
-								self.points[loop[i-2]]-self.points[loop[i-1]], 
-								self.points[loop[i]]-self.points[loop[i-1]],
-								))
-						for _ in range(2):
-							for i in range(len(loop)):
-								if any(isnan(self.tangents[loop[i]])):
-									self.tangents[loop[i]] = self.tangents[loop[i-1]]
-			elif tangents == 'tangent' and isinstance(base,Mesh):
-				indev
+					self.tangents = base.vertexnormals(True)
+			
+			elif tangents == 'tangent':
+				# tangents tangents to surface outline
+				if isinstance(base,Mesh):
+					self.tangents = base.tangents()
+				# tangents are tangents to a guessed surface in the loop
+				else:
+					self.tangents = base.tangents(True)
 			else:
 				raise ValueError('wrong tangents specification')
 		else:
 			self.tangents = [vec3(0)] * len(self.points)
 		# factor applied on each tangents
 		self.blend = [blend] * len(self.points)
-
-class Some:
-	def __init__(self, *args, **kwargs):
-		self.args = args
-		self.kwargs = kwargs
 
 
 
@@ -132,16 +133,16 @@ def junction(*args, center=None, generate='straight', match='length', resolution
 	cuts = {}
 	for face in node.faces:
 		n = node.facenormal(face)
-		#middle = [	max(interfaces[i], key=lambda p: dot(pts[p], n) )	
-					#for i in face]
-		middle = [None]*3
-		for i in range(3):
-			interface = interfaces[face[i]]
-			middle[i] = interface[max(range(len(interface)), 
-				key=lambda j: dot(pts[interface[i]], n) * dot(n, 
-									cross(	pts[interface[j]] - pts[interface[j-1]], 
-											node.points[face[i]] - node.points[face[i-1]])),
-				)]
+		middle = [	max(interfaces[i], key=lambda p: dot(pts[p], n) )	
+					for i in face]
+		#middle = [None]*3
+		#for i in range(3):
+			#interface = interfaces[face[i]]
+			#middle[i] = interface[max(range(len(interface)), 
+				#key=lambda j: dot(pts[interface[i]], n) * dot(n, 
+									#cross(	pts[interface[j]] - pts[interface[j-1]], 
+											#node.points[face[i]] - node.points[face[i-1]])),
+				#)]
 		middles.append(middle)
 		for i in range(3):
 			if middle[i-1] in cuts and cuts[middle[i-1]] != middle[i-2]:	continue
@@ -209,6 +210,9 @@ def junction(*args, center=None, generate='straight', match='length', resolution
 			#result += blendtri([pts[i] for i in tri], ptgts, div)
 			#result += closingtri([pts[i] for i in tri], ptgts, div)
 			result += generation.dividedtriangle(lambda u,v: intri_smooth(ptri, ptgts, u,v), div)
+	elif generate == 'tangent':
+		normals = [noproject(cross(pts[a]-pts[b], pts[c]-pts[b]), normals[i])	for i in range(len(loop))]
+		indev
 	else:
 		raise ValueError('generation method {} not implemented'.format(repr(generate)))
 	
