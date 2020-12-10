@@ -26,7 +26,7 @@
 			# can pass wire or primitives: the wire loops are used and the approximate normal to the  wire plane
 			Circle((2*x,x), 0.5),	
 			# more parameters when building directly the interfqce
-			Interface(Circle((2*y,y), 0.5), tangents='center', blend=2.),	
+			(Circle((2*y,y), 0.5), 'tangent', 2.),
 			
 			generate='normal',
 			)
@@ -48,51 +48,94 @@ from . import generation
 from .nprint import nprint
 
 
-class Interface:
-	''' data class for a junction interface '''
-	def __init__(self, base, tangents='normal', blend=1.):
-		# get the interface outline to connect to the others
-		self.points = base.points
-		if isinstance(base, Wire):		self.loops = [base.indices]
-		elif isinstance(base, Web):		self.loops = suites(base.edges)
-		elif isinstance(base, Mesh): 	
-			self.loops = suites(base.outlines_oriented())
+def interfaces(objs, tangents='normal', weight=1.):
+	''' collects the data definig interfaces for junctions and blendings out of an iterable of tuples 
+		This function has no real interest for the enduser.
+	'''
+	# simply merge results of interface_parse
+	v_pts = []
+	v_tangents = []
+	v_weights = []
+	loops = []
+	for obj in objs:
+		# parse
+		args = [None, tangents, weight]
+		if isinstance(obj, tuple):
+			for i,o in enumerate(obj):	args[i] = o
 		else:
-			raise TypeError('expected one of Wire,Web,Mesh   and not {}'.format(type(base).__name__))
-		# normal to each point
-		if tangents:
-			# tangents provided explicitely
-			if isinstance(tangents, (list,dict)):
-				self.tangents = tangents
-			# one tangent shared by all points
-			elif isinstance(tangents, vec3):
-				self.tangents = [tangents]*len(self.points)
-			
-			elif tangents == 'normal':
-				# tangents normal to surface
-				if isinstance(base,Mesh):
-					self.tangents = base.vertexnormals()
-				# tangents are in the common direction of adjacent faces
-				else:
-					self.tangents = base.vertexnormals(True)
-			
-			elif tangents == 'tangent':
-				# tangents tangents to surface outline
-				if isinstance(base,Mesh):
-					self.tangents = base.tangents()
-				# tangents are tangents to a guessed surface in the loop
-				else:
-					self.tangents = base.tangents(True)
-			else:
-				raise ValueError('wrong tangents specification')
+			args[0] = obj
+		e_pts, e_tangents, e_weights, e_loops = interface(*args)
+		# concatenate
+		l = len(v_pts)
+		v_pts.extend(e_pts)
+		v_tangents.extend(e_tangents)
+		v_weights.extend(e_weights)
+		loops.extend([i+l  for i in loop] for loop in e_loops)
+	return v_pts, v_tangents, v_weights, loops
+		
+def interface(base, tangents='normal', weight=1.):
+	''' collects the data definig interfaces for junctions and blendings out of one object 
+		This function has no real interest for the enduser.
+	'''
+	if not base:
+		raise ValueError('interface is not fully defined, loops are missing')
+	if not isinstance(base, (Wire, Web, Mesh)) and hasattr(base, 'mesh'):	
+		base = base.mesh()
+	if not isinstance(base, (Wire, Web, Mesh)):
+		raise TypeError('expected one of Wire,Web,Mesh   and not {}'.format(type(base).__name__))
+	
+	# get the interface outline to connect to the others
+	base.strippoints()
+	print(type(base), base.points)
+	points = base.points
+	if isinstance(base, Wire):		loops = [base.indices]
+	elif isinstance(base, Web):		loops = suites(base.edges)
+	elif isinstance(base, Mesh): 
+		loops = suites(base.outlines_oriented())
+	
+	# normal to each point
+	# tangents provided explicitely
+	if isinstance(tangents, (list,dict)):
+		tangents = tangents
+	# one tangent shared by all points
+	elif isinstance(tangents, vec3):
+		tangents = [tangents] * len(points)
+		
+	elif tangents == 'straight':
+		tangents = [vec3(0)] * len(points)
+	
+	elif tangents == 'normal':
+		# tangents normal to surface
+		if isinstance(base,Mesh):
+			tangents = base.vertexnormals()
+		# tangents are in the common direction of adjacent faces
 		else:
-			self.tangents = [vec3(0)] * len(self.points)
-		# factor applied on each tangents
-		self.blend = [blend] * len(self.points)
+			tangents = [None] * len(points)
+			for loop in loops:
+				for i,n in zip(loop, Wire(points, loop).vertexnormals(True)):
+					tangents[i] = n
+	
+	elif tangents == 'tangent':
+		tangents = [None] * len(points)
+		# tangents tangents to surface outline
+		if isinstance(base,Mesh):
+			for p,t in base.tangents().items():
+				tangents[p] = t
+		# tangents are tangents to a guessed surface in the loop
+		else:
+			for loop in loops:
+				for i,n in zip(loop, Wire(points, loop).tangents(True)):
+					tangents[i] = n
+	else:
+		raise ValueError('wrong tangents specification')
+	
+	# factor applied on each tangents
+	weights = [weight] * len(points)
+	return points, tangents, weights, loops
 
 
 
-def junction(*args, center=None, generate='straight', match='length', resolution=None):
+def junction(*args, center=None, tangents='normal', weight=1., match='length', resolution=None):
 	''' join several outlines with a blended surface
 		
 		generate:	
@@ -107,22 +150,13 @@ def junction(*args, center=None, generate='straight', match='length', resolution
 		.. note::
 			match method 'corner' is not yet implemented
 	'''
-	pts = []
-	tangents = []
-	weights = []
-	interfaces = []
-	for interface in args:
-		if not isinstance(interface, Interface):	interface = Interface(interface)
-		l = len(pts)
-		pts.extend(interface.points)
-		tangents.extend(interface.tangents)
-		weights.extend(interface.blend)
-		interfaces.extend([i+l  for i in loop] for loop in interface.loops)
+	pts, tangents, weights, loops = interfaces(args, tangents, weight)
+	
 	# determine center and convex hull of centers
 	if not center:
-		center = interfaces_center(pts, *interfaces)
+		center = interfaces_center(pts, *loops)
 	node = convexhull([	normalize(interfaces_center(pts, interf)-center) 
-						for interf in interfaces])
+						for interf in loops])
 	for i,f in enumerate(node.faces):
 		if dot(node.facenormal(f), sum(node.facepoints(i))) < 0:
 			node.faces[i] = (f[0],f[2],f[1])
@@ -133,11 +167,11 @@ def junction(*args, center=None, generate='straight', match='length', resolution
 	cuts = {}
 	for face in node.faces:
 		n = node.facenormal(face)
-		middle = [	max(interfaces[i], key=lambda p: dot(pts[p], n) )	
+		middle = [	max(loops[i], key=lambda p: dot(pts[p], n) )	
 					for i in face]
 		#middle = [None]*3
 		#for i in range(3):
-			#interface = interfaces[face[i]]
+			#interface = loops[face[i]]
 			#middle[i] = interface[max(range(len(interface)), 
 				#key=lambda j: dot(pts[interface[i]], n) * dot(n, 
 									#cross(	pts[interface[j]] - pts[interface[j-1]], 
@@ -149,7 +183,7 @@ def junction(*args, center=None, generate='straight', match='length', resolution
 			cuts[middle[i-1]] = middle[i]
 	# cut the interfaces
 	parts = {}
-	for interf in interfaces:
+	for interf in loops:
 		l = len(interf)
 		last = None
 		first = None
@@ -169,52 +203,38 @@ def junction(*args, center=None, generate='straight', match='length', resolution
 	for i in cuts:
 		if i in done:	continue
 		j = parts[cuts[i]][-1]
-		#assert parts[cuts[j]][-1] == i, "failed to match outlines"
+		assert parts[cuts[j]][-1] == i, "failed to match outlines"
 		matchs.append((parts[cuts[i]], parts[cuts[j]]))
 		done.add(j)
 	
 	# generate the surfaces
 	result = Mesh(pts)
 	div = 11
-	if generate == 'straight':
-		for la,lb in matchs:
-			def infos():
-				for a,b in curvematch(Wire(pts,lb), Wire(pts,list(reversed(la)))):
-					yield (pts[a],vec3(0)), (pts[b],vec3(0))
-			result += blenditer(infos(), div, interpol2)
-		zerotgt = [(vec3(0),vec3(0)) for i in range(3)]
-		for tri in middles:
-			assert len(tri) == 3
-			ptri = [pts[i] for i in tri]
-			result += generation.dividedtriangle(lambda u,v: intri_flat(ptri, u,v), div)
-	
-	elif generate == 'normal':
-		for la,lb in matchs:
-			def infos():
-				for a,b in curvematch(Wire(pts,lb), Wire(pts,list(reversed(la)))):
-					ta, tb = normalize(tangents[a]), normalize(tangents[b])
-					l = distance(pts[a],pts[b])  # NOTE not the arclength for the moment
-					yield (pts[a], ta*l*weights[a]), (pts[b], tb*l*weights[b])
-			result += blenditer(infos(), div, interpol2)
-		for tri in middles:
-			assert len(tri) == 3
-			ptgts = [None]*3
-			ptri = [None]*3
-			for i in range(3):
-				s = tri[i]
-				ptgts[i] = (tangents[s]*weights[s]*distance(pts[s], pts[tri[i-2]]), 
-							tangents[s]*weights[s]*distance(pts[s], pts[tri[i-1]]),
-							)
-				ptri[i] = pts[tri[i]]
-			#etangents = [2*pts[tri[i]]-pts[tri[i-1]]-pts[tri[i-2]]	for i in range(3)]
-			#result += blendtri([pts[i] for i in tri], ptgts, div)
-			#result += closingtri([pts[i] for i in tri], ptgts, div)
-			result += generation.dividedtriangle(lambda u,v: intri_smooth(ptri, ptgts, u,v), div)
-	elif generate == 'tangent':
-		normals = [noproject(cross(pts[a]-pts[b], pts[c]-pts[b]), normals[i])	for i in range(len(loop))]
-		indev
-	else:
-		raise ValueError('generation method {} not implemented'.format(repr(generate)))
+	for la,lb in matchs:
+		def infos():
+			for a,b in curvematch(Wire(pts,lb), Wire(pts,list(reversed(la)))):
+				# normalize except for 0
+				ta, tb = tangents[a], tangents[b]
+				ta /= length(ta) or 1
+				tb /= length(tb) or 1
+				# scale and weight
+				l = distance(pts[a],pts[b])  # NOTE not the arclength for the moment
+				yield (pts[a], ta*l*weights[a]), (pts[b], tb*l*weights[b])
+		result += blenditer(infos(), div, interpol2)
+	for tri in middles:
+		assert len(tri) == 3
+		ptgts = [None]*3
+		ptri = [None]*3
+		for i in range(3):
+			s = tri[i]
+			ptgts[i] = (tangents[s]*weights[s]*distance(pts[s], pts[tri[i-2]]), 
+						tangents[s]*weights[s]*distance(pts[s], pts[tri[i-1]]),
+						)
+			ptri[i] = pts[tri[i]]
+		#etangents = [2*pts[tri[i]]-pts[tri[i-1]]-pts[tri[i-2]]	for i in range(3)]
+		#result += blendtri([pts[i] for i in tri], ptgts, div)
+		#result += closingtri([pts[i] for i in tri], ptgts, div)
+		result += generation.dividedtriangle(lambda u,v: intri_smooth(ptri, ptgts, u,v), div)
 	
 	#result.tracks = [0]*len(result.faces)
 	#result.groups = ['junction']
