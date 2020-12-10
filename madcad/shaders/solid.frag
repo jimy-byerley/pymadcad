@@ -33,8 +33,10 @@ vec2 skybox(vec3 tosky) {
 }
 
 void main() {
-	float diffuse = max(0, dot(normalize(sight), normalize(normal)));
-	vec3 tosky = -reflect(sight, normal);
+	vec3 nsight = normalize(sight);
+	vec3 nnormal = normalize(normal);
+	float diffuse = max(0, dot(nsight, nnormal));
+	vec3 tosky = -reflect(nsight, nnormal);
 	vec3 refl = texture(reflectmap, skybox(tosky)).rgb;
 	
 	color = vec4(refl * normalize(refl_color) + mix(min_color, max_color, diffuse), 1);
