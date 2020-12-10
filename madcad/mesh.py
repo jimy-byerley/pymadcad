@@ -355,12 +355,15 @@ class Mesh(Container):
 			for e in ((face[0], face[1]), (face[1], face[2]), (face[2],face[0])):
 				if e in edges:	del edges[e]
 				else:			edges[(e[1], e[0])] = self.facenormal(face)
+		
 		# cross neighbooring normals
 		tangents = {}
-		for loop in suites(edges):
+		for loop in suites(edges, cut=False):
+			assert loop[0] == loop[-1], "an outline is not a loop"
+			loop.pop()
 			for i in range(len(loop)):
-				tangents[loop[i-1]] = normalize(cross(	edges[(loop[i-1],loop[i-2])], 
-														edges[(loop[i],loop[i-1])] ))
+				tangents[loop[i-1]] = normalize(cross(	edges[(loop[i-2],loop[i-1])], 
+														edges[(loop[i-1],loop[i])] ))
 		return tangents
 	
 	
@@ -729,12 +732,13 @@ class Web(Container):
 			else:
 				i += 1
 	
-	def strippoints(self):
+	def strippoints(self, used=None):
 		''' remove points that are used by no faces, return the reindex list '''
-		used = [False] * len(self.points)
-		for edge in self.edges:
-			for p in edge:
-				used[p] = True
+		if used is None:
+			used = [False] * len(self.points)
+			for edge in self.edges:
+				for p in edge:
+					used[p] = True
 		self.points = copy(self.points)
 		self.edges = copy(self.edges)
 		reindex = striplist(self.points, used)
@@ -1009,6 +1013,11 @@ class Wire:
 		if not isinstance(other, Wire):		return NotImplemented
 		if self.points is not other.points:	raise ValueError("edges doesn't refer to the same points buffer")
 		return Wire(self.points, self.indices+other.indices)
+		
+	def strippoints(self):
+		self.points = [self.points[i]	for i in self.indices]
+		self.indices = list(range(len(self.points)))
+		if self.points[-1] == self.points[0]:	self.indices[-1] = 0
 	
 	def display(self, scene):
 		return web(self).display(scene)
