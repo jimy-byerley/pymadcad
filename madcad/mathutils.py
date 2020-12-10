@@ -31,11 +31,12 @@ COMPREC = 1-NUMPREC
 def isfinite(x):
 	return not glm.any(isinf(x) or isnan(x))
 
-# norm L infinite  ie.  max(abs(x), abs(y), abs(z))
-norminf = lxNorm
-# norm L1  ie.  abs(x)+abs(y)+abs(z)
+def norminf(x):
+	''' norm L infinite  ie.  `max(abs(x), abs(y), abs(z))` '''
+	return max(glm.abs(x))
+# norm L1  ie.  `abs(x) + abs(y) + abs(z)`
 norm1 = l1Norm
-# norm L2  ie.  sqrt(x**2 + y**2 + z**2)   the usual distance also known as manhattan distance
+# norm L2  ie.  `sqrt(x**2 + y**2 + z**2)`   the usual distance also known as euclidian distance or manhattan distance
 norm2 = length
 
 def anglebt(x,y) -> float:
