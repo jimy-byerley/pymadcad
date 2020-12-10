@@ -43,6 +43,7 @@ scene = {
 	'display_points': False,
 	'display_wire': False,
 	'display_grid': True,
+	'display_annotations': True,
 	'surface_shading': True,
 	
 	'debug_points': False,
@@ -115,9 +116,9 @@ def curve_resolution(length, angle, param=None):
 	elif kind == 'rad':
 		res = floor(angle / prec)
 	elif kind == 'radm':
-		res = floor(angle * length / prec)
-	elif kind == 'radm2':
-		res = floor(angle * sqrt(length) / prec)
+		res = floor(length*angle / prec)
+	elif kind == 'sqradm':
+		res = floor(sqrt(length*angle) / prec)
 	else:
 		raise ValueError("unknown type for round_limit: {}".format(repr(kind)))
 	res = max(res, floor(angle * 2/pi))
@@ -150,7 +151,7 @@ def use_qt_colors():
 		'select_color_line': selection * 1.1,
 		'line_color': qtc(palette.Text),
 		'point_color': qtc(palette.Text),
-		'solid_color': qtc(palette.Midlight),
+		'solid_color': qtc(palette.Midlight)*0.7,
 		'schematics_color': qtc(palette.Link),
 		'annotation_color': qtc(palette.Highlight),
 		})

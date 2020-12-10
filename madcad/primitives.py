@@ -182,6 +182,40 @@ class ArcCentered(object):
 		return mkarc(self.axis, self.a, self.b, resolution or self.resolution)
 	def display(self, scene):
 		return self.mesh().display(scene)
+		
+def ArcTangent(object):
+	__slots = 'a', 'b', 'c'
+	def __init__(self, a, b, c, resolution=None):
+		self.a, self.b, self.c = a,b,c
+		self.resolution = resolution
+	
+	@property
+	def center(self):
+		n = normalize(self.b + self.c - 2*self.a)
+		return mix(	unproject(self.a-self.b, n),
+					unproject(self.c-self.b, n),
+					0.5)	+ self.b
+	
+	@property
+	def radius(self):
+		c = self.center
+		return mix(distance(c,self.a), distance(c,self.c), 0.5)
+	
+	@property
+	def axis(self):
+		return self.center, normalize(cross(self.b-self.a, self.c-self.a))
+	
+	def tangent(self, pt):
+		z = cross(self.b-self.a, self.c-self.a)
+		return normalize(cross(pt-self.center, z))
+	
+	slvvars = 'a', 'b', 'c'
+	slv_tangent = tangent
+	
+	def mesh(self, resolution=None):
+		return mkarc(self.axis, self.a, self.b, resolution or self.resolution)
+	def display(self, scene):
+		return self.mesh().display(scene)
 
 def mkarc(axis, start, end, resolution=None):
 	center, z = axis
@@ -196,7 +230,6 @@ def mkarc(axis, start, end, resolution=None):
 		a = angle * i/(div-1)
 		pts.append(x*r*cos(a) + y*r*sin(a) + center)
 	return mesh.Wire(pts, group='arc')
-	
 
 class TangentEllipsis(object):
 	__slots__ = ('a', 'b', 'c', 'resolution')
