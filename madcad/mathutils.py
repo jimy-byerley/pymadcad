@@ -29,16 +29,13 @@ COMPREC = 1-NUMPREC
 #COMPREC = 1-NUMPREC
 
 def isfinite(x):
-	return not (isinf(x) or isnan(x))
+	return not glm.any(isinf(x) or isnan(x))
 
-def norminf(x):
-	''' norm L infinite  ie.  max(abs(x), abs(y), abs(z)) '''
-	return max(glm.abs(x))
-
-def norm1(x):
-	''' norm L1  ie.  abs(x)+abs(y)+abs(z) '''
-	return sum(glm.abs(x))
-
+# norm L infinite  ie.  max(abs(x), abs(y), abs(z))
+norminf = lxNorm
+# norm L1  ie.  abs(x)+abs(y)+abs(z)
+norm1 = l1Norm
+# norm L2  ie.  sqrt(x**2 + y**2 + z**2)   the usual distance also known as manhattan distance
 norm2 = length
 
 def anglebt(x,y) -> float:
@@ -162,6 +159,7 @@ def interpol2(a, b, x):
 spline = interpol2
 
 def intri_flat(pts, a,b):
+	A,B,C = pts
 	c = 1-a-b
 	return a*A + b*B + c*C
 
