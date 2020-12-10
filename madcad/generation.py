@@ -457,8 +457,10 @@ def subdivide(mesh, div=1) -> 'Mesh':
 	
 def brick(*args, **kwargs) -> 'Mesh':
 	''' a simple brick with rectangular sides '''
-	if len(args) == 1 and isinstance(args[0], Box):		box = args[0]
-	else:												box = Box(*args, **kwargs)
+	if len(args) == 1 and not kwargs and isinstance(args[0], Box):		
+		box = args[0]
+	else:							
+		box = Box(*args, **kwargs)
 	mesh = Mesh(
 		[
 			vec3(1, 0, 0),
@@ -569,12 +571,3 @@ def prolongation(mesh, line):
 	''' donne les directions d'extrusion des points de la ligne pour prolonger les faces qui y donnent lieu '''
 	indev
 
-
-def closeenvelope(mesh, crit='projclosest'):
-	''' find '''
-	islands = suites(mesh.outlines_oriented())
-	indev
-	
-def closeenvelope(mesh, junctype='simple'):
-	''' create surfaces to close the loop holes in the envelope '''
-	indev
