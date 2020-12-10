@@ -86,7 +86,6 @@ def interface(base, tangents='normal', weight=1.):
 	
 	# get the interface outline to connect to the others
 	base.strippoints()
-	print(type(base), base.points)
 	points = base.points
 	if isinstance(base, Wire):		loops = [base.indices]
 	elif isinstance(base, Web):		loops = suites(base.edges)
