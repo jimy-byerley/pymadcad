@@ -48,7 +48,7 @@ from . import generation
 from .nprint import nprint
 
 
-def interfaces(objs, tangents='normal', weight=1.):
+def get_interfaces(objs, tangents='normal', weight=1.):
 	''' collects the data definig interfaces for junctions and blendings out of an iterable of tuples 
 		This function has no real interest for the enduser.
 	'''
@@ -64,7 +64,7 @@ def interfaces(objs, tangents='normal', weight=1.):
 			for i,o in enumerate(obj):	args[i] = o
 		else:
 			args[0] = obj
-		e_pts, e_tangents, e_weights, e_loops = interface(*args)
+		e_pts, e_tangents, e_weights, e_loops = get_interface(*args)
 		# concatenate
 		l = len(v_pts)
 		v_pts.extend(e_pts)
@@ -73,7 +73,7 @@ def interfaces(objs, tangents='normal', weight=1.):
 		loops.extend([i+l  for i in loop] for loop in e_loops)
 	return v_pts, v_tangents, v_weights, loops
 		
-def interface(base, tangents='normal', weight=1.):
+def get_interface(base, tangents='normal', weight=1.):
 	''' collects the data definig interfaces for junctions and blendings out of one object 
 		This function has no real interest for the enduser.
 	'''
@@ -149,7 +149,7 @@ def junction(*args, center=None, tangents='normal', weight=1., match='length', r
 		.. note::
 			match method 'corner' is not yet implemented
 	'''
-	pts, tangents, weights, loops = interfaces(args, tangents, weight)
+	pts, tangents, weights, loops = get_interfaces(args, tangents, weight)
 	
 	# determine center and convex hull of centers
 	if not center:
@@ -211,7 +211,7 @@ def junction(*args, center=None, tangents='normal', weight=1., match='length', r
 	div = 11
 	for la,lb in matchs:
 		def infos():
-			for a,b in curvematch(Wire(pts,lb), Wire(pts,list(reversed(la)))):
+			for a,b in match_length(Wire(pts,lb), Wire(pts,list(reversed(la)))):
 				# normalize except for 0
 				ta, tb = tangents[a], tangents[b]
 				ta /= length(ta) or 1
@@ -274,21 +274,8 @@ def convexhull(pts):
 		return Mesh(pts, [tuple(v) for v in hull.simplices])
 	
 
-def trijoin(pts, ptgts, div):
-	mesh = Mesh(groups=['blend'])
-	segts = div+1
-	for i in range(3):
-		for j in range(segts):
-			x = j/segts
-			mesh.points.append(interpol2((pts[i-1], ptgts[i-1][0]), (pts[i], ptgts[i][1]), x))
-	l = len(mesh.points)
-	for i in range(3):
-		c = i*segts
-		for j in range(segts//2):
-			mkquad(mesh, ((c-j-1)%l, (c-j)%l, (c+j)%l, (c+j+1)%l))
-	return mesh
 
-def curvematch(line1, line2) -> '[(int,int)]':
+def match_length(line1, line2) -> '[(int, int)]':
 	''' yield couples of point indices where the curved absciss are the closest '''
 	yield line1.indices[0], line2.indices[0]
 	l1, l2 = line1.length(), line2.length()
@@ -312,27 +299,8 @@ def curvematch(line1, line2) -> '[(int,int)]':
 		i2 += 1
 		yield line1.indices[i1-1], line2.indices[i2-1]
 
-def join(mesh, line1, line2):
-	''' simple straight surface created from matching couples of line1 and line2 using mesh indices for lines '''
-	group = len(mesh.groups)
-	mesh.groups.append('blend')
-	match = iter(curvematch(Wire(mesh.points, line1), Wire(mesh.points, line2)))
-	last = next(match)
-	for couple in match:
-		a,b = last
-		d,c = couple
-		if b == c:		mktri(mesh, (a,b,c), group)
-		elif a == d:	mktri(mesh, (a,b,c), group)
-		else:
-			mkquad(mesh, (a,b,c,d), group)
-		last = couple
-			
-def matchexisting(line1, line2) -> '[(vec3,vec3)]':
-	''' create couple of points using curvematch '''
-	return  ( (line1.points[i1], line2.points[i2]) 
-				for i1,i2 in curvematch(line1, line2))
 
-def matchclosest(line1, line2) -> '[(vec3, vec3)]':
+def match_closest(line1, line2) -> '[(int, int)]':
 	''' create couple of points by cutting each line at the curvilign absciss of the points of the other '''
 	l1, l2 = line1.length(), line2.length()
 	p1, p2 = line1.points[line1.indices[0]], line2.points[line2.indices[0]]
@@ -356,29 +324,58 @@ def matchclosest(line1, line2) -> '[(vec3, vec3)]':
 			i1 += 1
 		yield (p1, p2)
 
-def dividematch(match, resolution=None) -> '[(vec3, vec3)]':
+def dividematch_length(line1, line2, resolution=None, associated=None) -> '[(vec3, vec3)]':
 	''' insert additional couples to ensure smoothness '''
-	match = iter(match)
-	last = next(match)
-	yield last
-	for couple in match:
-		a,b = last
-		d,c = couple
-		v = normalize((a+b) - (d+c))
-		angle = anglebt(a-b - project(a-b,v), d-c - project(d-c,v))
-		dist = min(distance(a,b), distance(d,c))
-		div = settings.curve_resolution(dist, angle, resolution)
-		for j in range(div):
-			t = (j+1)/(div+1)
-			yield (interpol1(a,d, t), interpol1(b,c, t))
-		yield couple
-		last = couple
+	indev
+
+def dividematch_closest(w0:Wire, w1:Wire, resolution=None, associated=None) -> (Wire, Wire):
+	indev
+
+def blend(interfaces, generate='straight', match='length', resolution=None) -> 'Mesh':
+	''' create a direct blended surface between unclosed lines '''	
+	pts, tangents, weights, loops = get_interfaces(args, tangents, weight)
+	
+	indev
+	
+def blendloop(interface, center=None, tangents='tangent', weight=1., resolution=None) -> Mesh:
+	''' blend inside a loop interface '''
+	pts, tangents, weights, loops = get_interface(interface, tangents, weight)
+	if len(loops) > 1:	
+		raise ValueError('interface must have one loop only')
+	loop = loops[0]
+	
+	# get center and normal at center
+	if not center:
+		center = interfaces_center(pts, *loops) + sum(tangents[p] for p in loop) / len(loop)
+	normal = normalize(sum(normalize(center-pts[p])	for p in loop))
+	if not isfinite(normal):	normal = vec3(0)
+	
+	# generatestraight
+	match = [None] * len(loop)
+	div = 0
+	for i,p in enumerate(loop):
+		match[i] = m = (pts[p], tangents[p]), (center, noproject(pts[p]-center, normal))
+		div = max(div, settings.curve_resolution(distance(m[0][0],m[1][0]), anglebt(m[0][1],m[1][1]), resolution))
+	return blenditer(match, div, interpol2)
 
 
-def blend(*interfaces, center=None, generate='straight', match='length', resolution=None) -> 'Mesh':
-	''' create a direct blended surface between unclosed lines
-	'''	
-	match = list(match)
+def blendpair(*interfaces, match='length', tangents='tangent', weight=1., resolution=None) -> Mesh:
+	''' blend between a pair of interfaces 
+		
+		match   'length', 'closest'
+	'''
+	pts, tangents, weights, loops = get_interfaces(interface, tangents, weight)
+	if len(loops) > 1:	
+		raise ValueError('interface must have one loop only')
+	if len(i0).loops != 1 or len(i1.loops) != 1:
+		raise ValueError('interfaces must have one loop only')
+	
+	if match == 'length':		method = match_length
+	elif match == 'closest':	method = match_closest
+	else:
+		raise ValueError('matching method {} not implemented'.format(match))
+	
+	matched = list(match(Wire(pts, i0.loop), Wire(pts, reversed(i1.loop))))
 	# get the discretisation
 	div = 0
 	for i in range(1, len(match)):
@@ -388,25 +385,10 @@ def blend(*interfaces, center=None, generate='straight', match='length', resolut
 		angle = anglebt(a-b - project(a-b,v), d-c - project(d-c,v))
 		dist = min(distance(a,b), distance(d,c))
 		div = max(div, settings.curve_resolution(dist, angle, resolution))
-	
-	return blenditer(match, div, interpol1)
-
-def blendpair(i0, i1, div, generate='straight', match='length'):
-	''' blend between a pair of interfaces 
-		
-		match   'length', 'closest'
-	'''
-	if len(i0).loops != 1 or len(i1.loops) != 1:
-		raise ValueError('interfaces must have one loop only')
-	
-	if generate == 'straight':
-		infos = zip(i0.loop, reversed(i1.loop))
-		return blenditer(infos, div, interpol1)
-	elif generate == 'tangent':
-		def infos():
-			for p0,p1 in zip(i0.loop, reversed(i1.loop)):
-				yield (i0.pts[p0], i0.tangents[p0]), (i1.pts[p1], i1.tangents[p1])
-		return blenditer(infos(), div, interpol2)
+	infos = (	((i0.pts[p0], i0.tangents[p0]), (i1.pts[p1], i1.tangents[p1]))
+				for p0,p1 in matched
+			)
+	return blenditer(infos, div, interpol2)
 
 def blenditer(parameters, div, interpol) -> Mesh:
 	''' create a blended surface using the matching parameters and the given interpolation 
@@ -447,26 +429,33 @@ def mkquad(mesh, pts, track=0):
 	mesh.tracks.append(track)
 	mesh.tracks.append(track)
 
-
-def stretch(mesh, curve=0.1, locked=()):
-	''' stretching smoothing of the surface until reaching a certain curve (rad/m)
-		locked can be a set of points that won't be moved
-		
-		We advise having a well subdivided surface (use `subdivide` before if necessary)
-	'''
-	conn = connef(mesh.faces)
-	edges = set(edgekey(*e)  for e in conn)
-	pts = mesh.points
-	def current_curve(a,b):
-		c = arrangeface(mesh.faces[conn[(a,b)]], a)[2]
-		d = arrangeface(mesh.faces[conn[(b,a)]], b)[2]
-		z = normalise(b-a)
-		cy = noproject(c-a, z)
-		dy = noproject(d-a, z)
-		cyl = length(cy)
-		dyl = length(dy)
-		return cross(dy, dy) / (cyl*dyl) / (cyl+dyl)
 	
-	curve = {e: current_curve(*e)	for e in edges}	# curve around each edge
-	indev
-
+def join(mesh, line1, line2):
+	''' simple straight surface created from matching couples of line1 and line2 using mesh indices for lines '''
+	group = len(mesh.groups)
+	mesh.groups.append('blend')
+	match = iter(curvematch(Wire(mesh.points, line1), Wire(mesh.points, line2)))
+	last = next(match)
+	for couple in match:
+		a,b = last
+		d,c = couple
+		if b == c:		mktri(mesh, (a,b,c), group)
+		elif a == d:	mktri(mesh, (a,b,c), group)
+		else:
+			mkquad(mesh, (a,b,c,d), group)
+		last = couple
+		
+def trijoin(pts, ptgts, div):
+	''' simple straight surface created between 3 points, interpolation is only on the sides '''
+	mesh = Mesh(groups=['blend'])
+	segts = div+1
+	for i in range(3):
+		for j in range(segts):
+			x = j/segts
+			mesh.points.append(interpol2((pts[i-1], ptgts[i-1][0]), (pts[i], ptgts[i][1]), x))
+	l = len(mesh.points)
+	for i in range(3):
+		c = i*segts
+		for j in range(segts//2):
+			mkquad(mesh, ((c-j-1)%l, (c-j)%l, (c+j)%l, (c+j+1)%l))
+	return mesh
