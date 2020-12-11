@@ -32,7 +32,7 @@ import math
 from .mathutils import (
 				Box, vec3, vec4, mat3, mat4, quat, mat3_cast, transformer,
 				cross, dot, normalize, length, distance, project, noproject, anglebt, 
-				NUMPREC, isnan, glm,
+				NUMPREC, isnan, glm, isfinite,
 				)
 from . import displays
 from . import text
@@ -44,6 +44,10 @@ class MeshError(Exception):	pass
 
 class Container:
 	''' common methods for points container (typically Mesh or Wire) '''
+	
+	def __init__(self, points=(), groups=()):
+		self.points = points
+		self.groups = groups
 	
 	# --- basic transformations of points ---
 	
@@ -80,6 +84,22 @@ class Container:
 		self.points = points.points
 		return merges
 		
+	def mergegroups(self, defs=None, merges=None):
+		''' merge the groups according to the merge dictionnary
+			the new groups associated can be specified with defs
+			the former unused groups are not removed from the buffer and the new ones are appended
+			
+			if merges is not provided, all groups are merged, and defs is the data associated to the only group after the merge
+		'''
+		if merges is None:	
+			self.groups = [defs]
+			self.tracks = [0] * len(self.tracks)
+		else:
+			l = len(self.groups)
+			self.groups.extend(defs)
+			for i,t in enumerate(self.tracks):
+				if t in merges:
+					self.tracks[i] = merges[t]+l
 		
 	def stripgroups(self):
 		''' remove groups that are used by no faces, return the reindex list '''
@@ -308,13 +328,13 @@ class Mesh(Container):
 	
 	# --- extraction methods ---
 		
-	def facenormal(self, face):
+	def facenormal(self, f):
 		''' normal for a face '''
-		if isinstance(face, int):	
-			face = self.faces[face]
-		p0 = self.points[face[0]]
-		e1 = self.points[face[1]] - p0
-		e2 = self.points[face[2]] - p0
+		if isinstance(f, int):	
+			f = self.faces[f]
+		p0 = self.points[f[0]]
+		e1 = self.points[f[1]] - p0
+		e2 = self.points[f[2]] - p0
 		return normalize(cross(e1, e2))
 	
 	def facenormals(self):
@@ -339,6 +359,7 @@ class Mesh(Container):
 		normals = [vec3(0) for _ in range(l)]
 		for face in self.faces:
 			normal = self.facenormal(face)
+			if not isfinite(normal):	continue
 			for i in range(3):
 				o = self.points[face[i]]
 				contrib = anglebt(self.points[face[i-2]]-o, self.points[face[i-1]]-o)
@@ -367,9 +388,10 @@ class Mesh(Container):
 		return tangents
 	
 	
-	def facepoints(self, index):
+	def facepoints(self, f):
 		''' shorthand to get the points of a face (index is an int or a triplet) '''
-		f = self.faces[index]
+		if isinstance(f, int):
+			f = self.faces[f]
 		return self.points[f[0]], self.points[f[1]], self.points[f[2]]
 	
 	def edges(self):
@@ -1017,7 +1039,9 @@ class Wire:
 	def strippoints(self):
 		self.points = [self.points[i]	for i in self.indices]
 		self.indices = list(range(len(self.points)))
-		if self.points[-1] == self.points[0]:	self.indices[-1] = 0
+		if self.points[-1] == self.points[0]:	
+			self.points.pop()
+			self.indices[-1] = 0
 	
 	def display(self, scene):
 		return web(self).display(scene)
