@@ -484,7 +484,8 @@ def faceheight(mesh, fi):
 
 # ----- user functions ------
 from .triangulation import triangulation_outline
-from .generation import icosurface, junctioniter, curvematch
+from .generation import icosurface
+from .blending import blenditer, match_length
 
 def chamfer(mesh, edges, cutter):
 	''' create a chamfer on the given suite of points, create faces are planes.
@@ -602,7 +603,7 @@ def bevel(mesh, edges, cutter, resolution=None):
 			
 			# match the curves
 			right.reverse()
-			match = list(curvematch(Wire(pts,left), Wire(pts,right)))
+			match = list(match_length(Wire(pts,left), Wire(pts,right)))
 			# prepare tangents
 			ll = Wire(pts,left).length()
 			x = 0.
@@ -682,7 +683,7 @@ def tangentend(points, edge, normals, div):
 		for i in range(div+2):
 			x = i/(div+1)
 			yield interpol2((pl,tl), (pr,tr), x),  interpol1(pl,pr, x)
-	return junctioniter(infos(), 0, interpol1)
+	return blenditer(infos(), 0, interpol1)
 	
 
 def tangentcorner(pts, lp, normals, div):
@@ -721,4 +722,4 @@ def tangentjunction(points, match, normals, div):
 			tr = normalize(noproject(-e, normals[r])) * dist
 			yield (points[r], tr), (points[l], tl)
 	
-	return junctioniter(infos(), div, interpol2)
+	return blenditer(infos(), div, interpol2)

@@ -1226,4 +1226,20 @@ def suites(lines, oriented=True, cut=True, loop=False):
 	return suites
 
 
+def mktri(mesh, pts, track=0):
+	''' append a triangle '''
+	mesh.faces.append(pts)
+	mesh.tracks.append(track)
+
+def mkquad(mesh, pts, track=0):
+	''' append a quad, choosing the best diagonal '''
+	if (	distance(mesh.points[pts[0]], mesh.points[pts[2]]) 
+		<=	distance(mesh.points[pts[1]], mesh.points[pts[3]]) ):
+		mesh.faces.append((pts[:-1]))
+		mesh.faces.append((pts[3], pts[0], pts[2]))
+	else:
+		mesh.faces.append((pts[0], pts[1], pts[3]))
+		mesh.faces.append((pts[2], pts[3], pts[1]))
+	mesh.tracks.append(track)
+	mesh.tracks.append(track)
 

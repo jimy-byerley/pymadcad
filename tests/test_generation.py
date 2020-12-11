@@ -55,18 +55,6 @@ assert m4.issurface()
 #m4.options.update({'debug_display': True, 'debug_points': True})
 m4 = m4.transform(vec3(-4,0,0))
 
-
-# test junction
-m5 = junction(
-	dividematch(
-	matchclosest(
-		Wire([vec3(-2,0,0), vec3(-1,0,0), vec3(0,0,0), vec3(1,0,0), vec3(2,0,0)]),
-		Wire([vec3(-3,0,-1), vec3(-0.9,1,-2), vec3(0,0,-2), vec3(1.5,-1,-1)]),
-	)))
-m5.check()
-assert m5.issurface()
-#m4.options.update({'debug_display': True, 'debug_points': True})
-
 # test icosurface
 m6 = icosurface(
 	[vec3(0.5,-1,0), vec3(0,1,0), vec3(0,0,1)], 
@@ -92,4 +80,4 @@ corner = Mesh(
 corner.options['color'] = (1, 0.5, 0.1)
 m8 = thicken(corner, 0.1, 0.5)
 
-show([m1, m2, m3, m4, m5, m6, m7, corner, m8])
+show([m1, m2, m3, m4, m6, m7, corner, m8])

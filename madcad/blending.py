@@ -40,7 +40,7 @@
 			)
 '''
 
-from .mesh import Mesh, Wire, Web, wire, connef, edgekey, glmarray, suites, arrangeface
+from .mesh import Mesh, Wire, Web, wire, connef, edgekey, glmarray, suites, arrangeface, mkquad
 from .mathutils import *
 from . import settings
 from . import generation
@@ -412,22 +412,7 @@ def blenditer(parameters, div, interpol) -> Mesh:
 			mkquad(mesh, (s, s+1, s+segts+1, s+segts))
 	mesh.mergeclose()
 	return mesh
-		
-		
-def mktri(mesh, pts, track=0):
-	mesh.faces.append(pts)
-	mesh.tracks.append(track)
 
-def mkquad(mesh, pts, track=0):
-	if (	distance(mesh.points[pts[0]], mesh.points[pts[2]]) 
-		<=	distance(mesh.points[pts[1]], mesh.points[pts[3]]) ):
-		mesh.faces.append((pts[:-1]))
-		mesh.faces.append((pts[3], pts[0], pts[2]))
-	else:
-		mesh.faces.append((pts[0], pts[1], pts[3]))
-		mesh.faces.append((pts[2], pts[3], pts[1]))
-	mesh.tracks.append(track)
-	mesh.tracks.append(track)
 
 	
 def join(mesh, line1, line2):

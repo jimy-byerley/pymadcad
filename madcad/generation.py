@@ -1,7 +1,7 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
 from .mathutils import *
-from .mesh import Mesh, Web, Wire, edgekey, facekeyo, MeshError, web, wire
+from .mesh import Mesh, Web, Wire, edgekey, facekeyo, MeshError, web, wire, mkquad
 from . import triangulation
 from . import settings
 from . import primitives
@@ -11,8 +11,6 @@ from .nprint import nprint
 __all__ = [
 	'extrans', 'extrusion', 'revolution', 'saddle', 'tube', 
 	'multiple', 'thicken', 'inflate', 'inflateoffsets',
-	'curvematch', 'join', 'junction', 'junctioniter',
-	'matchexisting', 'matchclosest', 'dividematch',
 	'flatsurface', 'icosurface', 'subdivide',
 	'brick', 'icosahedron', 'icosphere', 'uvsphere', 
 	]
@@ -200,154 +198,7 @@ def thicken(surf, thickness, alignment=0, method='face') -> 'Mesh':
 	for e in surf.outlines_oriented():
 		mkquad(m, (e[0], e[1], e[1]+l, e[0]+l), t)
 	return m
-	
-	
 
-# --- junction things ---
-	
-def curvematch(line1, line2) -> '[(int,int)]':
-	''' yield couples of point indices where the curved absciss are the closest '''
-	yield line1.indices[0], line2.indices[0]
-	l1, l2 = line1.length(), line2.length()
-	i1, i2 = 1, 1
-	x1, x2 = 0, 0
-	while i1 < len(line1.indices) and i2 < len(line2.indices):
-		p1 = distance(line1.points[line1.indices[i1-1]], line1.points[line1.indices[i1]]) / l1
-		p2 = distance(line2.points[line2.indices[i2-1]], line2.points[line2.indices[i2]]) / l2
-		if x1 <= x2 and x2 <= x1+p1   or   x2 <= x1 and x1 <= x2+p2:
-			i1 += 1; x1 += p1
-			i2 += 1; x2 += p2
-		elif x1 < x2:	
-			i1 += 1; x1 += p1
-		else:				
-			i2 += 1; x2 += p2
-		yield line1.indices[i1-1], line2.indices[i2-1]
-	while i1 < len(line1.indices):
-		i1 += 1
-		yield line1.indices[i1-1], line2.indices[i2-1]
-	while i2 < len(line2.indices):
-		i2 += 1
-		yield line1.indices[i1-1], line2.indices[i2-1]
-
-def join(mesh, line1, line2):
-	''' simple inplace junction of line1 and line2 using mesh indices for lines '''
-	group = len(mesh.groups)
-	mesh.groups.append('junction')
-	match = iter(curvematch(Wire(mesh.points, line1), Wire(mesh.points, line2)))
-	last = next(match)
-	for couple in match:
-		a,b = last
-		d,c = couple
-		if b == c:		mktri(mesh, (a,b,c), group)
-		elif a == d:	mktri(mesh, (a,b,c), group)
-		else:
-			mkquad(mesh, (a,b,c,d), group)
-		last = couple
-			
-def matchexisting(line1, line2) -> '[(vec3,vec3)]':
-	''' create couple of points using curvematch '''
-	return  ( (line1.points[i1], line2.points[i2]) 
-				for i1,i2 in curvematch(line1, line2))
-
-def matchclosest(line1, line2) -> '[(vec3, vec3)]':
-	''' create couple of points by cutting each line at the curvilign absciss of the points of the other '''
-	l1, l2 = line1.length(), line2.length()
-	p1, p2 = line1.points[line1.indices[0]], line2.points[line2.indices[0]]
-	x = 0
-	i1, i2 = 1, 1
-	yield (p1, p2)
-	while i1 < len(line1.indices) and i2 < len(line2.indices):
-		n1 = line1.points[line1.indices[i1]]
-		n2 = line2.points[line2.indices[i2]]
-		dx1 = distance(p1, n1) / l1
-		dx2 = distance(p2, n2) / l2
-		if dx1 > dx2:
-			x += dx2
-			p1 = interpol1(p1, n1, dx2/dx1)
-			p2 = n2
-			i2 += 1
-		else:
-			x += dx1
-			p1 = n1
-			p2 = interpol1(p2, n2, dx1/dx2)
-			i1 += 1
-		yield (p1, p2)
-
-def dividematch(match, resolution=None) -> '[(vec3, vec3)]':
-	''' insert additional couples to ensure smoothness '''
-	match = iter(match)
-	last = next(match)
-	yield last
-	for couple in match:
-		a,b = last
-		d,c = couple
-		v = normalize((a+b) - (d+c))
-		angle = anglebt(a-b - project(a-b,v), d-c - project(d-c,v))
-		dist = min(distance(a,b), distance(d,c))
-		div = settings.curve_resolution(dist, angle, resolution)
-		for j in range(div):
-			t = (j+1)/(div+1)
-			yield (interpol1(a,d, t), interpol1(b,c, t))
-		yield couple
-		last = couple
-
-def junction(match: '[(vec3,vec3)]', resolution=None) -> 'Mesh':
-	''' create a surface using couple of points
-		resolution is the segments curve resolution
-		linecut allow the function to subdivide portions of the given lines to get better result on smooth surfaces
-	'''	
-	match = list(match)
-	# get the discretisation
-	div = 0
-	for i in range(1, len(match)):
-		a,d = match[i-1]
-		b,c = match[i]
-		v = normalize((a+b) - (d+c))
-		angle = anglebt(a-b - project(a-b,v), d-c - project(d-c,v))
-		dist = min(distance(a,b), distance(d,c))
-		div = max(div, settings.curve_resolution(dist, angle, resolution))
-	
-	return junctioniter(match, div, interpol1)
-
-def junctioniter(parameters, div, interpol) -> Mesh:
-	''' create a junction surface using the matching parameters and the given interpolation 
-		parameters is an iterable of tuples of arguments for the interpolation function
-		interpol receive the elements iterated and the interpolation position at the end
-	'''
-	segts = div+2
-	mesh = Mesh(groups=['junction'])
-	group = 0
-	# create interpolation points
-	steps = 0
-	for params in parameters:
-		steps += 1
-		for i in range(segts):
-			x = i/(segts-1)
-			mesh.points.append(interpol(*params, x))
-	# create faces
-	for i in range(steps-1):
-		j = i*segts
-		for k in range(segts-1):
-			s = j+k
-			mkquad(mesh, (s, s+1, s+segts+1, s+segts), group)
-	mesh.mergeclose()
-	return mesh
-		
-		
-def mktri(mesh, pts, track):
-	mesh.faces.append(pts)
-	mesh.tracks.append(track)
-
-def mkquad(mesh, pts, track):
-	if (	distance(mesh.points[pts[0]], mesh.points[pts[2]]) 
-		<=	distance(mesh.points[pts[1]], mesh.points[pts[3]]) ):
-		mesh.faces.append((pts[:-1]))
-		mesh.faces.append((pts[3], pts[0], pts[2]))
-	else:
-		mesh.faces.append((pts[0], pts[1], pts[3]))
-		mesh.faces.append((pts[2], pts[3], pts[1]))
-	mesh.tracks.append(track)
-	mesh.tracks.append(track)
 
 
 # --- filling things ---
@@ -567,7 +418,4 @@ def multiple(pattern, n, trans=None, axis=None, angle=None) -> 'Mesh':
 		pool += current
 	return pool
 
-def prolongation(mesh, line):
-	''' donne les directions d'extrusion des points de la ligne pour prolonger les faces qui y donnent lieu '''
-	indev
 
