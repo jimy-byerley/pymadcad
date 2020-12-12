@@ -186,22 +186,31 @@ Suppose we want a torus, let's make a simple revolution around an axis, the extr
 	    )
 
 .. image:: /screenshots/revolution-circle.png
+	:width: 500px
 
 
 
-Joint two arbitrary lines by a smooth surface, to close a complex surface for instance:
+Join arbitrary outlines in nicely blended surfaces.
 	
 .. code-block:: python
 
-	junction(
-		# find the matching points in the two lines.
-		# you can stack matching function to achieve exactly what you want.
-		matchclosest(
-			Wire([vec3(-2,0,0), vec3(-1,0,0), vec3(0,0,0), vec3(1,0,0), vec3(2,0,0)]),
-			Wire([vec3(-3,0,-1), vec3(-0.9,1,-2), vec3(0,0,-2), vec3(1.5,-1,-1)]),
-		))
+	interfaces = [
+		Circle((vec3(0,0,3),vec3(0,0,1)), 1),
+		Circle((vec3(-1,-1,-1),normalize(vec3(-1,-1,-1))), 1),
+		Circle((vec3(1,-1,-1),normalize(vec3(1,-1,-1))), 1),
+		Circle((vec3(0,1,0),normalize(vec3(0,1,-1))), 1),
+		]
 
-.. image:: /screenshots/junction-closest.png
+	m = junction(
+			interface[0],
+			interface[1],
+			interface[2],
+			(interface[3], 'normal'),
+			tangents='tangent',
+			)
+
+.. image:: /screenshots/junction-circles.png
+	:width: 500px
 
 details in module :ref:`generation<generation>`
 

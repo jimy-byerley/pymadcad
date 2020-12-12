@@ -1,24 +1,27 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 '''
-	This module focuses on automated envelope generations, based on interface outlines
-	the user has only to define the interface outlines or surfaces to join, and the algorithm makes the surface. No more pain to imagine some fancy geometries.
+This module focuses on automated envelope generations, based on interface outlines
+the user has only to define the interface outlines or surfaces to join, and the algorithm makes the surface. No more pain to imagine some fancy geometries.
 	
-	formal definitions:
+formal definitions
+------------------
 	
-	interface   a surface or an outline (a loop) with associated exterior normals.
-	node        a group of interfaces meant to be attached together by a blended surface.
-	
-	In order to generate envelopes, this module asks for cutting all the surfaces to join into 'nodes'. The algorithm decides how to join shortly all the outlines in a node. Once splited in nodes, you only need to generate node junctions for each, and concatenate the resulting meshes.
-	
-	details
-	-------
-	
-	The blended surfaces are created between interfaces, linked as the points of a convex polyedron of the interfaces directions to the node center.
+:interface:   a surface or an outline (a loop) with associated exterior normals.
+:node:        a group of interfaces meant to be attached together by a blended surface.
 
-		
-	example
-	-------
+In order to generate envelopes, this module asks for cutting all the surfaces to join into 'nodes'. The algorithm decides how to join shortly all the outlines in a node. Once splited in nodes, you only need to generate node junctions for each, and concatenate the resulting meshes.
+
+details
+-------
+
+The blended surfaces are created between interfaces, linked as the points of a convex polyedron of the interfaces directions to the node center.
+
 	
+example
+-------
+
+.. code::
+
 	>>> x,y,z = vec3(1,0,0), vec3(0,1,0), vec3(0,0,1)
 	>>> m = junction(
 			# can pass a surface: the surface outlines and normals will be used as the generated surface tangents 
@@ -30,11 +33,14 @@
 			
 			generate='normal',
 			)
-			
-	# to come in a next version
+
+to come in a next version
+
+.. code::
+	
 	# create junction for each iterable of interface, if some are not interfaces, they are used as placeholder objects for auto-determined interfaces
 	>> multijunction(
-			(surf1, surf2, 42, *),
+			(surf1, surf2, 42, surf5),
 			(42, surf3, surf4),
 			generate='straight',
 			)
@@ -137,14 +143,22 @@ def get_interface(base, tangents='normal', weight=1.):
 def junction(*args, center=None, tangents='normal', weight=1., match='length', resolution=None):
 	''' join several outlines with a blended surface
 		
-		generate:	
+		tangents:	
 			'straight'	no interpolation, straight lines
-			'normal'	interpolated surface starting normal to the interfaces
-			'tangent'	interpolated surface starting tangent to the interfaces
+			'normal'	interpolated surface starts normal to the interfaces
+			'tangent'	interpolated surface starts tangent to the interfaces
+		
+		weight:
+			factor applied on the tangents before passing to `interpol2` or `intri_smooth`
+			the resulting tangent is computed in point `a` as `weight * distance(a,b) * normalize(tangent[a])`
 			
 		match:
 			'length'	share the outline between 2 matched points to assign the same length to both sides
 			'corner'	split the curve to share around a corner
+			
+		center:		
+			position of the center of the junction node used to determine connexion between interfaces
+			can be usefull for particularly weird and ambiguous interfaces
 			
 		.. note::
 			match method 'corner' is not yet implemented
@@ -301,7 +315,7 @@ def match_length(line1, line2) -> '[(int, int)]':
 
 
 def match_closest(line1, line2) -> '[(int, int)]':
-	''' create couple of points by cutting each line at the curvilign absciss of the points of the other '''
+	''' yield couples of points by cutting each line at the curvilign absciss of the points of the other '''
 	l1, l2 = line1.length(), line2.length()
 	p1, p2 = line1.points[line1.indices[0]], line2.points[line2.indices[0]]
 	x = 0
@@ -363,7 +377,9 @@ def blendloop(interface, center=None, tangents='tangent', weight=1., resolution=
 def blendpair(*interfaces, match='length', tangents='tangent', weight=1., resolution=None) -> Mesh:
 	''' blend between a pair of interfaces 
 		
-		match   'length', 'closest'
+		match:   
+			'length', 'closest'
+			refer to `match_*` in this module
 	'''
 	pts, tangents, weights, loops = get_interfaces(interfaces, tangents, weight)
 	if len(loops) != 2:	
