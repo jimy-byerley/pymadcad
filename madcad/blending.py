@@ -346,7 +346,7 @@ def blendloop(interface, center=None, tangents='tangent', weight=1., resolution=
 	
 	# get center and normal at center
 	if not center:
-		center = interfaces_center(pts, *loops) + sum(tangents[p] for p in loop) / len(loop)
+		center = interfaces_center(pts, *loops) + sum(weights[p]*tangents[p] for p in loop) / len(loop)
 	normal = normalize(sum(normalize(center-pts[p])	for p in loop))
 	if not isfinite(normal):	normal = vec3(0)
 	
@@ -354,7 +354,8 @@ def blendloop(interface, center=None, tangents='tangent', weight=1., resolution=
 	match = [None] * len(loop)
 	div = 0
 	for i,p in enumerate(loop):
-		match[i] = m = (pts[p], tangents[p]), (center, noproject(pts[p]-center, normal))
+		match[i] = m = (	(pts[p], distance(center, pts[p])*weights[p]*tangents[p]), 
+							(center, noproject(pts[p]-center, normal))	)
 		div = max(div, settings.curve_resolution(distance(m[0][0],m[1][0]), anglebt(m[0][1],m[1][1]), resolution))
 	return blenditer(match, div, interpol2)
 
@@ -364,31 +365,30 @@ def blendpair(*interfaces, match='length', tangents='tangent', weight=1., resolu
 		
 		match   'length', 'closest'
 	'''
-	pts, tangents, weights, loops = get_interfaces(interface, tangents, weight)
-	if len(loops) > 1:	
-		raise ValueError('interface must have one loop only')
-	if len(i0).loops != 1 or len(i1.loops) != 1:
-		raise ValueError('interfaces must have one loop only')
+	pts, tangents, weights, loops = get_interfaces(interfaces, tangents, weight)
+	if len(loops) != 2:	
+		raise ValueError('interface must have exactly 2 loops')
 	
 	if match == 'length':		method = match_length
 	elif match == 'closest':	method = match_closest
 	else:
 		raise ValueError('matching method {} not implemented'.format(match))
 	
-	matched = list(match(Wire(pts, i0.loop), Wire(pts, reversed(i1.loop))))
+	match = list(method(Wire(pts, loops[0]), Wire(pts, list(reversed(loops[1])))))
 	# get the discretisation
 	div = 0
 	for i in range(1, len(match)):
-		a,d = match[i-1]
-		b,c = match[i]
+		a,d = pts[match[i-1][0]], pts[match[i-1][1]]
+		b,c = pts[match[i][0]], pts[match[i][1]]
 		v = normalize((a+b) - (d+c))
 		angle = anglebt(a-b - project(a-b,v), d-c - project(d-c,v))
 		dist = min(distance(a,b), distance(d,c))
 		div = max(div, settings.curve_resolution(dist, angle, resolution))
-	infos = (	((i0.pts[p0], i0.tangents[p0]), (i1.pts[p1], i1.tangents[p1]))
-				for p0,p1 in matched
-			)
-	return blenditer(infos, div, interpol2)
+	def infos():
+		for p0, p1 in match:
+			d = distance(pts[p0], pts[p1])
+			yield ((pts[p0], d*weights[p0]*tangents[p0]), (pts[p1], d*weights[p1]*tangents[p1]))
+	return blenditer(infos(), div, interpol2)
 
 def blenditer(parameters, div, interpol) -> Mesh:
 	''' create a blended surface using the matching parameters and the given interpolation 

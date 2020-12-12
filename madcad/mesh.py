@@ -995,26 +995,27 @@ class Wire:
 	
 	def _make_loop_consistency(self, normals, loop):
 		l = len(self.indices)
-		# propagate to erase undefined normals
-		for _ in range(2):
-			for i in range(l):
-				if glm.any(isnan(normals[i])):	
-					normals[i] = normals[i-1]
 		# make normals consistent if asked
 		if loop:
 			# get an outermost point as it is always well oriented
-			dir = self.points[self.indices[l//2]] - self.points[self.indices[0]]	# WARNING: if those two points are too close the computation is misleaded
+			dir = self[l//2] - self[0]	# WARNING: if those two points are too close the computation is misleaded
 			i = max(self.indices, key=lambda i: dot(self.points[i], dir))
 			# propagation reorient
 			# WARNING: if there is a cusp in the curve (2 consecutive segments with opposite directions) the final result can be wrong
 			for i in range(i+1, i+l):
 				j = i%l
-				if dot(normals[j], normals[j-1]) < 0:
-					normals[j-1] = -normals[j-1]
+				e = normalize(self[j]-self[j-1])
+				if dot(noproject(normals[j],e), noproject(normals[j-1],e)) < 0:
+					normals[j] = -normals[j]
 		# propagate to borders if not loop
 		else:
 			normals[0] = normals[1]
 			normals[-1] = normals[-2]
+		# propagate to erase undefined normals
+		for _ in range(2):
+			for i in range(l):
+				if glm.any(isnan(normals[i])):	
+					normals[i] = normals[i-1]
 	
 	def normal(self):
 		''' return an approximated normal to the curve as if it was the outline of a flat surface.
