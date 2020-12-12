@@ -22,6 +22,7 @@ submodules
 	mathutils.rst
 	
 	generation.rst
+	blending.rst
 	cut.rst
 	hashing.rst
 	settings.rst

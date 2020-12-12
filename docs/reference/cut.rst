@@ -13,20 +13,21 @@ end-user functions
 		This is a chamfer on edges around a cube corner 
 		
 		.. image:: /screenshots/chamfer.png
-			:align: right
+			:width: 300
 
 	.. autofunction:: bevel
 
 		This is a bevel on edges around a cube corner
 		
 		.. image:: /screenshots/bevel.png
-			:align: right
+			:width: 300
 
 	.. autofunction:: multicut
 
 		This is the result on edges around a cube corner
 		
 		.. image:: /screenshots/multicut.png
+			:width: 300
 
 
 
