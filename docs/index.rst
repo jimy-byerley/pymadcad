@@ -8,9 +8,9 @@ Simple yet powerful CAD (Computer Aided Design) library, written with Python.
 	:maxdepth: 2
 
 	installation.rst
-	newcomers.rst
 	concepts.rst
-	summary.rst
+	newcomers.rst
+	guide.rst
 	reference/index.rst
 	algorithms.md
 	development.rst

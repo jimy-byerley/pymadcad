@@ -91,6 +91,9 @@
 .wy-menu-vertical a {
 	color: #d9d9d9;
 }
+.wy-menu-vertical a:hover {
+	background:#274348
+}
 
 /* navigation bar tree */
 
@@ -109,14 +112,21 @@
 .wy-menu-vertical li.current a {
     color: #77caca;
 	background: #141a1c;
-    border-right: 1px solid #4dcce187;
+    border-left: 1px solid #4dcce187;
+	border-right: none;
+}
+.wy-menu-vertical li.current a:hover {
+	background:#467780
 }
 
 .wy-menu-vertical li.current > a, 
 .wy-menu-vertical li.on a {
     color: #a2e1f4;
     background: #3a4c4f;
-    border-right: 3px solid #7ae7f2f2;
+    border-left: 3px solid #7ae7f2f2;
+	border-right: none;
+	border-top: none !important;
+	border-bottom: none !important;
 }
 .wy-menu-vertical li.toctree-l2.current > a, 
 .wy-menu-vertical li.toctree-l2.current li.toctree-l3 > a {
@@ -248,7 +258,7 @@ a:visited { /* links visited */
 .rst-content .wy-alert-success.seealso, 
 .rst-content .wy-alert-success.warning, 
 .wy-alert.wy-alert-success {
-    background: #091711;
+    background: #112f21;
 }
 
 .rst-content .admonition-todo .admonition-title, 
@@ -347,4 +357,21 @@ code {
     color: #70c0d9 !important;
 	border: 1px solid rgb(43, 58, 72);
 	box-shadow: none;
+}
+
+/* tables */
+.rst-content table.docutils td {
+	border: 1px solid #20484a !important;
+}
+.rst-content table.docutils th {
+	border: 1px solid #20484a !important;
+    border-bottom: 1px solid #e1e4e5 !important;
+}
+.rst-content table.docutils thead, 
+.rst-content table.field-list thead, 
+.wy-table thead {
+    color: inherit;
+}
+.rst-content table.docutils:not(.field-list) tr:nth-child(2n-1) td {
+    background-color: #243435 !important;
 }

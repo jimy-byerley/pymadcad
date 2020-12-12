@@ -5,7 +5,7 @@ mathutils    - all the basic math types and functions
 =====================================================
 
 Most of the names here are coming from the `glm <http://github.com/Zuzu-Typ/PyGLM>`_ module.
-But the goal is to harvest at one point, all the basic math functions and objects that are used all around madcad.
+But the goal is to harvest at one point all the basic math functions and objects that are used all around madcad.
 
 .. tip::
 	All the present functions and types are present in the root madcad module.
@@ -27,13 +27,26 @@ all implements the common operators :code:`+ - * / <> ==`
 
 all glm types exists with several element types and in several precision: 
 
-- **'d'**  for double precisin floating point (float64)
-- **'f'** for simple precision floating point (float32)
-- **'i'** for integer (int32)
-- **'i16'** for int16
-- **'i8'** for byte (int8)
-- **'u'** for unsigned integer (uint32), 'u16' and 'u8' also exists
-- **'b'** for bit
+.. list-table:: 
+	:header-rows: 1
+	
+	* - prefix
+	  - precision
+	
+	* - **d**
+	  - f64 aka double precisin floating point
+	* - **f**
+	  - f32 aka for simple precision floating point
+	* - **i**
+	  - i32 aka integer
+	* - **i16** 
+	  - 16 bits integer
+	* - **i8**
+	  - 8 bits integer aka byte
+	* - **u**
+	  - unsigned integer (also declines in u16 and u32)
+	* - **b**
+	  - bit aka boolean
 
 precision specification is put as prefix: :code:`dvec3, fvec3, imat4`. Notation without prefix refers to the madcad implementation precision: **float64** (prefix 'd').
 
@@ -52,6 +65,7 @@ Common vector operations
 .. autofunction:: mix
 
 .. autofunction:: length
+.. autofunction:: distance
 .. autofunction:: normalize
 
 .. autofunction:: anglebt
@@ -63,13 +77,26 @@ Common vector operations
 
 .. autofunction:: perp
 
-.. autofunction:: norm1
+.. function:: norm1(x) -> float
 
-.. function:: norm2(x)
+	norm L1  ie.  `abs(x) + abs(y) + abs(z)`
 	
-	norm L2 (euclidian)  ie.  strictly the same as length(x)
+	Alias to `glm.l1Norm`
 
-.. autofunction:: norminf
+.. function:: norm2(x) -> float
+	
+	norm L2  ie.  `sqrt(x**2 + y**2 + z**2)`   the usual distance also known as manhattan distance
+	
+	Alias to `glm.l2Norm` alias `glm.length`
+
+.. function:: norminf(x) -> float
+
+	norm L infinite  ie.  `max(abs(x), abs(y), abs(z))`
+	
+	Alias to `glm.lxNorm`
+
+See `the glm complete reference <https://github.com/Zuzu-Typ/PyGLM/blob/master/wiki/function-reference/README.md>`_
+
 
 Transformations
 ~~~~~~~~~~~~~~~
