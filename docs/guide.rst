@@ -208,8 +208,10 @@ Join arbitrary outlines in nicely blended surfaces.
 			(interface[3], 'normal'),
 			tangents='tangent',
 			)
+	for c in interface:
+		m += extrusion(c.axis[1]*3, web(c))
 
-.. image:: /screenshots/junction-circles.png
+.. image:: /screenshots/junction-circles-post.png
 	:width: 500px
 
 details in module :ref:`generation<generation>`
