@@ -25,6 +25,7 @@ submodules
 	generation.rst
 	blending.rst
 	cut.rst
+	boolean.rst
 	
 	io.rst
 	settings.rst
