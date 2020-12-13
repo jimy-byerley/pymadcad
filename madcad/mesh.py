@@ -975,6 +975,7 @@ class Wire:
 		''' return the opposed direction to the curvature in each point 
 			this is called normal because it would be the normal to a surface whose section would be that wire
 		'''
+		# TODO: solve the problem of consecutive same points (occurs for instance with loops)
 		normals = [None] * len(self.indices)
 		for i in range(len(self.indices)):
 			a,b,c = self.indices[i-2], self.indices[i-1], self.indices[i]
@@ -986,6 +987,7 @@ class Wire:
 		''' return approximated tangents to the curve as if it was a surface section.
 			if this is not a loop the result is undefined.
 		'''
+		# TODO: solve the problem of consecutive same points (occurs for instance with loops)
 		tangents = [None] * len(self.indices)
 		for i in range(len(self.indices)):
 			a,b,c = self.indices[i-2], self.indices[i-1], self.indices[i]
