@@ -255,6 +255,24 @@ def solvekin(joints, fixed=(), precision=1e-4, maxiter=None, damping=0.9):
 		
 		itercount += 1
 
+def isjoint(obj):
+	''' return True if obj is considered to be a kinematic joint object '''
+	return hasattr(obj, 'solids') and hasattr(obj, 'corrections')
+
+class Joint:
+	class display(rendering.Display):
+		def __init__(self, scene, joint):
+			self.schemes = [joint.scheme(s, 1, 
+								joint.position[i] + vec3(0,0,(-1)**i)
+								).display(scene) 
+							for i,s in enumerate(joint.solids)]
+		def stack(self, scene):
+			for i,scheme in enumerate(self.schemes):
+				for sub,target,priority,func in scheme.stack(scene):
+					yield ((i, *sub), target, priority, func)
+		def __getitem__(self, sub):
+			return self.schemes[sub]
+
 
 class Kinematic:
 	''' Holds a kinematic definition, and methods to use it
@@ -266,7 +284,7 @@ class Kinematic:
 			* solids	all the solids the joint applys on, and eventually more
 			* fixed		the root solids that is considered to be fixed to the ground
 	'''
-	def __init__(self, joints, fixed=None, solids=None):
+	def __init__(self, joints, fixed=(), solids=None):
 		self.joints = joints
 		if isinstance(joints, set):	self.fixed = fixed
 		else:						self.fixed = set(id(solid) for solid in fixed)
