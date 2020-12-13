@@ -13,19 +13,22 @@ submodules
 .. toctree::
 	:maxdepth: 1
 
+	mathutils.rst
 	mesh.rst
+	
 	kinematic.rst
 	joints.rst
+	
 	primitives.rst
 	constraints.rst
-	io.rst
-	mathutils.rst
 	
 	generation.rst
 	blending.rst
 	cut.rst
-	hashing.rst
+	
+	io.rst
 	settings.rst
+	hashing.rst
 	rendering.rst
 
 .. py:module:: madcad
@@ -49,8 +52,13 @@ generation functions
 
 	.. autofunction:: extrusion
 	.. autofunction:: revolution
-	.. autofunction:: extrans
+	.. autofunction:: tube
+	
+blending functions
+~~~~~~~~~~~~~~~~~~
 	.. autofunction:: junction
+	.. autofunction:: blendpair
+	.. autofunction:: blendloop
 
 cut functions
 ~~~~~~~~~~~~~
