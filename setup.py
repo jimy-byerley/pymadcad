@@ -13,12 +13,12 @@ setup(
 	# package declaration
 	name='pymadcad',
 	version='0.5',
-	python_requires='>=3.5',
+	python_requires='>=3.6',
 	install_requires=[
 		'pyglm>=1.2', 
 		'moderngl>=5.6', 
 		'numpy>=1.1', 
-		'scipy>=0.17', 
+		'scipy>=1.3', 
 		'PyQt5>=5', 
 		'Pillow>=5.4', 
 		'cython>=0.29',
@@ -40,7 +40,6 @@ setup(
 			'*.py', 
 			'*.pyx', 
 			'*.c', 
-			'*.so',
 			],
 		'': ['COPYING', 'COPYING.LESSER', 'README'],
 		},
