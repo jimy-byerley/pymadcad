@@ -563,7 +563,7 @@ class Mesh(Container):
 				i = stack.pop()
 				reached[i] = True
 				island.faces.append(self.faces[i])
-				island.faces.append(self.tracks[i])
+				island.tracks.append(self.tracks[i])
 				f = self.faces[i]
 				for i in range(3):
 					e = f[i],f[i-1]
