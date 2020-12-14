@@ -54,7 +54,7 @@ from . import generation
 from .nprint import nprint
 
 
-def get_interfaces(objs, tangents='normal', weight=1.):
+def get_interfaces(objs, tangents, weights):
 	''' collects the data definig interfaces for junctions and blendings out of an iterable of tuples 
 		This function has no real interest for the enduser.
 	'''
@@ -65,7 +65,7 @@ def get_interfaces(objs, tangents='normal', weight=1.):
 	loops = []
 	for obj in objs:
 		# parse
-		args = [None, tangents, weight]
+		args = [None, tangents, weights, None]
 		if isinstance(obj, tuple):
 			for i,o in enumerate(obj):	args[i] = o
 		else:
@@ -79,24 +79,27 @@ def get_interfaces(objs, tangents='normal', weight=1.):
 		loops.extend([i+l  for i in loop] for loop in e_loops)
 	return v_pts, v_tangents, v_weights, loops
 		
-def get_interface(base, tangents='normal', weight=1.):
+def get_interface(base, tangents, weights, loops):
 	''' collects the data definig interfaces for junctions and blendings out of one object 
 		This function has no real interest for the enduser.
 	'''
-	if not base:
-		raise ValueError('interface is not fully defined, loops are missing')
-	if not isinstance(base, (Wire, Web, Mesh)) and hasattr(base, 'mesh'):	
-		base = base.mesh()
-	if not isinstance(base, (Wire, Web, Mesh)):
-		raise TypeError('expected one of Wire,Web,Mesh   and not {}'.format(type(base).__name__))
-	
 	# get the interface outline to connect to the others
-	base.strippoints()
-	points = base.points
-	if isinstance(base, Wire):		loops = [base.indices]
-	elif isinstance(base, Web):		loops = suites(base.edges)
-	elif isinstance(base, Mesh): 
-		loops = suites(base.outlines_oriented())
+	if loops is None:
+		if not isinstance(base, (Wire, Web, Mesh)) and hasattr(base, 'mesh'):	
+			base = base.mesh()
+		if not isinstance(base, (Wire, Web, Mesh)):
+			raise TypeError('expected one of Wire,Web,Mesh   and not {}'.format(type(base).__name__))
+		
+		base.strippoints()
+		points = base.points
+		if isinstance(base, Wire):		loops = [base.indices]
+		elif isinstance(base, Web):		loops = suites(base.edges)
+		elif isinstance(base, Mesh): 
+			loops = suites(base.outlines_oriented())
+	else:
+		if not isinstance(base, list):
+			raise TypeError('if loops are provided, points must be a list')
+		points = base
 	
 	# normal to each point
 	# tangents provided explicitely
@@ -135,7 +138,8 @@ def get_interface(base, tangents='normal', weight=1.):
 		raise ValueError('wrong tangents specification')
 	
 	# factor applied on each tangents
-	weights = [weight] * len(points)
+	if not isinstance(weights, list):
+		weights = [weights] * len(points)
 	return points, tangents, weights, loops
 
 
@@ -164,14 +168,29 @@ def junction(*args, center=None, tangents='normal', weight=1., match='length', r
 			match method 'corner' is not yet implemented
 	'''
 	pts, tangents, weights, loops = get_interfaces(args, tangents, weight)
+	if len(loops) == 0:
+		return Mesh()
+	if len(loops) == 1:	
+		return blendloop(
+					(pts, tangents, weights, loops), 
+					center, resolution=('div',11))
+	if len(loops) == 2:
+		n = ( interfaces_center(pts, loops[0])
+			- interfaces_center(pts, loops[1]))
+		i0 = imax( dot(pts[i],n)  for i in loops[0])
+		i1 = imax(-dot(pts[i],n)  for i in loops[1])
+		return blendpair(
+					(pts, tangents, weights, loops),
+					resolution=('div',11))
 	
 	# determine center and convex hull of centers
 	if not center:
 		center = interfaces_center(pts, *loops)
 	node = convexhull([	normalize(interfaces_center(pts, interf)-center) 
 						for interf in loops])
+	# fix convexhull faces orientations
 	for i,f in enumerate(node.faces):
-		if dot(node.facenormal(f), sum(node.facepoints(i))) < 0:
+		if dot(node.facenormal(f), sum(node.facepoints(i))) < -1e-9:
 			node.faces[i] = (f[0],f[2],f[1])
 	nodeconn = connef(node.faces)
 	
@@ -244,13 +263,9 @@ def junction(*args, center=None, tangents='normal', weight=1., match='length', r
 						tangents[s]*weights[s]*distance(pts[s], pts[tri[i-1]]),
 						)
 			ptri[i] = pts[tri[i]]
-		#etangents = [2*pts[tri[i]]-pts[tri[i-1]]-pts[tri[i-2]]	for i in range(3)]
-		#result += blendtri([pts[i] for i in tri], ptgts, div)
-		#result += closingtri([pts[i] for i in tri], ptgts, div)
+			
 		result += generation.dividedtriangle(lambda u,v: intri_smooth(ptri, ptgts, u,v), div)
 	
-	#result.tracks = [0]*len(result.faces)
-	#result.groups = ['junction']
 	result.mergeclose()
 	return result
 	

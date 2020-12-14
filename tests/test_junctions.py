@@ -1,9 +1,9 @@
 from random import random, randint
 from madcad import vec3, Mesh, show, Circle, extrusion, web
-from madcad.junctions import *
+from madcad.blending import *
 
-if False:
-	interfaces = [
+if True:
+	interface = [
 		Circle((vec3(0,0,3),vec3(0,0,1)), 1),
 		Circle((vec3(-1,-1,-1),normalize(vec3(-1,-1,-1))), 1),
 		Circle((vec3(1,-1,-1),normalize(vec3(1,-1,-1))), 1),
@@ -21,7 +21,7 @@ if False:
 		m += extrusion(c.axis[1]*3, web(c))
 
 
-if True:
+if False:
 	z = vec3(0,0,1)
 	x = normalize(vec3(1,1,0))
 	interfaces = [
@@ -36,4 +36,4 @@ if True:
 			)
 
 m.check()
-show([m, interfaces], {'display_points':False, 'display_wire':True})
+show([m], {'display_points':False, 'display_wire':True})
