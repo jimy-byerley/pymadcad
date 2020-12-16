@@ -12,6 +12,7 @@ Features
 - common mesh file format import/export
 - kinematic manipulation
 - indirect geometry definition through the constraint/solver system
+- blending and envelope completion functions
 - objects display with high-quality graphics
 
 data types
@@ -246,5 +247,6 @@ An other usual rework operation is cut edges with chamfers or roundings. Because
 		)
 	
 .. image:: /screenshots/bevel-cube.png
+	:width: 500px
 
 

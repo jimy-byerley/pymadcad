@@ -1,6 +1,7 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 '''
-This module focuses on automated envelope generations, based on interface outlines
+This module focuses on automated envelope generations, based on interface outlines.
+
 the user has only to define the interface outlines or surfaces to join, and the algorithm makes the surface. No more pain to imagine some fancy geometries.
 	
 formal definitions
@@ -227,8 +228,7 @@ def junction(*args, center=None, tangents='normal', weight=1., match='length', r
 				last = i
 		if (first-last) % len(interf) > 1:
 			parts[interf[last]] = interf[last:] + interf[1:first+1]
-	nprint('cuts', cuts)
-	nprint('parts', parts)
+	
 	# assemble parts in matchings
 	matchs = []
 	done = set()
@@ -367,7 +367,10 @@ def blend(interfaces, generate='straight', match='length', resolution=None) -> '
 	indev
 	
 def blendloop(interface, center=None, tangents='tangent', weight=1., resolution=None) -> Mesh:
-	''' blend inside a loop interface '''
+	''' blend inside a loop interface 
+	 
+		see `junction` for the parameters.
+	'''
 	pts, tangents, weights, loops = get_interface(interface, tangents, weight)
 	if len(loops) > 1:	
 		raise ValueError('interface must have one loop only')
@@ -394,7 +397,9 @@ def blendpair(*interfaces, match='length', tangents='tangent', weight=1., resolu
 		
 		match:   
 			'length', 'closest'
-			refer to `match_*` in this module
+			refer to `match_*` in this module 
+	 
+		see `junction` for the other parameters.
 	'''
 	pts, tangents, weights, loops = get_interfaces(interfaces, tangents, weight)
 	if len(loops) != 2:	

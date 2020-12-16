@@ -2,6 +2,13 @@
 
 '''	
 	Defines boolean operations for triangular meshes
+	
+	This relies on a new intersection algorithm named syandana. It finds candidates for intersections using a spacial hashing of triangles over a voxel (see madcad.hashing). This is solving the problem of putting triangles in an octree.
+	Also to avoid the increasing complexity of the operation with flat planes divided in multiple parallel triangles, the algorithm is implemented with a detection of ngons.
+	
+	The syandana algorithm achieves intersections of meshes in nearly `O(n)` where usual methods are `O(n**2)`
+	
+	After intersection, the selection of surface sides to keep or not is done through a propagation.
 '''
 
 from copy import copy,deepcopy
@@ -622,11 +629,13 @@ def intersect(m1: Mesh, m2: Mesh):
 	intersectwith(m1, m2)
 	intersectwith(m2, m3)
 
-def boolean(m1: Mesh, m2: Mesh, selector: (bool,bool), prec=None) -> Mesh:
+def boolean(m1: Mesh, m2: Mesh, selector: '(bool,bool)', prec=None) -> Mesh:
 	''' execute boolean operation on volumes 
+	
 		selector decides which part of each mesh to keep
-		- False keep the exterior part (part exclusive to the other mesh)
-		- True keep the common part
+	
+			- False keep the exterior part (part exclusive to the other mesh)
+			- True keep the common part
 	'''
 	if not prec:	prec = max(m1.precision(), m2.precision())
 	
