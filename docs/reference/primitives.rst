@@ -71,4 +71,7 @@ primitives types
 
 .. autoclass:: madcad.primitives.ArcThrough
 	:members: center, radius, axis, tangent
+	
+.. autoclass:: madcad.primitives.Circle
+	:members: center, radius, axis, tangent
 
