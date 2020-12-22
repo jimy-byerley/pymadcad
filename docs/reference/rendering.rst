@@ -16,7 +16,7 @@ a displayable is an object that implements the signatue of Display:
 	
 		class display:
 			box (Box)                      # delimiting the display, can be an empty or invalid box
-			pose (fmat4)                   # local transformation
+			world (fmat4)                   # local transformation
 			
 			stack(scene)                   # rendering routines (can be methods, or any callable)
 			duplicate(src,dst)             # copy the display object for an other scene if possible
