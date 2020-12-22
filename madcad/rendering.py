@@ -59,7 +59,7 @@ from .nprint import nprint
 
 # minimum opengl required version
 opengl_version = (3,3)
-
+# shared open gl context, None if not yet initialized
 global_context = None
 
 
@@ -253,7 +253,10 @@ def navigation_tool(dispatcher, view):
 				
 
 class Turntable:
-	''' navigation rotating on yaw and pitch around a center '''
+	''' navigation rotating on yaw and pitch around a center 
+	
+		object used as `View.navigation`
+	'''
 	def __init__(self, center:fvec3=0, distance:float=1, yaw:float=0, pitch:float=0):
 		self.center = fvec3(center)
 		self.yaw = yaw
@@ -280,7 +283,10 @@ class Turntable:
 		return mat
 
 class Orbit:
-	''' navigation rotating on the 3 axis around a center '''
+	''' navigation rotating on the 3 axis around a center.
+	
+		object used as `View.navigation`
+	'''
 	def __init__(self, center:fvec3=0, distance:float=1, orient:fvec3=fvec3(1,0,0)):
 		self.center = fvec3(center)
 		self.distance = float(distance)
@@ -303,13 +309,16 @@ class Orbit:
 
 
 class Perspective:
-	''' parameter holder for a perspective projection '''
+	''' object used as `View.projection` 
+	
+		:fov:	field of view (rad)
+	'''
 	def __init__(self, fov=None):
 		self.fov = fov or settings.display['field_of_view']
 	def matrix(self, ratio, distance) -> fmat4:
 		return perspective(self.fov, ratio, distance*1e-2, distance*1e4)
 class Orthographic:
-	''' parameter holder for an orthographic projection '''
+	''' object used as `View.projection` '''
 	def matrix(self, ratio, distance) -> fmat4:
 		return fmat4(1/ratio/distance, 0, 0, 0,
 		            0,       1/distance, 0, 0,
@@ -515,7 +524,8 @@ def displayable(obj):
 
 class Step(Display):
 	''' simple display holding a rendering stack step 
-		Step(target, priority, callable)
+	
+		`Step(target, priority, callable)`
 	'''
 	def __init__(self, *args):	self.step = ((), *args)
 	def stack(self, scene):		return self.step,
@@ -538,7 +548,7 @@ def writeproperty(func):
 	def setter(self, value):
 		setattr(self, fieldname, value)
 		func(self, value)
-	return property(getter, setter)
+	return property(getter, setter, doc=func.__doc__)
 
 class Group(Display):
 	''' a group is like a subscene '''
@@ -570,12 +580,14 @@ class Group(Display):
 	
 	@writeproperty
 	def pose(self, pose):
+		''' pose of the group relatively to its parents '''
 		sub = self._world * self._pose
 		for display in self.displays.values():
 			display.world = sub
 			
 	@writeproperty
 	def world(self, world):
+		''' update children's world matrix applying the current pose in addition to world '''
 		sub = self._world * self._pose
 		for display in self.displays.values():
 			display.world = sub

@@ -1,5 +1,7 @@
 .. _rendering:
 
+.. currentmodule:: madcad.rendering
+
 rendering   - 3D interface
 ==========================
 
@@ -39,16 +41,24 @@ For more details, see class Display below
 			
 			QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts, True)
 
-Module content
---------------
+Rendering system
+----------------
 
-.. autofunction:: madcad.show
+.. autofunction:: show
 
 .. py:data:: overrides
 	
 	dictionnary of callables used by `Scene.display` to override the classes `.display(scene)` method
 
-.. autoclass:: madcad.rendering.Display
+.. py:data:: global_context
+
+	shared open gl context, None if not yet initialized
+	
+.. py:data:: opengl_version
+
+	minimum opengl required version
+
+.. autoclass:: Display
 	
 	- Mendatory part for the scene
 	
@@ -67,11 +77,11 @@ Module content
 		
 
 
-.. autoclass:: madcad.rendering.Scene
+.. autoclass:: Scene
 	:members:
 
 
-.. autoclass:: madcad.rendering.View
+.. autoclass:: View
 
 	* Methods to get items on the screen
 	
@@ -80,24 +90,41 @@ Module content
 		.. automethod:: ptfrom
 		.. automethod:: itemat
 	
-	**Methods to move camera**
+	* Methods to move camera
 	
 		.. automethod:: look
 		.. automethod:: adjust
 		.. automethod:: center
 	
-	**Event system**
+	* Event system
 	
 		.. automethod:: event
 		.. automethod:: inputEvent
 		.. automethod:: control
 	
-	**Rendering system**
+	* Rendering system
 	
 		.. automethod:: refreshmaps
 		.. automethod:: identstep
 
-.. autoclass:: madcad.rendering.Turntable
-.. autoclass:: madcad.rendering.Orbit
-.. autoclass:: madcad.rendering.Perspective
-.. autoclass:: madcad.rendering.Orthographic
+view settings/interaction methods
+---------------------------------
+
+.. autoclass:: Turntable
+.. autoclass:: Orbit
+.. autoclass:: Perspective
+.. autoclass:: Orthographic
+
+helpers to trick into the pipeline
+----------------------------------
+
+.. autoclass:: Group
+	:members: stack, __getitem__, dequeue, update, pose, world, box
+
+.. autoclass:: Step
+	:members: stack
+
+.. autoclass:: Displayable
+	:members: display
+
+.. autofunction:: displayable
