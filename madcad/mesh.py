@@ -478,8 +478,11 @@ class Mesh(Container):
 					edges[(e[1],e[0])] = track
 		return edges
 		
-	def frontiers(self, groups:set=None, *args):
-		''' return a Web of UNORIENTED edges between the given groups '''
+	def frontiers(self, groups:set=None):
+		''' return a Web of UNORIENTED edges between the given groups 
+		
+			if groups is None, then return the frontiers between any groups
+		'''
 		edges = []
 		tracks = []
 		couples = {}
@@ -505,6 +508,10 @@ class Mesh(Container):
 			a,b,c = self.facepoints(f)
 			s += length(cross(a-b, a,c))/2
 		return s
+	
+	def barycenter(self):
+		''' surface barycenter of the mesh '''
+		return sum(	sum(self.facepoints(f))		for f in self.faces) / (3*len(self.faces))
 	
 	def splitgroups(self, edges=None):
 		''' split the mesh groups into connectivity separated groups.
@@ -832,11 +839,23 @@ class Web(Container):
 			s += distance(self.points[a], self.points[b])
 		return s
 	
+	def barycenter(self):
+		''' curve barycenter of the mesh '''
+		return sum(	self.points[a]+self.points[b]		for a,b in self.edges) / (2*len(self.edges))
+	
 	def segments(self):
 		''' return the contiguous portions of this web '''
 		return [Wire(self.points, loop)		for loop in suites(self.edges, oriented=False)]
-	
 		
+	def edgepoints(self, e):
+		if isinstance(e, int):	e = self.edges[e]
+		return self.points[e[0]], self.points[e[0]]
+	
+	def edgedirection(self, e):
+		if isinstance(e, int):	e = self.edges[e]
+		return normalize(self.points[e[1]] - self.points[e[0]])
+	
+	
 	def __repr__(self):
 		return 'Web(\n  points= {},\n  edges=  {},\n  tracks= {},\n  groups= {},\n  options= {})'.format(
 					reprarray(self.points, 'points'),
@@ -970,6 +989,10 @@ class Wire:
 		for i in range(1,len(self.indices)):
 			s += distance(self.points[self.indices[i-1]], self.points[self.indices[i]])
 		return s
+		
+	def barycenter(self):
+		''' curve barycenter '''
+		return sum(self.points[i]	for i in self.indices) / len(self.indices)
 	
 	def vertexnormals(self, loop=False):
 		''' return the opposed direction to the curvature in each point 
