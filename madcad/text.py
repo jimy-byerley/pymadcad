@@ -79,7 +79,7 @@ class TextDisplay(rendering.Display):
 		self.shader = scene.ressource('shader_font', load)
 		
 		# place triangles
-		points = np.empty((len(pointsdef)*len(text), 4), 'f4')
+		points = np.zeros((len(pointsdef)*len(text), 4), 'f4')
 		l = 0
 		c = 0
 		for i,char in enumerate(text):
