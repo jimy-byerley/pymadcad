@@ -54,6 +54,7 @@ classes
 		.. automethod:: outlines
 		.. automethod:: groupoutlines
 		.. automethod:: groupoutlines_oriented
+		.. automethod:: frontiers
 		.. automethod:: surface
 	
 	**other methods**

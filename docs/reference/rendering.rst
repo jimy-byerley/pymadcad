@@ -119,7 +119,11 @@ helpers to trick into the pipeline
 ----------------------------------
 
 .. autoclass:: Group
-	:members: stack, __getitem__, dequeue, update, pose, world, box
+	:members: stack, __getitem__, dequeue, update
+	
+	.. autoproperty:: pose
+	.. autoproperty:: world
+	.. autoproperty:: box
 
 .. autoclass:: Step
 	:members: stack

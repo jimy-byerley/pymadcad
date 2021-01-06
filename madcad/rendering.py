@@ -11,7 +11,7 @@
 		
 			class display:
 				box (Box)                      # delimiting the display, can be an empty or invalid box
-				pose (fmat4)                   # local transformation
+				world (fmat4)                  # local transformation
 				
 				stack(scene)                   # rendering routines (can be methods, or any callable)
 				duplicate(src,dst)             # copy the display object for an other scene if possible
@@ -114,7 +114,7 @@ class Display:
 	def stack(self, scene) -> '[(key, target, priority, callable)]':
 		''' rendering functions to insert in the renderpipeline.
 		
-			the expected result can be any iterable providing the values as in the signature
+			the expected result can be any iterable providing tuples `(key, target, priority, callable)` such as:
 			
 			:key:	    a tuple with the successive keys in the displays tree, most of the time implementers set it to `()`  because it doesn't belong to a subpart of the Display.
 			:target:    the name of the render target in the view that will be rendered (see View)
