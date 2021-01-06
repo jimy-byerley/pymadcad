@@ -21,9 +21,10 @@ from collections import Counter
 import numpy as np
 from scipy.optimize import minimize
 from .nprint import nprint
-from .mathutils import project, normalize, length, vec3, distance, anglebt, cross, dot, noproject, atan2, pi, cos, sin
+from .mathutils import *
 from . import primitives
 from . import displays, text, settings
+from . import scheme
 
 class Constraint(object):
 	def __init__(self, *args, **kwargs):
@@ -52,8 +53,8 @@ class Tangent(Constraint):
 	def fit(self):
 		return length(cross(self.c1.slv_tangent(self.p), self.c2.slv_tangent(self.p))) **2
 	
-	def display(self, scene):
-		return displays.TangentDisplay(scene, (self.p, self.c2.slv_tangent(self.p)), self.size)
+	#def display(self, scene):
+		#return displays.TangentDisplay(scene, (self.p, self.c2.slv_tangent(self.p)), self.size)
 
 class Distance(Constraint):
 	''' Makes two points distant of the fixed given distance '''
@@ -64,11 +65,10 @@ class Distance(Constraint):
 	#def fitgrad(self):
 		#return derived.compose(dot, Derived(self.p1), Derived(self.p2))
 	def display(self, scene):
-		arrows = displays.LengthMeasure(scene, self.p1, self.p2, location=self.location or (self.p1+self.p2)*0.6)
-		measure = text.TextDisplay(scene, arrows.textplace, 
-					text='{}\n({:+0.3g})'.format(self.d, self.d-distance(self.p1, self.p2)),
-					align=(-1,1))
-		return arrows, measure
+		return scene.display(scheme.note_distance(
+					self.p1, self.p2, 
+					text='{:.5g}  {:+.1g}'.format(self.d, sqrt(self.fit())),
+					))
 
 class Angle(Constraint):
 	''' Gets two segments with the given fixed angle between them '''
@@ -79,8 +79,12 @@ class Angle(Constraint):
 		d2 = self.s2.direction
 		a = atan2(length(cross(d1,d2)), dot(d1,d2))
 		return (a - self.angle)**2
-	#def display(self, scene):
-		#return displays.ArcMeasure(scene, arc, 
+	def display(self, scene):
+		return scene.display(scheme.note_angle(
+					(mix(self.s1.a, self.s1.b, 0.5), -self.s1.direction),
+					(mix(self.s2.a, self.s2.b, 0.5), -self.s2.direction),
+					text='{:.5g}°  {:+.1g}'.format(degrees(self.angle), degrees(sqrt(self.fit()))),
+					))
 
 def Parallel(s1,s2):
 	''' Strict equivalent of Angle(s1,s2,0) '''
@@ -94,26 +98,17 @@ class Radius(Constraint):
 	__slots__ = 'arc', 'radius', 'location'
 	slvvars = 'arc',	
 	def fit(self):
-		#ra = length(noproject(self.arc.a - self.arc.axis[0], self.arc.axis[1]))
-		#rb = length(noproject(self.arc.b - self.arc.axis[0], self.arc.axis[1]))
-		#return (ra - self.radius) **2 + (rb - self.radius) **2
 		return (self.arc.radius - self.radius) **2
 	
 	def display(self, scene):
-		dra = abs(length(noproject(self.arc.a - self.arc.axis[0], self.arc.axis[1])) - self.radius)
-		drb = abs(length(noproject(self.arc.b - self.arc.axis[0], self.arc.axis[1])) - self.radius)
+		r = self.arc.radius
 		center, z = self.arc.axis
-		v = noproject(self.arc.a-center, z)
-		r = length(v)
-		x = v/r
-		y = cross(z, x)
-		angle = atan2(dot(self.arc.b-center,y), dot(self.arc.b-center,x)) % (2*pi)
-		location = self.location or center + 2*r * (cos(angle/2)*x + sin(angle/2)*y)
-		arrows = displays.RadiusMeasure(scene, primitives.Circle(self.arc.axis, self.radius), location)
-		measure = text.TextDisplay(scene, arrows.textplace,
-					text='{}\n({:+0.3g})'.format(self.radius, max(dra, drb)),
-					align=(-0.5, 0.5))
-		return arrows, measure
+		x = dirbase(z)[0]
+		return scene.display(scheme.note_leading(
+					center+x*r, 
+					r*x, 
+					text='R{:.5g}  {:+.1g}'.format(r, self.radius - self.arc.radius),
+					))
 
 class Projected(Constraint):
 	__slots__ = 'a', 'b', 'proj'
