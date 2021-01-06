@@ -388,10 +388,10 @@ def note_leading(placement, offset=None, text='here'):
 def note_floating(position, text, *args, **kwargs):
 	return txt.Text(position, text, *args, **kwargs, color=settings.display['annotation_color'], size=9)
 
-#def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None):
-def note_distance(a, b, offset=vec3(0), d=None, tol=None, text=None):
+def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None):
 	# get text to display
-	if not d:	d = distance(a,b)
+	if not project:	project = normalize(b-a)
+	if not d:	d = abs(dot(b-a, project))
 	if not text:
 		if isinstance(tol,str): text = '{d:.4g}  {tol}'
 		elif tol:               text = '{d:.4g}  ± {tol}'
@@ -399,13 +399,12 @@ def note_distance(a, b, offset=vec3(0), d=None, tol=None, text=None):
 	text = text.format(d=d, tol=tol)
 	color = settings.display['annotation_color']
 	# convert input vectors
-	a = fvec3(a)
-	b = fvec3(b)
-	o = fvec3(offset)
-	if o == fvec3(0):	ao, bo = a, b
-	else:
-		ao = a + o * (1 - 0.5*dot(o,a-b)/length2(o))
-		bo = b + o * (1 - 0.5*dot(o,b-a)/length2(o))
+	x = noproject(b-a, project)
+	if x == fvec3(0):	dirbase(b-a)[0]
+	else:				x = normalize(x)
+	shift = 0.5 * dot(b-a, x)
+	ao = a + (offset + shift) * x
+	bo = b + (offset - shift) * x
 	# create scheme
 	sch = Scheme()
 	sch.set(shader='line', layer=1e-4, color=fvec4(color,0.3))
@@ -420,19 +419,18 @@ def note_distance(a, b, offset=vec3(0), d=None, tol=None, text=None):
 				size=9, 
 				color=fvec4(color,1)))
 	sch.set(shader='fill')
-	n,_,x = dirbase(normalize(vec3(ao-bo)))
 	sch.add(gt.revolution(
 				2*pi, 
-				(vec3(0),x), 
-				web([vec3(0), 1.5*n+6*x]), 
+				(vec3(0),project), 
+				web([vec3(0), 1.5*x+6*project]), 
 				resolution=('div',8)), 
-			space=scale_screen(ao))
+			space=scale_screen(fvec3(ao)))
 	sch.add(gt.revolution(
 				2*pi, 
-				(vec3(0),x), 
-				web([vec3(0), 1.5*n-6*x]), 
+				(vec3(0),project), 
+				web([vec3(0), 1.5*x-6*project]), 
 				resolution=('div',8)), 
-			space=scale_screen(bo))
+			space=scale_screen(fvec3(bo)))
 	return sch
 	
 def note_distance_planes(s0, s1, offset=None, d=None, tol=None, text=None):
@@ -444,9 +442,8 @@ def note_distance_planes(s0, s1, offset=None, d=None, tol=None, text=None):
 	p0 = mesh_placement(s0)[0]
 	p1 = mesh_placement(s1)[0]
 	if not offset:
-		offset = noproject(boundingbox(s0,s1).width, n0) * 0.6
-	shift = project(p1 - p0, normalize(cross(n0,offset))) * 0.5
-	return note_distance(p0+shift, p1-shift, offset, d, tol, text)
+		offset = length(noproject(boundingbox(s0,s1).width, n0)) * 0.6
+	return note_distance(p0, p1, offset, n0, d, tol, text)
 	
 def note_distance_set(s0, s1, offset, d=None, tol=None, text=None):
 	indev
@@ -456,6 +453,8 @@ def note_angle(a0, a1, offset=0, d=None, tol=None, text=None, unit='deg'):
 	o0, d0 = a0
 	o1, d1 = a1
 	z = normalize(cross(d0,d1))
+	if not isfinite(z):	
+		raise ValueError('planes are parallel')
 	x0 = cross(d0,z)
 	x1 = cross(d1,z)
 	shift = project(o1-o0, z) * 0.5
@@ -473,9 +472,10 @@ def note_angle(a0, a1, offset=0, d=None, tol=None, text=None, unit='deg'):
 	text = text.format(d=d, tol=tol, unit=unit)
 	color = settings.display['annotation_color']
 	# arc center
-	if o1 == o0 or d1 == d0:	center = o0
-	else:						center = o0 + unproject(project(o1-o0, x1), d0)
+	if o1 == o0:	center = o0
+	else:			center = o0 + unproject(project(o1-o0, x1), d0)
 	radius = mix(distance(o0,center), distance(o0,center), 0.5) + offset
+	if not radius:	radius = 1
 	# arc extremities
 	p0 = center+radius*d0
 	p1 = center+radius*d1
@@ -518,9 +518,11 @@ def _mesh_direction(mesh):
 def note_angle_planes(s0, s1, offset=0, d=None, tol=None, text=None, unit='deg'):
 	''' place an angle quotation between 2 meshes considered to be plane (surface) or straight (curve) '''
 	d0, d1 = _mesh_direction(s0), _mesh_direction(s1)
-	z = cross(d0, d1)
-	if isinstance(s0, Mesh) or isaxis(s0):	d0 = normalize(cross(d0,z))
-	if isinstance(s1, Mesh) or isaxis(s1):	d1 = normalize(cross(z,d1))
+	z = normalize(cross(d0, d1))
+	if not isfinite(z):	
+		raise ValueError('planes are parallel')
+	if isinstance(s0, Mesh) or isaxis(s0):	d0 = cross(d0,z)
+	if isinstance(s1, Mesh) or isaxis(s1):	d1 = cross(z,d1)
 	return note_angle(
 				(mesh_placement(s0)[0], d0), 
 				(mesh_placement(s1)[0], d1), 
