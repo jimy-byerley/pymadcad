@@ -4,12 +4,12 @@
 #version 330
 
 flat in int flags;
-uniform vec3 color;
-uniform vec3 select_color;
+uniform vec4 color;
+uniform vec4 select_color;
 out vec4 outcolor;
 
 void main() {
-	if ((flags & 1) != 0)		outcolor = vec4(select_color, 1);
-	else						outcolor = vec4(color,1);
+	if ((flags & 1) != 0)		outcolor = select_color;
+	else						outcolor = color;
 	
 }
