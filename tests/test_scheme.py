@@ -24,5 +24,6 @@ show([
 	note_angle_edge(part, (49,50)),
 	#note_angle_edge(part.group(0), part.group(1)),
 	note_angle_planes(cube.group(0), cube.group(2), offset=-1),
+	#note_angle_planes(cube.group(0), cube.group(1)),
 	#note_angle_planes((O,x), (O,y+x)),
 	])
