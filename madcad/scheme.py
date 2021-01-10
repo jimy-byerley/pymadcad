@@ -1,18 +1,26 @@
 import moderngl as mgl
 import numpy.core as np
-from collections import namedtuple
 
 from .mathutils import *
 from .rendering import Display
 from .common import ressourcedir
 from .mesh import Container, Mesh, Web, Wire, web, wire
 from .rendering import Displayable, writeproperty
-from . import generation as gt
 from .primitives import *
+from . import generation as gt
 from . import text as txt
 from . import settings
 
-SVertex = namedtuple('SVertex', ['space', 'pos', 'normal', 'color', 'layer', 'track', 'flags'])
+__all__ = ['Scheme', 
+			'note_leading', 
+			'note_floating', 
+			'note_label', 
+			'note_distance', 
+			'note_angle', 
+			'note_distance_planes', 
+			'note_angle_planes', 
+			'note_angle_edge']
+
 
 class Scheme:
 	def __init__(self, vertices=None, spaces=None, primitives=None, annotation=True, **kwargs):
@@ -390,7 +398,8 @@ def note_floating(position, text, *args, **kwargs):
 
 def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None):
 	# get text to display
-	if not project:	project = normalize(b-a)
+	if not project:					project = normalize(b-a)
+	elif dot(project, b-a) < 0:		project = -project
 	if not d:	d = abs(dot(b-a, project))
 	if not text:
 		if isinstance(tol,str): text = '{d:.4g}  {tol}'
@@ -399,9 +408,7 @@ def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None):
 	text = text.format(d=d, tol=tol)
 	color = settings.display['annotation_color']
 	# convert input vectors
-	x = noproject(b-a, project)
-	if x == fvec3(0):	dirbase(b-a)[0]
-	else:				x = normalize(x)
+	x = dirbase(project, b-a)[0]
 	shift = 0.5 * dot(b-a, x)
 	ao = a + (offset + shift) * x
 	bo = b + (offset - shift) * x
@@ -422,13 +429,13 @@ def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None):
 	sch.add(gt.revolution(
 				2*pi, 
 				(vec3(0),project), 
-				web([vec3(0), 1.5*x+6*project]), 
+				web([vec3(0), 1.5*x-6*project]), 
 				resolution=('div',8)), 
 			space=scale_screen(fvec3(ao)))
 	sch.add(gt.revolution(
 				2*pi, 
 				(vec3(0),project), 
-				web([vec3(0), 1.5*x-6*project]), 
+				web([vec3(0), 1.5*x+6*project]), 
 				resolution=('div',8)), 
 			space=scale_screen(fvec3(bo)))
 	return sch
@@ -550,6 +557,9 @@ def note_angle_edge(part, edge, offset=0, d=None, tol=None, text=None, unit='deg
 			offset, d, tol, text, unit)
 	
 def note_absciss(axis, pts):
+	indev
+	
+def note_surface(placement, offset=None, roughness=None, method=None):
 	indev
 	
 def note_label(placement, offset=None, text='!', style='rect'):
