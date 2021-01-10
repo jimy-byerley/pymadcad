@@ -72,12 +72,13 @@ def perp(v:vec2) -> vec2:
 	
 def dirbase(dir, align=vec3(1,0,0)):
 	''' returns a base using the given direction as z axis (and the nearer vector to align as x) '''
-	x = align - project(align, dir)
-	if not length(x) > NUMPREC:
+	x = noproject(align, dir)
+	if not length2(x) > NUMPREC**2:
 		align = vec3(align[2],-align[0],align[1])
-		x = align - project(align, dir)
-	if not length(x) > NUMPREC:
-		return vec3(1,0,0),vec3(0,1,0),vec3(0,0,1)
+		x = noproject(align, dir)
+	if not length2(x) > NUMPREC**2:
+		align = vec3(align[1],-align[2],align[0])
+		x = noproject(align, dir)
 	x = normalize(x)
 	y = cross(dir, x)
 	return x,y,dir
