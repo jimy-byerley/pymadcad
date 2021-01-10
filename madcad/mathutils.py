@@ -52,15 +52,24 @@ def arclength(p1, p2, n1, n2):
 	return sqrt(dot(v,v) / (2-2*c)) * acos(c)
 
 def project(vec, dir) -> vec3:
-	''' component of `vec` along `dir`, equivalent to :code:`dot(vec, dir) * dir` '''
-	return dot(vec, dir) * dir
+	''' component of `vec` along `dir`, equivalent to :code:`dot(vec,dir) / dot(dir,dir) * dir` 
 	
-def noproject(x,dir) -> vec3:	
-	''' components of `vec` not along `dir`, equivalent to :code:`x - project(x,dir)` '''
-	return x - project(x,dir)
+		the result is not sensitive to the length of `dir`
+	'''
+	return dot(vec,dir) / dot(dir,dir) * dir
+	
+def noproject(vec, dir) -> vec3:
+	''' components of `vec` not along `dir`, equivalent to :code:`vec - project(vec,dir)` 
+	
+		the result is not sensitive to the length of `dir`
+	'''
+	return vec - project(vec,dir)
 
 def unproject(vec, dir) -> vec3:
-	''' return the vector in the given direction as if `vec` was its projection on it, equivalent to :code:`dot(vec,vec) / dot(vec,dir) * dir` '''
+	''' return the vector in the given direction as if `vec` was its projection on it, equivalent to :code:`dot(vec,vec) / dot(vec,dir) * dir` 
+	
+		the result is not sensitive to the length of `dir`
+	'''
 	return dot(vec,vec) / dot(vec,dir) * dir
 
 def perpdot(a:vec2, b:vec2) -> float:
