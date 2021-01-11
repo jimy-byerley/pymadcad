@@ -31,6 +31,7 @@ submodules
 	settings.rst
 	hashing.rst
 	rendering.rst
+	scheme.rst
 
 .. py:module:: madcad
 

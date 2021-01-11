@@ -133,6 +133,7 @@ mesh internals manipulation
 .. autofunction:: striplist
 .. autofunction:: line_simplification
 .. autofunction:: suites
+.. autofunction:: mesh_distance
 
 
 Exceptions defined here

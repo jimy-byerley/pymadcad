@@ -107,6 +107,8 @@ Transformations
 
 .. autofunction:: scaledir
 
+.. autofunction:: transpose
+
 .. autofunction:: inverse
 
 .. autofunction:: affineInverse
