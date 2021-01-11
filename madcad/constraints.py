@@ -67,7 +67,7 @@ class Distance(Constraint):
 	def display(self, scene):
 		return scene.display(scheme.note_distance(
 					self.p1, self.p2, 
-					text='{:.5g}  {:+.1g}'.format(self.d, sqrt(self.fit())),
+					text='{:.5g}\n{:+.1g}'.format(self.d, sqrt(self.fit())),
 					))
 
 class Angle(Constraint):
@@ -83,7 +83,7 @@ class Angle(Constraint):
 		return scene.display(scheme.note_angle(
 					(mix(self.s1.a, self.s1.b, 0.5), -self.s1.direction),
 					(mix(self.s2.a, self.s2.b, 0.5), -self.s2.direction),
-					text='{:.5g}°  {:+.1g}'.format(degrees(self.angle), degrees(sqrt(self.fit()))),
+					text='{:.5g}°\n{:+.1g}'.format(degrees(self.angle), degrees(sqrt(self.fit()))),
 					))
 
 def Parallel(s1,s2):
@@ -107,7 +107,7 @@ class Radius(Constraint):
 		return scene.display(scheme.note_leading(
 					center+x*r, 
 					r*x, 
-					text='R{:.5g}  {:+.1g}'.format(r, self.radius - self.arc.radius),
+					text='R{:.5g}\n{:+.1g}'.format(r, self.radius - self.arc.radius),
 					))
 
 class Projected(Constraint):
