@@ -31,14 +31,14 @@ from collections import OrderedDict
 import math
 from .mathutils import (
 				Box, vec3, vec4, mat3, mat4, quat, mat3_cast, transformer,
-				cross, dot, normalize, length, distance, project, noproject, anglebt, 
+				cross, dot, normalize, length, distance, length2, distance2, sqrt, project, noproject, anglebt, 
 				NUMPREC, isnan, glm, isfinite,
 				)
 from . import displays
 from . import text
 from . import hashing
 
-__all__ = ['Mesh', 'Web', 'Wire', 'MeshError', 'web', 'wire', 'edgekey', 'lineedges', 'striplist', 'suites', 'line_simplification']
+__all__ = ['Mesh', 'Web', 'Wire', 'MeshError', 'web', 'wire', 'edgekey', 'lineedges', 'striplist', 'suites', 'line_simplification', 'mesh_distance']
 
 class MeshError(Exception):	pass
 
@@ -1250,7 +1250,88 @@ def suites(lines, oriented=True, cut=True, loop=False):
 					suite[i+1:] = []
 					break
 	return suites
+	
 
+def distance2_pm(point, mesh) -> '(d, prim)':
+	''' distance from a point to a mesh
+	'''
+	if isinstance(mesh, Mesh):
+		def analyse():
+			for face in mesh.faces:
+				f = mesh.facepoints(face)
+				n = cross(f[1]-f[0], f[2]-f[0])
+				if not n:	continue
+				# check if closer to the triangle's edges than to the triangle plane
+				plane = True
+				for i in range(3):
+					d = f[i-1]-f[i-2]
+					if dot(cross(n, d), point-f[i-2]) < 0:
+						x = dot(point-f[i-2], d) / length2(d)
+						# check if closer to the edge points than to the edge axis
+						if x < 0:	yield distance2(point, f[i-2]), face[i-2]
+						elif x > 1:	yield distance2(point, f[i-1]), face[i-1]
+						else:		yield length2(noproject(point - f[i-2], d)), (face[i-2], face[i-1])
+						plane = False
+						break
+				if plane:
+					yield dot(point-f[0], n) **2 / length2(n), face
+	elif isinstance(mesh, (Web,Wire)):
+		def analyse():
+			if isinstance(mesh, Web):	edges = mesh.edges
+			else:						edges = mesh.edges()
+			for edge in edges:
+				e = mesh.edgepoints(edge)
+				d = e[1]-e[0]
+				x = dot(point - e[0], d) / length2(d)
+				# check if closer to the edge points than to the edge axis
+				if x < 0:	yield distance2(point, e[0]), e[0]
+				elif x > 1:	yield distance2(point, e[1]), e[1]
+				else:		yield length2(noproject(point - e[0], d)), e
+	elif isinstance(mesh, vec3):
+		return distance2(point, mesh), 0
+	else:
+		raise TypeError('cannot evaluate distance from vec3 to {}'.format(type(mesh)))
+	return min(analyse(), key=lambda t:t[0])
+
+def mesh_distance(m0, m1) -> '(d, prim0, prim1)':
+	''' minimal distance between elements of meshes 
+	
+		The result is a tuple `(distance, primitive from m0, primitive from m1)`.
+		`primitive` can be:
+		
+			:int:				index of the closest point
+			:(int,int):			indices of the closest edge
+			:(int,int,int): 	indices of the closest triangle
+	'''
+	# compute distance from each points of m to o
+	def analyse(m, o):
+		# get an iterator over actually used points only
+		if isinstance(m, Mesh):
+			usage = [False]*len(m.points)
+			for f in m.faces:
+				for p in f:	usage[p] = True
+			it = (i for i,u in enumerate(usage) if u)
+		elif isinstance(m, Web):
+			usage = [False]*len(m.points)
+			for e in m.edges:
+				for p in e:	usage[p] = True
+			it = (i for i,u in enumerate(usage) if u)
+		elif isinstance(m, Wire):
+			it = m.indices
+		elif isinstance(m, vec3):
+			return (*distance2_pm(m, o), 0)
+		# comfront to the mesh
+		return min((
+				(*distance2_pm(m.points[i], o), i)
+				for i in it), 
+				key=lambda t:t[0])
+	# symetrical evaluation
+	d0 = analyse(m0, m1)
+	d1 = analyse(m1, m0)
+	if d0[0] < d1[0]:	return (sqrt(d0[0]), d0[2], d0[1])
+	else:				return (sqrt(d1[0]), d1[1], d1[2])
+	
+		
 
 def mktri(mesh, pts, track=0):
 	''' append a triangle '''
