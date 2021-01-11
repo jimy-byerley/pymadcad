@@ -4,7 +4,7 @@ import numpy.core as np
 from .mathutils import *
 from .rendering import Display
 from .common import ressourcedir
-from .mesh import Container, Mesh, Web, Wire, web, wire
+from .mesh import Container, Mesh, Web, Wire, web, wire, mesh_distance
 from .rendering import Displayable, writeproperty
 from .primitives import *
 from . import generation as gt
@@ -17,7 +17,8 @@ __all__ = ['Scheme',
 			'note_label', 
 			'note_distance', 
 			'note_angle', 
-			'note_distance_planes', 
+			'note_distance_planes',
+			'note_distance_set',
 			'note_angle_planes', 
 			'note_angle_edge']
 
@@ -357,7 +358,8 @@ class note_leading_display(Display):
 		for disp in self.disp:	disp.world = value
 
 
-def mesh_placement(mesh):
+def mesh_placement(mesh) -> '(pos,normal)':
+	''' return an axis for placement of a note on the given object '''
 	if isinstance(mesh, Mesh):
 		# group center normal
 		center = mesh.barycenter()
@@ -387,6 +389,10 @@ def mesh_placement(mesh):
 	return pos, normal
 
 def note_leading(placement, offset=None, text='here'):
+	''' place a leading note at given position
+	
+		`placement` can be any of `Mesh, Web, Wire, axis, vec3`
+	'''
 	origin, normal = mesh_placement(placement)
 	if not offset:
 		offset = 0.2 * length(boundingbox(placement).width) * normal
@@ -394,9 +400,13 @@ def note_leading(placement, offset=None, text='here'):
 
 
 def note_floating(position, text, *args, **kwargs):
+	''' place a floating note at given position '''
 	return txt.Text(position, text, *args, **kwargs, color=settings.display['annotation_color'], size=9)
 
 def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None):
+	''' place a distance quotation between 2 points, 
+		the distance can be evaluated along vector `project` if specified 
+	'''
 	# get text to display
 	if not project:					project = normalize(b-a)
 	elif dot(project, b-a) < 0:		project = -project
@@ -441,6 +451,10 @@ def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None):
 	return sch
 	
 def note_distance_planes(s0, s1, offset=None, d=None, tol=None, text=None):
+	''' place a distance quotation between 2 meshes 
+		
+		`s0` and `s1` can be any of `Mesh, Web, Wire`
+	'''
 	n0 = s0.facenormal(0)
 	n1 = s1.facenormal(1)
 	if length2(cross(n0,n1)) > NUMPREC**2:
@@ -452,11 +466,28 @@ def note_distance_planes(s0, s1, offset=None, d=None, tol=None, text=None):
 		offset = length(noproject(boundingbox(s0,s1).width, n0)) * 0.6
 	return note_distance(p0, p1, offset, n0, d, tol, text)
 	
-def note_distance_set(s0, s1, offset, d=None, tol=None, text=None):
-	indev
+def note_distance_set(s0, s1, offset=0, d=None, tol=None, text=None):
+	''' place a distance quotation between 2 objects. This is the distance between the closest elements of both sets 
+	
+		`s0` and `s1` can be any of `Mesh, Web, Wire, vec3`
+	'''
+	dist, p0, p1 = mesh_distance(s0, s1)
+	if not d:	d = dist
+	# take the point and the higher dimension primitive
+	if not isinstance(p0,int):	s0,p0, s1,p1 = s1,p1, s0,p0
+	p0 = s0.points[p0]
+	pts = s1.points
+	if isinstance(p1, tuple):
+		if len(p1) == 2:	p1 = pts[p1[0]] + project(p0-pts[p1[0]], pts[p1[1]]-pts[p1[0]])
+		elif len(p1) == 3:	p1 = p0 + project(pts[p1[0]]-p0, cross(pts[p1[1]]-pts[p1[0]], pts[p1[2]]-pts[p1[0]]))
+	else:
+		p1 = s1.points[p1]
+	
+	return note_distance(p0, p1, offset, None, d, tol, text)
 		
 
 def note_angle(a0, a1, offset=0, d=None, tol=None, text=None, unit='deg'):
+	''' place an angle quotation between 2 axis '''
 	o0, d0 = a0
 	o1, d1 = a1
 	z = normalize(cross(d0,d1))
@@ -523,7 +554,10 @@ def _mesh_direction(mesh):
 		raise TypeError('only Mesh and Web are supported')
 	
 def note_angle_planes(s0, s1, offset=0, d=None, tol=None, text=None, unit='deg'):
-	''' place an angle quotation between 2 meshes considered to be plane (surface) or straight (curve) '''
+	''' place an angle quotation between 2 meshes considered to be plane (surface) or straight (curve) 
+	
+		`s0` and `s1` can be any of `Mesh, Web, Wire, Axis`
+	'''
 	d0, d1 = _mesh_direction(s0), _mesh_direction(s1)
 	z = normalize(cross(d0, d1))
 	if not isfinite(z):	
@@ -536,6 +570,7 @@ def note_angle_planes(s0, s1, offset=0, d=None, tol=None, text=None, unit='deg')
 				offset, d, tol, text, unit)
 				
 def note_angle_edge(part, edge, offset=0, d=None, tol=None, text=None, unit='deg'):
+	''' place an angle quotation around a mesh edge '''
 	f0 = None
 	f1 = None
 	for face in part.faces:
@@ -563,6 +598,10 @@ def note_surface(placement, offset=None, roughness=None, method=None):
 	indev
 	
 def note_label(placement, offset=None, text='!', style='rect'):
+	''' place a text label upon an object 
+	
+		`placement` can be any of `Mesh, Web, Wire, axis, vec3`
+	'''
 	p, normal = mesh_placement(placement)
 	if not offset:	
 		size = length(boundingbox(placement).width)
