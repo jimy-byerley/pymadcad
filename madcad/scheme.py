@@ -372,7 +372,7 @@ def mesh_placement(mesh) -> '(pos,normal)':
 	elif isinstance(mesh, Web):
 		center = mesh.barycenter()
 		e = min(mesh.edges,
-				key=lambda e:  length2(center - (mesh.points[a]+mesh.points[b])/2)
+				key=lambda e:  length2(center - (mesh.points[e[0]]+mesh.points[e[1]])/2)
 				)
 		normal = dirbase(normalize(mesh.points[e[0]]-mesh.points[e[1]]))[0]
 		pos = mix(mesh.points[e[0]], mesh.points[e[1]], 0.5)
@@ -383,6 +383,9 @@ def mesh_placement(mesh) -> '(pos,normal)':
 	elif isinstance(mesh, vec3):
 		normal = vec3(0)
 		pos = mesh
+		
+	elif hasattr(mesh, 'mesh'):
+		return mesh_placement(mesh.mesh())
 	
 	else:
 		raise TypeError('unable to place note on a {}'.format(type(mesh)))
