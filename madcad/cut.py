@@ -542,6 +542,8 @@ def bevel(mesh, edges, cutter, resolution=None):
 	''' create a chamfer on the given suite of points, create faces are planes.
 		cutter is described in function planeoffsets()
 	'''
+	if isinstance(edges, Web):	edges = edges.edges
+	
 	edges = [edgekey(*e)	for e in edges]
 	conn = connef(mesh.faces)
 	enormals = {}
