@@ -48,6 +48,7 @@ classes
 		.. automethod:: vertexnormals
 		
 		.. automethod:: edges
+		.. automethod:: edges_oriented
 		.. automethod:: group
 		.. automethod:: outlines_oriented
 		.. automethod:: outlines_unoriented
@@ -55,7 +56,10 @@ classes
 		.. automethod:: groupoutlines
 		.. automethod:: groupoutlines_oriented
 		.. automethod:: frontiers
+		.. automethod:: tangents
+		.. automethod:: islands
 		.. automethod:: surface
+		.. automethod:: barycenter
 	
 	**other methods**
 	
@@ -69,7 +73,7 @@ classes
 	
 	**Point container methods**
 	
-		Support for ``+, += Mesh``
+		Support for ``+, += Web``
 
 		.. automethod:: box
 		.. automethod:: transform
@@ -98,7 +102,9 @@ classes
 	
 		.. automethod:: extremities
 		.. automethod:: groupextremities
+		.. automethod:: segments
 		.. automethod:: length
+		.. automethod:: barycenter
 	
 	**other methods**
 	
@@ -107,13 +113,26 @@ classes
 
 
 .. autoclass:: madcad.mesh.Wire
-		
-	.. automethod:: length
-	.. automethod:: edges
-	.. automethod:: edge
 	
-	.. automethod:: isvalid
-	.. automethod:: check
+	**check methods**
+	
+		.. automethod:: check
+		.. automethod:: isvalid
+	
+	**extraction methods**
+	
+		.. automethod:: edges
+		.. automethod:: edge
+		.. automethod:: vertexnormals
+		.. automethod:: tangents
+		.. automethod:: normal
+		.. automethod:: length
+		.. automethod:: barycenter
+	
+	**other methods**
+	
+		.. automethod:: strippoints
+		.. automethod:: flip
 
 
 conversion functions
