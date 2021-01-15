@@ -101,9 +101,11 @@ class TextDisplay(rendering.Display):
 						(n //self.fontalign[0] -add[1]) / self.fontalign[1],
 						]
 				c += 1
-		l += 1
+		l += 1		
 		align = (processalign(align[0], c), -processalign(align[1], l))
 		points -= [*align, 0, 0]
+		self.textsize = (c,l)
+		self.visualsize = (-align[0], -align[1], c//2-align[0], l-align[1])
 			
 		
 		# create the buffers on the GPU
@@ -139,23 +141,7 @@ def processalign(align, size):
 	else:
 		return align
 
-def test_text_display():
-	import sys
-	from PyQt5.QtWidgets import QApplication
-	from view import Scene
-	
-	app = QApplication(sys.argv)
-	scn = Scene()
-	scn.add(Text((0,0,0), 'coucou 123456789', 8))
-	
-	scn.show()
-	sys.exit(app.exec())
-
-def test_font_texture():
-	im, shape = create_font_texture(ImageFont.truetype(ressourcedir+'NotoMono-Regular.ttf', 16))
-	im.show()
-
-
-if __name__ == '__main__':
-	#test_font_texture()
-	test_text_display()
+		
+#class Particles(rendering.Display):
+	#def __init__(self, texture, format, vertices):
+		#position, tile, size
