@@ -160,11 +160,12 @@ except ImportError:	pass
 else:
 	
 	def obj_read(file, **opts):
-		scene = pywavefront.Wavefront(file, parse=True, cache=False)
-		mesh = Mesh()
-		mesh.points = [vec3(v[:2]) for v in scene.vertices]
+		scene = pywavefront.Wavefront(file, parse=True, collect_faces=True)
+		points = [vec3(v[:3]) for v in scene.vertices]
+		faces = []
 		for sub in scene.meshes.values():
-			mesh.faces.extend(( tuple(f[:2]) for f in sub.faces ))
+			faces.extend(( tuple(f[:3]) for f in sub.faces ))
+		mesh = Mesh(points, faces)
 		if len(scene.meshes) == 1:
 			mesh.options['name'] = next(iter(scene.meshes))
 		return mesh
