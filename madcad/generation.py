@@ -146,7 +146,9 @@ def extrans(web, transformations, links) -> 'Mesh':
 def inflateoffsets(surf, distance, method='face') -> '[vec3]':
 	''' displacements vectors for points of a surface we want to inflate.
 		
-		:method:     determines if the distance is from the old to the new faces, edges or points
+		:method:     
+			determines if the distance is from the old to the new faces, edges or points
+			possible values: `'face', 'edge', 'point'`
 	'''
 	pnormals = surf.vertexnormals()
 	if method == 'face':
@@ -155,14 +157,14 @@ def inflateoffsets(surf, distance, method='face') -> '[vec3]':
 			fnormal = surf.facenormal(i)
 			for p in face:
 				lengths[p] = max(lengths[p], 1/dot(pnormals[p], fnormal))
-		return [pnormals[p]*lengths[p]   for p in range(len(pnormals))]
+		return [pnormals[p]*lengths[p]*distance   for p in range(len(pnormals))]
 	
 	elif method == 'edge':
 		lengths = [0]*len(pnormals)
 		for edge,enormal in surf.edgenormals():
 			for p in edge:
 				lengths[p] = max(lengths[p], 1/dot(pnormal[p], enormal))
-		return [pnormals[p]*lengths[p]	for p in range(len(pnormals))]
+		return [pnormals[p]*lengths[p]*distance	for p in range(len(pnormals))]
 		
 	elif method == 'point':
 		return [pnormals[p]*distance	for p in range(len(pnormals))]
@@ -186,8 +188,8 @@ def thicken(surf, thickness, alignment=0, method='face') -> 'Mesh':
 	'''
 	displts = inflateoffsets(surf, thickness, method)
 	
-	a = thickness*alignment
-	b = thickness*(alignment-1)
+	a = alignment
+	b = alignment-1
 	m = (	Mesh([p+d*a  for p,d in zip(surf.points,displts)], surf.faces[:], surf.tracks[:], surf.groups)
 		+	Mesh([p+d*b  for p,d in zip(surf.points,displts)], surf.faces, surf.tracks, surf.groups)
 			.flip() 
