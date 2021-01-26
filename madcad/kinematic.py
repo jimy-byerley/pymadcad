@@ -286,19 +286,10 @@ class Kinematic:
 	'''
 	def __init__(self, joints, fixed=(), solids=None):
 		self.joints = joints
+		self.solids = solids or getsolids(joints)
 		if isinstance(joints, set):	self.fixed = fixed
 		else:						self.fixed = set(id(solid) for solid in fixed)
-		if not solids:	self._detectsolids()
-		else:			self.solids = solids
 		self.options = {}
-	def _detectsolids(self):
-		solids = []
-		known = set()
-		for joint in self.joints:
-			for solid in joint.solids:
-				if id(solid) not in known:
-					solids.append(solid)
-		self.solids = solids
 		
 	def solve(self, *args, **kwargs):
 		return solvekin(self.joints, self.fixed, *args, **kwargs)
@@ -333,6 +324,15 @@ class Kinematic:
 		''' renderer for kinematic manipulation, linked to the current object '''
 		return Kinemanip(scene, self)
 
+def getsolids(joints):
+	''' return a list of the solids used by the given joints '''
+	solids = []
+	known = set()
+	for joint in joints:
+		for solid in joint.solids:
+			if id(solid) not in known:
+				solids.append(solid)
+	return solids
 
 class Pressure:
 	''' Represent a mechanical pressure repartition on a surface
@@ -396,20 +396,30 @@ class Kinemanip(rendering.Group):
 	
 	def __init__(self, scene, kinematic):
 		super().__init__(scene)
-		kinematic.solve()
-		self.update(scene, kinematic)
+		try:	kinematic.solve(maxiter=1000)
+		except constraints.SolveError:	pass
+		self._init(scene, kinematic)
 	
 	def update(self, scene, kinematic):
+		if [type(j)	for j in self.joints] == [type(j) for j in kinematic.joints]:
+			for ss,ks in zip(self.solids, kinematic.solids):
+				ks.position = ss.position
+				ks.orientation = ss.orientation
+	
+	def _init(self, scene, kinematic):
 		self.joints = kinematic.joints
 		self.fixed = kinematic.fixed
 		self.locked = set(kinematic.fixed)
-		self.solids = {id(solid): solid   for solid in kinematic.solids}
+		self.solids = kinematic.solids
+		self.register = {id(s): i	for i,s in enumerate(self.solids)}
 		super().update(scene, self.solids)
 		
 	def control(self, view, key, sub, evt):
+		# no action on the root solid
 		if sub[0] in self.fixed:	return
 		
 		if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
+			# start solid drag
 			evt.accept()
 			solid = self.solids[sub[0]]
 			self.startpt = view.ptat(view.somenear(evt.pos()))
@@ -429,7 +439,6 @@ class Kinemanip(rendering.Group):
 				# displace the moved object
 				pt = view.ptfrom(evt.pos(), self.startpt)
 				self.startpt = solid.position - quat(solid.orientation)*self.ptoffset
-				#store(solid.position, pt+quat(solid.orientation)*self.ptoffset)
 				solid.position = pt+quat(solid.orientation)*self.ptoffset
 				# solve
 				self.solve(view, temp=True)
@@ -449,37 +458,40 @@ class Kinemanip(rendering.Group):
 			if temp:	solvekin(self.joints, self.locked, precision=1e-2, maxiter=50)
 			else:		solvekin(self.joints, self.locked, precision=1e-4, maxiter=1000)
 		except constraints.SolveError as err:	
-			for key in self.locked:
-				if 'solid-fixed' in self.displays[key].displays:
-					self.displays[key].displays['solid-fixed'].color = fvec3(settings.display['solver_error_color'])
+			for disp in self.displays.values():
+				if 'solid-fixed' in disp.displays:
+					disp.displays['solid-fixed'].color = fvec3(settings.display['solver_error_color'])
 		else:
-			for key in self.locked:
-				if 'solid-fixed' in self.displays[key].displays:
-					self.displays[key].displays['solid-fixed'].color = fvec3(settings.display['schematics_color'])
+			for disp in self.displays.values():
+				if 'solid-fixed' in disp.displays:
+					disp.displays['solid-fixed'].color = fvec3(settings.display['schematics_color'])
 		self.applyposes(view)
 	
 	def applyposes(self, view):
 		# assign new positions to displays
-		for key, solid in self.solids.items():
-			self.displays[key].pose = fmat4(solid.pose())
+		for i, solid in enumerate(self.solids):
+			self.displays[i].pose = fmat4(solid.pose())
 		view.update()
 	
 	def lock(self, view, solid, lock):
 		key = id(solid)
+		grp = self.displays[self.register[key]]
 		if key in self.fixed or lock == (key in self.locked):	
 			return
 		if lock:
 			# add solid's variables to fixed
 			self.locked.add(key)
 			box = Box(center=fvec3(0), width=fvec3(-inf))
-			for display in self.displays[key].displays.values():
+			for display in grp.displays.values():
 				box.union(display.box)
-			self.displays[key].displays['solid-fixed'] = BoxDisplay(view.scene, box)
+			grp.selected = True
+			grp.displays['solid-fixed'] = BoxDisplay(view.scene, box, color=fvec3(settings.display['schematics_color']))
 			self.applyposes(view)
 		else:
 			# remove solid's variables from fixed
 			self.locked.remove(key)
-			del self.displays[key].displays['solid-fixed']
+			grp.selected = False
+			del grp.displays['solid-fixed']
 		view.scene.touch()
 		view.update()
 
