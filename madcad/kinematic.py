@@ -405,6 +405,7 @@ class Kinemanip(rendering.Group):
 			for ss,ks in zip(self.solids, kinematic.solids):
 				ks.position = ss.position
 				ks.orientation = ss.orientation
+		return super().update(scene, kinematic.solids)
 	
 	def _init(self, scene, kinematic):
 		self.joints = kinematic.joints
@@ -478,19 +479,18 @@ class Kinemanip(rendering.Group):
 		grp = self.displays[self.register[key]]
 		if key in self.fixed or lock == (key in self.locked):	
 			return
+		grp.selected = lock
 		if lock:
 			# add solid's variables to fixed
 			self.locked.add(key)
 			box = Box(center=fvec3(0), width=fvec3(-inf))
 			for display in grp.displays.values():
 				box.union(display.box)
-			grp.selected = True
 			grp.displays['solid-fixed'] = BoxDisplay(view.scene, box, color=fvec3(settings.display['schematics_color']))
 			self.applyposes(view)
 		else:
 			# remove solid's variables from fixed
 			self.locked.remove(key)
-			grp.selected = False
 			del grp.displays['solid-fixed']
 		view.scene.touch()
 		view.update()

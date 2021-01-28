@@ -567,6 +567,7 @@ class Group(Display):
 				if key not in self.displays or not self.displays[key].update(scene, obj):
 					self.displays[key] = scene.display(obj)
 		scene.touch()
+		return True
 	dequeue = update
 	
 	def stack(self, scene):
