@@ -45,12 +45,7 @@ from PyQt5.QtCore import Qt, QPoint, QEvent
 from PyQt5.QtWidgets import QOpenGLWidget, QApplication
 from PyQt5.QtGui import QSurfaceFormat, QMouseEvent, QInputEvent, QKeyEvent, QTouchEvent
 
-from .mathutils import (fvec3, fvec4, fmat3, fmat4, fquat, vec3, Box, mat4_cast, mat3_cast,
-						sin, cos, tan, atan2, pi, inf, exp, isnan, isinf, isfinite,
-						dot, cross, length, project, noproject, transpose, inverse, affineInverse, 
-						perspective, ortho, translate, 
-						bisect, boundingbox,
-						)
+from .mathutils import *
 from .common import ressourcedir
 from . import settings
 
@@ -342,8 +337,8 @@ class Scene:
 		- rendering pipeline stuff
 			
 			:displays:      dictionnary of items in the scheme `{'name': Display}`
-			:stacks:        lists of callables to render each target `{'target': [(key, priority, callable)]}`
-			:setup:         callable for setup of each rendering target
+			:stacks:        lists of callables to render each target `{'target': [(key, priority, callable(view))]}`
+			:setup():         callable for setup of each rendering target
 			
 			:touched:       flag set to True if the stack must be recomputed at the next render time (there is a change in a Display or in one of its children)
 			
@@ -429,17 +424,18 @@ class Scene:
 	def dequeue(self):
 		''' load all pending objects to insert into the scene '''
 		if self.queue:
-			self.ctx.finish()
-			# update displays
-			for key,displayable in self.queue.items():
-				if key not in self.displays or not self.displays[key].update(self, displayable):
-					try:	self.displays[key] = self.display(displayable)
-					except Exception as err:
-						self.touched = True
-						self.queue.clear()
-						raise
-			self.touched = True
-			self.queue.clear()
+			with self.ctx:
+				self.ctx.finish()
+				# update displays
+				for key,displayable in self.queue.items():
+					if key not in self.displays or not self.displays[key].update(self, displayable):
+						try:	self.displays[key] = self.display(displayable)
+						except Exception as err:
+							self.touched = True
+							self.queue.clear()
+							raise
+				self.touched = True
+				self.queue.clear()
 		
 		if self.touched:
 			# recreate stack
@@ -838,10 +834,12 @@ class View(QOpenGLWidget):
 			This is changing the zoom level
 		'''
 		if not box:	box = self.scene.box()
+		if box.isempty():	return
+		
 		# get the most distant point to the focal axis
 		invview = affineInverse(self.navigation.matrix())
 		camera, look = fvec3(invview[3]), fvec3(invview[2])
-		dist = length(noproject(box.center-camera, look)) + length(box.width)/2
+		dist = length(noproject(box.center-camera, look)) + max(glm.abs(box.width))/2 * 1.1
 		if not dist > 1e-6:	return
 		
 		# adjust navigation distance
