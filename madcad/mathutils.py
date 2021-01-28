@@ -29,7 +29,7 @@ COMPREC = 1-NUMPREC
 #COMPREC = 1-NUMPREC
 
 def isfinite(x):
-	return not glm.any(isinf(x) or isnan(x))
+	return not (glm.any(isinf(x)) or glm.any(isnan(x)))
 
 def norminf(x):
 	''' norm L infinite  ie.  `max(abs(x), abs(y), abs(z))` '''
@@ -318,8 +318,8 @@ class Box:
 		''' return True if the box defines a valid space (min coordinates <= max coordinates) '''
 		return any(self.min <= self.max)
 	def isempty(self):
-		''' return True if the box contains a non null volume '''
-		return any(self.min >= self.max)
+		''' return True if the box contains a non null circumference '''
+		return not any(self.min < self.max)
 	
 	def __add__(self, other):
 		if isinstance(other, vec3):		return Box(self.min + other, self.max + other)
@@ -364,10 +364,9 @@ class Box:
 		return self
 	def transform(self, trans):
 		''' box bounding the current one in a transformed space '''
-		if self.isempty():	return self
+		if not self.isvalid():	return self
 		trans = transformer(trans)
-		box = boundingbox((trans(p)  for p in self.corners())) #, vec=type(self.min))
-		return box
+		return boundingbox((trans(p)  for p in self.corners()))
 	def cast(self, vec):
 		return Box(vec(self.min), vec(self.max))
 	
