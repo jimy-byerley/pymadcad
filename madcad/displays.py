@@ -737,8 +737,8 @@ class GridDisplay(Display):
 	
 	def render(self, view):
 		center = fvec3( view.uniforms['view'] * self.world * fvec4(self.center,1) )
+		if not center.z > 0:	return
 		zlog = log(-center.z)/log(10)
-		if isnan(zlog):	return
 		sizelog = floor(zlog)
 		
 		view.scene.ctx.point_size = 1/400 * view.fb_screen.height
