@@ -737,7 +737,7 @@ class GridDisplay(Display):
 	
 	def render(self, view):
 		center = fvec3( view.uniforms['view'] * self.world * fvec4(self.center,1) )
-		if not center.z > 0:	return
+		if not center.z < 0:	return
 		zlog = log(-center.z)/log(10)
 		sizelog = floor(zlog)
 		
