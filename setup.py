@@ -7,7 +7,7 @@ try:
 except ImportError:
 	cython_modules = [Extension('madcad.core', ['madcad/core.c'])]
 else:
-	cython_modules = cythonize(['madcad/core.pyx'])
+	cython_modules = cythonize(['madcad/core.pyx'])	#, annotate=True)
 
 setup(
 	# package declaration
@@ -22,6 +22,7 @@ setup(
 		'PyQt5>=5', 
 		'Pillow>=5.4', 
 		'cython>=0.29',
+		'pyyaml>=5',
 		],
 	extras_require={
 		'PLY': ['plyfile>=0.7'],
@@ -30,7 +31,6 @@ setup(
 		},
 	# source declaration
 	packages=find_packages(),
-	#ext_modules=cythonize(['madcad/core.pyx'], annotate=True),
 	ext_modules=cython_modules,
 	package_data={
 		'madcad': [

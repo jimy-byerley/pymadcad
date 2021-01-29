@@ -9,7 +9,7 @@ dictionnaries:
 
 from math import pi, ceil, floor, sqrt
 from glm import fvec3
-import os, json
+import os, yaml
 from os.path import dirname, exists
 
 
@@ -57,11 +57,11 @@ controls = {
 	}
 
 primitives = {
-	'curve_resolution': ('rad', pi/16),	# angle maximal pour discretisation des courbes
+	'curve_resolution': ['rad', pi/16],	# angle maximal pour discretisation des courbes
 	}
 
 
-config = os.getenv('HOME')+'/.config/madcad/pymadcad.json'
+config = os.getenv('HOME')+'/.config/madcad/pymadcad.yaml'
 settings = {'display':display, 'scene':scene, 'controls':controls, 'primitives':primitives}
 
 
@@ -79,7 +79,7 @@ def load(file=None):
 	''' load the settings directly in this module, from the specified file or the default one '''
 	if not file:	file = config
 	if isinstance(file, str):	file = open(file, 'r')
-	changes = json.load(file)
+	changes = yaml.safe_load(file)
 	for key,group in settings.items():
 		if key not in changes:	continue
 		for k,v in group.items():
@@ -94,12 +94,10 @@ def dump(file=None):
 	''' load the current settings into the specified file or to the default one '''
 	if not file:	file = config
 	if isinstance(file, str):	file = open(file, 'w')
-	def default(obj):
-		if isinstance(obj, fvec3):	return tuple(obj)
-		else:
-			raise TypeError('Object of type {} is not JSON serializable'.format(type(obj)))
-	json.dump(settings, file, indent='\t', ensure_ascii=True, default=default)
-	
+	yaml.add_representer(fvec3, lambda dumper, data: dumper.represent_list(round(f,3) for f in data))
+	file.write(yaml.dump(settings, default_flow_style=None, width=40, indent=4))
+
+
 
 
 def curve_resolution(length, angle, param=None):
