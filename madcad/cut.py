@@ -134,14 +134,13 @@ def cut(mesh, start, cutplane, stops, conn, prec, removal, cutghost=True):
 		fpts = mesh.facepoints(fi)
 		p = None
 		for a in axis:
-			p = intersection_axis_face(a, fpts)
-			if p and distance(p, pts[f[0]]) > prec and distance(p, pts[f[1]]) > prec and distance(p, pts[f[2]]) > prec:	
-				break
-			p = None
+			p = intersection_axis_face(a, fpts, prec)
+			if p:	break
 		if p:
 			# mark cutplane change
 			# empty faces can be generated, but they are necessary to keep the connectivity working
 			pi = mesh.usepointat(p, prec)
+			#print('   ', pi, f, faceheight(mesh, fi), prec)	# this is to detect the vicious circles that can appear in case of numeric instability
 			l = len(mesh.faces)
 			unregisterface(mesh, conn, fi)				
 			mesh.faces[fi] = (f[0], f[1], pi)
@@ -433,7 +432,7 @@ def intersection_edge_plane(axis, edge, prec):
 	edgedir = normalize(edgedir)
 	return edge[0] + dist * edgedir / dot(edgedir, axis[1])
 
-def intersection_axis_face(axis, face):
+def intersection_axis_face(axis, face, prec):
 	''' return the intersection point between an axis and a triangle, or None if it doesn't exist '''
 	coords = inverse(dmat3(face[1]-face[0], face[2]-face[0], axis[1])) * dvec3(axis[0] - face[0])
 	if 0 < coords[0] and 0 < coords[1] and coords[0]+coords[1] < 1 :
@@ -441,6 +440,18 @@ def intersection_axis_face(axis, face):
 		return face[0] + coords[0]*(face[1]-face[0]) + coords[1]*(face[2]-face[0])
 	else:
 		return None
+
+def intersection_axis_face(axis, face, prec):
+	n = cross(face[1]-face[0], face[2]-face[0])
+	unp = dot(n, axis[1])
+	if abs(unp) <= prec:	return None
+	p = axis[0] + dot(face[0]-axis[0], n) / unp * axis[1]
+	for i in range(3):
+		if dot(p - face[i], normalize(cross(n,face[i]-face[i-1]))) <= prec:
+		#if dot(p - face[i], normalize(cross(n,face[i]-face[i-1]))) < -prec:
+			return None
+	return p
+
 
 
 def removefaces(mesh, crit):
