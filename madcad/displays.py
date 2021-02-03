@@ -375,9 +375,11 @@ class SolidDisplay(Display):
 		self.box = npboundingbox(positions)
 		self.options = scene.options
 		color = fvec3(color or settings.display['solid_color'])
-		line = settings.display['line_color']
+		setting = settings.display['line_color']
+		line = length(setting) * normalize(mix(color, setting, 0.4))	if max(color) else setting
+		reflect = normalize(color) * settings.display['solid_reflectivity']
 		self.vertices = Vertices(scene.ctx, positions, idents)
-		self.disp_faces = FacesDisplay(scene, self.vertices, normals, faces, color=color)
+		self.disp_faces = FacesDisplay(scene, self.vertices, normals, faces, color=color, reflect=reflect)
 		self.disp_ghost = GhostDisplay(scene, self.vertices, normals, faces, color=line)
 		self.disp_groups = LinesDisplay(scene, self.vertices, lines, color=line, alpha=1)
 		self.disp_points = PointsDisplay(scene, self.vertices, range(len(positions)))
@@ -478,13 +480,14 @@ class Vertices(object):
 
 
 class FacesDisplay:
-	def __init__(self, scene, vertices, normals, faces, color):
+	def __init__(self, scene, vertices, normals, faces, color, reflect):
 		self.color = color
+		self.reflect = reflect
 		self.vertices = vertices
 	
 		# load the skybox texture
 		def load(scene):
-			img = Image.open(ressourcedir+'/textures/skybox-violet-saturated.png')
+			img = Image.open(ressourcedir+'/textures/'+settings.display['solid_reflect'])
 			return scene.ctx.texture(img.size, 3, img.tobytes())
 		self.reflectmap = scene.ressource('skybox', load)
 		
@@ -526,7 +529,7 @@ class FacesDisplay:
 			# setup uniforms
 			self.shader['min_color'].write(self.color * settings.display['solid_color_side'])
 			self.shader['max_color'].write(self.color * settings.display['solid_color_front'])
-			self.shader['refl_color'].write(self.color)
+			self.shader['refl_color'].write(self.reflect)
 			self.shader['world'].write(self.vertices.world)
 			self.shader['view'].write(view.uniforms['view'])
 			self.shader['proj'].write(view.uniforms['proj'])
@@ -758,6 +761,8 @@ class GridDisplay(Display):
 
 def tupledisplay(scene, t):
 	if primitives.isaxis(t):	return AxisDisplay(scene, t)
+	# if not found: empty display
+	return Display()
 
 overrides.update({
 	vec3:   PointDisplay,

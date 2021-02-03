@@ -26,6 +26,8 @@ display = {
 	'solid_color': fvec3(0.2, 0.2, 0.2),
 	'solid_color_front': 1.,
 	'solid_color_side': 0.2,
+	'solid_reflectivity': 6,
+	'solid_reflect': 'skybox-white.png',
 	'line_color': fvec3(0.9, 0.9, 0.9),
 	'point_color': fvec3(0.9, 0.9, 0.9),
 	'schematics_color': fvec3(0.3, 0.8, 1),
@@ -137,10 +139,6 @@ def use_qt_colors():
 	from PyQt5.QtWidgets import QApplication
 	palette = QApplication.instance().palette()
 	
-	def qtc(role):
-		c = palette.color(role)
-		return fvec3(c.red(), c.green(), c.blue()) / 255
-	
 	selection = mix(fvec3(0.4, 1, 0), qtc(palette.Highlight), 0.6)
 	selection *= mix(1/max(selection), max(qtc(palette.Text)), 0.3)
 	display.update({
@@ -154,6 +152,15 @@ def use_qt_colors():
 		'annotation_color': mix(qtc(palette.Highlight), qtc(palette.Text), 0.5),
 		})
 
+def qtc(c):
+	''' convert a QColor or QPalette role to fvec3'''
+	if not isinstance(c, QColor):	
+		c = palette.color(role)
+	return fvec3(c.red(), c.green(), c.blue()) / 255
+	
+def ctq(c):
+	''' convert a fvec3 to QColor '''
+	return QColor(*(255*c))
 
 # automatically load settings in the file exist
 try:	load()
