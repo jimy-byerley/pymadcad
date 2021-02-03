@@ -435,7 +435,7 @@ def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None):
 	sch.add(txt.Text(
 				mix(ao,bo,0.5), 
 				text, 
-				align=('center','center'), 
+				align=('center', 0.5), 
 				size=9, 
 				color=fvec4(color,1)))
 	sch.set(shader='fill')
@@ -458,13 +458,14 @@ def note_distance_planes(s0, s1, offset=None, d=None, tol=None, text=None):
 		
 		`s0` and `s1` can be any of `Mesh, Web, Wire`
 	'''
-	n0 = s0.facenormal(0)
-	n1 = s1.facenormal(1)
-	if length2(cross(n0,n1)) > NUMPREC**2:
-		raise ValueError('surfaces are not parallel')
+	#n0 = s0.facenormal(0)
+	#n1 = s1.facenormal(1)
+	#print('angle', length(cross(n0,n1)), n0, n1)
 	
-	p0 = mesh_placement(s0)[0]
-	p1 = mesh_placement(s1)[0]
+	p0, n0 = mesh_placement(s0)
+	p1, n1 = mesh_placement(s1)
+	if length2(cross(n0,n1)) > 1e-10:
+		raise ValueError('surfaces are not parallel')
 	if not offset:
 		offset = length(noproject(boundingbox(s0,s1).width, n0)) * 0.6
 	return note_distance(p0, p1, offset, n0, d, tol, text)
@@ -530,7 +531,7 @@ def note_angle(a0, a1, offset=0, d=None, tol=None, text=None, unit='deg'):
 	sch.add(txt.Text(
 				arc[len(arc)//2], 
 				text, 
-				align=('center','center'), 
+				align=('center', 0.5), 
 				size=9, 
 				color=fvec4(color,1)))
 	sch.set(shader='fill')
