@@ -1,10 +1,12 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
 import numpy as np
-import os
+import os, tempfile
+from functools import wraps
+from hashlib import md5
+
 from .mathutils import vec3, glm, inf
 from .mesh import Mesh, Wire
-from . import generation
 
 class FileFormatError(Exception):	pass
 
@@ -35,9 +37,11 @@ def write(mesh: Mesh, name: str, type=None, **opts):
 	else:
 		raise FileFormatError('no write function available for format '+type)
 
+cachedir = tempfile.gettempdir() + '/madcad-cache'
 caches = {}
 def cache(filename: str, create: callable=None, name=None, storage=None, **opts) -> Mesh:
 	''' Small cachefile system, it allows to dump objects to files and to get them when needed.
+		
 		It's particularly usefull when working with other processes. The cached files are reloaded only when the cache files are newer than the memory cache data
 		
 		If specified, create() is called to provide the data, in case it doesn't exist in memory neighter as file
@@ -57,13 +61,36 @@ def cache(filename: str, create: callable=None, name=None, storage=None, **opts)
 	else:
 		if name in storage:	obj = storage[name][1]
 		elif create:		obj = create()
-		else:				obj = None
-		if obj:
-			write(filename, obj, **opts)
-			storage[name] = (os.path.getmtime(filename), obj)
 		else:
 			raise IOError("the cache file doesn't exist")
+		write(obj, filename, **opts)
+		storage[name] = (os.path.getmtime(filename), obj)
 	return storage[name][1]
+	
+	
+
+def cachefunc(f):
+	''' Decorator to cache a function results.
+		
+		Use it if you want to cache their result associated with the argument set used 
+	'''
+	@wraps(f)
+	def repl(*args, **kwargs):
+		if not os.path.exists(cachedir):
+			os.makedirs(cachedir)
+		key = '{}/{}.ply'.format(
+			cachedir,
+			hex(int.from_bytes(
+				md5(repr((
+					f.__name__, 
+					*args, 
+					sorted(list(kwargs.items()))
+					)).encode())
+					.digest(),
+				'little')),
+			)
+		return cache(key, lambda: f(*args, **kwargs))
+	return repl
 
 
 '''
