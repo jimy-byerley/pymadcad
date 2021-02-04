@@ -39,7 +39,7 @@
 '''
 
 from math import sqrt
-from .mathutils import vec3, mat3, normalize, anglebt, project, noproject, cos, sin, atan2, pi, length, distance, cross, vec2, mat2, determinant, inverse, dot, atan, acos, dirbase
+from .mathutils import vec3, mat3, mix, normalize, anglebt, project, noproject, cos, sin, atan2, pi, length, distance, cross, vec2, mat2, determinant, inverse, dot, atan, acos, dirbase
 from . import settings
 from . import displays
 from . import mesh
@@ -69,7 +69,7 @@ Vector = Point = vec3
 
 class Axis(object):
 	''' Mimic the behavior of a tuple, but with the primitive signature. '''
-	__slots__ = ('origin', 'dir', 'interval')
+	__slots__ = ('origin', 'direction', 'interval')
 	def __init__(self, origin, direction, interval=None):
 		self.origin, self.direction = origin, direction
 		self.interval = interval
@@ -78,12 +78,12 @@ class Axis(object):
 		elif i==1:	return self.direction
 		else:		raise IndexError('an axis has only 2 components')
 	
-	slvvars = ('origin', 'dir')
+	slvvars = ('origin', 'direction')
 	def slv_tangent(self, pt):
 		return self.direction
 	
 	def display(self, scene):
-		yield displays.AxisDisplay(scene, (self.origin, self.direction), self.interval)
+		return displays.AxisDisplay(scene, (self.origin, self.direction), self.interval)
 			
 def isaxis(obj):
 	return isinstance(obj, Axis) or isinstance(obj, tuple) and len(obj)==2 and isinstance(obj[0],vec3) and isinstance(obj[1],vec3)
@@ -98,6 +98,10 @@ class Segment(object):
 	@property
 	def direction(self):
 		return normalize(self.b-self.a)
+		
+	@property
+	def origin(self):
+		return mix(self.a, self.b, 0.5)
 		
 	slvvars = 'a', 'b'
 	def slv_tangent(self, pt):
