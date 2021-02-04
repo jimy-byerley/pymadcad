@@ -11,6 +11,7 @@ max = __builtins__['max']
 min = __builtins__['min']
 any = __builtins__['any']
 all = __builtins__['all']
+round = __builtins__['round']
 
 
 vec2 = dvec2

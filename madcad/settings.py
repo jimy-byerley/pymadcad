@@ -8,7 +8,7 @@ dictionnaries:
 '''
 
 from math import pi, ceil, floor, sqrt
-from glm import fvec3
+from glm import fvec3, fvec4
 import os, yaml
 from os.path import dirname, exists
 
@@ -82,21 +82,23 @@ def load(file=None):
 	if not file:	file = config
 	if isinstance(file, str):	file = open(file, 'r')
 	changes = yaml.safe_load(file)
-	for key,group in settings.items():
-		if key not in changes:	continue
-		for k,v in group.items():
-			if k not in changes:	continue
-			# adaptation
-			if isinstance(group[k], fvec3):
-				group[k] = fvec3(v)
-			else:
-				group[k] = change[k]
+	def update(dst, src):
+		for key in dst:
+			if key in src:
+				if isinstance(dst[key], dict) and isinstance(src[key], dict):	
+					update(dst[key], src[key])
+				elif isinstance(dst[key], fvec3):	dst[key] = fvec3(src[key])
+				elif isinstance(dst[key], fvec4):	dst[key] = fvec4(src[key])
+				else:
+					dst[key] = src[key]
+	update(settings, changes)
 
 def dump(file=None):
 	''' load the current settings into the specified file or to the default one '''
 	if not file:	file = config
 	if isinstance(file, str):	file = open(file, 'w')
 	yaml.add_representer(fvec3, lambda dumper, data: dumper.represent_list(round(f,3) for f in data))
+	yaml.add_representer(fvec4, lambda dumper, data: dumper.represent_list(round(f,3) for f in data))
 	file.write(yaml.dump(settings, default_flow_style=None, width=40, indent=4))
 
 
@@ -138,6 +140,11 @@ def use_qt_colors():
 	from .mathutils import fvec3, mix, distance
 	from PyQt5.QtWidgets import QApplication
 	palette = QApplication.instance().palette()
+	def qtc(role):
+		''' convert a QColor or QPalette role to fvec3'''
+		c = palette.color(role)
+		return fvec3(c.red(), c.green(), c.blue()) / 255
+		
 	
 	selection = mix(fvec3(0.4, 1, 0), qtc(palette.Highlight), 0.6)
 	selection *= mix(1/max(selection), max(qtc(palette.Text)), 0.3)
@@ -152,15 +159,6 @@ def use_qt_colors():
 		'annotation_color': mix(qtc(palette.Highlight), qtc(palette.Text), 0.5),
 		})
 
-def qtc(c):
-	''' convert a QColor or QPalette role to fvec3'''
-	if not isinstance(c, QColor):	
-		c = palette.color(role)
-	return fvec3(c.red(), c.green(), c.blue()) / 255
-	
-def ctq(c):
-	''' convert a fvec3 to QColor '''
-	return QColor(*(255*c))
 
 # automatically load settings in the file exist
 try:	load()
