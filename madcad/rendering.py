@@ -945,9 +945,10 @@ class View(QOpenGLWidget):
 		self.update()
 	
 	def changeEvent(self, evt):
-		super().changeEvent(evt)
+		# detect theme change
 		if evt.type() == QEvent.PaletteChange and settings.display['system_theme']:
 			settings.use_qt_colors()
+		return super().changeEvent(evt)
 
 
 
