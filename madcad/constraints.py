@@ -58,21 +58,63 @@ class Tangent(Constraint):
 
 class Distance(Constraint):
 	''' Makes two points distant of the fixed given distance '''
-	__slots__ = 'p1', 'p2', 'd', 'location'
+	__slots__ = 'p1', 'p2', 'd', 'along', 'location'
 	slvvars = 'p1', 'p2'
 	def fit(self):
-		return (distance(self.p1, self.p2) - self.d) **2
+		if isinstance(self.p1, vec3) and isinstance(self.p2, vec3):
+			if self.along:
+				if isinstance(along, vec3):	a = along
+				else:						a = along.direction
+				return (dot(self.p1-self.p2, a) - d) ** 2
+			else:
+				return (distance(self.p1, self.p2) - self.d) **2
+		elif isinstance(self.p1, vec3):
+			return (length(noproject(self.p2.origin-self.p1, self.p2.direction)) - self.d) **2
+		elif isinstance(self.p2, vec3):
+			return (length(noproject(self.p1.origin-self.p2, self.p1.direction)) - self.d) **2
+		else:
+			d1 = self.p1.direction
+			d2 = self.p2.direction
+			if dot(d1,d2) < 0:	d2 = -d2
+			return length2(cross(d1,d2)) + (length(noproject(self.p1.origin-self.p2.origin, d1+d2)) - self.d) **2
+			
 	#def fitgrad(self):
 		#return derived.compose(dot, Derived(self.p1), Derived(self.p2))
 	def display(self, scene):
-		return scene.display(scheme.note_distance(
+		if isinstance(self.p1, vec3) and isinstance(self.p2, vec3):
+			return scene.display(scheme.note_distance(
 					self.p1, self.p2, 
+					project=self.along,
 					text='{:.5g}\n{:+.1g}'.format(self.d, sqrt(self.fit())),
 					))
+		elif isinstance(self.p1, vec3):
+			return scene.display(scheme.note_distance(
+					self.p1, self.p1 + noproject(self.p2.origin-self.p1, self.p2.direction),
+					text='{:.5g}\n{:+.1g}'.format(self.d, sqrt(self.fit())),
+					))
+		elif isinstance(self.p2, vec3):
+			return scene.display(scheme.note_distance(
+					self.p2, self.p2 + noproject(self.p1.origin-self.p2, self.p1.direction), 
+					text='{:.5g}\n{:+.1g}'.format(self.d, sqrt(self.fit())),
+					))
+		else:
+			p = mix(self.p1.origin, self.p2.origin, 0.5)
+			d1 = self.p1.direction
+			d2 = self.p2.direction
+			if dot(d1,d2) < 0:	d2 = -d2
+			d = d1 + d2
+			p1 = self.p1.origin
+			p2 = self.p2.origin
+			return scene.display(scheme.note_distance(
+					p + noproject(p1-p, d),
+					p + noproject(p2-p, d),
+					text='{:.5g}\n{:+.1g}'.format(self.d, sqrt(self.fit())),
+					))
+			
 
 class Angle(Constraint):
 	''' Gets two segments with the given fixed angle between them '''
-	__slots__ = 's1', 's2', 'angle', 'location'
+	__slots__ = 's1', 's2', 'angle'
 	slvvars = 's1', 's2'
 	def fit(self):
 		d1 = self.s1.direction
@@ -81,14 +123,20 @@ class Angle(Constraint):
 		return (a - self.angle)**2
 	def display(self, scene):
 		return scene.display(scheme.note_angle(
-					(mix(self.s1.a, self.s1.b, 0.5), -self.s1.direction),
-					(mix(self.s2.a, self.s2.b, 0.5), -self.s2.direction),
+					(self.s1.origin, -self.s1.direction),
+					(self.s2.origin, -self.s2.direction),
 					text='{:.5g}°\n{:+.1g}'.format(degrees(self.angle), degrees(sqrt(self.fit()))),
 					))
 
-def Parallel(s1,s2):
+class Parallel(Constraint):
 	''' Strict equivalent of Angle(s1,s2,0) '''
-	return Angle(s1,s2,0)
+	__slots__ = 's1', 's2'
+	slvvars = __slots__
+	def fit(self):
+		d1 = self.s1.direction
+		d2 = self.s2.direction
+		return length2(cross(d1,d2))
+		
 
 class Radius(Constraint):
 	''' Gets the given Arc with the given fixed radius 
