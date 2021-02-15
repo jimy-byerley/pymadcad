@@ -233,6 +233,8 @@ class Scheme:
 			if self.vai_triangles:	self.vai_triangles.render(mgl.TRIANGLES)
 		
 		def stack(self, scene):
+			if self.annotation and not scene.options['display_annotations']:
+				return
 			yield ((), 'screen', 2, self.render) 
 			yield ((), 'ident', 2, self.identify)
 			for space,disp in self.components:
@@ -312,11 +314,12 @@ class Annotation:
 
 
 class note_leading_display(Display):
-	def __init__(self, scene, origin, offset, comment):
+	def __init__(self, scene, origin, offset, comment, annotation=True):
 		self.origin = fvec3(origin)
 		self.offset = fvec3(offset)
 		self.comment = comment
 		self._world = fmat4(1)
+		self.annotation = annotation
 		
 		def build(side):
 			color = settings.display['annotation_color']
@@ -351,6 +354,8 @@ class note_leading_display(Display):
 		self.disp[self.side(view)].identify(view)
 	
 	def stack(self, scene):
+		if self.annotation and not scene.options['display_annotations']:
+			return ()
 		return ((), 'screen', 2, self.render), ((), 'ident', 2, self.identify)
 		
 	@writeproperty
@@ -364,7 +369,7 @@ def mesh_placement(mesh) -> '(pos,normal)':
 		# group center normal
 		center = mesh.barycenter()
 		f = min(mesh.faces,
-				key=lambda f:  length2(center - sum(mesh.facepoints(f))/3)
+				key=lambda f:  dot(center - sum(mesh.facepoints(f))/3, mesh.facenormal(f))
 				)
 		normal = mesh.facenormal(f)
 		pos = sum(mesh.facepoints(f)) / 3
@@ -399,12 +404,16 @@ def note_leading(placement, offset=None, text='here'):
 	origin, normal = mesh_placement(placement)
 	if not offset:
 		offset = 0.2 * length(boundingbox(placement).width) * normal
+	elif isinstance(offset, (float,int)):
+		offset = offset*normal
+	elif not isinstance(offset, vec3):
+		raise TypeError('offset must be scalar or vector')
 	return Displayable(note_leading_display, origin, offset, text)
 
 
-def note_floating(position, text, *args, **kwargs):
+def note_floating(position, text):
 	''' place a floating note at given position '''
-	return txt.Text(position, text, *args, **kwargs, color=settings.display['annotation_color'], size=9)
+	return txt.Text(position, text, align=(0,0), color=settings.display['annotation_color'], size=9)
 
 def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None):
 	''' place a distance quotation between 2 points, 
