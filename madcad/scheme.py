@@ -632,7 +632,7 @@ def note_label(placement, offset=None, text='!', style='rect'):
 			space=scale_screen(fvec3(p)), shader='fill')
 	sch.add([p, p+offset], space=world, shader='line', layer=2e-4)
 	r = 5
-	if style == 'circle':	outline = Circle((vec3(0),vec3(0,0,1)), r)
+	if style == 'circle':	outline = web(Circle((vec3(0),vec3(0,0,1)), r))
 	elif style == 'rect':	outline = [vec3(r,r,0), vec3(-r,r,0), vec3(-r,-r,0), vec3(r,-r,0), vec3(r,r,0)]
 	else:
 		raise ValueError("style must be 'rect' or 'circle'")
