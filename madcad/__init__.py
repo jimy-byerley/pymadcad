@@ -155,7 +155,7 @@ from .constraints import isconstraint, SolveError, Tangent, Distance, Angle, Par
 from .kinematic import Torsor, comomentum, Pressure, Solid, solvekin, Kinematic, isjoint
 from .joints import Pivot, Plane, Track, Gliding
 from .selection import select
-from .io import read, write, cache
+from .io import read, write, cache, cachefunc
 from .triangulation import TriangulationError
 
 from .scheme import *
