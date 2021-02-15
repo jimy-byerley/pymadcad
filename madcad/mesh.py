@@ -649,6 +649,9 @@ class Mesh(Container):
 		edges = m.groupoutlines().edges
 		normals = m.vertexnormals()
 		
+		if not m.points or not m.faces:	
+			return displays.Display()
+		
 		return displays.SolidDisplay(scene, 
 				glmarray(m.points), 
 				glmarray(normals), 
@@ -889,6 +892,9 @@ class Web(Container):
 					else:				frontier.add(p)
 			for p in frontier:
 				frontiers.append(used[p])
+				
+		if not points or not edges:
+			return displays.Display()
 		
 		return displays.WebDisplay(scene,
 				glmarray(points), 
@@ -962,6 +968,10 @@ class Wire:
 		indices = self.indices[:]
 		indices.reverse()
 		return Wire(self.points, indices, self.group)
+		
+	def close(self):
+		self.indices.append(self.indices[0])
+		return self
 		
 	def isvalid(self):
 		''' return True if the internal data are consistent '''
@@ -1054,13 +1064,21 @@ class Wire:
 	
 	def __iadd__(self, other):
 		if not isinstance(other, Wire):		return NotImplemented
-		if self.points is not other.points:	raise ValueError("edges doesn't refer to the same points buffer")
-		self.indices.extend(other.indices)
+		if self.points is other.points:	#raise ValueError("edges doesn't refer to the same points buffer")
+			self.indices.extend(other.indices)
+		else:
+			return NotImplemented
+			
 	
 	def __add__(self, other):
 		if not isinstance(other, Wire):		return NotImplemented
-		if self.points is not other.points:	raise ValueError("edges doesn't refer to the same points buffer")
-		return Wire(self.points, self.indices+other.indices)
+		if self.points is other.points:	#raise ValueError("edges doesn't refer to the same points buffer")
+			return Wire(self.points, self.indices+other.indices)
+		else:
+			l = []
+			l.extend(self)
+			l.extend(other)
+			return Wire(l)
 		
 	def strippoints(self):
 		self.points = [self.points[i]	for i in self.indices]
@@ -1107,6 +1125,8 @@ def wire(*args):
 		pool = Wire([])
 		for primitive in args:
 			add = wire(primitive)
+			if pool.indices and pool[-1] == add[0]:	
+				pool.indices.pop()
 			l = len(pool.points)
 			pool.points.extend(add.points)
 			pool.indices.extend((i+l  for i in add.indices))
