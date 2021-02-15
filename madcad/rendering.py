@@ -429,11 +429,10 @@ class Scene:
 				# update displays
 				for key,displayable in self.queue.items():
 					if key not in self.displays or not self.displays[key].update(self, displayable):
-						try:	self.displays[key] = self.display(displayable)
+						try:	
+							self.displays[key] = self.display(displayable)
 						except Exception as err:
-							self.touched = True
-							self.queue.clear()
-							raise
+							traceback.print_exc()
 				self.touched = True
 				self.queue.clear()
 		
@@ -499,12 +498,16 @@ class Scene:
 		if type(obj) in overrides:
 			disp = overrides[type(obj)](self, obj)
 		elif hasattr(obj, 'display'):
-			if isinstance(obj.display, type):
-				disp = obj.display(self, obj)
-			elif callable(obj.display):
-				disp = obj.display(self)
-			else:
-				raise TypeError("member 'display' must be a method or a type")
+			try:
+				if isinstance(obj.display, type):
+					disp = obj.display(self, obj)
+				elif callable(obj.display):
+					disp = obj.display(self)
+				else:
+					raise TypeError("member 'display' must be a method or a type, on {}".format(type(obj).__name__))
+			except:
+				print('\ntried to display', repr(obj))
+				raise
 		else:
 			raise TypeError('type {} is not displayable'.format(type(obj).__name__))
 		
@@ -515,7 +518,7 @@ class Scene:
 
 def displayable(obj):
 	''' return True if the given object has the matching signature to be added to a Scene '''
-	return type(obj) in overrides or hasattr(obj, 'display')
+	return type(obj) in overrides or hasattr(obj, 'display') and callable(obj.display)
 
 
 class Step(Display):
