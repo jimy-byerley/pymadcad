@@ -22,20 +22,21 @@ end_marker = {'}', ')', ']'}
 symbols = {':', '*', '/', '+', '-', '<', '>'}
 specials = {'\\'}
 
-line_length = 100
+line_width = 100
 
 # blue-green colors
-#color_encloser =	'\x1b[0;36;40m'
-#color_marker =		'\x1b[0;37;40m'
-#color_specials =	'\x1b[1;31;40m'
-#color_number =		'\x1b[1;34;40m'
+color_encloser =	'\x1b[38;5;42m'
+color_marker =		'\x1b[38;5;46m'
+color_specials =	'\x1b[38;5;33m'
+color_number =		'\x1b[38;5;33m'
+color_camel =		'\x1b[1;34;40m'
 
 # red-orange colors
-color_encloser =	'\x1b[0;31;40m'
-color_marker =		'\x1b[0;37;40m'
-color_specials =	'\x1b[1;93;40m'
-color_number =		'\x1b[1;91;40m'
-color_camel =		'\x1b[1;34;40m'
+#color_encloser =	'\x1b[38;5;196m'
+#color_marker =		'\x1b[38;5;214m'
+#color_specials =	'\x1b[38;5;202m'
+#color_number =		'\x1b[38;5;202m'
+#color_camel =		'\x1b[1;34;40m'
 
 # enable automatic coloration if supported
 enable_color = 'COLORTERM' in os.environ
@@ -63,16 +64,17 @@ def next_beginner(text, seek):
 	return i
 '''
 	
-def nformat(text, indent=0):
+def nformat(text, indent=0, width=None):
 	""" output text, splited into indented blocks, newlines are kept """
 	if type(text) != str:	text = str(text)
 	out = ""
 	seek = 0
+	if not width:	width = line_width
 	
 	while seek < len(text):
 		if text[seek] in begin_marker:
 			term = _next_terminator(text, seek+1)
-			if term - seek > line_length or '\n' in text[seek:term]:	# develop enclosement if its length is over that line_length
+			if term - seek > width or '\n' in text[seek:term]:	# develop enclosement if its length is over that width
 				indent += 1
 				out += text[seek]
 				if _next_separator(text, seek+1) < term: 	# no return if there is only one element in the enclosement
