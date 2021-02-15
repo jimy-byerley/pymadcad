@@ -654,6 +654,8 @@ class WireDisplay(rendering.Display):
 		if self.vb_lines:			self.va_ident_lines.render(mgl.LINES)
 
 	def stack(self, scene):
+		if not scene.options['display_annotations']:
+			return ()
 		return ( ((), 'screen', 1, self.render),
 				 ((), 'ident', 2, self.identify))
 
