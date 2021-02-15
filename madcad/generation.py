@@ -19,31 +19,30 @@ __all__ = [
 # --- extrusion things ---
 	
 def extrans_pre(obj):
-	result = Mesh(groups=obj.groups)
 	face = None
 	if isinstance(obj, Web):	
-		web = Web(obj.points[:], obj.edges, obj.tracks, obj.groups)
+		line = Web(obj.points[:], obj.edges, obj.tracks, obj.groups)
 	elif isinstance(obj, Mesh):	
-		web = obj.outlines()
+		line = obj.outlines()
 		face = obj
 	else:
-		web = web(obj)
-	web.strippoints()
-	return web, face
+		line = web(obj)
+	line.strippoints()
+	return line, face
 	
 def extrans_post(mesh, face, first, last):
 	if face:
 		mesh += face.transform(first) + face.transform(last).flip()
 		
 
-def extrusion(displt, web):
+def extrusion(displt, line):
 	''' create a surface by extruding the given outline by a displacement vector '''
-	web, face = extrans_pre(web)
-	mesh = Mesh([], [], [], web.groups)
-	mesh.points.extend(web.points)
-	mesh.points.extend((p+displt for p in web.points))
-	l = len(web.points)
-	for (a,b),t in zip(web.edges, web.tracks):
+	line, face = extrans_pre(line)
+	mesh = Mesh([], [], [], line.groups)
+	mesh.points.extend(line.points)
+	mesh.points.extend((p+displt for p in line.points))
+	l = len(line.points)
+	for (a,b),t in zip(line.edges, line.tracks):
 		mesh.faces.append((a, b,   b+l))
 		mesh.faces.append((a, b+l, a+l))
 		mesh.tracks.append(t)
@@ -51,14 +50,15 @@ def extrusion(displt, web):
 	extrans_post(mesh, face, vec3(0), displt)
 	return mesh
 
-def revolution(angle, axis, web, resolution=None):
+def revolution(angle, axis, profile, resolution=None):
 	''' create a revolution surface by extruding the given outline
 		`steps` is the number of steps between the start and the end of the extrusion
 	'''
-	web.strippoints()
+	if not isinstance(profile, (Mesh,Wire,Web)):	
+		profile = web(profile)
 	# get the maximum radius, to compute the curve resolution
 	radius = 0
-	for pt in web.points:
+	for pt in profile.points:
 		v = pt-axis[0]
 		v -= project(v,axis[1])
 		radius = max(radius, length(v))
@@ -71,21 +71,23 @@ def revolution(angle, axis, web, resolution=None):
 			m = mat4(r)
 			m[3] = vec4(axis[0] - r*axis[0], 1)
 			yield m
-	return extrans(web, trans(), ((i,i+1) for i in range(steps-1)))
+	return extrans(profile, trans(), ((i,i+1) for i in range(steps-1)))
 
 def saddle(web1, web2):
 	''' create a surface by extruding outine1 translating each instance to the next point of outline2
 	'''
+	web1, web2 = web(web1), web(web2)
 	def trans():
 		s = web2.points[0]
 		for p in web2.points:
 			yield translate(mat4(1), p-s)
 	return extrans(web1, trans(), web2.edges)
 
-def tube(web, path, end=True, section=True):
-	''' create a tube surface by extrusing the outline 1 along the outline 2
+def tube(outline, path, end=True, section=True):
+	''' create a tube surface by extrusing the outline along the path
 		if section is True, there is a correction of the segments to keep the section undeformed by the curve
 	'''
+	path = wire(path)
 	def trans():
 		lastrot = quat()
 		l = len(path)-1
@@ -98,9 +100,10 @@ def tube(web, path, end=True, section=True):
 				v1 = normalize(path[i-1]-o)
 				v2 = normalize(path[i+1]-o)
 				c = cross(-v1,v2)
+				o = dot(-v1,v2)
 				cl = length(c)
 				cn = c/cl
-				ha = asin(cl)/2
+				ha = atan2(cl,o)/2
 				hrot = angleAxis(ha, cn)
 				# calcul de la rotation de la section
 				rot = hrot * lastrot
@@ -116,7 +119,8 @@ def tube(web, path, end=True, section=True):
 	
 	trans = trans()
 	if not end:		next(trans)
-	return extrans(web, trans, ((i,i+1) for i in range(len(path)-1)))
+	return extrans(outline, trans, ((i,i+1) for i in range(len(path)-1)))
+
 
 
 def extrans(web, transformations, links) -> 'Mesh':
@@ -207,7 +211,7 @@ def thicken(surf, thickness, alignment=0, method='face') -> 'Mesh':
 
 def flatsurface(outline, normal=None) -> 'Mesh':
 	''' generates a surface for a flat outline using the prefered triangulation method '''
-	m = triangulation.triangulation_outline(outline, normal)
+	m = triangulation.triangulation_outline(wire(outline), normal)
 	if normal and dot(m.facenormal(0), normal) < 0:
 		m = m.flip()
 	return m
