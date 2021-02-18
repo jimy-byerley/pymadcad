@@ -1,13 +1,7 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
-from .mathutils import (vec3, mat3, mat4, quat, quat,
-						isnan, inverse,
-						dot, cross, distance, length, normalize, project, noproject, dirbase,
-						pi, inf, glm,
-						sin, cos, atan2,
-						transform,
-						)
-from .kinematic import Torsor, WireDisplay, Scheme
+from .mathutils import *
+from .kinematic import Torsor, WireDisplay, Scheme, Joint
 from .mesh import Mesh, Wire, web, Web
 from . import generation, primitives
 
@@ -57,7 +51,7 @@ def solidtransform_base(solid, obj):
 	if len(obj) == 3:	return (rot*obj[0] + solid.position, rot*obj[1], rot*obj[2])
 	if len(obj) == 4:	return (rot*obj[0] + solid.position, rot*obj[1], rot*obj[2], rot*obj[3])
 
-class Pivot:
+class Pivot(Joint):
 	''' Junction for rotation only around an axis
 	
 		classical definition:	Pivot (axis)
@@ -153,7 +147,7 @@ class Pivot:
 			s.extend(Scheme(c2.points, s2.faces, [], c2.edges()))
 			return s
 
-class Plane:
+class Plane(Joint):
 	''' Joint for translation in 2 directions and rotation around the third direction 
 		
 		classical definition:	Plane (direction vector)
@@ -204,7 +198,7 @@ class Plane:
 			[(0,1),(1,2),(2,3),(3,0),(4,6),(6,7)],
 			)
 
-class Track:
+class Track(Joint):
 	''' Joint for translation only in a direction 
 		
 		classical definition:  Track (direction vector)
@@ -305,7 +299,7 @@ class Track:
 						(4,6), (5,7)],
 					)
 
-class Gliding:
+class Gliding(Joint):
 	''' Joint for rotation and translation around an axis 
 		
 		classical definition:  Gliding pivot (axis)
@@ -382,7 +376,7 @@ class Gliding:
 			return Scheme([center-side, center+side, center+attach, junc], [], [], [(0,1), (2,3)])
 
 
-class Ball:
+class Ball(Joint):
 	''' Joint for rotation all around a point.
 	
 		classical definition: Ball (point)
@@ -432,7 +426,7 @@ class Ball:
 			return Scheme(sph.points, sph.faces, [], 
 					[(l+0, l+1)] + list(sph.outlines_unoriented()) )
 	
-class Punctiform:
+class Punctiform(Joint):
 	''' Joint for rotation all around a point belonging to a plane.
 	
 		classical definition: Punctiform/Sphere-Plane (axis)
@@ -481,7 +475,7 @@ class Punctiform:
 			return Scheme(sph.points, sph.faces, [], [(l+0, l+1)])
 
 
-class Gear:
+class Gear(Joint):
 	''' Gear interaction between two solids.
 	
 		`ratio` is the factor from the rotation of s1 to the rotation of s2
@@ -524,7 +518,6 @@ class Gear:
 		if solid is self.solids[0]:		i0,i1,n = 0,1,self.ratio
 		elif solid is self.solids[1]:	i0,i1,n = 1,0,1/self.ratio
 		else:	return
-		from .mathutils import sqrt, mix
 		
 		a0, a1 = solidtransform_axis(self.solids[0],self.axis[0]), solidtransform_axis(self.solids[1],self.axis[1])
 		x,y,z = dirbase(self.axis[i0][1], align=junc-self.axis[i0][0])
@@ -555,7 +548,7 @@ class Gear:
 		return sch
 
 
-class Helicoid:
+class Helicoid(Joint):
 	''' Screw a solid into an other.
 	
 		`step` is the translation distance needed for that one solid turn by 2*pi around the other

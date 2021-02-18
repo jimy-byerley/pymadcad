@@ -153,7 +153,7 @@ from .blending import junction, multijunction, blend, blendloop, blendpair, blen
 from .primitives import isprimitive, Point, Axis, Segment, ArcThrough, ArcCentered, Circle, isaxis
 from .constraints import isconstraint, SolveError, Tangent, Distance, Angle, Parallel, Radius, Projected, PointOn, OnPlane, solve
 from .kinematic import Torsor, comomentum, Pressure, Solid, solvekin, Kinematic, isjoint
-from .joints import Pivot, Plane, Track, Gliding
+from .joints import Pivot, Plane, Track, Gliding, Ball, Punctiform, Gear, Helicoid
 from .selection import select
 from .io import read, write, cache, cachefunc
 from .triangulation import TriangulationError
