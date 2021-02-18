@@ -22,7 +22,6 @@ class PointDisplay(Display):
 		self.size = size
 		self.selected = False
 		self.color = fvec3(color or settings.display['line_color'])
-		self.box = Box(center=self.position, width=fvec3(0))
 		
 		def load(scene):
 			img = Image.open(ressourcedir+'/textures/point.png')
@@ -48,6 +47,10 @@ class PointDisplay(Display):
 			self.va, 
 			self.ident_shader, 
 			self.va_ident	) = scene.ressource('pointhalo', load)
+			
+	@property
+	def box(self):
+		return Box(center=self.position, width=fvec3(0))
 	
 	def render(self, view):
 		self.shader['color'].write(fvec3(settings.display['select_color_line']) if self.selected else self.color)
