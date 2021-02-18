@@ -37,6 +37,7 @@
 '''
 
 from copy import copy, deepcopy
+import traceback
 
 import moderngl as mgl
 import numpy.core as np
@@ -561,7 +562,9 @@ class Group(Display):
 		return self.displays[key]
 	def update(self, scene, objs):
 		if isinstance(objs, dict):		items = objs.items()
-		else:							items = enumerate(objs)
+		elif hasattr(objs, '__iter__'):	items = enumerate(objs)
+		else:
+			return False
 		# update displays
 		with scene.ctx:
 			scene.ctx.finish()
@@ -602,8 +605,10 @@ class Group(Display):
 
 
 # dictionnary to store procedures to override default object displays
-overrides = {}
-overrides[list] = Group
+overrides = {
+	list: Group,
+	dict: Group,
+	}
 
 
 class View(QOpenGLWidget):
@@ -887,7 +892,6 @@ class View(QOpenGLWidget):
 			
 			This function can be overwritten to change the view widget behavior.
 		'''
-		
 		# send the event to the current tools using the view
 		if self.tool:	
 			for tool in reversed(self.tool):
@@ -895,12 +899,17 @@ class View(QOpenGLWidget):
 				if evt.isAccepted():	return
 				
 		# send the event to the scene objects, descending the item tree
-		if isinstance(evt, QMouseEvent) and evt.type() in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease, QEvent.MouseButtonDblClick):
+		if isinstance(evt, QMouseEvent) and evt.type() in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease, QEvent.MouseButtonDblClick, QEvent.MouseMove):
 			pos = self.somenear(evt.pos())
 			if pos:
 				key = self.itemat(pos)
 				self.control(key, evt)
 				if evt.isAccepted():	return
+			
+			# if clicks are not accepted, then some following keyboard events may not come to the widget
+			# NOTE this also discarding the ability to move the window from empty areas
+			if evt.type() == QEvent.MouseButtonPress:
+				evt.accept()
 				
 	def control(self, key, evt):
 		''' transmit a control event successively to all the displays matching the key path stages.
