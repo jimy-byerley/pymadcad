@@ -505,7 +505,7 @@ def note_angle(a0, a1, offset=0, d=None, tol=None, text=None, unit='deg'):
 	o1, d1 = a1
 	z = normalize(cross(d0,d1))
 	if not isfinite(z):	
-		raise ValueError('planes are parallel')
+		raise ValueError('axis are parallel')
 	x0 = cross(d0,z)
 	x1 = cross(d1,z)
 	shift = project(o1-o0, z) * 0.5
@@ -525,7 +525,7 @@ def note_angle(a0, a1, offset=0, d=None, tol=None, text=None, unit='deg'):
 	# arc center
 	if o1 == o0:	center = o0
 	else:			center = o0 + unproject(project(o1-o0, x1), d0)
-	radius = mix(distance(o0,center), distance(o0,center), 0.5) + offset
+	radius = mix(distance(o0,center), distance(o1,center), 0.5) + offset
 	if not radius:	radius = 1
 	# arc extremities
 	p0 = center+radius*d0
