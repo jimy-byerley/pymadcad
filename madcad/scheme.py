@@ -182,23 +182,24 @@ class Scheme:
 			
 		def load(self, scene):
 			''' load shaders and all static data for the current opengl context '''
+			vert = open(ressourcedir+'/shaders/scheme.vert').read()
 			shader_ident = scene.ctx.program(
-						vertex_shader=open(ressourcedir+'/shaders/scheme.vert').read(),
+						vertex_shader=vert,
 						fragment_shader=open(ressourcedir+'/shaders/scheme-ident.frag').read(),
 						)
 			shaders = {
 				'line': (mgl.LINES, scene.ctx.program(
-						vertex_shader=open(ressourcedir+'/shaders/scheme.vert').read(),
+						vertex_shader=vert,
 						fragment_shader=open(ressourcedir+'/shaders/scheme-uniform.frag').read(),
 						)),
 				'fill': (mgl.TRIANGLES, scene.ctx.program(
-						vertex_shader=open(ressourcedir+'/shaders/scheme.vert').read(),
+						vertex_shader=vert,
 						fragment_shader=open(ressourcedir+'/shaders/scheme-uniform.frag').read(),
 						)),
-				#'ghost': (glm.TRIANGLES, scene.ctx.program(
-						#vertex_shader=open(ressourcedir+'/shaders/scheme.vert').read(),
-						#fragment_shader=open(ressourcedir+'/shaders/scheme_transp.frag').read(),
-						#)),
+				'ghost': (mgl.TRIANGLES, scene.ctx.program(
+						vertex_shader=vert,
+						fragment_shader=open(ressourcedir+'/shaders/scheme-ghost.frag').read(),
+						)),
 				}
 			return shaders, shader_ident
 			
