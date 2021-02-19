@@ -20,8 +20,8 @@ void main() {
 	
 	vec4 p = world * vec4(v_position, 1);
 	// world space vectors for the fragment shader
-	sight = - v_position - transpose(mat3(view)) * vec3(view[3]);
-	normal = v_normal;
+	sight = vec3(inverse(view) * vec4(0,0,0,1) - p);
+	normal = mat3(world) * v_normal;
 	
 	gl_Position = proj * view * p;	// set vertex position for render
 }
