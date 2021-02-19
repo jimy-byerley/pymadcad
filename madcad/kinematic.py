@@ -34,6 +34,7 @@ from . import settings
 from . import constraints
 from . import text
 from . import rendering
+from . import nprint
 from .displays import BoxDisplay
 
 __all__ = ['Torsor', 'comomentum', 'Pressure', 'Solid', 'Kinematic', 'Kinemanip', 'solvekin',
@@ -119,29 +120,29 @@ class Solid:
 		:visuals (list):      of objects to display using the solid's pose
 		:name (str):          optional name to display on the scheme
 	'''
-	def __init__(self, *args, pose=None, name=None):
+	def __init__(self, pose=None, **objs):
 		if pose:
 			self.position = pose[0]
 			self.orientation = quat(pose[1])
 		else:
 			self.position = vec3(0)
 			self.orientation = quat()
-		self.visuals = list(args)
-		self.name = name
+		self.visuals = objs
+	
 	# solver variable definition
 	slvvars = 'position', 'orientation',
 	
-	#@property
+	@property
 	def pose(self) -> 'mat4':
 		''' transformation from local to global space, 
 			therefore containing the translation and rotation from the global origin 
 		'''
 		return transform(self.position, self.orientation)
 		
-	#@pose.setter
-	#def pose(self, mat):
-		#self.position = vec3(mat[3])
-		#self.orientation = quat_cast(mat3(mat))
+	@pose.setter
+	def pose(self, mat):
+		self.position = vec3(mat[3])
+		self.orientation = quat_cast(mat3(mat))
 	
 	def transform(self, mat):
 		''' displace the solid by the transformation '''
@@ -155,15 +156,30 @@ class Solid:
 			raise TypeError('Torsor.transform() expect mat4, mat3 or vec3')
 		self.orientation = rot*self.orientation
 		self.position += trans
+		
+	# convenient content access
+	def __getitem__(self, key):
+		return self.visuals[key]
+	def __setitem__(self, key, value):
+		self.visuals[key] = value
+	def add(self, value):
+		key = next(i 	for i in range(len(self.visuals)+1)	
+						if i not in self.visuals	)
+		self.visuals[key] = value
+		return key
+	def set(self, **objs):
+		self.visuals.update(objs)
+		return self
 	
 	class display(rendering.Group):
 		def __init__(self, scene, solid):
 			super().__init__(scene, solid.visuals)
-			self.pose = fmat4(solid.pose())
+			self.pose = fmat4(solid.pose)
+			self._selected = False
 		def update(self, scene, solid):
 			if isinstance(solid, Solid):
 				super().update(scene, solid.visuals)
-				self.pose = fmat4(solid.pose())
+				self.pose = fmat4(solid.pose)
 				return True
 
 
@@ -193,15 +209,17 @@ def solvekin(joints, fixed=(), precision=1e-4, maxiter=None, damping=0.9):
 				counts[i] += 1
 				indices.append(i)
 	
+	corr = [[] for i in range(len(solids))]
 	corrmax = inf
 	itercount = 0
 	while corrmax > precision:
 		if maxiter and maxiter <= itercount:
 			raise constraints.SolveError('maximum iteration count reached with no solution found, err='+str(corrmax))
 		
+		for c in corr:
+			c.clear()
 		corrmax = 0
 		# collect corrections
-		corr = [[] for i in range(len(solids))]
 		i = 0
 		for joint in joints:
 			for action in joint.corrections():
@@ -310,7 +328,7 @@ class Kinematic:
 	
 	@property
 	def pose(self) -> '[mat4]':
-		return [solid.pose() 	for solid in self.solids]
+		return [solid.pose 	for solid in self.solids]
 	@pose.setter
 	def pose(self, value):
 		for solid,pose in zip(self.solids, pose):
@@ -332,6 +350,7 @@ def getsolids(joints):
 		for solid in joint.solids:
 			if id(solid) not in known:
 				solids.append(solid)
+				known.add(id(solid))
 	return solids
 
 class Pressure:
@@ -413,6 +432,7 @@ class Kinemanip(rendering.Group):
 		self.locked = set(kinematic.fixed)
 		self.solids = kinematic.solids
 		self.register = {id(s): i	for i,s in enumerate(self.solids)}
+		makescheme(self.joints)
 		super().update(scene, self.solids)
 		
 	def control(self, view, key, sub, evt):
@@ -434,30 +454,31 @@ class Kinemanip(rendering.Group):
 			
 			if evt.type() == QEvent.MouseMove:
 				evt.accept()
-				# unlock moving solid
-				self.lock(view, solid, False)
 				moved = True
+				# unlock moving solid
+				if self.islocked(solid):
+					self.lock(view.scene, solid, False)
 				# displace the moved object
 				pt = view.ptfrom(evt.pos(), self.startpt)
 				self.startpt = solid.position - quat(solid.orientation)*self.ptoffset
 				solid.position = pt+quat(solid.orientation)*self.ptoffset
 				# solve
-				self.solve(view, temp=True)
+				self.solve(False)
+				view.update()
 			
 			elif evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
-				evt.accept()
+				if moved:	evt.accept()
 				break
 		
-		if not moved:
-			self.lock(view, solid, id(solid) not in self.locked)
-		else:
+		if moved:
 			# finish on a better precision
-			self.solve(view)
+			self.solve(True)
+			view.update()
 	
-	def solve(self, view, temp=False):
+	def solve(self, final=False):
 		try:	
-			if temp:	solvekin(self.joints, self.locked, precision=1e-2, maxiter=50)
-			else:		solvekin(self.joints, self.locked, precision=1e-4, maxiter=1000)
+			if final:	solvekin(self.joints, self.locked, precision=1e-4, maxiter=1000)
+			else:		solvekin(self.joints, self.locked, precision=1e-3, maxiter=50, damping=0.95)
 		except constraints.SolveError as err:	
 			for disp in self.displays.values():
 				if 'solid-fixed' in disp.displays:
@@ -466,34 +487,35 @@ class Kinemanip(rendering.Group):
 			for disp in self.displays.values():
 				if 'solid-fixed' in disp.displays:
 					disp.displays['solid-fixed'].color = fvec3(settings.display['schematics_color'])
-		self.applyposes(view)
+		self.applyposes()
 	
-	def applyposes(self, view):
+	def applyposes(self):
 		# assign new positions to displays
 		for i, solid in enumerate(self.solids):
-			self.displays[i].pose = fmat4(solid.pose())
-		view.update()
+			self.displays[i].pose = fmat4(solid.pose)
 	
-	def lock(self, view, solid, lock):
+	def lock(self, scene, solid, lock):
+		''' lock the pose of the given solid '''
+		if lock == self.islocked(solid):	
+			return
 		key = id(solid)
 		grp = self.displays[self.register[key]]
-		if key in self.fixed or lock == (key in self.locked):	
-			return
-		grp.selected = lock
 		if lock:
 			# add solid's variables to fixed
 			self.locked.add(key)
 			box = Box(center=fvec3(0), width=fvec3(-inf))
 			for display in grp.displays.values():
 				box.union(display.box)
-			grp.displays['solid-fixed'] = BoxDisplay(view.scene, box, color=fvec3(settings.display['schematics_color']))
-			self.applyposes(view)
+			grp.displays['solid-fixed'] = BoxDisplay(scene, box, color=fvec3(settings.display['schematics_color']))
+			self.applyposes()
 		else:
 			# remove solid's variables from fixed
 			self.locked.remove(key)
 			del grp.displays['solid-fixed']
-		view.scene.touch()
-		view.update()
+		scene.touch()
+		
+	def islocked(self, solid):
+		return id(solid) in self.locked
 
 
 
@@ -517,14 +539,11 @@ def makescheme(joints, color=None):
 	size = (max(diag) or 1) / len(joints)
 	
 	for info in solids.values():
-		scheme = Scheme([], [], [], [], color)
+		info[0]['scheme'] = scheme = Scheme([], [], [], [], color)
 		center = info[2]/info[3]
 		if glm.any(isnan(center)):	center = vec3(0)
 		for cst in info[1]:
 			scheme.extend(cst.scheme(info[0], size, center))
-		info[0].visuals.append(scheme)
-		if info[0].name:
-			info[0].visuals.append(text.Text(center, info[0].name))
 
 
 class Scheme:
@@ -634,7 +653,7 @@ class WireDisplay(rendering.Display):
 		if self.vb_lines:		self.va_lines.render(mgl.LINES)
 		
 		ctx.enable(mgl.CULL_FACE)
-		if self.vb_transpfaces:	
+		if self.vb_transpfaces:
 			self.transpshader['color'].write(color)
 			self.transpshader['view'].write(viewmat)
 			self.transpshader['proj'].write(view.uniforms['proj'])

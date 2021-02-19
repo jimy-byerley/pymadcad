@@ -543,6 +543,7 @@ class Displayable:
 
 
 def writeproperty(func):
+	''' decorator to create a property that has only an action on variable write '''
 	fieldname = '_'+func.__name__
 	def getter(self):	return getattr(self, fieldname)
 	def setter(self, value):
@@ -918,18 +919,25 @@ class View(QOpenGLWidget):
 			This function can be overwritten to change the interaction with the scene objects.
 		'''
 		disp = self.scene.displays
+		stack = []
 		for i in range(1,len(key)):
 			disp = disp[key[i-1]]
 			disp.control(self, key[:i], key[i:], evt)
 			if evt.isAccepted(): return
+			stack.append(disp)
 		
 		if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
-			disp = self.scene.item(key)
+			disp = stack[-1]
+			# select what is under cursor
 			if type(disp).__name__ in ('SolidDisplay', 'WebDisplay'):
 				disp.vertices.selectsub(key[-1])
 				disp.selected = any(disp.vertices.flags & 0x1)
 			else:
 				disp.selected = not disp.selected
+			# make sure that a display is selected if one of its sub displays is
+			for disp in reversed(stack):
+				if isinstance(disp, Group):
+					disp.selected = any(sub.selected	for sub in disp.displays.values())
 			self.update()
 	
 	# -- Qt things --
