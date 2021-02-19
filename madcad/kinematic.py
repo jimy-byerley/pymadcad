@@ -340,6 +340,7 @@ class Kinematic:
 		indev
 	def display(self, scene):
 		''' renderer for kinematic manipulation, linked to the current object '''
+		makescheme(self.joints)
 		return Kinemanip(scene, self)
 
 def getsolids(joints):
@@ -432,7 +433,6 @@ class Kinemanip(rendering.Group):
 		self.locked = set(kinematic.fixed)
 		self.solids = kinematic.solids
 		self.register = {id(s): i	for i,s in enumerate(self.solids)}
-		makescheme(self.joints)
 		super().update(scene, self.solids)
 		
 	def control(self, view, key, sub, evt):
