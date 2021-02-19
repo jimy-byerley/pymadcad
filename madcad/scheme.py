@@ -34,6 +34,38 @@ class Scheme:
 		self.current = {'color':fvec4(settings.display['annotation_color'],1), 'flags':0, 'layer':0, 'space':world, 'shader':'wire', 'track':0, 'normal':fvec3(0)}
 		self.set(**kwargs)
 		
+	def __iadd__(self, other):
+		''' concatenante the content of an other scheme in the current one
+			
+			the current settings stay as before concatenation
+		'''
+		ls = len(self.spaces)
+		lv = len(self.vertices)
+		lt = max(self.tracks)+1
+		self.spaces.extend(other.spaces)
+		self.components.extend(other.components)
+		self.vertices.extend([
+							v[0] + ls, 
+							*v[1:5],
+							v[5] + lt, 
+							v[6],
+						]  for v in other.vertices)
+		for shader, prims in other.primitives:
+			if shader not in self.primitives:
+				self.primitives[shader] = []
+			self.primitives[shader].extend(tuple(i+lv  for i in p) for p in prims)
+		
+		return self
+		
+	def __add__(self, other):
+		''' return the union of the two schemes 
+		
+			the current settings are those from first scheme
+		'''
+		r = deepcopy(self)
+		r += other
+		return r
+		
 	def set(self, *args, **kwargs):
 		''' change the specified attributes in the current default vertex definition '''
 		if args:
@@ -51,6 +83,8 @@ class Scheme:
 			self.current['space'] = i
 		if not isinstance(self.current['color'], fvec4):
 			self.current['color'] = fvec4(self.current['color'])
+		
+		return self
 	
 	def add(self, obj, **kwargs):
 		''' add an object to the scheme
@@ -106,11 +140,15 @@ class Scheme:
 			indices.extend((i,i+1)	for i in range(l, n-1))
 		else:
 			self.component(obj)
+			
+		return self
 	
 	def component(self, obj, **kwargs):
 		''' add an object as component associated to the current space '''
 		self.set(**kwargs)
 		self.components.append((self.current['space'], obj))
+		
+		return self
 	
 	class display(Display):
 		''' display for schemes
