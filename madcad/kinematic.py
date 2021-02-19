@@ -11,7 +11,7 @@
 	A kinematic in itself is a set of solids, observing movement relations. Those are modeled across the following classes: ``Solid`` and ``Kinematic``.
 	
 	Solids are considered to be undeformable, this allows the to use the Screw theory to represent the force and movement variables (see https://en.wikipedia.org/wiki/Screw_theory). 
-	In this module, screws are called ``Torsor``.
+	In this module, screws are called ``Screw``.
 	
 	.. tip::
 		In case of undeformable solids, torsors makes possible to represent both the translative and rotative part of each movement aspect, independently from the point in the solid.
@@ -37,12 +37,12 @@ from . import rendering
 from . import nprint
 from .displays import BoxDisplay
 
-__all__ = ['Torsor', 'comomentum', 'Pressure', 'Solid', 'Kinematic', 'Kinemanip', 'solvekin',
-			'makescheme', 'Scheme', 'WireDisplay',
+__all__ = ['Screw', 'comomentum', 'Pressure', 'Solid', 'Kinematic', 'Kinemanip', 'solvekin',
+			 'Scheme', 'WireDisplay',
 			]
 
 
-class Torsor(object):
+class Screw(object):
 	''' a 3D torsor aka Screw aka Wrench aka Twist - is a mathematical object defined as follow:
 		  * a resulting vector R
 		  * a momentum vector field M
@@ -56,22 +56,22 @@ class Torsor(object):
 		
 		torsor are usefull for generalized solid mechanics to handle multiple variables of the same nature:
 		  * force torsor:	
-			  Torsor(force, torque, pos)
+			  Screw(force, torque, pos)
 		  * velocity (aka kinematic) torsor:
-			  Torsor(rotation, velocity, pos)
+			  Screw(rotation, velocity, pos)
 		  * kinetic (inertia) torsor:
-			  Torsor(linear movement quantity, rotational movement quantity, pos)
+			  Screw(linear movement quantity, rotational movement quantity, pos)
 			
 		  all these torsors makes it possible to represent all these values independently from expression location
 	'''
 	__slots__ = ('resulting', 'momentum', 'position')
 	def __init__(self, resulting=None, momentum=None, position=None):
 		self.resulting, self.momentum, self.position = resulting or vec3(0), momentum or vec3(0), position or vec3(0)
-	def locate(self, pt) -> 'Torsor':
+	def locate(self, pt) -> 'Screw':
 		''' gets the same torsor, but expressed for an other location '''
-		return Torsor(self.resulting, self.momentum + cross(self.resulting, pt-self.position), pt)
+		return Screw(self.resulting, self.momentum + cross(self.resulting, pt-self.position), pt)
 	
-	def transform(self, mat) -> 'Torsor':
+	def transform(self, mat) -> 'Screw':
 		''' changes the torsor from coordinate system '''
 		if isinstance(mat, mat4):
 			rot, trans = mat3(mat), vec3(mat[3])
@@ -80,25 +80,25 @@ class Torsor(object):
 		elif isinstance(mat, vec3):
 			rot, trans = 1, mat
 		else:
-			raise TypeError('Torsor.transform() expect mat4, mat3 or vec3')
-		return Torsor(rot*self.resulting, rot*self.momentum, rot*self.position + trans)
+			raise TypeError('Screw.transform() expect mat4, mat3 or vec3')
+		return Screw(rot*self.resulting, rot*self.momentum, rot*self.position + trans)
 	
 	def __add__(self, other):
 		if other.position != self.position:		other = other.locate(self.position)
-		return Torsor(self.resulting+other.resulting, self.momentum+other.momentum, self.position)
+		return Screw(self.resulting+other.resulting, self.momentum+other.momentum, self.position)
 	
 	def __sub__(self, other):
 		if other.position != self.position:		other = other.locate(self.position)
-		return Torsor(self.resulting-other.resulting, self.momentum-other.momentum, self.position)
+		return Screw(self.resulting-other.resulting, self.momentum-other.momentum, self.position)
 	
 	def __neg__(self):
-		return Torsor(-self.resulting, -self.momentum, self.position)
+		return Screw(-self.resulting, -self.momentum, self.position)
 	
 	def __mul__(self, x):
-		return Torsor(x*self.resulting, x*self.momentum, self.position)
+		return Screw(x*self.resulting, x*self.momentum, self.position)
 	
 	def __div__(self, x):
-		return Torsor(self.resulting/x, self.momentum/x, self.position)
+		return Screw(self.resulting/x, self.momentum/x, self.position)
 		
 	def __repr__(self):
 		return '{}(\n\t{}, \n\t{}, \n\t{})'.format(self.__class__.__name__, repr(self.resulting), repr(self.momentum), repr(self.position))
@@ -153,7 +153,7 @@ class Solid:
 		elif isinstance(mat, vec3):
 			rot, trans = 1, mat
 		else:
-			raise TypeError('Torsor.transform() expect mat4, mat3 or vec3')
+			raise TypeError('Screw.transform() expect mat4, mat3 or vec3')
 		self.orientation = rot*self.orientation
 		self.position += trans
 		
@@ -356,7 +356,7 @@ def getsolids(joints):
 
 class Pressure:
 	''' Represent a mechanical pressure repartition on a surface
-		equivalent of a Torsor but with space repartition
+		equivalent of a Screw but with space repartition
 	'''
 	def __init__(self, surface: 'Mesh', values: '[float]'):
 		self.surface = surface
@@ -367,7 +367,7 @@ class Pressure:
 	@classmethod
 	def fromfield(cls, surface, func):
 		indev
-	def torsor(self, point) -> Torsor:
+	def torsor(self, point) -> Screw:
 		indev
 	
 	def __add__(self, other):
