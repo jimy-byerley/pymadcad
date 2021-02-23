@@ -14,9 +14,9 @@ out vec3 normal;	// normal to the surface
 
 void main() {
 	vec4 p = view * vec4(v_position, 1);
-	// world space vectors for the fragment shader
-	sight = - v_position - transpose(mat3(view)) * vec3(view[3]);
-	normal = v_normal;
+	// view space vectors for the fragment shader
+	sight = vec3(p);
+	normal = mat3(view) * v_normal;
 	
 	gl_Position = proj * p;	// set vertex position for render
 }

@@ -70,8 +70,8 @@ class PointDisplay(Display):
 		self.ident_shader['view'].write(view.uniforms['view'])
 		self.ident_shader['proj'].write(view.uniforms['proj'])
 		self.ident_shader['ratio'] = (
-				self.size / view.width(),
-				self.size / view.height(),
+				1.5 * self.size / view.width(),
+				1.5 * self.size / view.height(),
 				)
 		self.va_ident.render(mgl.TRIANGLES)
 	
@@ -263,81 +263,7 @@ class AnnotationDisplay(Display):
 		return ( ((), 'ident', 2, self.identify),
 				 ((), 'screen', 2, self.render)) 
 
-class RadiusMeasure(AnnotationDisplay):
-	def __init__(self, scene, circle, location=None, color=None):
-		center = circle.axis[0]
-		x,y,z = dirbase(circle.axis[1], normalize(location-center) if location else circle.alignment)
-		d = abs(dot(location-center, x))/circle.radius if location else 2
-		r = circle.radius*x
-		sizeref = d*circle.radius
-		arrowx = 0.16*sizeref*x
-		arrowy = 0.06*sizeref*y
-		
-		pts = [
-			r, r+arrowx-arrowy,
-			r, r+arrowx+arrowy,
-			r, d*r,
-			]
-		for i in range(len(pts)):	pts[i] = center+pts[i]
-		alpha = [1] * 6
-		self.textplace = center + d*r
-		
-		super().__init__(scene, self.buff_ptsalpha(pts, alpha), color)
-		
 
-class LengthMeasure(AnnotationDisplay):
-	def __init__(self, scene, a, b, location=None, color=None):
-		# place points
-		a = fvec3(a)
-		b = fvec3(b)
-		if location:	location = fvec3(location)
-		middle = (a + b)/2
-		if not location:	location = middle
-		dir = normalize(a-b)
-		top = noproject(location-middle, dir)
-		topdist = length(top)
-		sizeref = max(distance(a,b), topdist)
-		arrowx = sizeref*0.08*dir
-		arrowy = sizeref*0.03*(top/topdist if topdist/distance(a,b) > 1e-6 else fvec3(dirbase(vec3(dir))[0]))
-		pts = [	a, a+top+arrowy*0.75, 
-				a+top, a+top-arrowx-arrowy, 
-				a+top, a+top-arrowx+arrowy,
-				b, b+top+arrowy*0.75, 
-				b+top, b+top+arrowx-arrowy, 
-				b+top, b+top+arrowx+arrowy,
-				a+top, b+top,
-			]
-		o = 0.4
-		alpha = [o, o, 1, 1, 1, 1, o, o, 1, 1, 1, 1, 1, 1]
-		self.textplace = middle + top
-
-		super().__init__(scene, self.buff_ptsalpha(pts, alpha), color)
-
-class ArcMeasure(AnnotationDisplay):
-	def __init__(self, scene, arc, location=None, color=None, arrows=None):
-		# place points
-		middle = (a + b)/2
-		if not location:	location = middle
-		dir = normalize(a-b)
-		top = noproject(location-middle, dir)
-		topdist = length(top)
-		sizeref = max(distance(a,b), topdist)
-		arrowx = sizeref*0.08*dir
-		arrowy = sizeref*0.03*(top/topdist if topdist/distance(a,b) > 1e-6 else fvec3(dirbase(vec3(dir))[0]))
-		pts = [	a, a+top+arrowy*0.75, 
-				a+top, a+top-arrowx-arrowy, 
-				a+top, a+top-arrowx+arrowy,
-				b, b+top+arrowy*0.75, 
-				b+top, b+top+arrowx-arrowy, 
-				b+top, b+top+arrowx+arrowy,
-				a+top, b+top,
-			]
-		o = 0.4
-		alpha = [o, o, 1, 1, 1, 1, o, o, 1, 1, 1, 1, 1, 1]
-		self.textplace = middle + top
-		
-		super().__init__(scene, self.buff_ptsalpha(pts, alpha), color)
-		
 class BoxDisplay(AnnotationDisplay):
 	def __init__(self, scene, box, color=None):
 		# place points
@@ -382,16 +308,16 @@ class SolidDisplay(Display):
 		line = length(setting) * normalize(mix(color, setting, 0.4))	if max(color) else setting
 		reflect = normalize(color) * settings.display['solid_reflectivity']
 		self.vertices = Vertices(scene.ctx, positions, idents)
-		self.disp_faces = FacesDisplay(scene, self.vertices, normals, faces, color=color, reflect=reflect)
-		self.disp_ghost = GhostDisplay(scene, self.vertices, normals, faces, color=line)
-		self.disp_groups = LinesDisplay(scene, self.vertices, lines, color=line, alpha=1)
-		self.disp_points = PointsDisplay(scene, self.vertices, range(len(positions)))
+		self.disp_faces = FacesDisplay(scene, self.vertices, normals, faces, color=color, reflect=reflect, layer=0)
+		self.disp_ghost = GhostDisplay(scene, self.vertices, normals, faces, color=line, layer=0)
+		self.disp_groups = LinesDisplay(scene, self.vertices, lines, color=line, alpha=1, layer=-2e-4)
+		self.disp_points = PointsDisplay(scene, self.vertices, range(len(positions)), layer=-3e-4)
 		wire = []
 		for f in faces:
 			wire.append((f[0], f[1]))
 			wire.append((f[1], f[2]))
 			wire.append((f[2], f[0]))
-		self.disp_wire = LinesDisplay(scene, self.vertices, wire, color=line, alpha=0.3)
+		self.disp_wire = LinesDisplay(scene, self.vertices, wire, color=line, alpha=0.3, layer=-1e-4)
 		
 	def stack(self, scene):
 		yield ((), 'screen', -1, self.vertices.prerender)
@@ -429,9 +355,9 @@ class WebDisplay(Display):
 		if not color:	
 			color = fvec3(settings.display['line_color'])
 		self.vertices = Vertices(scene.ctx, positions, idents)
-		self.disp_edges = LinesDisplay(scene, self.vertices, lines, color=color, alpha=1)
-		self.disp_groups = PointsDisplay(scene, self.vertices, points)
-		self.disp_points = PointsDisplay(scene, self.vertices, range(len(positions)))
+		self.disp_edges = LinesDisplay(scene, self.vertices, lines, color=color, alpha=1, layer=-2e-4)
+		self.disp_groups = PointsDisplay(scene, self.vertices, points, layer=-3e-4)
+		self.disp_points = PointsDisplay(scene, self.vertices, range(len(positions)), layer=-1e-4)
 		
 
 	def stack(self, scene):
@@ -483,8 +409,9 @@ class Vertices(object):
 
 
 class FacesDisplay:
-	def __init__(self, scene, vertices, normals, faces, color, reflect):
+	def __init__(self, scene, vertices, normals, faces, color, reflect, layer=0):
 		self.color = color
+		self.layer = layer
 		self.reflect = reflect
 		self.vertices = vertices
 	
@@ -533,6 +460,7 @@ class FacesDisplay:
 			self.shader['min_color'].write(self.color * settings.display['solid_color_side'])
 			self.shader['max_color'].write(self.color * settings.display['solid_color_front'])
 			self.shader['refl_color'].write(self.reflect)
+			self.shader['layer'] = self.layer
 			self.shader['world'].write(self.vertices.world)
 			self.shader['view'].write(view.uniforms['view'])
 			self.shader['proj'].write(view.uniforms['proj'])
@@ -542,6 +470,7 @@ class FacesDisplay:
 	
 	def identify(self, view):
 		if self.va:
+			self.ident_shader['layer'] = self.layer
 			self.ident_shader['start_ident'] = view.identstep(self.vertices.nident)
 			self.ident_shader['view'].write(view.uniforms['view'] * self.vertices.world)
 			self.ident_shader['proj'].write(view.uniforms['proj'])
@@ -549,8 +478,9 @@ class FacesDisplay:
 			self.va_ident.render(mgl.TRIANGLES)
 
 class GhostDisplay:
-	def __init__(self, scene, vertices, normals, faces, color):
+	def __init__(self, scene, vertices, normals, faces, color, layer=0):
 		self.color = color
+		self.layer = layer
 		self.vertices = vertices
 		
 		# load the shader
@@ -592,6 +522,7 @@ class GhostDisplay:
 			self.shader['world'].write(self.vertices.world)
 			self.shader['view'].write(view.uniforms['view'])
 			self.shader['proj'].write(view.uniforms['proj'])
+			self.shader['layer'] = self.layer
 			view.scene.ctx.disable(mgl.DEPTH_TEST)
 			# render on self.context
 			self.va.render(mgl.TRIANGLES)
@@ -602,11 +533,13 @@ class GhostDisplay:
 			self.ident_shader['start_ident'] = view.identstep(self.vertices.nident)
 			self.ident_shader['view'].write(view.uniforms['view'] * self.vertices.world)
 			self.ident_shader['proj'].write(view.uniforms['proj'])
+			self.ident_shader['layer'] = self.layer
 			# render on self.context
 			self.va_ident.render(mgl.TRIANGLES)
 	
 class LinesDisplay:
-	def __init__(self, scene, vertices, lines, color=None, alpha=1):
+	def __init__(self, scene, vertices, lines, color=None, alpha=1, layer=0):
+		self.layer = layer
 		self.color = fvec4(color or settings.display['line_color'], alpha)
 		self.select_color = fvec4(settings.display['select_color_line'], alpha)
 		self.vertices = vertices
@@ -644,6 +577,7 @@ class LinesDisplay:
 			self.shader['select_color'].write(self.select_color)
 			self.shader['view'].write(view.uniforms['view'] * self.vertices.world)
 			self.shader['proj'].write(view.uniforms['proj'])
+			self.shader['layer'] = self.layer
 			self.va.render(mgl.LINES)
 		
 	def identify(self, view):
@@ -651,13 +585,15 @@ class LinesDisplay:
 			self.ident_shader['start_ident'] = view.identstep(self.vertices.nident)
 			self.ident_shader['view'].write(view.uniforms['view'] * self.vertices.world)
 			self.ident_shader['proj'].write(view.uniforms['proj'])
+			self.ident_shader['layer'] = self.layer
 			self.va_ident.render(mgl.LINES)
 		
 class PointsDisplay:
-	def __init__(self, scene, vertices, indices=None, color=None, ptsize=3):
+	def __init__(self, scene, vertices, indices=None, color=None, ptsize=3, layer=0):
 		self.color = fvec4(color or settings.display['point_color'], 1)
 		self.select_color = fvec4(settings.display['select_color_line'], 1)
 		self.ptsize = ptsize
+		self.layer = layer
 		self.vertices = vertices
 		
 		# load the line shader
@@ -688,6 +624,7 @@ class PointsDisplay:
 			self.va = None
 	def render(self, view):
 		if self.va:
+			self.shader['layer'] = self.layer
 			self.shader['color'].write(self.color)
 			self.shader['select_color'].write(self.select_color)
 			self.shader['view'].write(view.uniforms['view'] * self.vertices.world)
@@ -697,6 +634,7 @@ class PointsDisplay:
 	
 	def identify(self, view):
 		if self.va:
+			scene.subident_shader['layer'] = self.layer
 			scene.subident_shader['start_ident'] = view.identstep(self.vertices.nident)
 			scene.subident_shader['view'].write(view.uniforms['view'] * self.vertices.world)
 			scene.subident_shader['proj'].write(view.uniforms['proj'])

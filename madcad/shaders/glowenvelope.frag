@@ -10,8 +10,6 @@ out vec4 outcolor;
 
 void main() {
 	float diffuse = abs(dot(normalize(sight), normalize(normal)));
-// 	float diffuse = abs(dot(normalize(sight), normalize(normal))) + (1 - abs(dot(normalize(sight), normalize(dFdy(normal)))));
 	float intensity = min(0.8, 0.1/max((diffuse-0.2)*1.5, 0.01));
-// 	outcolor = vec4(color*intensity, 1);
  	outcolor = vec4(color, intensity);
 }

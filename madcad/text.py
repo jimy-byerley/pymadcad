@@ -1,4 +1,11 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
+'''	
+	This file is to write text into the 3D view
+	
+	The current implementation uses a bitmap font texture baked at program start.
+	It's following the first technique described here:
+		https://learnopengl.com/In-Practice/Text-Rendering
+'''
 
 from PIL import Image, ImageFont, ImageDraw
 import numpy.core as np
@@ -55,12 +62,13 @@ pointsdef = [
 
 class TextDisplay(rendering.Display):
 	
-	def __init__(self, scene, position, text, size=None, color=None, align=(0,0)):
+	def __init__(self, scene, position, text, size=None, color=None, align=(0,0), layer=0):
 		if not color:	color = settings.display['annotation_color']
 		if not size:	size = settings.display['view_font_size']
 		self.position = fvec3(position)
 		self.color = fvec3(color)
 		self.size = size
+		self.layer = layer
 		
 		# load font
 		def load(scene):
@@ -117,6 +125,7 @@ class TextDisplay(rendering.Display):
 			)
 	
 	def render(self, view):		
+		self.shader['layer'] = self.layer
 		self.shader['color'].write(self.color)
 		self.shader['position'].write(fvec3(self.world * fvec4(self.position,1)))
 		self.shader['view'].write(view.uniforms['view'])
@@ -141,7 +150,21 @@ def processalign(align, size):
 	else:
 		return align
 
-		
+def textsize(text, tab=4):
+	''' visual size of a text as vec2(column,line) '''
+	l = 0
+	c = 0
+	for i,char in enumerate(text):
+		if char == '\n':
+			c = 0
+			l += 1
+		elif char == '\t':
+			c += tab - c%tab
+		else:
+			c += 1
+	l += 1
+	return vec2(c,l)
+
 #class Particles(rendering.Display):
 	#def __init__(self, texture, format, vertices):
 		#position, tile, size

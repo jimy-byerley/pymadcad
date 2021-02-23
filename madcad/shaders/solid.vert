@@ -9,6 +9,7 @@ in int v_flags;
 uniform mat4 world;	// world matrix (object pose)
 uniform mat4 view;	// view matrix (camera orientation)
 uniform mat4 proj;	// projection matrix (perspective or orthographic)
+uniform float layer;
 
 // to compute
 out vec3 sight;		// vector from object to eye
@@ -24,4 +25,7 @@ void main() {
 	normal = mat3(world) * v_normal;
 	
 	gl_Position = proj * view * p;	// set vertex position for render
+	// with an offset to display wires on the top of faces
+	if ((flags&1) != 0)	gl_Position[2] += 10*layer;
+	else				gl_Position[2] += layer;
 }
