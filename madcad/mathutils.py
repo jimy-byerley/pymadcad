@@ -5,7 +5,7 @@
 import glm
 from glm import *
 del version, license
-from math import pi, inf, atan2
+from math import pi, inf, nan, atan2
 from copy import deepcopy
 max = __builtins__['max']
 min = __builtins__['min']
@@ -57,7 +57,8 @@ def project(vec, dir) -> vec3:
 	
 		the result is not sensitive to the length of `dir`
 	'''
-	return dot(vec,dir) / dot(dir,dir) * dir
+	try:	return dot(vec,dir) / dot(dir,dir) * dir
+	except ZeroDivisionError:	return vec3(nan)
 	
 def noproject(vec, dir) -> vec3:
 	''' components of `vec` not along `dir`, equivalent to :code:`vec - project(vec,dir)` 
@@ -71,7 +72,8 @@ def unproject(vec, dir) -> vec3:
 	
 		the result is not sensitive to the length of `dir`
 	'''
-	return dot(vec,vec) / dot(vec,dir) * dir
+	try:	return dot(vec,vec) / dot(vec,dir) * dir
+	except ZeroDivisionError:	return vec3(nan)
 
 def perpdot(a:vec2, b:vec2) -> float:
 	return -a[1]*b[0] + a[0]*b[1]
