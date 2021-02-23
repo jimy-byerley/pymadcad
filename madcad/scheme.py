@@ -170,10 +170,10 @@ class Scheme:
 			self.shaders, self.shader_ident = scene.ressource('scheme', self.load)
 			
 			# switch to array indexed spaces
+			self.spaces = np.empty((self.max_spaces, 4,4), 'f4')
 			self.spacegens = list(sch.spaces)
 			if len(self.spacegens) > self.max_spaces:		
 				print('warning: the number of local spaces exceeds the arbitrary build-in limit of {}'.format(self.max_spaces))
-			self.spaces = np.empty((self.max_spaces, 4,4), 'f4')
 			
 			self.components = [(space,scene.display(obj))	for space,obj in sch.components]
 			
@@ -248,9 +248,10 @@ class Scheme:
 			view.uniforms['world'] = self.world
 			for i,gen in enumerate(self.spacegens):
 				self.spaces[i] = gen(view)
-			invview = affineInverse(view.uniforms['view'])
-			for space,disp in self.components:
-				disp.world = invview * fmat4(self.spaces[space])
+			if self.components:
+				invview = affineInverse(view.uniforms['view'])
+				for space,disp in self.components:
+					disp.world = invview * fmat4(self.spaces[space])
 		
 		def render(self, view):
 			''' render each va in self.vas '''
@@ -475,10 +476,10 @@ def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None):
 	bo = b + (offset - shift) * x
 	# create scheme
 	sch = Scheme()
-	sch.set(shader='line', layer=1e-4, color=fvec4(color,0.3))
+	sch.set(shader='line', layer=1e-2, color=fvec4(color,0.3))
 	sch.add([a, ao])
 	sch.add([b, bo])
-	sch.set(layer=-1e-4, color=fvec4(color,0.7))
+	sch.set(layer=-1e-2, color=fvec4(color,0.7))
 	sch.add([ao, bo])
 	sch.add(txt.Text(
 				mix(ao,bo,0.5), 
@@ -570,12 +571,12 @@ def note_angle(a0, a1, offset=0, d=None, tol=None, text=None, unit='deg'):
 	p0 = center+radius*d0
 	p1 = center+radius*d1
 	sch = Scheme()
-	sch.set(shader='line', layer=1e-4, color=fvec4(color,0.3))
+	sch.set(shader='line', layer=1e-2, color=fvec4(color,0.3))
 	sch.add([p0, o0])
 	sch.add([p1, o1])
 	arc = ArcCentered((center,z), p0, p1, ('rad',0.05)).mesh()
 	sch.add(arc, color=fvec4(color,0.7))
-	sch.set(layer=-1e-4)
+	sch.set(layer=-1e-2)
 	sch.add(txt.Text(
 				arc[len(arc)//2], 
 				text, 
@@ -669,7 +670,7 @@ def note_label(placement, offset=None, text='!', style='rect'):
 				resolution=('div',8),
 				),
 			space=scale_screen(fvec3(p)), shader='fill')
-	sch.add([p, p+offset], space=world, shader='line', layer=2e-4)
+	sch.add([p, p+offset], space=world, shader='line', layer=2e-3)
 	r = 5
 	if style == 'circle':	outline = web(Circle((vec3(0),vec3(0,0,1)), r))
 	elif style == 'rect':	outline = [vec3(r,r,0), vec3(-r,r,0), vec3(-r,-r,0), vec3(r,-r,0), vec3(r,r,0)]
@@ -677,7 +678,7 @@ def note_label(placement, offset=None, text='!', style='rect'):
 		raise ValueError("style must be 'rect' or 'circle'")
 	sch.set(space=halo_screen(fvec3(p+offset)))
 	sch.add(outline, shader='line', layer=0)
-	sch.add(gt.flatsurface(wire(outline)), color=fvec4(settings.display['background_color'],0), shader='fill', layer=1e-4)
+	sch.add(gt.flatsurface(wire(outline)), color=fvec4(settings.display['background_color'],0), shader='fill', layer=1e-3)
 	sch.add(txt.Text(p+offset, text, align=('center','center'), size=10, color=color), space=world)
 	return sch
 	
