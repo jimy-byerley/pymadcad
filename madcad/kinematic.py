@@ -23,12 +23,7 @@ import moderngl as mgl
 from PyQt5.QtCore import Qt, QEvent	
 
 from .common import ressourcedir
-from .mathutils import (fvec3, fmat4, vec3, vec4, mat3, mat4, quat, mat4_cast, quat_cast,
-						column, translate, inverse, isnan,
-						dot, cross, length, normalize, project, noproject, dirbase, distance,
-						atan2, acos, angle, axis, angleAxis,
-						pi, inf, glm,
-						Box, boundingbox, transform)
+from .mathutils import *
 from .mesh import Mesh
 from . import settings
 from . import constraints
@@ -280,14 +275,24 @@ def isjoint(obj):
 class Joint:
 	class display(rendering.Display):
 		def __init__(self, scene, joint):
-			self.schemes = [joint.scheme(s, 1, 
-								joint.position[i] + vec3(0,0,(-1)**i)
-								).display(scene) 
+			self.schemes = [scene.display(joint.scheme(s, 1, joint.position[i]))
 							for i,s in enumerate(joint.solids)]
+			self.joint = joint
+		
+		def updateposes(self, view):
+			''' update the pose of sub displays using their solid's pose '''
+			for sch, solid, pos in zip(self.schemes, self.joint.solids, self.joint.position):
+				pos = fvec3(pos)
+				m = self.world * fmat4(solid.pose)
+				d = (view.uniforms['view'] * m * fvec4(fvec3(pos),1)).z * 30/view.height()
+				sch.world = m * translate(scale(translate(fmat4(1), pos), fvec3(d)), -pos)
+		
 		def stack(self, scene):
+			yield ((), 'screen', -1, self.updateposes)
 			for i,scheme in enumerate(self.schemes):
 				for sub,target,priority,func in scheme.stack(scene):
 					yield ((i, *sub), target, priority, func)
+		
 		def __getitem__(self, sub):
 			return self.schemes[sub]
 
@@ -541,7 +546,7 @@ def makescheme(joints, color=None):
 	for info in solids.values():
 		info[0]['scheme'] = scheme = Scheme([], [], [], [], color)
 		center = info[2]/info[3]
-		if glm.any(isnan(center)):	center = vec3(0)
+		if not isfinite(center):	center = vec3(0)
 		for cst in info[1]:
 			scheme.extend(cst.scheme(info[0], size, center))
 

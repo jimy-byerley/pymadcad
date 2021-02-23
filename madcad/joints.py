@@ -1,7 +1,7 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
 from .mathutils import *
-from .kinematic import Torsor, WireDisplay, Scheme, Joint
+from .kinematic import Screw, WireDisplay, Scheme, Joint
 from .mesh import Mesh, Wire, web, Web
 from . import generation, primitives
 
@@ -9,11 +9,10 @@ __all__ = ['Pivot', 'Plane', 'Track', 'Gliding', 'Ball', 'Punctiform', 'Gear', '
 
 '''
 TODO:
-	Ringlin		linéaire annulaire
-	Linear		linéaire
+	Ring		linéaire annulaire
+	Hinge		linéaire
 	Rack		crémaillere
 	
-	Screw(onesolid, othersolid, (B,x), (D,y), 0.2),	# helicoidale
 	Rack(onesolid, onceagain, (O,z), x, 1, offset=0),	# cremaillere
 '''
 
@@ -72,16 +71,16 @@ class Pivot(Joint):
 		a0,a1 = solidtransform_axis(self.solids[0], self.axis[0]), solidtransform_axis(self.solids[1], self.axis[1])
 		r = cross(a0[1], a1[1])
 		t = a1[0] - a0[0]
-		#return Torsor(r,t,a0[0]), Torsor(-r,-t,a1[0]) 	# velocity torsor
-		return Torsor(t,r,a0[0]), Torsor(-t,-r,a1[0]) 	# force torsor
+		#return Screw(r,t,a0[0]), Screw(-r,-t,a1[0]) 	# velocity torsor
+		return Screw(t,r,a0[0]), Screw(-t,-r,a1[0]) 	# force torsor
 	
 	def transmitable(self, action):
 		axis = solidtransform_axis(self.solids[0], self.axis[0])
 		normal = normalize(a0[1] + a1[1])
-		return Torsor(action.resulting, noproject(action.momentum, normal), action.position)
+		return Screw(action.resulting, noproject(action.momentum, normal), action.position)
 		
-	def scheme(self, solid, size, junc):
-		''' return primitives to render the junction from the given solid side
+	def scheme(self, solid, size, junc=None) -> Scheme:
+		''' return a Scheme to render the junction from the given solid side
 			size is the desired size of the junction
 			junc is the point the junction is linked with the scheme by
 		'''
@@ -91,30 +90,53 @@ class Pivot(Joint):
 			center = axis[0] + project(self.position[0]-axis[0], axis[1])
 			cyl = generation.extrusion(
 						axis[1]*size * 0.8, 
-						web(primitives.Circle(
+						primitives.Circle(
 								(center-axis[1]*size*0.4, axis[1]), 
 								size/4, 
 								resolution=('div', 16),
-						)))
-			l = len(cyl.points)
-			v = junc - center
-			v = normalize(noproject(v,axis[1]))
-			if glm.any(isnan(v)):
-				v,_,_ = dirbase(axis[1])
-			p = center + v*size/4
-			cyl.points.append(p)
-			cyl.points.append(p + axis[1]*size*cornersize)
-			cyl.points.append(p + v*size*cornersize)
-			cyl.points.append(junc)
-			return Scheme(
-					cyl.points, 
-					cyl.faces, 
-					[(l,l+1,l+2)], 
-					(	[(l, l+2), (l+2, l+3)] 
-					+	[(i-1,i) for i in range(1,l//2)] 
-					+	[(i-1,i) for i in range(l//2+1,l)] 
-					+	[(l//2-1,0), (l-1,l//2)]),
-					)
+						))
+			sch = Scheme(cyl.points, cyl.faces, [], list(cyl.outlines_unoriented()))
+			if junc:
+				v = normalize(noproject(junc - center, axis[1]))
+				if not isfinite(v):
+					v,_,_ = dirbase(axis[1])
+				p = center + v*size/4
+				sch.extend(Scheme(
+							[p, p + axis[1]*size*cornersize, p + v*size*cornersize, junc],
+							[], 
+							[(0,1,2)],
+							[(0,2), (2,3)],
+							))
+			return sch
+					
+			
+			#axis = self.axis[0]
+			#center = axis[0] + project(self.position[0]-axis[0], axis[1])
+			#cyl = generation.extrusion(
+						#axis[1]*size * 0.8, 
+						#primitives.Circle(
+								#(center-axis[1]*size*0.4, axis[1]), 
+								#size/4, 
+								#resolution=('div', 16),
+						#))
+			
+			#sch = (scheme.Scheme(space=scheme.world, color=fvec4(settings.display['schematics_color'],1))
+					#.add(cyl, shader='ghost')
+					#.add(cyl.outlines(), shader='line')
+					#)
+			
+			#v = junc - center
+			#v = normalize(noproject(v,axis[1]))
+			#if isfinite(v):
+				#x,_,_ = dirbase(axis[1])
+			#p = center + v*size/4
+			#sch.add(
+				#Mesh([p, p+axis[1]*size*cornersize, p + x*size*cornersize], [(0,1,2)]),
+				#shader='fill')
+			#sch.add([p, junc], shader='line')
+				
+			#return sch
+					
 		elif solid is self.solids[1]:
 			radius = size/4
 			axis = self.axis[1]
@@ -170,17 +192,17 @@ class Plane(Joint):
 		r = cross(a0[1], a1[1])
 		t = project(a1[0] - a0[0], normalize(a0[1] + a1[1]))
 		
-		#return Torsor(r,t,a0[0]), Torsor(-r,-t,a1[0]) 	# velocity torsor
-		return Torsor(t,r,a0[0]), Torsor(-t,-r,a1[0]) 	# force torsor
+		#return Screw(r,t,a0[0]), Screw(-r,-t,a1[0]) 	# velocity torsor
+		return Screw(t,r,a0[0]), Screw(-t,-r,a1[0]) 	# force torsor
 	
 	def transmitable(self, action):
 		a0,a1 = solidtransform_axis(self.solids[0], self.axis[0])
 		normal = normalize(a0[1] + a1[1])
-		return Torsor(project(action.resulting, normal), noproject(action.momentum, normal), action.position)
+		return Screw(project(action.resulting, normal), noproject(action.momentum, normal), action.position)
 	
 		
 	
-	def scheme(self, solid, size, junc):
+	def scheme(self, solid, size, junc=None):
 		if   solid is self.solids[0]:		(center, normal), position = self.axis[0], self.position[0]
 		elif solid is self.solids[1]:		(center, normal), position = self.axis[1], self.position[1]
 		else:	return
@@ -230,14 +252,14 @@ class Track(Joint):
 			)
 		t = b1[0] - b0[0]
 		return (
-			Torsor(noproject( t, z1),  r,b0[0]), 
-			Torsor(noproject(-t, z0), -r,b1[0]),
+			Screw(noproject( t, z1),  r,b0[0]), 
+			Screw(noproject(-t, z0), -r,b1[0]),
 			)
 	
 	def transmitable(self, action):
 		z0, z1 = cross(b0[1],b0[2]), cross(b1[1],b1[2])
 		normal = normalize(z0 + z1)
-		return Torsor(noproject(action.resulting, normal), action.momentum, action.position)
+		return Screw(noproject(action.resulting, normal), action.momentum, action.position)
 	
 	def scheme(self, solid, size, junc):
 		if solid is self.solids[0]:
@@ -321,14 +343,14 @@ class Gliding(Joint):
 		r = cross(a0[1], a1[1])
 		t = a1[0] - a0[0]
 		return (
-				Torsor(noproject( t,a0[1]),  r,a0[0]), 
-				Torsor(noproject(-t,a1[1]), -r,a1[0]),
+				Screw(noproject( t,a0[1]),  r,a0[0]), 
+				Screw(noproject(-t,a1[1]), -r,a1[0]),
 				) # force torsor
 	
 	def transmitable(self, action):
 		axis = solidtransform_axis(self.solids[0], self.axis[0])
 		normal = normalize(a0[1] + a1[1])
-		return Torsor(
+		return Screw(
 				noproject(action.resulting, normal), 
 				noproject(action.momentum, normal), 
 				action.position)
@@ -398,34 +420,40 @@ class Ball(Joint):
 		p0 = self.solids[0].orientation*self.points[0] + self.solids[0].position
 		p1 = self.solids[1].orientation*self.points[1] + self.solids[1].position
 		return (
-			Torsor(p1-p0, vec3(0), p0),
-			Torsor(p0-p1, vec3(0), p1),
+			Screw(p1-p0, vec3(0), p0),
+			Screw(p0-p1, vec3(0), p1),
 			) # force torsor
 	
-	def scheme(self, solid, size, junc):
+	def scheme(self, solid, size, junc=vec3(0,0,1)):
 		if solid is self.solids[0]:
 			r = 0.3*size
 			p = self.points[0]
 			sph = generation.icosphere(p, r, resolution=('rad',0.2))
 			z = normalize(junc-p)
+			if not isfinite(z):
+				z = vec3(0,0,1)
 			l = len(sph.points)
-			sph.points.append(p + z*r)
+			sph.points.append(p + r*z)
+			sph.points.append(p + r*z + 0.1*size*z)
 			sph.points.append(junc)
-			return Scheme(sph.points, sph.faces, [], [(l+0, l+1)])
+			return Scheme(sph.points, sph.faces, [], [(l+0, l+1), (l+1, l+2)])
 		elif solid is self.solids[1]:
 			r = 0.4*size
 			angle = 1.2
 			p = self.points[1]
-			x,y,z = dirbase(normalize(junc-p))
-			prof = web(primitives.ArcCentered((p,y), p+z*r, p+r*(x*sin(angle)+z*cos(angle))))
+			z = normalize(junc-p)
+			if not isfinite(z):		z = vec3(0,0,1)
+			x,y,z = dirbase(z)
+			prof = primitives.ArcCentered((p,y), p+z*r, p+r*(x*sin(angle)+z*cos(angle)))
 			sph = generation.revolution(2*pi, (p,z), prof)
 			sph.finish()
 			l = len(sph.points)
-			sph.points.append(p + z*r)
+			sph.points.append(p + r*z)
+			sph.points.append(p + r*z + 0.1*size*z)
 			sph.points.append(junc)
 			return Scheme(sph.points, sph.faces, [], 
-					[(l+0, l+1)] + list(sph.outlines_unoriented()) )
-	
+					[(l+0, l+1), (l+1, l+2)] + list(sph.outlines_unoriented()) )
+from madcad.nprint import nprint
 class Punctiform(Joint):
 	''' Joint for rotation all around a point belonging to a plane.
 	
@@ -448,7 +476,7 @@ class Punctiform(Joint):
 	def corrections(self):
 		a = solidtransform_axis(self.solids[0], self.axis)
 		p = self.solids[1].orientation*self.point + self.solids[1].position
-		t = Torsor(project(p-a[0], a[1]), vec3(0), p)
+		t = Screw(project(p-a[0], a[1]), vec3(0), p)
 		return (t, -t) # force torsor
 	
 	def scheme(self, solid, size, junc):
@@ -510,8 +538,8 @@ class Gear(Joint):
 			m = p/self.ratio
 		# m is the rotation delta for solid 0
 		return (
-			Torsor(vec3(0), -m * b0[3], b0[0]),
-			Torsor(vec3(0), m*self.ratio * b1[3], b1[0]),
+			Screw(vec3(0), -m * b0[3], b0[0]),
+			Screw(vec3(0), m*self.ratio * b1[3], b1[0]),
 			)
 		
 	def scheme(self, solid, size, junc):
@@ -582,7 +610,7 @@ class Helicoid(Joint):
 		
 		r = cross(z0, z1) + gap_angle*z
 		t = gap_pos*z
-		return Torsor(t+noproject(delta,z0), r, o0), Torsor(-t-noproject(delta,z1), -r, o1)	# force torsor
+		return Screw(t+noproject(delta,z0), r, o0), Screw(-t-noproject(delta,z1), -r, o1)	# force torsor
 
 	def scheme(self, solid, size, junc):
 		if solid is self.solids[0]:
