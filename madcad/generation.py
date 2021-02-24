@@ -62,7 +62,7 @@ def revolution(angle, axis, profile, resolution=None):
 		v = pt-axis[0]
 		v -= project(v,axis[1])
 		radius = max(radius, length(v))
-	steps = settings.curve_resolution(angle*radius, angle, resolution)+2
+	steps = settings.curve_resolution(abs(angle*radius), abs(angle), resolution)+2
 	# use extrans
 	def trans():
 		for i in range(steps):
