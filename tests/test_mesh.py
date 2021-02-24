@@ -1,7 +1,11 @@
+from random import random
 from madcad import *
 from madcad.mesh import *
+from madcad.nprint import nprint
 
-# test islands
+
+## test Mesh
+
 ico = icosahedron(vec3(0), 1)
 # test check with static definition
 ico.check()
@@ -10,6 +14,7 @@ ico.check()
 bri = brick(center=vec3(2,0,0), width=vec3(0.5))
 m = ico + bri
 m.check()
+
 # test separation
 l = m.islands()
 assert len(l) == 2
@@ -22,4 +27,25 @@ m.check()
 # test distance
 assert abs(mesh_distance(m, ico)[0] - 4) < 0.2
 
-#show(l)
+# test orientation
+ico = icosphere(vec3(0), 1)
+ico.faces = [f if random()>0.5 else (f[0],f[2],f[1])	for f in ico.faces]
+
+o = ico.orient()
+o.check()
+#assert len(o.outlines_unoriented()) == 0
+
+o = ico.orient(vec3(1,0,0))
+o.check()
+#assert len(o.outlines_unoriented()) == 0
+
+## test Web
+
+# test islands
+m = Web(
+	[vec3(0), vec3(1,0,0), vec3(1,0,0), vec3(2,1,0), vec3(1,3,0), vec3(1,5,4), vec3(2,5,0)], 
+	[(0,1), (1,2), (2,3), (4, 5), (5,6), (6,4)])
+m.check()
+assert len(m.islands()) == 2
+
+

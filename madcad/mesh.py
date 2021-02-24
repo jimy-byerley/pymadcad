@@ -29,14 +29,12 @@ import numpy as np
 from array import array
 from collections import OrderedDict
 import math
-from .mathutils import (
-				Box, vec3, vec4, mat3, mat4, quat, mat3_cast, transformer,
-				cross, dot, normalize, length, distance, length2, distance2, sqrt, project, noproject, anglebt, 
-				NUMPREC, isnan, glm, isfinite,
-				)
+from .mathutils import *
 from . import displays
 from . import text
 from . import hashing
+
+from .asso import Asso
 
 __all__ = ['Mesh', 'Web', 'Wire', 'MeshError', 'web', 'wire', 'edgekey', 'lineedges', 'striplist', 'suites', 'line_simplification', 'mesh_distance']
 
@@ -548,9 +546,10 @@ class Mesh(Container):
 		self.faces = faces
 		return idents
 		
-	def islands(self):
+	def islands(self, conn=None) -> '[Mesh]':
 		''' return the unconnected parts of the mesh as several meshes '''
-		conn = connef(self.faces)
+		if not conn:	
+			conn = connef(self.faces)
 		# propagation
 		islands = []
 		reached = [False] * len(self.faces)	# faces reached
@@ -568,6 +567,7 @@ class Mesh(Container):
 			island = Mesh(self.points, [], [], self.groups)
 			while stack:
 				i = stack.pop()
+				if reached[i]:	continue	# make sure this face has not been stacked twice
 				reached[i] = True
 				island.faces.append(self.faces[i])
 				island.tracks.append(self.tracks[i])
@@ -578,8 +578,132 @@ class Mesh(Container):
 						stack.append(conn[e])
 			islands.append(island)
 		return islands
-					
+		
+	def propagate(self, atface, atisland=None, find=None, conn=None):
+		''' return the unconnected parts of the mesh as several meshes '''
+		if not conn:	
+			conn = connef(self.faces)
+		
+		reached = [False] * len(self.faces)	# faces reached
+		stack = []
+		# procedure for finding the new islands to propagate on
+		if not find:
+			start = [0]
+			def find(stack, reached):
+				for i in range(start[0],len(reached)):
+					if not reached[i]:
+						stack.append(i)
+						break
+				start[0] = i
+		# propagation
+		while True:
+			# search start point
+			find(stack, reached)
+			# end when everything reached
+			if not stack:	break
+			# propagate
+			while stack:
+				i = stack.pop()
+				if reached[i]:	continue	# make sure this face has not been stacked twice
+				reached[i] = True
+				atface(i, reached)
+				f = self.faces[i]
+				for i in range(3):
+					e = f[i],f[i-1]
+					if e in conn and not reached[conn[e]]:
+						stack.append(conn[e])
+			if atisland:
+				atisland(reached)
+				
+	def islands(self, conn=None) -> '[Mesh]':
+		''' return the unconnected parts of the mesh as several meshes '''
+		islands = []
+		faces = []
+		tracks = []
+		def atface(i, reached):
+			faces.append(self.faces[i])
+			tracks.append(self.tracks[i])
+		def atisland(reached):
+			islands.append(Mesh(self.points, faces[:], tracks[:], self.groups))
+			faces.clear()
+			tracks.clear()
+		self.propagate(atface, atisland, conn=conn)
+		return islands
+	
+	def orient(self, dir=None, conn=None) -> 'Mesh':
+		''' flip the necessary faces to make the normals consistent, ensuring the continuity of the out side.
 			
+			Argument `dir` tries to make the result deterministic:
+			
+				* if given, the outermost point in this direction will be considered pointing outside
+				* if not given, the farthest point to the barycenter will be considered pointing outside
+				
+				note that if the mesh contains multiple islands, that direction must make sense for each single island
+		'''
+		if dir:	
+			metric = lambda p, n: (dot(p, dir), dot(n, dir))
+		else:	
+			center = self.barycenter()
+			metric = lambda p, n: (length2(p-center), dot(n, p-center))
+		if not conn:	
+			conn = Asso((edgekey(*e),i)
+							for i,f in enumerate(self.faces)
+							for e in ((f[0],f[1]), (f[1],f[2]), (f[2],f[0]))
+							)
+		
+		normals = self.facenormals()
+		faces = self.faces[:]
+		
+		reached = [False] * len(self.faces)	# faces reached
+		stack = []
+		
+		# propagation
+		while True:
+			# search start point
+			best = (-inf,0)
+			candidate = None
+			for i,f in enumerate(faces):
+				if not reached[i]:
+					for p in f:
+						score = metric(self.points[p], normals[i])
+						if score > best:
+							best, candidate = score, i
+			if candidate is not None:
+				stack.append(candidate)
+			# end when everything reached
+			if not stack:	break
+			# process neighbooring
+			while stack:
+				i = stack.pop()
+				if reached[i]:	continue	# make sure this face has not been stacked twice
+				reached[i] = True
+				
+				f = faces[i]
+				for i in range(3):
+					e = f[i], f[i-1]
+					for n in conn[edgekey(*e)]:
+						if reached[n]:	continue
+						nf = faces[n]
+						# check for orientation continuity
+						if arrangeface(nf,f[i-1])[1] == f[i]:
+							faces[n] = (nf[0],nf[2],nf[1])
+						# propagate
+						stack.append(n)
+		
+		return Mesh(self.points, faces, self.tracks, self.groups)
+		
+	# NOTE not sure this method is useful
+	def replace(self, mesh, groups=None) -> 'Mesh':
+		''' replace the given groups by the given mesh.
+			If no groups are specified, it will take the matching groups (with same index) in the current mesh
+		'''
+		if not groups:
+			groups = set(mesh.tracks)
+		new = copy(self)
+		new.faces = [f	for f,t in zip(self.faces, self.tracks)	if t not in groups]
+		new.tracks = [t	for t in self.tracks	if t not in groups]
+		new += mesh
+		return new
 	
 	
 	# --- renderable interfaces ---
@@ -834,6 +958,49 @@ class Web(Container):
 					tmp[p] = i
 		indices.extend(tmp.keys())
 		return Wire(self.points, indices)
+		
+	def group(self, groups):
+		''' return a new mesh linked with this one, containing only the faces belonging to the given groups '''
+		if isinstance(groups, set):			pass
+		elif hasattr(groups, '__iter__'):	groups = set(groups)
+		else:								groups = (groups,)
+		edges = []
+		tracks = []
+		for f,t in zip(self.edges, self.tracks):
+			if t in groups:
+				edges.append(f)
+				tracks.append(t)
+		return Web(self.points, edges, tracks, self.groups)
+		
+	def islands(self) -> '[Web]':
+		''' return the unconnected parts of the mesh as several meshes '''
+		conn = Asso(	[(e[0],i)  for i,e in enumerate(self.edges)]
+					+	[(e[1],i)  for i,e in enumerate(self.edges)])
+		# propagation
+		islands = []
+		reached = [False] * len(self.edges)	# edges reached
+		stack = []
+		start = 0
+		while True:
+			# search start point
+			for start in range(start,len(reached)):
+				if not reached[start]:
+					stack.append(start)
+					break
+			# end when everything reached
+			if not stack:	break
+			# propagate
+			island = Web(self.points, [], [], self.groups)
+			while stack:
+				i = stack.pop()
+				if reached[i]:	continue	# make sure this face has not been stacked twice
+				reached[i] = True
+				island.edges.append(self.edges[i])
+				island.tracks.append(self.tracks[i])
+				for p in self.edges[i]:
+					stack.extend(n	for n in conn[p] if not reached[n])
+			islands.append(island)
+		return islands
 	
 	def length(self):
 		''' total length of edges '''
@@ -902,6 +1069,7 @@ class Web(Container):
 				frontiers,
 				idents,
 				color=self.options.get('color'))
+
 
 def glmarray(array, dtype='f4'):
 	''' create a numpy array from a list of glm vec '''
@@ -1149,6 +1317,7 @@ def facekeyo(a,b,c):
 	else:					return (b,c,a)
 	
 def arrangeface(f, p):
+	''' return the face indices rotated the way the `p` is the first one '''
 	if   p == f[1]:	return f[1],f[2],f[0]
 	elif p == f[2]:	return f[2],f[0],f[1]
 	else:			return f
