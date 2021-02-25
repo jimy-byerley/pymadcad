@@ -178,7 +178,7 @@ class Solid:
 				return True
 
 
-def solvekin(joints, fixed=(), precision=1e-4, maxiter=None, damping=0.9):
+def solvekin(joints, fixed=(), precision=1e-4, maxiter=None, damping=1):
 	''' solver for kinematic joint constraints.
 	
 		Unlike ``solve``, the present solver is dedicated to kinematic usage (and far more efficient and precise). It doesn't rely on variables as defined by solve, but instead use Solids as constraints.
@@ -207,9 +207,9 @@ def solvekin(joints, fixed=(), precision=1e-4, maxiter=None, damping=0.9):
 	corr = [[] for i in range(len(solids))]
 	corrmax = inf
 	itercount = 0
-	while corrmax > precision:
+	while corrmax > precision**2:
 		if maxiter and maxiter <= itercount:
-			raise constraints.SolveError('maximum iteration count reached with no solution found, err='+str(corrmax))
+			raise constraints.SolveError('maximum iteration count reached with no solution found, err='+str(sqrt(corrmax)))
 		
 		for c in corr:
 			c.clear()
@@ -252,16 +252,23 @@ def solvekin(joints, fixed=(), precision=1e-4, maxiter=None, damping=0.9):
 			for c in corrections:
 				center += c.position
 			center /= l
+			rmax = max(length2(c.position-center)	for c in corrections)
 			
 			for c in corrections:
 				v += c.resulting
-				w += c.locate(center).momentum
-				r = length(c.position-center) + 1e-15	# radius, to evaluate rotation impact geometry shape
-				corrmax = max(corrmax, length(c.resulting), length(c.momentum)*r)
+				w += c.momentum 	
+				# momentum evaluation must take care that the part size can vary a lot, therefore it's reduces by the maximum squared radius
+				r = length2(c.position-center) # radius, to evaluate rotation impact geometry shape
+				if rmax:
+					# there is a coef on w because that correction component is adding energy
+					w += 0.25 * cross(c.resulting, center-c.position) / rmax
+				corrmax = max(corrmax, length2(c.resulting), length2(c.momentum)*r)
+			
 			v /= l*2
 			w /= l*2
-			if length(w) > 1:
-				w /= length(w)
+			
+			if length2(w) > 0.25:
+				w /= length(w)*2
 			
 			solid.position += v*damping
 			solid.orientation = quat(w*damping) * solid.orientation
@@ -423,14 +430,17 @@ class Kinemanip(rendering.Group):
 		super().__init__(scene)
 		try:	kinematic.solve(maxiter=1000)
 		except constraints.SolveError:	pass
+		self.sizeref = 1
 		self._init(scene, kinematic)
 	
 	def update(self, scene, kinematic):
-		if [type(j)	for j in self.joints] == [type(j) for j in kinematic.joints]:
+		if (	isinstance(kinematic, Kinematic) 
+			and [type(j)	for j in self.joints] == [type(j) for j in kinematic.joints]
+			):
 			for ss,ks in zip(self.solids, kinematic.solids):
 				ks.position = ss.position
 				ks.orientation = ss.orientation
-		return super().update(scene, kinematic.solids)
+			return super().update(scene, kinematic.solids)
 	
 	def _init(self, scene, kinematic):
 		self.joints = kinematic.joints
@@ -448,6 +458,7 @@ class Kinemanip(rendering.Group):
 			# start solid drag
 			evt.accept()
 			solid = self.solids[sub[0]]
+			self.sizeref = max(norminf(self.box.width), 1)
 			self.startpt = view.ptat(view.somenear(evt.pos()))
 			self.ptoffset = inverse(quat(solid.orientation)) * (solid.position - self.startpt)
 			view.tool.append(rendering.Tool(self.move, view, solid))
@@ -482,8 +493,8 @@ class Kinemanip(rendering.Group):
 	
 	def solve(self, final=False):
 		try:	
-			if final:	solvekin(self.joints, self.locked, precision=1e-4, maxiter=1000)
-			else:		solvekin(self.joints, self.locked, precision=1e-3, maxiter=50, damping=0.95)
+			if final:	solvekin(self.joints, self.locked, precision=self.sizeref*1e-4, maxiter=1000)
+			else:		solvekin(self.joints, self.locked, precision=self.sizeref*1e-3, maxiter=50)
 		except constraints.SolveError as err:	
 			for disp in self.displays.values():
 				if 'solid-fixed' in disp.displays:
@@ -516,7 +527,8 @@ class Kinemanip(rendering.Group):
 		else:
 			# remove solid's variables from fixed
 			self.locked.remove(key)
-			del grp.displays['solid-fixed']
+			if 'solid-fixed' in grp.displays:
+				del grp.displays['solid-fixed']
 		scene.touch()
 		
 	def islocked(self, solid):
