@@ -352,7 +352,6 @@ class Kinematic:
 		indev
 	def display(self, scene):
 		''' renderer for kinematic manipulation, linked to the current object '''
-		makescheme(self.joints)
 		return Kinemanip(scene, self)
 
 def getsolids(joints):
@@ -434,13 +433,18 @@ class Kinemanip(rendering.Group):
 		self._init(scene, kinematic)
 	
 	def update(self, scene, kinematic):
-		if (	isinstance(kinematic, Kinematic) 
-			and [type(j)	for j in self.joints] == [type(j) for j in kinematic.joints]
-			):
-			for ss,ks in zip(self.solids, kinematic.solids):
-				ks.position = ss.position
-				ks.orientation = ss.orientation
-			return super().update(scene, kinematic.solids)
+		# fail on any kinematic change
+		if not isinstance(kinematic, Kinematic) or len(self.solids) != len(kinematic.solids):	return
+		# keep current pose
+		for ss,ns in zip(self.solids, kinematic.solids):
+			ns.position = ss.position
+			ns.orientation = ss.orientation
+		# if any change in joints, rebuild the scheme
+		for sj, nj in zip(self.joints, kinematic.joints):
+			if type(sj) != type(nj) or sj.solids != nj.solids:
+				self._init(scene, kinematic)
+				return True
+		return super().update(scene, kinematic.solids)
 	
 	def _init(self, scene, kinematic):
 		self.joints = kinematic.joints
@@ -448,6 +452,7 @@ class Kinemanip(rendering.Group):
 		self.locked = set(kinematic.fixed)
 		self.solids = kinematic.solids
 		self.register = {id(s): i	for i,s in enumerate(self.solids)}
+		makescheme(self.joints)
 		super().update(scene, self.solids)
 		
 	def control(self, view, key, sub, evt):
@@ -460,7 +465,7 @@ class Kinemanip(rendering.Group):
 			solid = self.solids[sub[0]]
 			self.sizeref = max(norminf(self.box.width), 1)
 			self.startpt = view.ptat(view.somenear(evt.pos()))
-			self.ptoffset = inverse(quat(solid.orientation)) * (solid.position - self.startpt)
+			self.ptoffset = inverse(quat(solid.orientation)) * (self.startpt - solid.position)
 			view.tool.append(rendering.Tool(self.move, view, solid))
 	
 	def move(self, dispatcher, view, solid):
@@ -475,9 +480,9 @@ class Kinemanip(rendering.Group):
 				if self.islocked(solid):
 					self.lock(view.scene, solid, False)
 				# displace the moved object
+				self.startpt = solid.position + quat(solid.orientation)*self.ptoffset
 				pt = view.ptfrom(evt.pos(), self.startpt)
-				self.startpt = solid.position - quat(solid.orientation)*self.ptoffset
-				solid.position = pt+quat(solid.orientation)*self.ptoffset
+				solid.position = pt - quat(solid.orientation)*self.ptoffset
 				# solve
 				self.solve(False)
 				view.update()
