@@ -561,6 +561,9 @@ class Group(Display):
 	
 	def __getitem__(self, key):
 		return self.displays[key]
+	def __iter__(self):
+		return iter(self.displays.values())
+		
 	def update(self, scene, objs):
 		if isinstance(objs, dict):		items = objs.items()
 		elif hasattr(objs, '__iter__'):	items = enumerate(objs)
@@ -936,8 +939,8 @@ class View(QOpenGLWidget):
 				disp.selected = not disp.selected
 			# make sure that a display is selected if one of its sub displays is
 			for disp in reversed(stack):
-				if isinstance(disp, Group):
-					disp.selected = any(sub.selected	for sub in disp.displays.values())
+				if hasattr(disp, '__iter__'):
+					disp.selected = any(sub.selected	for sub in disp)
 			self.update()
 	
 	# -- Qt things --
