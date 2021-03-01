@@ -169,13 +169,44 @@ class Solid:
 	class display(rendering.Group):
 		def __init__(self, scene, solid):
 			super().__init__(scene, solid.visuals)
-			self.pose = fmat4(solid.pose)
-			self._selected = False
+			self.solid = solid
+			self.apply_pose()
+		
 		def update(self, scene, solid):
-			if isinstance(solid, Solid):
-				super().update(scene, solid.visuals)
-				self.pose = fmat4(solid.pose)
-				return True
+			if not isinstance(solid, Solid):	return
+			super().update(scene, solid.visuals)
+			self.solid = solid
+			self.apply_pose()
+			return True
+				
+		def control(self, view, key, sub, evt):
+			if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
+				start = view.ptat(view.somenear(evt.pos()))
+				offset = self.solid.position - vec3(affineInverse(mat4(self.world)) * vec4(start,1))
+				view.tool.append(rendering.Tool(self.move, view, start, offset))
+				
+		def move(self, dispatcher, view, pt, offset):
+			moved = False
+			while True:
+				evt = yield
+				
+				if evt.type() == QEvent.MouseMove:
+					evt.accept()
+					moved = True
+					pt = vec3(affineInverse(mat4(self.world)) * vec4(view.ptfrom(evt.pos(), pt),1))
+					self.solid.position = pt + offset
+					self.apply_pose()
+					view.update()
+				
+				if evt.button() == Qt.LeftButton and evt.type() == QEvent.MouseButtonRelease:
+					if moved:	evt.accept()
+					break
+						
+		def apply_pose(self):
+			self.pose = fmat4(self.solid.pose)
+			
+		
+			
 
 
 def solvekin(joints, fixed=(), precision=1e-4, maxiter=None, damping=1):
@@ -302,6 +333,9 @@ class Joint:
 		
 		def __getitem__(self, sub):
 			return self.schemes[sub]
+			
+		def __iter__(self):
+			return iter(self.schemes)
 
 
 class Kinematic:
@@ -464,11 +498,11 @@ class Kinemanip(rendering.Group):
 			evt.accept()
 			solid = self.solids[sub[0]]
 			self.sizeref = max(norminf(self.box.width), 1)
-			self.startpt = view.ptat(view.somenear(evt.pos()))
-			self.ptoffset = inverse(quat(solid.orientation)) * (self.startpt - solid.position)
-			view.tool.append(rendering.Tool(self.move, view, solid))
+			start = vec3(affineInverse(mat4(self.world)) * vec4(view.ptat(view.somenear(evt.pos())),1))
+			offset = inverse(quat(solid.orientation)) * (start - solid.position)
+			view.tool.append(rendering.Tool(self.move, view, solid, start, offset))
 	
-	def move(self, dispatcher, view, solid):
+	def move(self, dispatcher, view, solid, start, offset):
 		moved = False
 		while True:
 			evt = yield
@@ -480,9 +514,9 @@ class Kinemanip(rendering.Group):
 				if self.islocked(solid):
 					self.lock(view.scene, solid, False)
 				# displace the moved object
-				self.startpt = solid.position + quat(solid.orientation)*self.ptoffset
-				pt = view.ptfrom(evt.pos(), self.startpt)
-				solid.position = pt - quat(solid.orientation)*self.ptoffset
+				start = solid.position + quat(solid.orientation)*offset
+				pt = vec3(affineInverse(mat4(self.world)) * vec4(view.ptfrom(evt.pos(), start),1))
+				solid.position = pt - quat(solid.orientation)*offset
 				# solve
 				self.solve(False)
 				view.update()
@@ -508,12 +542,12 @@ class Kinemanip(rendering.Group):
 			for disp in self.displays.values():
 				if 'solid-fixed' in disp.displays:
 					disp.displays['solid-fixed'].color = fvec3(settings.display['schematics_color'])
-		self.applyposes()
+		self.apply_poses()
 	
-	def applyposes(self):
+	def apply_poses(self):
 		# assign new positions to displays
-		for i, solid in enumerate(self.solids):
-			self.displays[i].pose = fmat4(solid.pose)
+		for disp in self.displays.values():
+			disp.apply_pose()
 	
 	def lock(self, scene, solid, lock):
 		''' lock the pose of the given solid '''
@@ -528,7 +562,7 @@ class Kinemanip(rendering.Group):
 			for display in grp.displays.values():
 				box.union(display.box)
 			grp.displays['solid-fixed'] = BoxDisplay(scene, box, color=fvec3(settings.display['schematics_color']))
-			self.applyposes()
+			self.apply_poses()
 		else:
 			# remove solid's variables from fixed
 			self.locked.remove(key)
