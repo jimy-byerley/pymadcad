@@ -47,6 +47,7 @@ enable_color = 'COLORTERM' in os.environ
 
 def _next_separator(text, seek):
 	counter = 0
+	i = seek
 	for i in range(seek, len(text)):
 		if text[i] in begin_marker:	counter += 1
 		elif text[i] in end_marker:	counter -= 1
@@ -55,6 +56,7 @@ def _next_separator(text, seek):
 
 def _next_terminator(text, seek):
 	counter = 0
+	i = seek
 	for i in range(seek, len(text)):
 		if text[i] in begin_marker:	counter += 1
 		elif text[i] in end_marker:	counter -= 1
@@ -101,9 +103,8 @@ def nformat(text, indent=0, width=None):
 	
 def deformat(text):
 	''' remove formatting from text, leving only indentation and line breaks for lines not ended by a continuation character (,-+*/) '''
-	seek = 1
+	seek = _next_word(text, 0)
 	out = io.StringIO()
-	out.write(text[:seek])
 	
 	while seek < len(text):
 		if text[seek] in spaces:
