@@ -50,10 +50,6 @@ w.transform(vec3(0,0,2))
 
 scn.append(Displayable(PointDisplay, vec3(1,1,1) ))
 scn.append(Displayable(AxisDisplay, (vec3(2,0,0), vec3(0,0,1)) ))
-scn.append(Displayable(LengthMeasure, vec3(-2, 0, 0), vec3(0,-2,0), vec3(-1,-1,2) ))
-scn.append(Circle((vec3(-2,-2,0), vec3(0,0,1)), 1) )
-scn.append(Displayable(RadiusMeasure, Circle((vec3(-2,-2,0), vec3(0,0,1)), 1), vec3(-2,-4,0) ))
-scn.append(Displayable(ArrowDisplay, (vec3(3,0,0), vec3(0,0,1)) ))
 scn.append(Displayable(BoxDisplay, Box(vec3(-3), vec3(-1,-2,-1.5)) ))
 scn.append(Displayable(GridDisplay, vec3(0)))
 
