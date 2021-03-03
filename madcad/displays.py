@@ -16,6 +16,19 @@ import moderngl as mgl
 from PyQt5.QtCore import Qt, QEvent
 
 
+def shader_wire(scene):
+	return scene.ctx.program(
+				vertex_shader=open(ressourcedir+'/shaders/wire.vert').read(),
+				fragment_shader=open(ressourcedir+'/shaders/wire.frag').read(),
+				)
+	
+def shader_uniformcolor(scene):
+	return scene.ctx.program(
+				vertex_shader=open(ressourcedir+'/shaders/uniformcolor.vert').read(),
+				fragment_shader=open(ressourcedir+'/shaders/uniformcolor.frag').read(),
+				)
+
+
 class PointDisplay(Display):
 	def __init__(self, scene, position, size=10, color=None):
 		self.position = fvec3(position)
@@ -89,12 +102,7 @@ class ArrowDisplay(Display):
 		self.box = Box(center=fvec3(axis[0]), width=fvec3(0))
 		
 		# load shader
-		def load(scene):
-			return scene.ctx.program(
-						vertex_shader=open(ressourcedir+'/shaders/uniformcolor.vert').read(),
-						fragment_shader=open(ressourcedir+'/shaders/uniformcolor.frag').read(),
-						)
-		self.shader = scene.ressource('shader_uniformcolor', load)
+		self.shader = scene.ressource('shader_uniformcolor', shader_uniformcolor)
 		self.ident_shader = scene.ressource('shader_ident')
 		self.va, self.va_ident = scene.ressource('arrow', self.load)
 	
@@ -109,7 +117,8 @@ class ArrowDisplay(Display):
 		return va, va_ident
 	
 	def render(self, view):
-		self.shader['color'].write(fvec3(settings.display['select_color_line']) if self.selected else self.color)
+		self.shader['layer'] = -1e-4
+		self.shader['color'].write(fvec4(fvec3(settings.display['select_color_line']) if self.selected else self.color, 1))
 		self.shader['proj'].write(view.uniforms['proj'])
 		self.shader['view'].write(view.uniforms['view'] * self.world * self.local)
 		self.va.render(mgl.LINES)
@@ -545,13 +554,7 @@ class LinesDisplay:
 		self.vertices = vertices
 		
 		# load the line shader
-		def load(scene):
-			shader = scene.ctx.program(
-						vertex_shader=open(ressourcedir+'/shaders/wire.vert').read(),
-						fragment_shader=open(ressourcedir+'/shaders/wire.frag').read(),
-						)
-			return shader
-		self.shader = scene.ressource('shader_wire', load)
+		self.shader = scene.ressource('shader_wire', shader_wire)
 		self.ident_shader = scene.ressource('shader_subident')
 		if lines and vertices.vb_positions:
 			# allocate buffers
@@ -597,13 +600,7 @@ class PointsDisplay:
 		self.vertices = vertices
 		
 		# load the line shader
-		def load(scene):
-			shader = scene.ctx.program(
-						vertex_shader=open(ressourcedir+'/shaders/wire.vert').read(),
-						fragment_shader=open(ressourcedir+'/shaders/wire.frag').read(),
-						)
-			return shader
-		self.shader = scene.ressource('shader_wire', load)
+		self.shader = scene.ressource('shader_wire', shader_wire)
 		self.ident_shader = scene.ressource('shader_subident')
 		# allocate GPU objects
 		if indices and vertices.vb_positions:
@@ -698,6 +695,46 @@ class GridDisplay(Display):
 	
 	def stack(self, scene):
 		return ((), 'screen', 3, self.render),
+		
+
+class SplineDisplay(Display):
+	def __init__(self, scene, handles, curve, color=None):
+		self.color = color or fvec4(settings.display['line_color'], 1)
+		self.color_handles = fvec4(settings.display['annotation_color'], 0.6)
+		ctx = scene.ctx
+		vb_handles = ctx.buffer(handles)
+		vb_curve = ctx.buffer(curve)
+		
+		self.shader = scene.ressource('shader_uniformcolor', shader_uniformcolor)
+		self.va_handles = ctx.vertex_array(self.shader, [(vb_handles, '3f4', 'v_position')])
+		self.va_curve = ctx.vertex_array(self.shader, [(vb_curve, '3f4', 'v_position')])
+		
+		self.shader_ident = scene.ressource('shader_ident')
+		self.va_ident = ctx.vertex_array(self.shader_ident, [(vb_curve, '3f4', 'v_position')])
+		
+	def render(self, view):
+		self.shader['view'].write(view.uniforms['view'] * self.world)
+		self.shader['proj'].write(view.uniforms['proj'])
+		view.scene.ctx.point_size = 4
+		
+		self.shader['layer'] = -2e-4
+		self.shader['color'].write(self.color_handles if not self.selected else fvec4(settings.display['select_color_line'],self.color_handles[3]))
+		self.va_handles.render(mgl.POINTS)
+		self.va_handles.render(mgl.LINE_STRIP)
+		
+		self.shader['layer'] = -1e-4
+		self.shader['color'].write(self.color if not self.selected else fvec4(settings.display['select_color_line'],self.color[3]))
+		self.va_curve.render(mgl.LINE_STRIP)
+		
+	def identify(self, view):
+		self.shader_ident['ident'] = view.identstep(1)
+		self.shader_ident['view'].write(view.uniforms['view'] * self.world)
+		self.shader_ident['proj'].write(view.uniforms['proj'])
+		self.va_ident.render(mgl.LINE_STRIP)
+		
+	def stack(self, scene):
+		return (	((), 'screen', 1, self.render),
+					((), 'ident', 1, self.identify)	)
 
 
 def tupledisplay(scene, t):

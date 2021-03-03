@@ -41,7 +41,10 @@ norm1 = l1Norm
 norm2 = length
 
 def anglebt(x,y) -> float:
-	''' angle between two vectors '''
+	''' angle between two vectors 
+	
+		the result is not sensitive to the lengths of x and y
+	'''
 	n = length(x)*length(y)
 	return acos(min(1,max(-1, dot(x,y)/n)))	if n else 0
 	

@@ -39,7 +39,7 @@
 '''
 
 from math import sqrt
-from .mathutils import vec3, mat3, mix, normalize, anglebt, project, noproject, cos, sin, atan2, pi, length, distance, cross, vec2, mat2, determinant, inverse, dot, atan, acos, dirbase
+from .mathutils import *
 from . import settings
 from . import displays
 from . import mesh
@@ -49,7 +49,7 @@ class Primitive(object):
 	def __init__(self):
 		self.annotations = {}
 	def display(self):	
-		return None
+		return self.mesh().display(scene)
 	def annotate(self, key, value):	
 		self.annotations[key] = value
 	def transform(self, trans):
@@ -109,8 +109,6 @@ class Segment(object):
 	
 	def mesh(self):
 		return mesh.Wire([self.a, self.b], group='flat')
-	def display(self, scene):
-		return self.mesh().display(scene)
 
 class ArcThrough(object):	
 	''' arc from a to c, passing through b '''
@@ -148,8 +146,6 @@ class ArcThrough(object):
 		center = self.center
 		z = normalize(cross(self.c-self.b, self.a-self.b))
 		return mkarc((center, z), self.a, self.c, resolution or self.resolution)
-	def display(self, scene):
-		return self.mesh().display(scene)
 
 class ArcCentered(object):
 	''' arc from a to b, centered around the origin of the axis.
@@ -184,8 +180,6 @@ class ArcCentered(object):
 	
 	def mesh(self, resolution=None):
 		return mkarc(self.axis, self.a, self.b, resolution or self.resolution)
-	def display(self, scene):
-		return self.mesh().display(scene)
 		
 def ArcTangent(object):
 	__slots = 'a', 'b', 'c'
@@ -218,8 +212,6 @@ def ArcTangent(object):
 	
 	def mesh(self, resolution=None):
 		return mkarc(self.axis, self.a, self.b, resolution or self.resolution)
-	def display(self, scene):
-		return self.mesh().display(scene)
 
 def mkarc(axis, start, end, resolution=None):
 	center, z = axis
@@ -244,10 +236,13 @@ class TangentEllipsis(object):
 	def axis(self):
 		return (self.a+self.c - self.b, normalize(cross(self.a-self.b, self.c-self.b)))
 	
-	#def tangent(self, pt):
-		
+	def tangent(self, pt):
+		center = self.a + self.c - self.b
+		z = cross(self.a-self.b, self.c-self.b)
+		return normalize(cross(z, pt - center))
 	
 	slvvars = ('a', 'b', 'c')
+	slv_tangent = tangent
 	
 	def mesh(self, resolution=None):
 		''' axis directions doesn't need to be normalized nor oriented '''
@@ -257,12 +252,10 @@ class TangentEllipsis(object):
 		angleapprox = acos(dot(x,-y))
 		div = settings.curve_resolution(distance(self.a,self.b), angleapprox, self.resolution or resolution)
 		pts = []
-		for i in range(div+1):
-			u = pi/2 * i/div
+		for i in range(div+2):
+			u = pi/2 * i/(div+1)
 			pts.append(x*a*(1-cos(u)) + y*b*(1-sin(u)) + origin)
 		return mesh.Wire(pts, group='ellipsis')
-	def display(self, scene):
-		return self.mesh().display(scene)
 
 class Circle(object):
 	''' circle centered around the axis origin, with the given radius, in an orthogonal plane to the axis direction '''
@@ -297,5 +290,95 @@ class Circle(object):
 		indices = list(range(div))
 		indices.append(0)
 		return mesh.Wire(pts, indices, group='arc')
+		
+		
+import numpy.core as np
+def glmarray(array, dtype='f4'):
+	''' create a numpy array from a list of glm vec '''
+	buff = np.empty((len(array), len(array[0])), dtype=dtype)
+	for i,e in enumerate(array):
+		buff[i][:] = e
+	return buff
+
+		
+class Interpolated(object):
+	''' interpolated curve between the given points (3rd degree bezier spline) '''
+	__slots__ = 'points', 'weights', 'resolution'
+	def __init__(self, points, weights=None, resolution=None):
+		self.points = points
+		self.weights = weights or [1] * len(self.points)
+		self.resolution = resolution
+		
+	def mesh(self, resolution=None):
+		pts = self.points
+		if not pts:		return Wire()
+		
+		# get tangent to each point
+		tangents = [self.weights[i-1] * 0.5 * (pts[i]-pts[i-2])	for i in range(2,len(pts))]
+		tangents.insert(0, 2*project(tangents[0], pts[1]-pts[0]) - tangents[0])
+		tangents.append(2*project(tangents[-1], pts[-2]-pts[-1]) - tangents[-1])
+		
+		# stack points to curve
+		curve = []
+		for i in range(len(pts)-1):
+			a,b = pts[i], pts[i+1]
+			ta,tb = tangents[i], -tangents[i+1]
+			# get resolution
+			div = settings.curve_resolution(
+						length(ta) + length(tb), 
+						anglebt(ta, b-a) + anglebt(tb, a-b),	# TODO find a better approximation
+						self.resolution or resolution)
+			
+			# append the points for this segment
+			for i in range(div+1):
+				curve.append(interpol2((a,ta), (b,tb), i/(div+1)))
+		
+		curve.append(b)
+		return mesh.Wire(curve, group='spline')
+
 	def display(self, scene):
-		return self.mesh().display(scene)
+		return displays.SplineDisplay(scene, glmarray(self.points), glmarray(self.mesh().points))
+			
+class Softened(object):
+	''' interpolated curve tangent to each segment midpoint
+	
+		the points weights is the weight in the determination of each midpoint
+	'''
+	__slots__ = 'points', 'weights', 'resolution'
+	def __init__(self, points, weights=None, resolution=None):
+		self.points = points
+		self.weights = weights or [1] * len(self.points)
+		self.resolution = resolution
+		
+	def mesh(self, resolution=None):
+		pts = self.points
+		if not pts:		return Wire()
+		
+		# find midpoints
+		mid = [	(self.weights[i-1]*pts[i-1] + self.weights[i]*pts[i]) 
+					/ (self.weights[i-1]+self.weights[i])
+				for i in range(1,len(pts)) ]
+		mid[0] = pts[0]
+		mid[-1] = pts[-1]
+		
+		# stack points to curve
+		curve = []
+		for i in range(len(pts)-2):
+			a,b = mid[i],  mid[i+1]
+			ta,tb = 2*(pts[i+1]-a),  2*(pts[i+1]-b)
+			# get resolution
+			div = settings.curve_resolution(
+						length(ta) + length(tb), 
+						anglebt(ta, -tb),
+						self.resolution or resolution)
+			
+			# append the points for this segment
+			for i in range(div+1):
+				curve.append(interpol2((a,ta), (b,tb), i/(div+1)))
+		
+		curve.append(b)
+		return mesh.Wire(curve, group='spline')
+
+	def display(self, scene):
+		return displays.SplineDisplay(scene, glmarray(self.points), glmarray(self.mesh().points))
+	
