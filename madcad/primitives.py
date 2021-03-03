@@ -302,7 +302,11 @@ def glmarray(array, dtype='f4'):
 
 		
 class Interpolated(object):
-	''' interpolated curve between the given points (3rd degree bezier spline) '''
+	''' interpolated curve passing through the given points (3rd degree bezier spline) 
+
+		the tangent in each point is determined by the direction between adjacent points
+		the point weights is how flattened is the curve close to the point tangents
+	'''
 	__slots__ = 'points', 'weights', 'resolution'
 	def __init__(self, points, weights=None, resolution=None):
 		self.points = points
@@ -340,7 +344,7 @@ class Interpolated(object):
 		return displays.SplineDisplay(scene, glmarray(self.points), glmarray(self.mesh().points))
 			
 class Softened(object):
-	''' interpolated curve tangent to each segment midpoint
+	''' interpolated curve tangent to each segment midpoint (3rd degree bezier curve)
 	
 		the points weights is the weight in the determination of each midpoint
 	'''
