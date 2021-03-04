@@ -63,15 +63,48 @@ primitives types
 	
 .. autoclass:: Axis
 
-.. autoclass:: madcad.primitives.Segment
-	:members: direction
+	.. automethod:: __getitem__
 
-.. autoclass:: madcad.primitives.ArcCentered
-	:members: center, radius, axis, tangent
+.. autoclass:: Segment
 
-.. autoclass:: madcad.primitives.ArcThrough
-	:members: center, radius, axis, tangent
+	.. autoproperty:: direction
+
+.. autoclass:: ArcCentered
+
+	.. autoproperty:: center
+	.. autoproperty:: radius
+	.. autoproperty:: axis
+	.. automethod:: tangent
+
+.. autoclass:: ArcThrough
+
+	.. autoproperty:: center
+	.. autoproperty:: radius
+	.. autoproperty:: axis
+	.. automethod:: tangent
 	
-.. autoclass:: madcad.primitives.Circle
-	:members: center, radius, axis, tangent
+.. autoclass:: Circle
+
+	.. autoproperty:: center
+	.. autoproperty:: radius
+	.. autoproperty:: axis
+	.. automethod:: tangent
+
+.. autoclass:: ArcTangent
+
+	.. autoproperty:: center
+	.. autoproperty:: radius
+	.. autoproperty:: axis
+	.. automethod:: tangent
+	
+.. autoclass:: TangentEllipsis
+
+	.. autoproperty:: center
+	.. autoproperty:: axis
+	.. automethod:: tangent
+	
+.. autoclass:: Interpolated
+
+.. autoclass:: Softened
+
 

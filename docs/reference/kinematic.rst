@@ -6,12 +6,12 @@ kinematic   - Kinematic solver/constraint system
 .. automodule:: madcad.kinematic
 
 
-.. autoclass:: Torsor
+.. autoclass:: Screw
 	:members: locate, transform
 		
 	**methods:**
 	
-	Of course, as any vector variables, Torsor implements ``+ -`` with other ``Torsor``, and ``* /`` with ``float``
+	Of course, as any vector variables, Screw implements ``+ -`` with other ``Torsor``, and ``* /`` with ``float``
 
 .. autoclass:: Solid
 	:members: pose, transform
