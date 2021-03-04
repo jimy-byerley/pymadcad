@@ -698,6 +698,7 @@ class GridDisplay(Display):
 		
 
 class SplineDisplay(Display):
+	''' display for spline curve, with handles around'''
 	def __init__(self, scene, handles, curve, color=None):
 		self.color = color or fvec4(settings.display['line_color'], 1)
 		self.color_handles = fvec4(settings.display['annotation_color'], 0.6)

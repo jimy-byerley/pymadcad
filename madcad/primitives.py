@@ -136,6 +136,7 @@ class ArcThrough(object):
 		return (self.center, normalize(cross(self.a-self.b, self.c-self.b)))
 	
 	def tangent(self, pt):
+		''' tangent to the closest point of the curve to pt '''
 		c = self.center
 		return normalize(cross(pt-c, cross(self.a-c, self.c-c)))
 	
@@ -167,6 +168,7 @@ class ArcCentered(object):
 		return (distance(self.axis[0], self.a) + distance(self.axis[0], self.b)) /2
 	
 	def tangent(self, pt):
+		''' tangent to the closest point of the curve to pt '''
 		return cross(normalize(pt - self.axis[0]), self.axis[1])
 	
 	slvvars = ('axis', 'a', 'b')
@@ -181,7 +183,7 @@ class ArcCentered(object):
 	def mesh(self, resolution=None):
 		return mkarc(self.axis, self.a, self.b, resolution or self.resolution)
 		
-def ArcTangent(object):
+class ArcTangent(object):
 	__slots = 'a', 'b', 'c'
 	def __init__(self, a, b, c, resolution=None):
 		self.a, self.b, self.c = a,b,c
@@ -204,6 +206,7 @@ def ArcTangent(object):
 		return self.center, normalize(cross(self.b-self.a, self.c-self.a))
 	
 	def tangent(self, pt):
+		''' tangent to the closest point of the curve to pt '''
 		z = cross(self.b-self.a, self.c-self.a)
 		return normalize(cross(pt-self.center, z))
 	
@@ -233,13 +236,18 @@ class TangentEllipsis(object):
 		self.a, self.b, self.c = a,b,c
 		self.resolution = resolution
 	
+	@property
 	def axis(self):
-		return (self.a+self.c - self.b, normalize(cross(self.a-self.b, self.c-self.b)))
+		return (self.center, normalize(cross(self.a-self.b, self.c-self.b)))
+		
+	@property
+	def center(self):
+		return self.a + self.c - self.b
 	
 	def tangent(self, pt):
-		center = self.a + self.c - self.b
-		z = cross(self.a-self.b, self.c-self.b)
-		return normalize(cross(z, pt - center))
+		''' tangent to the closest point of the curve to pt '''
+		c,z = self.axis
+		return normalize(cross(z, pt - c))
 	
 	slvvars = ('a', 'b', 'c')
 	slv_tangent = tangent
@@ -265,13 +273,15 @@ class Circle(object):
 		self.alignment = alignment
 		self.resolution = resolution
 	
-	def center(self, pt):
+	@property
+	def center(self):
 		return self.axis[0]
 	
 	def fit(self):
 		return (length(self.axis[1])-1) **2
 	
 	def tangent(self, pt):
+		''' tangent to the closest point of the curve to pt '''
 		return normalize(cross(pt-self.axis[0], self.axis[1]))
 	
 	slvvars = ('axis', 'radius')
