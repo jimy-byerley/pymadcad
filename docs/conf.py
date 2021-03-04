@@ -24,7 +24,7 @@ release = 'v'+version	# The full version, including alpha/beta/rc tags
 
 
 # -- General configuration ---------------------------------------------------
-#needs_sphinx = '1.0'
+needs_sphinx = '2.0'
 # sphinx extensions
 extensions = [
     'sphinx.ext.autodoc',
