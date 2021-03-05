@@ -105,6 +105,10 @@ primitives types
 	
 .. autoclass:: Interpolated
 
+	.. image:: /screenshots/primitives-spline-interpolated.png
+
 .. autoclass:: Softened
+
+	.. image:: /screenshots/primitives-spline-softened.png
 
 
