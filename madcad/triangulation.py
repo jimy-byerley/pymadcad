@@ -1,11 +1,7 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
 from math import inf
-from .mathutils import (glm,
-					vec2, dvec2, dmat2, vec3,
-					dot, cross, noproject, perp, perpdot, length, distance, normalize, inverse, isnan, norminf, sqrt,
-					dirbase, 
-					NUMPREC)
+from .mathutils import *
 from .mesh import Mesh, Web, Wire, MeshError
 from .nprint import nformat
 
@@ -163,7 +159,7 @@ def triangulation_outline(outline: Wire, normal=None) -> Mesh:
 	try:				proj = planeproject(outline, normal)
 	except ValueError:	return Mesh()
 	hole = list(outline.indices)
-	if hole[-1] == hole[0]:		hole.pop()
+	if length2(outline[-1]-outline[0]) < 4*NUMPREC**2:		hole.pop()
 	
 	def score(i):
 		l = len(hole)

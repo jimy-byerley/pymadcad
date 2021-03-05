@@ -702,6 +702,7 @@ class SplineDisplay(Display):
 	def __init__(self, scene, handles, curve, color=None):
 		self.color = color or fvec4(settings.display['line_color'], 1)
 		self.color_handles = fvec4(settings.display['annotation_color'], 0.6)
+		self.box = npboundingbox(handles)
 		ctx = scene.ctx
 		vb_handles = ctx.buffer(handles)
 		vb_curve = ctx.buffer(curve)

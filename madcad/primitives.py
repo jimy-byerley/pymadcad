@@ -184,6 +184,7 @@ class ArcCentered(object):
 		return mkarc(self.axis, self.a, self.b, resolution or self.resolution)
 		
 class ArcTangent(object):
+	''' An arc always tangent to `Segment(a,b)` and `Segment(c,b)`. The solution is unique.'''
 	__slots = 'a', 'b', 'c'
 	def __init__(self, a, b, c, resolution=None):
 		self.a, self.b, self.c = a,b,c
@@ -231,6 +232,8 @@ def mkarc(axis, start, end, resolution=None):
 	return mesh.Wire(pts, group='arc')
 
 class TangentEllipsis(object):
+	''' An quater of ellipsis always tangent to `Segment(a,b)` and `Segment(c,b)`. The solution is unique.
+	'''
 	__slots__ = ('a', 'b', 'c', 'resolution')
 	def __init__(self, a,b,c, resolution=None):
 		self.a, self.b, self.c = a,b,c
@@ -328,20 +331,29 @@ class Interpolated(object):
 		if not pts:		return Wire()
 		
 		# get tangent to each point
-		tangents = [self.weights[i-1] * 0.5 * (pts[i]-pts[i-2])	for i in range(2,len(pts))]
-		tangents.insert(0, 2*project(tangents[0], pts[1]-pts[0]) - tangents[0])
-		tangents.append(2*project(tangents[-1], pts[-2]-pts[-1]) - tangents[-1])
+		tas = [self.weights[i-1] * length(pts[i]-pts[i-1]) * normalize(pts[i]-pts[i-2])	
+					for i in range(2,len(pts))]
+		tbs = [self.weights[i-1] * length(pts[i-2]-pts[i-1]) * normalize(pts[i-2]-pts[i])	
+					for i in range(2,len(pts))]
+		tas.insert(0, tbs[0] - 2*project(tbs[0], pts[1]-pts[0]))
+		tbs.append(tas[-1] - 2*project(tas[-1], pts[-2]-pts[-1]))
 		
 		# stack points to curve
 		curve = []
 		for i in range(len(pts)-1):
 			a,b = pts[i], pts[i+1]
-			ta,tb = tangents[i], -tangents[i+1]
+			ta,tb = tas[i], tbs[i]
+			# tangent to the curve in its inflexion point
+			mid = 0.75*(b-a) + 0.25*(ta-tb)
 			# get resolution
-			div = settings.curve_resolution(
-						length(ta) + length(tb), 
-						anglebt(ta, b-a) + anglebt(tb, a-b),	# TODO find a better approximation
-						self.resolution or resolution)
+			div = 1 + 2*max(settings.curve_resolution(
+							length(ta), 
+							anglebt(ta, mid),
+							self.resolution or resolution),
+						settings.curve_resolution(
+							length(tb), 
+							anglebt(tb, -mid),
+							self.resolution or resolution) )
 			
 			# append the points for this segment
 			for i in range(div+1):
@@ -349,6 +361,9 @@ class Interpolated(object):
 		
 		curve.append(b)
 		return mesh.Wire(curve, group='spline')
+		
+	def box(self):
+		return boundingbox(self.points)
 
 	def display(self, scene):
 		return displays.SplineDisplay(scene, glmarray(self.points), glmarray(self.mesh().points))
@@ -381,7 +396,7 @@ class Softened(object):
 			a,b = mid[i],  mid[i+1]
 			ta,tb = 2*(pts[i+1]-a),  2*(pts[i+1]-b)
 			# get resolution
-			div = settings.curve_resolution(
+			div = 1 + settings.curve_resolution(
 						length(ta) + length(tb), 
 						anglebt(ta, -tb),
 						self.resolution or resolution)
@@ -392,6 +407,9 @@ class Softened(object):
 		
 		curve.append(b)
 		return mesh.Wire(curve, group='spline')
+		
+	def box(self):
+		return boundingbox(self.points)
 
 	def display(self, scene):
 		return displays.SplineDisplay(scene, glmarray(self.points), glmarray(self.mesh().points))
