@@ -433,22 +433,12 @@ def intersection_edge_plane(axis, edge, prec):
 	return edge[0] + dist * edgedir / dot(edgedir, axis[1])
 
 def intersection_axis_face(axis, face, prec):
-	''' return the intersection point between an axis and a triangle, or None if it doesn't exist '''
-	coords = inverse(dmat3(face[1]-face[0], face[2]-face[0], axis[1])) * dvec3(axis[0] - face[0])
-	if 0 < coords[0] and 0 < coords[1] and coords[0]+coords[1] < 1 :
-		#return axis[0] - axis[1]*coords[2]	# can lead to huge precision loss when the triangle is thin
-		return face[0] + coords[0]*(face[1]-face[0]) + coords[1]*(face[2]-face[0])
-	else:
-		return None
-
-def intersection_axis_face(axis, face, prec):
 	n = cross(face[1]-face[0], face[2]-face[0])
 	unp = dot(n, axis[1])
 	if abs(unp) <= prec:	return None
 	p = axis[0] + dot(face[0]-axis[0], n) / unp * axis[1]
 	for i in range(3):
 		if dot(p - face[i], normalize(cross(n,face[i]-face[i-1]))) <= prec:
-		#if dot(p - face[i], normalize(cross(n,face[i]-face[i-1]))) < -prec:
 			return None
 	return p
 
