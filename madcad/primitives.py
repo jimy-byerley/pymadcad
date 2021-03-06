@@ -44,27 +44,13 @@ from . import settings
 from . import displays
 from . import mesh
 
-class Primitive(object):
-	__slots__ = ('annotations',)
-	def __init__(self):
-		self.annotations = {}
-	def display(self):	
-		return self.mesh().display(scene)
-	def annotate(self, key, value):	
-		self.annotations[key] = value
-	def transform(self, trans):
-		return self
-	
-	def mesh(self, resolution=None):
-		return NotImplemented
+
 
 def isprimitive(obj):
 	''' return True if obj match the signature for primitives '''
 	return hasattr(obj, 'mesh') and hasattr(obj, 'slvvars')
 		
 Vector = Point = vec3
-#class Vector(vec3):	pass	
-#class Point(vec3): pass
 
 
 class Axis(object):
@@ -109,6 +95,9 @@ class Segment(object):
 	
 	def mesh(self):
 		return mesh.Wire([self.a, self.b], group='flat')
+	
+	def display(self, scene):	
+		return self.mesh().display(scene)
 
 class ArcThrough(object):	
 	''' arc from a to c, passing through b '''
@@ -147,6 +136,9 @@ class ArcThrough(object):
 		center = self.center
 		z = normalize(cross(self.c-self.b, self.a-self.b))
 		return mkarc((center, z), self.a, self.c, resolution or self.resolution)
+	
+	def display(self, scene):	
+		return self.mesh().display(scene)
 
 class ArcCentered(object):
 	''' arc from a to b, centered around the origin of the axis.
@@ -182,6 +174,9 @@ class ArcCentered(object):
 	
 	def mesh(self, resolution=None):
 		return mkarc(self.axis, self.a, self.b, resolution or self.resolution)
+	
+	def display(self, scene):	
+		return self.mesh().display(scene)
 		
 class ArcTangent(object):
 	''' An arc always tangent to `Segment(a,b)` and `Segment(c,b)`. The solution is unique.'''
@@ -216,6 +211,9 @@ class ArcTangent(object):
 	
 	def mesh(self, resolution=None):
 		return mkarc(self.axis, self.a, self.b, resolution or self.resolution)
+	
+	def display(self, scene):	
+		return self.mesh().display(scene)
 
 def mkarc(axis, start, end, resolution=None):
 	center, z = axis
@@ -267,6 +265,9 @@ class TangentEllipsis(object):
 			u = pi/2 * i/(div+1)
 			pts.append(x*a*(1-cos(u)) + y*b*(1-sin(u)) + origin)
 		return mesh.Wire(pts, group='ellipsis')
+	
+	def display(self, scene):	
+		return self.mesh().display(scene)
 
 class Circle(object):
 	''' circle centered around the axis origin, with the given radius, in an orthogonal plane to the axis direction '''
@@ -303,6 +304,9 @@ class Circle(object):
 		indices = list(range(div))
 		indices.append(0)
 		return mesh.Wire(pts, indices, group='arc')
+	
+	def display(self, scene):	
+		return self.mesh().display(scene)
 		
 		
 import numpy.core as np
