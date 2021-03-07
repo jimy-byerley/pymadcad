@@ -151,7 +151,7 @@ from .cut import chamfer, bevel, multicut, planeoffsets
 from .generation import flatsurface, extrans, extrusion, revolution, saddle, tube, icosurface, dividedtriangle, brick, icosahedron, icosphere, uvsphere, thicken, inflate, multiple
 from .blending import junction, multijunction, blend, blendloop, blendpair, blenditer
 from .primitives import isprimitive, Point, Axis, Segment, ArcThrough, ArcCentered, ArcTangent, TangentEllipsis, Circle, Interpolated, Softened, isaxis
-from .constraints import isconstraint, SolveError, Tangent, Distance, Angle, Parallel, Radius, Projected, PointOn, OnPlane, solve
+from .constraints import isconstraint, SolveError, Tangent, Distance, Angle, Parallel, Radius, PointOn, OnPlane, solve
 from .kinematic import Screw, comomentum, Pressure, Solid, solvekin, Kinematic, isjoint
 from .joints import Pivot, Planar, Track, Gliding, Ball, Punctiform, Gear, Helicoid
 from .selection import select
