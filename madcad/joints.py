@@ -169,10 +169,10 @@ class Pivot(Joint):
 			s.extend(Scheme(c2.points, s2.faces, [], c2.edges()))
 			return s
 
-class Plane(Joint):
+class Planar(Joint):
 	''' Joint for translation in 2 directions and rotation around the third direction 
 		
-		classical definition:	Plane (direction vector)
+		classical definition:	Planar (direction vector)
 		the initial state requires an additional distance between the solids
 		this class holds an axis for each side, the axis origins are constrained to share the same projections on the normal
 	'''

@@ -158,12 +158,6 @@ class Radius(Constraint):
 					text='R{:.5g}\n{:+.1g}'.format(r, self.radius - self.arc.radius),
 					))
 
-class Projected(Constraint):
-	__slots__ = 'a', 'b', 'proj'
-	slvvars = 'a', 'b'
-	def fit(self):
-		return dot(self.a - self.b - self.proj, self.proj)
-
 class OnPlane(Constraint):
 	''' Puts the given points on the fixed plane given by its normal axis '''
 	__slots__ = 'axis', 'pts'
