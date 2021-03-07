@@ -549,8 +549,9 @@ def note_angle(a0, a1, offset=0, d=None, tol=None, text=None, unit='deg'):
 	x0 = cross(d0,z)
 	x1 = cross(d1,z)
 	shift = project(o1-o0, z) * 0.5
-	o0 += shift
-	o1 -= shift
+	# add it but in a new copy of the vectors
+	o0 = o0 + shift
+	o1 = o1 + shift
 	# get text to display
 	if not d:	d = anglebt(d0, d1)
 	if unit == 'deg':
