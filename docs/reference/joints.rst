@@ -15,7 +15,7 @@ Simple joints
 
 .. autoclass:: madcad.joints.Punctiform
 
-.. autoclass:: madcad.joints.Plane
+.. autoclass:: madcad.joints.Planar
 
 Complex joints
 --------------
