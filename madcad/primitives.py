@@ -67,6 +67,9 @@ class Axis(object):
 	slvvars = ('origin', 'direction')
 	def slv_tangent(self, pt):
 		return self.direction
+		
+	def __repr__(self):
+		return 'Axis({}, {})'.format(self.origin, self.direction)
 	
 	def display(self, scene):
 		return displays.AxisDisplay(scene, (self.origin, self.direction), self.interval)
@@ -95,6 +98,9 @@ class Segment(object):
 	
 	def mesh(self):
 		return mesh.Wire([self.a, self.b], group='flat')
+		
+	def __repr__(self):
+		return 'Segment({}, {})'.format(self.a, self.b)
 	
 	def display(self, scene):	
 		return self.mesh().display(scene)
@@ -136,6 +142,9 @@ class ArcThrough(object):
 		center = self.center
 		z = normalize(cross(self.c-self.b, self.a-self.b))
 		return mkarc((center, z), self.a, self.c, resolution or self.resolution)
+		
+	def __repr__(self):
+		return 'Axis({}, {}, {})'.format(self.a, self.b, self.c)
 	
 	def display(self, scene):	
 		return self.mesh().display(scene)
@@ -174,6 +183,9 @@ class ArcCentered(object):
 	
 	def mesh(self, resolution=None):
 		return mkarc(self.axis, self.a, self.b, resolution or self.resolution)
+		
+	def __repr__(self):
+		return 'ArcCentered({}, {}, {})'.format(self.axis, self.a, self.b)
 	
 	def display(self, scene):	
 		return self.mesh().display(scene)
@@ -211,6 +223,9 @@ class ArcTangent(object):
 	
 	def mesh(self, resolution=None):
 		return mkarc(self.axis, self.a, self.b, resolution or self.resolution)
+		
+	def __repr__(self):
+		return 'ArcTangent({}, {}, {})'.format(self.a, self.b, self.c)
 	
 	def display(self, scene):	
 		return self.mesh().display(scene)
@@ -265,6 +280,9 @@ class TangentEllipsis(object):
 			u = pi/2 * i/(div+1)
 			pts.append(x*a*(1-cos(u)) + y*b*(1-sin(u)) + origin)
 		return mesh.Wire(pts, group='ellipsis')
+		
+	def __repr__(self):
+		return 'TangentEllipsis({}, {}, {})'.format(self.c, self.b, self.c)
 	
 	def display(self, scene):	
 		return self.mesh().display(scene)
@@ -304,6 +322,9 @@ class Circle(object):
 		indices = list(range(div))
 		indices.append(0)
 		return mesh.Wire(pts, indices, group='arc')
+		
+	def __repr__(self):
+		return 'Circle({}, {})'.format(self.axis, self.radius)
 	
 	def display(self, scene):	
 		return self.mesh().display(scene)
@@ -368,6 +389,9 @@ class Interpolated(object):
 		
 	def box(self):
 		return boundingbox(self.points)
+		
+	def __repr__(self):
+		return 'Interpolated({}, {})'.format(self.points, self.weights)
 
 	def display(self, scene):
 		return displays.SplineDisplay(scene, glmarray(self.points), glmarray(self.mesh().points))
@@ -414,6 +438,9 @@ class Softened(object):
 		
 	def box(self):
 		return boundingbox(self.points)
+		
+	def __repr__(self):
+		return 'Softened({}, {})'.format(self.points, self.weights)
 
 	def display(self, scene):
 		return displays.SplineDisplay(scene, glmarray(self.points), glmarray(self.mesh().points))
