@@ -699,7 +699,7 @@ class WireDisplay(rendering.Display):
 		color = self.color if not self.selected else settings.display['select_color_line']
 		ctx = view.scene.ctx
 		
-		self.uniformshader['color'].write(color)
+		self.uniformshader['color'].write(fvec4(color,1))
 		self.uniformshader['view'].write(viewmat)
 		self.uniformshader['proj'].write(view.uniforms['proj'])
 		
