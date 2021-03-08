@@ -2,8 +2,7 @@
 
 # cython: language_level=3, cdivision=True
 
-from libc.math cimport fabs, ceil, floor, sqrt, INFINITY
-from libc.math cimport fmod
+from libc.math cimport fabs, ceil, floor, sqrt, fmod, INFINITY
 cimport cython
 import glm
 
@@ -88,6 +87,12 @@ cdef cvec3 glm2c(v):
 
 cdef object c2glm(cvec3 v):
 	return glm.dvec3(v.x, v.y, v.z)
+	
+cdef int dsign(double v):
+	if v > 0:	return 1
+	elif v < 0:	return -1
+	else:		return 0
+	
 
 	
 cdef long key(double f, double cell):
@@ -247,12 +252,21 @@ def rasterize_triangle(spaceo, double cell):
 	return rasterization
 
 
-cdef int dsign(double v):
-	if v > 0:	return 1
-	elif v < 0:	return -1
-	else:		return 0
-	
 def intersect_triangles(f0, f1, precision):
+	''' Intersects 2 triangles and outputs intersections vertices
+
+		f0 = first face (tuple of 3 vertices given in clock wise orientation. vertices are glm.vec3 or glm.dvec3)
+		f1 = second face
+
+		output = None if no intersection
+					2 intersection vertices given as : 
+					((fi, ej, xj), (fk, em, xm)) where
+						fi, fj = face id
+						ej, em = edge id on face
+						xj, xm = intersection point (same precision as input vertices) 
+						
+		restrictions : vertices on faces must be spatially different. identical vertices on triangles are not managed
+	'''
 	cdef cvec3 A1A2, A1A3, B1B2, B1B3, nA, nB, d, xA, xB, yA, yB
 	cdef int i
 
@@ -378,7 +392,14 @@ def intersect_triangles(f0, f1, precision):
 		return (0, eIA[miA], c2glm(vaffine(pA1, d, xIA[miA]))),  (0, eIA[piA], c2glm(vaffine(pA1, d, xIA[piA])))
 	if xIA[miA]-prec < xIB[miB] and xIB[piB]-prec < xIA[piA]:
 		# edges of A cross face B
-		return (1, eIB[miB], c2glm(vaffine(pA1, d, xIB[miB]))),  (1, eIB[piB], c2glm(vaffine(pA1, d, xIB[piB])))
+		#return (1, eIB[miB], c2glm(vaffine(pA1, d, xIB[miB]))),  (1, eIB[piB], c2glm(vaffine(pA1, d, xIB[piB])))
+		
+		# give priority to face index 0 when equivalent regarding the precision
+		if abs(xIA[miA]-xIB[miB]) < prec:	mr = (0, eIA[miA], c2glm(vaffine(pA1, d, xIA[miA])))
+		else:								mr = (1, eIB[miB], c2glm(vaffine(pA1, d, xIB[miB])))
+		if abs(xIB[piB]-xIA[piA]) < prec:	pr = (0, eIA[piA], c2glm(vaffine(pA1, d, xIA[piA])))
+		else:								pr = (1, eIB[piB], c2glm(vaffine(pA1, d, xIB[piB])))
+		return mr, pr
 	
 	# intervals cross each other
 	if xIB[miB] > xIA[miA]-prec and xIA[piA]-prec < xIB[piB]:
@@ -388,7 +409,7 @@ def intersect_triangles(f0, f1, precision):
 		# M edge of A crosses face B and P edge of B crosses face A
 		return (0, eIA[miA], c2glm(vaffine(pA1, d, xIA[miA]))), (1, eIB[piB], c2glm(vaffine(pA1, d, xIB[piB])))
 	
-	print("intersect_triangles: unexpected case : ", fA, fB)
+	print("error in intersect_triangles: unexpected case : ", fA, fB)
 	return None
 """
 import glm 
