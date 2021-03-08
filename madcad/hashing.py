@@ -187,6 +187,9 @@ class PositionMap:
 		for k in self.keysfor(space):
 			if k in self.dict:
 				yield from self.dict[k]
+				
+	def __contains__(self, space):
+		return next(self.get(space), None) is not None
 	
 	_display = (
 		[	
