@@ -254,7 +254,7 @@ def vsorti(v):
 	else:							j,k = (i-1)%3, (i+1)%3
 	return (i,j,k)
 	
-
+from .nprint import nprint
 def sweepline_loops(lines: Web, normal=None):
 	''' sweep line algorithm to retreive monotone loops from a Web
 		the web edges should not be oriented, and thus the resulting face has no orientation
@@ -264,7 +264,7 @@ def sweepline_loops(lines: Web, normal=None):
 	'''
 	# selective debug function
 	#debprint = lambda *args, **kwargs: None
-	#debprint = print
+	debprint = print
 
 	if len(lines.edges) < 3:	return Mesh()
 	loops = []
@@ -279,6 +279,9 @@ def sweepline_loops(lines: Web, normal=None):
 				p = lines.points[i]
 				pts[i] = vec2(dot(p,x), dot(p,y))
 	
+	print('sweepline')
+	print('\npoints = {},\nedges = {},\n'.format(lines.points, lines.edges))
+	
 	# affine function y = a*x + b   for edges
 	def affiney(e, x):
 		a, b = pts[e[0]], pts[e[1]]
@@ -289,7 +292,7 @@ def sweepline_loops(lines: Web, normal=None):
 		return a[1] + d * (x - a[0])
 	
 	def orthoproj(v):
-		l = sqrt(v[0]**2 + v[1]**2)
+		l = length(v)
 		return v[1] / l if l else 0
 	
 	# orient edges along the axis and sort them
@@ -314,12 +317,15 @@ def sweepline_loops(lines: Web, normal=None):
 			if stack[j][0] == l:
 				if n != j:	stack.insert(n, stack.pop(j))
 				n -= 1
-	#deprint('stack', stack)
+	#debprint('stack', stack)
 	#debprint('stack')
-	#for e in stack:
-		#debprint(e, (pts[e[0]][0], orthoproj(pts[e[1]]-pts[e[0]])))
+	for e in stack:
+		debprint(e, (pts[e[0]][0], orthoproj(pts[e[1]]-pts[e[0]])))
 	
 	# build cluster by cluster -  each cluster is a monotone sub-polygon
+	# kept sorted so that:
+	#    clusters are in descending order on y
+	# 	 cluster couple is in ascending order:  (l0, l1) with l0 < l1
 	clusters = []
 	while stack:		
 		edge = stack.pop()
@@ -349,7 +355,7 @@ def sweepline_loops(lines: Web, normal=None):
 		for i,(l0,l1) in enumerate(clusters):	
 			# remove the closed cluster
 			if l0[1] == l1[1]:
-				#debprint('    pop', l0,l1)
+				debprint('    pop', l0,l1)
 				clusters.pop(i)
 				loops[i].insert(0, l0[1])
 				finalized.append(loops.pop(i))
@@ -360,12 +366,12 @@ def sweepline_loops(lines: Web, normal=None):
 				clusters[i-1] = (merge[0], clusters[i-1][1])
 				loops[i].append(l1[1])
 				loops[i-1][0:0] = loops.pop(i)
-				#debprint('    merged', loops[i-1])
-				#debprint('clusters', nformat(clusters))
+				debprint('    merged', loops[i-1])
+				debprint('clusters', nformat(clusters))
 				break
 		
-		#print('stack', stack)
-		#debprint('*', edge, coedge, pts[edge[0]][0], -abs(orthoproj(pts[edge[1]]-pts[edge[0]])))
+		print('stack', stack)
+		debprint('*', edge, coedge, pts[edge[0]][0], -abs(orthoproj(pts[edge[1]]-pts[edge[0]])))
 		
 		# search in which cluster we are
 		found = False
@@ -378,7 +384,7 @@ def sweepline_loops(lines: Web, normal=None):
 				clusters[i] = (edge, l1)
 				if coedge:
 					stack.append(coedge)
-				#debprint('      continuation', edge)
+				debprint('      continuation', edge)
 				#if coedge:	nprint(clusters)
 				found = True
 				break
@@ -387,7 +393,7 @@ def sweepline_loops(lines: Web, normal=None):
 				clusters[i] = (l0, coedge or edge)
 				if coedge:
 					stack.append(edge)
-				#debprint('      continuation', coedge or edge)
+				debprint('      continuation', coedge or edge)
 				#if coedge:	nprint(clusters)
 				found = True
 				break
@@ -398,7 +404,7 @@ def sweepline_loops(lines: Web, normal=None):
 				clusters[i] = (l0, coedge)
 				clusters.insert(i, (edge, l1))
 				loops.insert(i, [edge[0]])
-				#debprint('      root hole', edge[0])
+				debprint('      root hole', edge[0])
 				found = True
 				break
 			# interior hole
@@ -409,8 +415,9 @@ def sweepline_loops(lines: Web, normal=None):
 				clusters.insert(i, (edge, l1))
 				loops[i].append(coedge[0])
 				loops.insert(i, [edge[0], l1[0]])
-				#debprint('      hole for ',i, edge)
-				#debprint('clusters', nformat(clusters))
+				debprint('      hole for ',i, edge)
+				debprint('clusters', nformat(clusters))
+				debprint('loops', loops)
 				found = True
 				break
 		
@@ -421,17 +428,15 @@ def sweepline_loops(lines: Web, normal=None):
 				# find the place to insert the cluster
 				# NOTE a dichotomy is more efficient, but for now ...
 				j = 0
-				for j in range(len(clusters)):
-					l0, l1 = clusters[j]
-					if affiney(l1, p0[0]) <= p0[1]:
-						break
+				while j < len(clusters) and affiney(clusters[j][1], p0[0]) > p0[1]:
+					j += 1
 				clusters.insert(j, (coedge, edge))
 				loops.insert(j, [edge[0]])
-				#debprint('    new cluster', j)
-				#debprint(nformat(clusters))
+				debprint('    new cluster', j)
+				debprint(nformat(clusters))
 			# if it's an ambiguous edge without use for now, restack it
 			elif pts[edge[1]][0] == pts[edge[0]][0]:
-				#debprint('    restack')
+				debprint('    restack')
 				stack.insert(-1, edge)
 				if coedge:	stack.insert(-1, coedge)
 			else:
@@ -457,6 +462,7 @@ def triangulation_sweepline(outline: Web, normal=None, prec=0) -> Mesh:
 	pts = outline.points
 	m = Mesh(pts)
 	for loop in sweepline_loops(outline, normal):
+		print('loop', loop)
 		m += triangulation_outline(Wire(outline.points, loop), normal)
 	return m
 	
