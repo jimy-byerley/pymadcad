@@ -287,7 +287,7 @@ def intersect_triangles(f0, f1, precision):
 	# gets the direction of the intersection between the plan containing fA and the one containing fB 
 	d1 = cross(nA, nB)
 	ld1 = length(d1)
-	if ld1 < prec :
+	if ld1 <= prec :
 		#print("coplanar or parallel faces")
 		return None
 	d = vmul(d1, 1/ld1)
@@ -315,12 +315,12 @@ def intersect_triangles(f0, f1, precision):
 	cdef int[3] sYA
 	cdef int[3] sYB
 	for i in range(3):
-		if abs(varr(&yA)[i]) < prec:
+		if abs(varr(&yA)[i]) <= prec:
 			sYA[i] = 0
 			varr(&yA)[i] = 0
 		else:
 			sYA[i] = dsign(varr(&yA)[i])
-		if abs(varr(&yB)[i]) < prec:
+		if abs(varr(&yB)[i]) <= prec:
 			sYB[i] = 0
 			varr(&yB)[i] = 0
 		else:
@@ -333,31 +333,24 @@ def intersect_triangles(f0, f1, precision):
 
 	# we know that triangles do intersect the line D
 	# edges of intersection on A and B with the convention : edge i of face X connects fX[i] and fX[(i+1)%3] 
-	cdef int eIA[2]
-	cdef int eIB[2]
+	cdef int eIA[3]
+	cdef int eIB[3]
 	cdef size_t neIA=0
 	cdef size_t neIB=0
-	for i in range(3):
-		if sYA[i]*sYA[(i+1)%3]<=0 and abs(sYA[i])+abs(sYA[(i+1)%3])>0 : 
-			eIA[neIA] = i
+	
+	cdef int j, k
+	# prioritize on edges really getting through the face (not stopping on)
+	for j in range(3):
+		if sYA[j]*sYA[(j+1)%3] < 0:
+			break		
+	# look for edges intersecting starting from the eventual through one
+	for i in range(j,j+3):
+		if sYA[i%3]*sYA[(i+1)%3] <= 0 and abs(sYA[i%3])+abs(sYA[(i+1)%3]) > 0 : 
+			eIA[neIA] = i%3
 			neIA += 1
-		#elif sYA[i]==0:
-			#if abs(sYA[(i+1)%3])>0 : 
-				#eIA[neIA] = i
-				#neIA += 1
-			#else :
-				#eIA[neIA] = (i-1)%3
-				#neIA += 1
-		if sYB[i]*sYB[(i+1)%3]<=0 and abs(sYB[i])+abs(sYB[(i+1)%3])>0 : 
-			eIB[neIB] = i
+		if sYB[i%3]*sYB[(i+1)%3] <= 0 and abs(sYB[i%3])+abs(sYB[(i+1)%3]) > 0 : 
+			eIB[neIB] = i%3
 			neIB += 1
-		#elif sYB[i]==0:
-			#if abs(sYB[(i+1)%3])>0 : 
-				#eIB[neIB] = i
-				#neIB += 1
-			#else :
-				#eIB[neIB] = (i-1)%3
-				#neIB += 1
 	if neIA==1:		eIA[1] = eIA[0]
 	if neIB==1:		eIB[1] = eIB[0]
 
@@ -373,11 +366,11 @@ def intersect_triangles(f0, f1, precision):
 	piB, miB = (0, 1)	if xIB[0] > xIB[1] else   (1, 0)
 	
     # one intersection at the border of the intervals
-	if abs(xIA[piA]-xIB[miB]) < prec:
+	if abs(xIA[piA]-xIB[miB]) <= prec:
 		# edge of max from A matches min of B
 		return (0, eIA[piA], c2glm(vaffine(pA1, d, xIA[piA]))),  (1, eIB[miB], c2glm(vaffine(pA1, d, xIB[miB])))
 		
-	if abs(xIB[piB]-xIA[miA]) < prec:
+	if abs(xIB[piB]-xIA[miA]) <= prec:
 		# edge of max from B matches min of A
 		return (0, eIA[miA], c2glm(vaffine(pA1, d, xIA[miA]))),  (1, eIB[piB], c2glm(vaffine(pA1, d, xIB[piB])))
 	
@@ -387,17 +380,17 @@ def intersect_triangles(f0, f1, precision):
 		return None
 		
 	# one interval is included in the other one
-	if xIB[miB]-prec < xIA[miA] and xIA[piA]-prec < xIB[piB]:
+	if xIB[miB]-prec <= xIA[miA] and xIA[piA]-prec <= xIB[piB]:
 		# edges of A cross face B
 		return (0, eIA[miA], c2glm(vaffine(pA1, d, xIA[miA]))),  (0, eIA[piA], c2glm(vaffine(pA1, d, xIA[piA])))
-	if xIA[miA]-prec < xIB[miB] and xIB[piB]-prec < xIA[piA]:
+	if xIA[miA]-prec <= xIB[miB] and xIB[piB]-prec <= xIA[piA]:
 		# edges of A cross face B
 		#return (1, eIB[miB], c2glm(vaffine(pA1, d, xIB[miB]))),  (1, eIB[piB], c2glm(vaffine(pA1, d, xIB[piB])))
 		
 		# give priority to face index 0 when equivalent regarding the precision
-		if abs(xIA[miA]-xIB[miB]) < prec:	mr = (0, eIA[miA], c2glm(vaffine(pA1, d, xIA[miA])))
+		if abs(xIA[miA]-xIB[miB]) <= prec:	mr = (0, eIA[miA], c2glm(vaffine(pA1, d, xIA[miA])))
 		else:								mr = (1, eIB[miB], c2glm(vaffine(pA1, d, xIB[miB])))
-		if abs(xIB[piB]-xIA[piA]) < prec:	pr = (0, eIA[piA], c2glm(vaffine(pA1, d, xIA[piA])))
+		if abs(xIB[piB]-xIA[piA]) <= prec:	pr = (0, eIA[piA], c2glm(vaffine(pA1, d, xIA[piA])))
 		else:								pr = (1, eIB[piB], c2glm(vaffine(pA1, d, xIB[piB])))
 		return mr, pr
 	
