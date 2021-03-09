@@ -58,7 +58,7 @@ def intersectwith(m1, m2, prec=None):
 			track = m1.tracks[i]
 			while front:
 				fi = front.pop()
-				if grp[fi] == -1 and m1.tracks[fi] == track and distance2(m1.facenormal(fi), normal) <= NUMPREC**2:
+				if grp[fi] == -1 and m1.tracks[fi] == track and distance2(m1.facenormal(fi), normal) <= NUMPREC:
 					surf.append(fi)
 					grp[fi] = currentgrp
 					f = m1.faces[fi]
@@ -76,7 +76,8 @@ def intersectwith(m1, m2, prec=None):
 			
 			# process all ngon triangles
 			# enrich outlines with intersections
-			segts = Web(m1.points, groups=m2.faces)
+			#segts = Web(m1.points, groups=m2.faces)
+			segts = {}
 			for f1 in surf:
 				f = m1.faces[f1]
 				for f2 in set( prox2.get(m1.facepoints(f1)) ):
@@ -88,26 +89,30 @@ def intersectwith(m1, m2, prec=None):
 						p1 = points.add(ia[2])
 						p2 = points.add(ib[2])
 						# associate the intersection edge with the m2's face
-						segts.edges.append((p1,p2))
-						segts.tracks.append(f2)
+						if (p1,p2) in segts:	continue
+						segts[(p1,p2)] = f2
 						# cut the outline if needed
 						if ia[0] == 0:	
 							o = f[ia[1]], f[(ia[1]+1)%3]
 							if o in original:
 								e = find(outline, lambda e: distance_pe(m1.points[p1], (m1.points[e[0]], m1.points[e[1]])) <= prec)
-								outline.remove(e)
-								outline.add((e[0],p1))
-								outline.add((p1,e[1]))
+								if p1 not in e:	# NOTE maybe not necessary
+									outline.remove(e)
+									outline.add((e[0],p1))
+									outline.add((p1,e[1]))
 						if ib[0] == 0:	
 							o = f[ib[1]], f[(ib[1]+1)%3]
 							if o in original:
 								e = find(outline, lambda e: distance_pe(m1.points[p2], (m1.points[e[0]], m1.points[e[1]])) <= prec)
-								outline.remove(e)
-								outline.add((e[0],p2))
-								outline.add((p2,e[1]))
+								if p2 not in e:
+									outline.remove(e)
+									outline.add((e[0],p2))
+									outline.add((p2,e[1]))
 			
 			# simplify the intersection lines
-			segts.mergepoints(line_simplification(segts, prec))
+			segts = Web(m1.points, list(segts.keys()), list(segts.values()), m2.faces)
+			simp = line_simplification(segts, prec)
+			segts.mergepoints(simp)
 			frontier.extend(zip(segts.edges, segts.tracks))
 			
 			# retriangulate the cutted surface
@@ -128,7 +133,7 @@ def intersectwith(m1, m2, prec=None):
 	m1.faces = mn.faces
 	m1.tracks = mn.tracks
 	return frontier
-
+from .mesh import suites
 #def dumpvec(v):
 	#return 'dvec3({:.15g},{:.15g},{:.15g})'.format(*v)
 #def dumpface(f):
