@@ -24,6 +24,59 @@ __all__ = ['intersect', 'boolean', 'intersection', 'union', 'difference']
 		
 
 
+def intersect(m1: Mesh, m2: Mesh):
+	''' cut the faces of m1 and m2 at their intersections '''
+	m3 = copy(m1)
+	intersectwith(m1, m2)
+	intersectwith(m2, m3)
+
+def boolean(m1: Mesh, m2: Mesh, selector: '(bool,bool)', prec=None) -> Mesh:
+	''' execute boolean operation on volumes 
+	
+		selector decides which part of each mesh to keep
+	
+			- False keep the exterior part (part exclusive to the other mesh)
+			- True keep the common part
+	'''
+	if not prec:	prec = max(m1.precision(), m2.precision())
+	
+	if selector[0] is not None:
+		if selector[1] is not None:
+			mc1, mc2 = copy(m1), copy(m2)
+			booleanwith(mc1, m2, selector[0], prec)
+			booleanwith(mc2, m1, selector[1], prec)
+			if selector[0] and not selector[1]:		mc1 = mc1.flip()
+			if not selector[0] and selector[1]:		mc2 = mc2.flip()
+			res = mc1 + mc2
+			res.mergeclose()
+			return res
+		else:
+			mc1 = copy(m1)
+			booleanwith(mc1, m2, selector[0], prec)
+			return mc1
+	elif selector[1] is not None:
+		return boolean(m2, m1, (selector[1], selector[0]))
+
+def union(a: Mesh, b: Mesh) -> Mesh:			
+	''' return a mesh for the union of the volumes. 
+		It is a boolean with selector (False,False) 
+	'''
+	return boolean(a,b, (False,False))
+
+def intersection(a: Mesh, b: Mesh) -> Mesh:	
+	''' return a mesh for the common volume. 
+		It is a boolean with selector (True, True) 
+	'''
+	return boolean(a,b, (True,True))
+
+def difference(a: Mesh, b: Mesh) -> Mesh:	
+	''' return a mesh for the volume of a less the common volume with b
+		It is a boolean with selector (False, True)
+	'''
+	return boolean(a,b, (False,True))
+
+
+
 def intersectwith(m1, m2, prec=None):
 	''' Cut m1 faces at their intersections with m2. 
 		Returning the intersection edges in m1 and associated m2 faces.
@@ -76,7 +129,6 @@ def intersectwith(m1, m2, prec=None):
 			
 			# process all ngon triangles
 			# enrich outlines with intersections
-			#segts = Web(m1.points, groups=m2.faces)
 			segts = {}
 			for f1 in surf:
 				f = m1.faces[f1]
@@ -133,10 +185,7 @@ def intersectwith(m1, m2, prec=None):
 def booleanwith(m1, m2, side, prec=None):
 	''' execute the boolean operation only on m1 '''
 	if not prec:	prec = m1.precision()
-	start = time()
 	frontier = intersectwith(m1, m2, prec)
-	print('intersectwith', time()-start)
-	start = time()
 	
 	conn1 = connef(m1.faces)
 	used = [False] * len(m1.faces)
@@ -196,62 +245,11 @@ def booleanwith(m1, m2, side, prec=None):
 			#if u:
 				#p = m1.facepoints(i)
 				#scn3D.add(text.Text((p[0]+p[1]+p[2])/3, str(u), 9, (1,0,1), align=('center', 'center')))
+	
 	m1.faces =  [f for u,f in zip(used, m1.faces) if u]
 	m1.tracks = [t for u,t in zip(used, m1.tracks) if u]
-	
-	print('booleanwith', time()-start)
 	return notto
 
-debug_propagation = False
+#debug_propagation = False
 
-def intersect(m1: Mesh, m2: Mesh):
-	''' cut the faces of m1 and m2 at their intersections '''
-	m3 = copy(m1)
-	intersectwith(m1, m2)
-	intersectwith(m2, m3)
-
-def boolean(m1: Mesh, m2: Mesh, selector: '(bool,bool)', prec=None) -> Mesh:
-	''' execute boolean operation on volumes 
-	
-		selector decides which part of each mesh to keep
-	
-			- False keep the exterior part (part exclusive to the other mesh)
-			- True keep the common part
-	'''
-	if not prec:	prec = max(m1.precision(), m2.precision())
-	
-	if selector[0] is not None:
-		if selector[1] is not None:
-			mc1, mc2 = copy(m1), copy(m2)
-			booleanwith(mc1, m2, selector[0], prec)
-			booleanwith(mc2, m1, selector[1], prec)
-			if selector[0] and not selector[1]:		mc1 = mc1.flip()
-			if not selector[0] and selector[1]:		mc2 = mc2.flip()
-			res = mc1 + mc2
-			res.mergeclose()
-			return res
-		else:
-			mc1 = copy(m1)
-			booleanwith(mc1, m2, selector[0], prec)
-			return mc1
-	elif selector[1] is not None:
-		return boolean(m2, m1, (selector[1], selector[0]))
-
-def union(a: Mesh, b: Mesh) -> Mesh:			
-	''' return a mesh for the union of the volumes. 
-		It is a boolean with selector (False,False) 
-	'''
-	return boolean(a,b, (False,False))
-
-def intersection(a: Mesh, b: Mesh) -> Mesh:	
-	''' return a mesh for the common volume. 
-		It is a boolean with selector (True, True) 
-	'''
-	return boolean(a,b, (True,True))
-
-def difference(a: Mesh, b: Mesh) -> Mesh:	
-	''' return a mesh for the volume of a less the common volume with b
-		It is a boolean with selector (False, True)
-	'''
-	return boolean(a,b, (False,True))
 
