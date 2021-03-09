@@ -708,25 +708,28 @@ class Mesh(Container):
 	
 	# --- renderable interfaces ---
 		
-	def display_triangles(self, scene):		
+	def display_triangles(self, scene):
+		from . import rendering, text
+		grp = []
 		if self.options.get('debug_points', False):
 			for i,p in enumerate(self.points):
-				yield from text.Text(
+				grp.append(text.TextDisplay(scene, 
 					p, 
 					' '+str(i), 
 					size=8, 
 					color=(0.2, 0.8, 1),
-					align=('left', 'center'),
-					).display(scene)
+					align=('left', 'center'), 
+					layer=-4e-4,
+					))
 		
 		if self.options.get('debug_faces', None) == 'indices':
 			for i,f in enumerate(self.faces):
 				p = (self.points[f[0]] + self.points[f[1]] + self.points[f[2]]) /3
-				yield from text.Text(p, str(i), 9, (1, 0.2, 0), align=('center', 'center')).display(scene)
+				grp.append(text.TextDisplay(scene, p, str(i), 9, (1, 0.2, 0), align=('center', 'center'), layer=-4e-4))
 		if self.options.get('debug_faces', None) == 'tracks':
 			for i,f in enumerate(self.faces):
 				p = (self.points[f[0]] + self.points[f[1]] + self.points[f[2]]) /3
-				yield from text.Text(p, str(self.tracks[i]), 9, (1, 0.2, 0), align=('center', 'center')).display(scene)
+				grp.append(text.TextDisplay(scene, p, str(self.tracks[i]), 9, (1, 0.2, 0), align=('center', 'center'), layer=-4e-4))
 		
 		fn = np.array([tuple(self.facenormal(f)) for f in self.faces])
 		points = np.array([tuple(p) for p in self.points], dtype=np.float32)		
@@ -742,15 +745,23 @@ class Mesh(Container):
 			idents.append(i)
 			idents.append(i)
 		
-		yield displays.SolidDisplay(scene,
-			points[np.array(self.faces, dtype='u4')].reshape((len(self.faces)*3,3)),
-			np.hstack((fn, fn, fn)).reshape((len(self.faces)*3,3)),
-			faces = np.array(range(3*len(self.faces)), dtype='u4').reshape(len(self.faces),3),
-			idents = np.array(idents, dtype='u2'),
-			lines = np.array(edges, dtype='u4'),
-			#points = np.array(range(len(self.faces)*3), dtype='u4'),
-			color = self.options.get('color'),
-			)
+		m = copy(self)
+		idents = m.splitgroups()
+		edges = m.groupoutlines().edges
+		normals = m.vertexnormals()
+		
+		if not m.points or not m.faces:	
+			return displays.Display()
+		
+		grp.append(displays.SolidDisplay(scene, 
+				glmarray(m.points), 
+				glmarray(normals), 
+				m.faces, 
+				edges,
+				idents,
+				color = self.options.get('color'),
+				))
+		return rendering.Group(scene, grp)
 	
 	def display_groups(self, scene):
 		m = copy(self)
@@ -1374,7 +1385,7 @@ def line_simplification(web, prec=None):
 	merges = {}
 	def process(a,b,c):
 		# merge with current merge point if height is not sufficient, use it as new merge point
-		height = length(noproject(pts[c]-pts[b], normalize(pts[c]-pts[a])))
+		height = length(noproject(pts[c]-pts[b], pts[c]-pts[a]))
 		if height > prec:
 			#scn3D.add(text.Text(pts[b], str(height), 8, (1,0,1), align=('left', 'center')))
 			return b
