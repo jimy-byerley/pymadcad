@@ -237,6 +237,7 @@ def distance_pe(pt, edge):
 	''' point - edge distance '''
 	dir = edge[1]-edge[0]
 	l = length(dir)
+	if not l:	return 0
 	x = dot(pt-edge[0], dir)/l**2
 	if   x < 0:	return distance(pt,edge[0])
 	elif x > 1:	return distance(pt,edge[1])
