@@ -67,12 +67,6 @@ for more details.
 
 ## License   ![LGPL logo](https://www.gnu.org/graphics/lgplv3-88x31.png)
 
-Copyright 2019-2020 Yves Dejonghe <yves.dejonghe.y@gmail.com>
+Copyright 2019-2021 Yves Dejonghe <yves.dejonghe.y@gmail.com>
 
 This library is distributed under the LGPL-v3 license. A copy of that license is provided with this software.
-
-
-![python logo](https://www.python.org/static/img/python-logo.png)
-![cython logo](https://avatars3.githubusercontent.com/u/486082?s=200&v=4)
-![moderngl logo](https://avatars2.githubusercontent.com/u/26459939?s=200&v=4)
-![qt logo](https://cdn2.hubspot.net/hubfs/149513/Qt2017/qt_logo_with_text_green_rgb.png)
