@@ -72,7 +72,7 @@ class Asso(object):
 		for i in range(oi, len(other._keys)):
 			knew.append(other._keys[i])
 			vnew.append(other._values[i])
-		return Asso(knew, vnew)
+		return Asso(keys=knew, values=vnew)
 		
 		
 	def __delitem__(self, key):
