@@ -198,8 +198,8 @@ def cut(mesh, start, cutplane, stops, conn, prec, removal, cutghost=True):
 						continue
 					
 					# cut the face (create face even for non kept side, necessary for propagation)
-					p1 = mesh.usepointat(cut[j], 8*prec)
-					p2 = mesh.usepointat(cut[j-1], 8*prec)
+					p1 = mesh.usepointat(cut[j], prec)
+					p2 = mesh.usepointat(cut[j-1], prec)
 					
 					l = len(mesh.faces)
 					mesh.faces[fi] = (p1, f[j-2], f[j-1])
@@ -344,7 +344,7 @@ def multicut(mesh, edges, cutter, conn=None, prec=None, removal=None):
 		outlines[edge] = cut(mesh, edge, 
 								(pts[edge[0]]+offset, -normalize(offset)), 
 								(separators.get(edge), separators.get((edge[1], edge[0]))), 
-								conn, prec, removal, False)
+								conn, prec, removal, True)
 	# couper les sommets
 	for corner,offset in corners.items():
 		outlines[corner] = cut(mesh, corner, 
