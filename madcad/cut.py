@@ -71,6 +71,7 @@ def planeoffsets(mesh, edges, cutter):
 			for e in ((f[0],f[1]), (f[1],f[2]), (f[2],f[0])):
 				if e in offsets:					offsets[e][0] = mesh.facenormal(f)
 				elif (e[1],e[0]) in offsets:		offsets[(e[1],e[0])][1] = mesh.facenormal(f)
+		
 		# compute offsets (displacement on depth)
 		for e, adjacents in offsets.items():
 			offset = cutter(*adjacents)
@@ -124,7 +125,7 @@ def cut(mesh, start, cutplane, stops, conn, prec, removal, cutghost=True):
 		f = mesh.faces[fi]
 		
 		# do not process empty faces (its a topology singularity), but propagate
-		if faceheight(mesh, fi) <= prec:	
+		if faceheight(mesh, fi) <= prec:
 			seen.add(fi)
 			for j in range(3):
 				front.append((f[j],f[j-1]))
@@ -134,15 +135,15 @@ def cut(mesh, start, cutplane, stops, conn, prec, removal, cutghost=True):
 		fpts = mesh.facepoints(fi)
 		p = None
 		for a in axis:
+			# if the intersection is on a triangle's edge, p is None
 			p = intersection_axis_face(a, fpts, prec)
 			if p:	break
 		if p:
 			# mark cutplane change
 			# empty faces can be generated, but they are necessary to keep the connectivity working
-			pi = mesh.usepointat(p, prec)
-			#print('   ', pi, f, faceheight(mesh, fi), prec)	# this is to detect the vicious circles that can appear in case of numeric instability
+			pi = len(mesh.points)
+			mesh.points.append(p)
 			l = len(mesh.faces)
-			unregisterface(mesh, conn, fi)				
 			mesh.faces[fi] = (f[0], f[1], pi)
 			mesh.faces.append((f[1], f[2], pi))
 			mesh.faces.append((f[2], f[0], pi))
@@ -157,32 +158,28 @@ def cut(mesh, start, cutplane, stops, conn, prec, removal, cutghost=True):
 		# mark this face as processed
 		seen.add(fi)
 		
-		#scn3D.add(text.Text(
-			#(pts[f[0]] + pts[f[1]] + pts[f[2]]) /3,
-			#'  '+str(fi),
-			#8,
-			#color=(0.1, 1, 0.4),
-			#align=('left', 'center'),
-			#))
-			
-		
 		# point side for propagation
+		# True if the point is over or on the cutplane
 		goodside = [False]*3
 		for j,pi in enumerate(f):
 			goodside[j] = 	dot(pts[pi]-cutplane[0], cutplane[1]) >= -prec
+		
 		if not any(goodside):
 			continue
 		
+		# True if the point is over or on for all stop planes
 		goodx = [False]*3
 		for j,pi in enumerate(f):
 			goodx[j] = all(dot(pts[pi]-stop[0], stop[1]) >= -prec  	for stop in stops)
+			
 		
 		# intersections of triangle's edges with the plane
-		ghostface = fi in removal and not cutghost
 		cut = [None]*3
-		for j,e in enumerate(((f[0],f[1]), (f[1],f[2]), (f[2],f[0]))):
-			cut[j] = intersection_edge_plane(cutplane, (pts[e[0]], pts[e[1]]), prec)
+		for j in range(3):
+			cut[j] = intersection_edge_plane(cutplane, (pts[f[j]], pts[f[j-2]]), prec)
+			
 		
+		# don't intersect if the 2 points are at the corner of the triangle
 		for j in range(3):
 			if cut[j-1] and cut[j] and distance(cut[j-1], cut[j]) <= prec:	
 				cut[j] = None
@@ -190,46 +187,43 @@ def cut(mesh, start, cutplane, stops, conn, prec, removal, cutghost=True):
 		if all(goodside) and any(goodx):
 			removal.add(fi)
 		
-		# cut the face
-		for j in range(3):
-			if cut[j] and cut[j-1]:
-				if ghostface:	break	# NOTE: this is a ugly trick to make the current multicut implementation work with the same function for corners and edges
-				# cut only if the intersection segment is in the delimited area
-				if any(	dot(cut[j-1]-stop[0], stop[1]) < prec 
-					and	dot(cut[j]  -stop[0], stop[1]) < prec
-						for stop in stops):
-					continue
-				
-				# cut the face (create face even for non kept side, necessary for propagation)
-				p1 = mesh.usepointat(cut[j], prec)
-				p2 = mesh.usepointat(cut[j-1], prec)
-				unregisterface(mesh, conn, fi)
-				l = len(mesh.faces)
-				mesh.faces[fi] = (p1, f[j-2], f[j-1])
-				mesh.faces.append((p1, f[j-1], p2))
-				mesh.faces.append((p1, p2, f[j-0]))
-				mesh.tracks.append(mesh.tracks[fi])
-				mesh.tracks.append(mesh.tracks[fi])
-				registerface(mesh, conn, fi)
-				registerface(mesh, conn, l)
-				registerface(mesh, conn, l+1)
-				seen.update((fi, l, l+1))
-				# remove the faces outside
-				if dot(pts[f[j]]-cutplane[0], cutplane[1]) < 0:
-					removal.add(fi)
-					removal.add(l)
-					intersections.add((p2,p1))
-				else:
-					removal.add(l+1)
-					removal.discard(fi)
-					intersections.add((p1,p2))
-				break
+		if fi not in removal or cutghost:	# NOTE: this is a ugly trick to make the current multicut implementation work with the same function for corners and edges
+			# cut the face
+			for j in range(3):
+				if cut[j] and cut[j-1]:
+					# cut only if the intersection segment is in the delimited area
+					if any(	dot(cut[j-1]-stop[0], stop[1]) <= prec 
+						and	dot(cut[j]  -stop[0], stop[1]) <= prec
+							for stop in stops):
+						continue
+					
+					# cut the face (create face even for non kept side, necessary for propagation)
+					p1 = mesh.usepointat(cut[j], 8*prec)
+					p2 = mesh.usepointat(cut[j-1], 8*prec)
+					
+					l = len(mesh.faces)
+					mesh.faces[fi] = (p1, f[j-2], f[j-1])
+					mesh.faces.append((p1, f[j-1], p2))
+					mesh.faces.append((p1, p2, f[j-0]))
+					mesh.tracks.append(mesh.tracks[fi])
+					mesh.tracks.append(mesh.tracks[fi])
+					registerface(mesh, conn, fi)
+					registerface(mesh, conn, l)
+					registerface(mesh, conn, l+1)
+					seen.update((fi, l, l+1))
+					# mark to remove the faces outside
+					if dot(pts[f[j]]-cutplane[0], cutplane[1]) < 0:
+						removal.add(fi)
+						removal.add(l)
+						intersections.add((p2,p1))
+					else:
+						removal.add(l+1)
+						removal.discard(fi)
+						intersections.add((p1,p2))
+					break
 		# propagate
 		for j in range(3):
 			front.append((f[j],f[j-1]))
-	
-	#for e in intersections:
-		#scn.add(text.Text((pts[e[0]]+pts[e[1]])/2, str(e), color=vec3(1,1,0)))
 	
 	return intersections
 
@@ -286,7 +280,7 @@ def multicut(mesh, edges, cutter, conn=None, prec=None, removal=None):
 		o1 = offsets[edgekey(i,prox[1])]
 		axis = intersection_plane_plane((pts[prox[0]]+o0, o0), (pts[prox[1]]+o1, o1), pts[i])	# fail when the two planes have the same orientation
 		if axis:
-			n = cross(pts[i]-axis[0], axis[1])
+			n = normalize(cross(pts[i]-axis[0], axis[1]))
 			if dot(n, pts[prox[0]]-pts[i]) < 0:		n = -n
 			separators[(i,prox[0])] = (axis[0], n)
 			separators[(i,prox[1])] = (axis[0],-n)
@@ -350,7 +344,7 @@ def multicut(mesh, edges, cutter, conn=None, prec=None, removal=None):
 		outlines[edge] = cut(mesh, edge, 
 								(pts[edge[0]]+offset, -normalize(offset)), 
 								(separators.get(edge), separators.get((edge[1], edge[0]))), 
-								conn, prec, removal, True)
+								conn, prec, removal, False)
 	# couper les sommets
 	for corner,offset in corners.items():
 		outlines[corner] = cut(mesh, corner, 
@@ -362,6 +356,7 @@ def multicut(mesh, edges, cutter, conn=None, prec=None, removal=None):
 		for edges in outlines.values():
 			frontier.extend(edges)
 		finalize(mesh, outlines, propagate(mesh, frontier, conn, prec), prec)
+		#finalize(mesh, outlines, removal, prec)	# NOTE this is faster but also leads to not removing all faces
 	return outlines
 
 def finalize(mesh, outlines, removal, prec):
@@ -396,6 +391,8 @@ def arrangeface(f, p):
 
 def registerface(mesh, conn, fi):
 	f = mesh.faces[fi]
+	if f[0] == f[1] or f[1] == f[2] or f[2] == f[0]:
+		return
 	for e in ((f[0],f[1]), (f[1],f[2]), (f[2],f[0])):
 		conn[e] = fi
 		
@@ -421,18 +418,24 @@ def intersection_plane_plane(p0, p1, neigh=None):
 		), normalize(d)
 
 def intersection_edge_plane(axis, edge, prec):
-	''' return intersection point of an edge with a plane, or None if it doesn't exist '''
-	dist = dot(axis[0]-edge[0], axis[1])
-	compl = dot(axis[0]-edge[1], axis[1])
-	if abs(dist) <= prec:		return edge[0]
-	if abs(compl) <= prec:	return edge[1]
-	if dist * compl > 0:	return None		# the segment doesn't reach the plane
-	edgedir = edge[1]-edge[0]
-	if abs(dot(edgedir, axis[1])) <= NUMPREC:	return None	# the segment is parallel to the plane
-	edgedir = normalize(edgedir)
-	return edge[0] + dist * edgedir / dot(edgedir, axis[1])
+	''' return the intersection point of an edge with a plane, or None if it doesn't exist 
+		In case of an intersection at an extremity of the edge, return that edge point
+	'''
+	a, b = edge
+	da = dot(axis[0]-a, axis[1])
+	db = dot(axis[0]-b, axis[1])
+	if abs(da) <= prec:		return a
+	if abs(db) <= prec:		return b
+	if da * db > 0:		return None		# the segment doesn't reach the plane
+	edgedir = b-a
+	proj = dot(edgedir, axis[1])
+	if abs(proj) <= prec:	return None	# the segment is parallel to the plane
+	return a + da * edgedir / proj
 
 def intersection_axis_face(axis, face, prec):
+	''' intersection between an axis and a triangle
+		In case of intersection with an edge of the triangle, return None
+	'''
 	n = cross(face[1]-face[0], face[2]-face[0])
 	unp = dot(n, axis[1])
 	if abs(unp) <= prec:	return None
