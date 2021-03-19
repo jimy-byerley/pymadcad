@@ -229,10 +229,6 @@ class Mesh(Container):
 			return self
 		else:
 			return NotImplemented
-	
-	def flip(self):
-		''' flip direction of all faces '''
-		self.faces = [(a,c,b)   for a,b,c in self.faces]
 		
 	# --- mesh optimization ---
 		
@@ -797,7 +793,7 @@ class Mesh(Container):
 				)
 	
 	def __repr__(self):
-		return 'Mesh(\n  points= {},\n  faces=  {},\n  tracks= {},\n  groups= {},\n  options= {})'.format(
+		return 'Mesh(\n  points={},\n  faces={},\n  tracks={},\n  groups={},\n  options={})'.format(
 					reprarray(self.points, 'points'),
 					reprarray(self.faces, 'faces'),
 					reprarray(self.tracks, 'tracks'),
@@ -806,9 +802,10 @@ class Mesh(Container):
 		
 
 def reprarray(array, name):
-	if len(array) <= 5:		content = ', '.join((str(e) for e in array))
-	elif len(array) <= 20:	content = ',\n           '.join((str(e) for e in array))
-	else:					content = '{} {}'.format(len(array), name)
+	#if len(array) <= 5:		
+	content = ', '.join((str(e) for e in array))
+	#elif len(array) <= 20:	content = ',\n           '.join((str(e) for e in array))
+	#else:					content = '{} {}'.format(len(array), name)
 	return '['+content+']'
 
 def striplist(list, used):
@@ -1038,7 +1035,7 @@ class Web(Container):
 	
 	
 	def __repr__(self):
-		return 'Web(\n  points= {},\n  edges=  {},\n  tracks= {},\n  groups= {},\n  options= {})'.format(
+		return 'Web(\n  points={},\n  edges={},\n  tracks={},\n  groups={},\n  options={})'.format(
 					reprarray(self.points, 'points'),
 					reprarray(self.edges, 'edges'),
 					reprarray(self.tracks, 'tracks'),
@@ -1152,6 +1149,19 @@ class Wire:
 		self.indices.append(self.indices[0])
 		return self
 		
+	def mergeclose(self, limit=None):
+		''' merge close points ONLY WHEN they are already linked by an edge.
+			the meaning of this method is different than `Web.mergeclose()`
+		'''
+		if limit is None:	limit = self.precision()
+		limit *= limit
+		merges = {}
+		for i in reversed(range(1, len(self.indices))):
+			if distance2(self.points[self.indices[i-1]], self.points[self.indices[i]]) <= limit:
+				self.indices.pop(i)
+				merges[self.indices[i]] = self.indices[i-1]
+		return merges
+		
 	def isvalid(self):
 		''' return True if the internal data are consistent '''
 		try:				self.check()
@@ -1171,6 +1181,9 @@ class Wire:
 		''' list of successive edges of the wire '''
 		return [self.edge(i)  for i in range(len(self.indices)-1)]
 		
+		
+	maxnum = Container.maxnum
+	precision = Container.precision
 	
 	def length(self):
 		''' curviform length of the wire (sum of all edges length) '''
@@ -1270,7 +1283,7 @@ class Wire:
 		return web(self).display(scene)
 	
 	def __repr__(self):
-		return 'Wire(\n  points= {},\n  indices=  {},\n  group= {})'.format(
+		return 'Wire(\n  points={},\n  indices={},\n  group={})'.format(
 					reprarray(self.points, 'points'),
 					reprarray(self.indices, 'indices'),
 					repr(self.group))
@@ -1291,7 +1304,7 @@ def wire(*args):
 	if isinstance(args, Wire):		return args
 	elif isinstance(args, Web):
 		indices = suites(args.edges)
-		if len(indices) > 1:	raise ValueError('the given web has junctions')
+		if len(indices) > 1:	raise ValueError('the given web has junctions or is discontinuous')
 		return Wire(args.points, indices[0], 
 					group=args.groups[0] if len(args.groups)==1 else None)
 	elif hasattr(args, 'mesh'):
@@ -1304,11 +1317,10 @@ def wire(*args):
 		pool = Wire([])
 		for primitive in args:
 			add = wire(primitive)
-			if pool.indices and pool[-1] == add[0]:	
-				pool.indices.pop()
 			l = len(pool.points)
 			pool.points.extend(add.points)
 			pool.indices.extend((i+l  for i in add.indices))
+		pool.mergeclose()
 		return pool
 	else:
 		raise TypeError('incompatible data type for Wire creation')
