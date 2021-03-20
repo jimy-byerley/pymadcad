@@ -19,7 +19,7 @@ m = saddle(
 m.check()
 
 #cut.cut_corner(m, 87, 0.6*vec3(0,0.2,0.05))
-w = m.group(1).outlines_unoriented() & m.group(2).outlines_unoriented()
+w = m.frontiers((1,2))
 #multicut(m, w, ('depth', 0.6))
 #chamfer(m, w, ('depth', 0.6))
 bevel(m, w, ('depth', 0.6))

@@ -6,18 +6,11 @@
 	Most of the time you don't need to set the offset yourself. It can be automatically calculated by several methods, depending on the shape you want to get. Those methods are called `cutters` and are executed using `planeoffsets`_.
 '''
 
-from .mathutils import (
-					vec3, mat3, dmat3, dvec3, 
-					dot, cross, project, noproject, unproject, normalize, distance, length, arclength,
-					anglebt, sqrt, cos, acos, asin, 
-					spline, interpol1, interpol2, inverse, transpose, 
-					NUMPREC, COMPREC, inf,
-					)
+from .mathutils import *
 from .mesh import Mesh, Web, Wire, lineedges, connef, connpp, edgekey, suites, line_simplification
 from . import generation as gt
 from . import text
 from . import settings
-from .nprint import nprint, nformat
 
 __all__ = [	'chamfer', 'bevel',
 			'cut', 'multicut', 'planeoffsets',
@@ -589,29 +582,26 @@ def bevel(mesh, edges, cutter, resolution=None):
 				side = noproject(pts[lp[0]]-pts[lp[-1]], normalize(pts[e[1]] - pts[e[0]]))
 				for i in range(1,len(lp)):
 					if dot(pts[lp[i-1]]-pts[e[0]], side) * dot(pts[lp[i]]-pts[e[0]], side) < 0:
-						left, right = lp[:i], lp[i:]
+						l,r = lp[:i], lp[i:]
 						break
 				cornerreg(e[0], (lp[0],lp[-1]))
 				if (lp[i], lp[i-1]) in conn:
 					ends.append((lp[i-1], lp[i]))
 			# two parts: cutted edge
 			elif len(frags) == 2:
-				left,right = frags
-				cornerreg(e[0], (frags[0][0], frags[1][-1]))
-				cornerreg(e[1], (frags[1][0], frags[0][-1]))
+				l,r = frags
+				if dot(pts[l[-1]]-pts[l[0]], pts[e[1]]-pts[e[0]]) < 0 or dot(pts[r[-1]]-pts[r[0]], pts[e[1]]-pts[e[0]]) > 0:
+					l,r = r,l
+				cornerreg(e[0], (l[0], r[-1]))
+				cornerreg(e[1], (r[0], l[-1]))
 			else:
 				raise Exception('a cutted edge has more than 2 cutted sides')
 			
-			# cutted edges (extremity or not)
-			# identify the two sides
-			if dot(pts[e[1]]-pts[e[0]], pts[right[1]]-pts[right[0]]) < 0:
-				left,right = right,left
-			
 			# match the curves
-			right.reverse()
-			match = list(match_length(Wire(pts,left), Wire(pts,right)))
+			r.reverse()
+			match = list(match_length(Wire(pts,l), Wire(pts,r)))
 			# prepare tangents
-			ll = Wire(pts,left).length()
+			ll = Wire(pts,l).length()
 			x = 0.
 			for i in range(len(match)):
 				if i:	x += distance(pts[match[i-1][0]], pts[match[i][0]]) / ll
@@ -619,8 +609,8 @@ def bevel(mesh, edges, cutter, resolution=None):
 				l,r = match[i]
 				o = interpol1(pts[e[1]], pts[e[0]], x)
 				plane = cross(pts[r]-o, pts[l]-o)
-				normals[l] = enormals[e][0] + normals.get(l, 0)
-				normals[r] = enormals[e][1] + normals.get(r, 0)
+				normals[l] = enormals[e][1] + normals.get(l, 0)
+				normals[r] = enormals[e][0] + normals.get(r, 0)
 			junctions.append(match)
 		
 	# normals neighbooring corners
