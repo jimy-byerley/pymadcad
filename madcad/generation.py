@@ -66,11 +66,7 @@ def revolution(angle, axis, profile, resolution=None):
 	# use extrans
 	def trans():
 		for i in range(steps):
-			#yield translate(rotate(translate(mat4(1), -axis[0]), i/(steps-1)*angle, axis[1]), axis[0])
-			r = mat3_cast(angleAxis(i/(steps-1)*angle, axis[1]))
-			m = mat4(r)
-			m[3] = vec4(axis[0] - r*axis[0], 1)
-			yield m
+			yield rotatearound(i/(steps-1)*angle, axis)
 	return extrans(profile, trans(), ((i,i+1) for i in range(steps-1)))
 
 def saddle(web1, web2):

@@ -30,6 +30,7 @@ COMPREC = 1-NUMPREC
 #COMPREC = 1-NUMPREC
 
 def isfinite(x):
+	''' return false if x contains a `inf` or a `nan` '''
 	return not (glm.any(isinf(x)) or glm.any(isnan(x)))
 
 def norminf(x):
@@ -79,6 +80,7 @@ def unproject(vec, dir) -> vec3:
 	except ZeroDivisionError:	return vec3(nan)
 
 def perpdot(a:vec2, b:vec2) -> float:
+	''' dot product of a with perpendicular vector to b, equivalent to `dot(a, prep(b))` '''
 	return -a[1]*b[0] + a[0]*b[1]
 
 def perp(v:vec2) -> vec2:
@@ -106,6 +108,22 @@ def scaledir(dir, factor=None) -> mat3:
 		factor = length(dir)
 		dir /= factor
 	return mat3(1) + (factor-1)*mat3(dir[0]*dir, dir[1]*dir, dir[2]*dir)
+	
+def rotatearound(angle, *args) -> mat4:
+	''' return a transformation matrix for a rotation around an axis
+		
+		rotatearound(axis, angle)
+		rotatearound(origin, dir, angle)
+	'''
+	if len(args) == 1:		origin, dir = args[0]
+	elif len(args) == 2:	origin, dir = args
+	else:
+		raise TypeError('invalid use of rotatearound')
+	
+	r = mat3_cast(angleAxis(angle, dir))
+	m = mat4(r)
+	m[3] = vec4(origin - r*origin, 1)
+	return m
 
 def transform(*args) -> mat4:
 	''' create an affine transformation matrix.
