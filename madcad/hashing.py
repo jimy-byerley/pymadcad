@@ -255,6 +255,13 @@ class PointSet:
 	def keyfor(self, pt):
 		''' hash key for a point '''
 		return tuple(i64vec3(pt/self.cellsize))
+		
+	def keysfor(self, pt):
+		''' iterable of positions at whic an equivalent point can be '''
+		vox = pt/self.cellsize
+		k = i64vec3(glm.floor(vox-0.5)), i64vec3(glm.floor(vox+0.5))
+		for i in range(1<<3):
+			yield (k[i&1][0], k[(i>>1)&1][1], k[i>>2][2])
 	
 	def update(self, iterable):
 		''' add the points from an iterable '''
@@ -265,29 +272,33 @@ class PointSet:
 		
 	def add(self, pt):
 		''' add a point '''
-		key = self.keyfor(pt)
-		if key not in self.dict:
-			self.dict[key] = l = len(self.points)
-			self.points.append(pt)
-			return l
-		else:
-			return self.dict[key]
+		for key in self.keysfor(pt):
+			if key in self.dict:
+				return self.dict[key]
+		self.dict[key] = l = len(self.points)
+		self.points.append(pt)
+		return l
 	def remove(self, pt):
 		''' remove a point '''
-		key = self.keyfor(p)
-		if key in self.dict:	del self.dict[k]
+		for key in self.keysfor(pt):
+			if key in self.dict:
+				del self.dict[key]
+				return
 		else:					raise IndexError("position doesn't exist in set")
 	def discard(self, pt):
 		''' remove the point at given location if any '''
-		key = self.keyfor(p)
-		if key in self.dict:	del self.dict[k]
+		for key in self.keysfor(pt):
+			if key in self.dict:
+				del self.dict[key]
 	
 	def __contains__(self, pt):
-		return self.keyfor(p) in self.dict
+		for key in self.keysfor(pt):
+			if key in self.dict:	return True
+		return False
 	def __getitem__(self, pt):
-		key = self.keyfor(pt)
-		if key in self.dict:	return self.dict[key]
-		else:					raise IndexError("position doesn't exist in set")
+		for key in self.keysfor(pt):
+			if key in self.dict:	return self.dict[key]
+		raise IndexError("position doesn't exist in set")
 		
 	__iadd__ = update
 	__isub__ = difference_update
