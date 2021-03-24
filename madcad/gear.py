@@ -145,38 +145,54 @@ def gearprofile(step, z, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=N
 		h = 0.5 * 2.25 * step/pi * cos(alpha)/cos(radians(20))
 	e = h*e
 	p = step*z / (2*pi)	# primitive circle
-	c = p * cos(alpha)	# cercle tangent au glissement
+	c = p * cos(alpha)	# tangent circle to gliding axis
 	
 	o0 = angle(involute(c, 0, tan(alpha)))	# offset of contact curve
 	oi = (h+e)/p * tan(alpha)		# offset of interference curve
 	
 	l0 = involuteat(c, p+h-e)	# interval size of contact curve
 	
-	# Newton solver method 
-	# to compute the parameters (t1, t2) of the intersection between contact line and interference line
-	t0, ti = o0, oi
-	# initial state
-	t1 = t0 - tan(alpha)	# put contact line on primitive
-	t2 = ti + sqrt(c**2 - (p-h-e)**2) /p	# put interference point on base circle
-	for i in range(8):
-		ct1, ct2 = cos(t1), cos(t2)
-		st1, st2 = sin(t1), sin(t2)
-		# function value
-		f = (	c*vec2(ct1,st1) + c*(t0-t1)*vec2(-st1,ct1) 
-			+	(h+e-p)*vec2(ct2,st2) -p*(ti-t2)*vec2(-st2,ct2)	
-			)
-		# jacobian matrix (f partial derivatives)
-		J = mat2(
-			-c*(t0-t1)*vec2(ct1,st1), 
-			p*(ti-t2)*vec2(ct2,st2) + (h+e)*vec2(-st2,ct2),
-			)
-		# iteration
-		t1, t2 = vec2(t1,t2) - inverse(J)*f
-	li = t2 - ti	# interval size of interference curve
-	s0 = t0 - t1	# generation start of contact curve
+	# if the tooth height is unreachable, find the intersection between the two contact curves
+	t0 = -step/(2*p)*x - o0
+	t = t0+l0
+	if involute(c, t0, t)[1] > 0:
+		# Newton solver method
+		for i in range(5):
+			f = sin(t) + cos(t)*(t0-t)
+			J = - sin(t)*(t0-t)
+			t -= f/J
+		l0 = t-t0
+	
+	# if there is an interference curve
+	interference = c > p-h-e
+	if interference:
+		# Newton solver method 
+		# to compute the parameters (t1, t2) of the intersection between contact line and interference line
+		t0, ti = o0, oi
+		# initial state
+		t1 = t0 - tan(alpha)	# put contact line on primitive
+		t2 = ti + sqrt(c**2 - (p-h-e)**2) /p	# put interference point on base circle
+		for i in range(8):
+			ct1, ct2 = cos(t1), cos(t2)
+			st1, st2 = sin(t1), sin(t2)
+			# function value
+			f = (	c*vec2(ct1,st1) + c*(t0-t1)*vec2(-st1,ct1) 
+				+	(h+e-p)*vec2(ct2,st2) -p*(ti-t2)*vec2(-st2,ct2)	
+				)
+			# jacobian matrix (f partial derivatives)
+			J = mat2(
+				-c*(t0-t1)*vec2(ct1,st1), 
+				p*(ti-t2)*vec2(ct2,st2) + (h+e)*vec2(-st2,ct2),
+				)
+			# iteration
+			t1, t2 = vec2(t1,t2) - inverse(J)*f
+		li = t2 - ti	# interval size of interference curve
+		s0 = t0 - t1	# generation start of contact curve
+	else:
+		s0 = involuteat(c, p-h-e)
 	
 	pts = []
-	n = 2 + settings.curve_resolution(h, step/(2*p) + alpha, resolution)	# number of points to place
+	n = 2 + settings.curve_resolution(h, step/p, resolution)	# number of points to place
 	
 	# parameter for first side
 	place = step/(2*p)*x	# place of intersection with the primitive circle
@@ -188,20 +204,22 @@ def gearprofile(step, z, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=N
 		v = involute(c, t0, t)
 		pts.append(vec3(v,0))
 	# interference line
-	for i in range(n+1):
-		t = interpol1(ti+li, ti, i/n)
-		v = involuteof(p, ti, -h-e, t)
-		pts.append(vec3(v,0))
+	if interference:
+		for i in range(n+1):
+			t = interpol1(ti+li, ti, i/n)
+			v = involuteof(p, ti, -h-e, t)
+			pts.append(vec3(v,0))
 	
 	# parameters for second side
 	place = step/(2*p)*(2-x)
 	t0 = place - o0
 	ti = place - oi
 	# interference line
-	for i in range(n+1):
-		t = interpol1(ti, ti-li, i/n)
-		v = involuteof(p, ti, -h-e, t)
-		pts.append(vec3(v,0))
+	if interference:
+		for i in range(n+1):
+			t = interpol1(ti, ti-li, i/n)
+			v = involuteof(p, ti, -h-e, t)
+			pts.append(vec3(v,0))
 	# contact line
 	for i in range(n+1):
 		t = interpol1(t0+s0, t0+l0, i/n)
@@ -209,6 +227,15 @@ def gearprofile(step, z, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=N
 		pts.append(vec3(v,0))
 	
 	return Wire(pts, group='gear')
+	
+def gearcircles(step, z, h=None, e=-0.05, x=0.5, alpha=radians(30)):
+	if h is None:
+		h = 0.5 * 2.25 * step/pi * cos(alpha)/cos(radians(20))
+	e = h*e
+	p = step*z / (2*pi)	# primitive circle
+	c = p * cos(alpha)	# tangent circle to gliding axis
+	return p, c, p-h-e, p+h-e
+	
 
 def involute(c, t0, t):
 	''' give a point of parameter `t` on involute from circle or radius `c`, starting from `t0` on the circle

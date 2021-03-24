@@ -13,7 +13,7 @@ h = 0.5 * 2.25 * step/pi * cos(alpha)/cos(radians(20))
 e = -0.05*h
 #e = -0.3*h
 p = step*z / (2*pi)
-prof = gear.gearprofile(step, z, h, e, x, alpha)
+prof = gear.gearprofile(step, z, h, e/h, x, alpha)
 
 show([
 	vec3(0),
@@ -26,4 +26,4 @@ show([
 	Circle(axis, p * cos(alpha)),
 	Circle(axis, p +h -e),
 	Circle(axis, p -h -e),
-	], {'display_points':False})
+	], {'display_points':True})
