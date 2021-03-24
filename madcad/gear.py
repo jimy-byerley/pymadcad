@@ -1,7 +1,7 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
-from .mathutils import pi, cos, sin, tan, asin, sqrt, interpol1, vec2, vec3, dot, distance, mat2, inverse, dirbase, scaledir, angleAxis, transform
-from .mesh import Web
+from .mathutils import *
+from .mesh import Web, Wire
 from . import settings
 from . import generation
 
@@ -138,4 +138,101 @@ def surfscrewgear(profile, m, z, b, radius, n=1, axis=(vec3(0,0,0), vec3(0,0,1))
 			yield transform(h*axis[1]) * transform(angleAxis(x*spin, axis[1])) * transform(s*scaledir(axis[1], 1/s))
 			
 	return generation.extrans(line, trans(), ((i,i+1) for i in range(div-1)))
+
+
+def gearprofile(step, z, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=None):
+	if h is None:
+		h = 0.5 * 2.25 * step/pi * cos(alpha)/cos(radians(20))
+	e = h*e
+	p = step*z / (2*pi)	# primitive circle
+	c = p * cos(alpha)	# cercle tangent au glissement
+	
+	o0 = angle(involute(c, 0, tan(alpha)))	# offset of contact curve
+	oi = (h+e)/p * tan(alpha)		# offset of interference curve
+	
+	l0 = involuteat(c, p+h-e)	# interval size of contact curve
+	
+	# Newton solver method 
+	# to compute the parameters (t1, t2) of the intersection between contact line and interference line
+	t0, ti = o0, oi
+	# initial state
+	t1 = t0 - tan(alpha)	# put contact line on primitive
+	t2 = ti + sqrt(c**2 - (p-h-e)**2) /p	# put interference point on base circle
+	for i in range(8):
+		ct1, ct2 = cos(t1), cos(t2)
+		st1, st2 = sin(t1), sin(t2)
+		# function value
+		f = (	c*vec2(ct1,st1) + c*(t0-t1)*vec2(-st1,ct1) 
+			+	(h+e-p)*vec2(ct2,st2) -p*(ti-t2)*vec2(-st2,ct2)	
+			)
+		# jacobian matrix (f partial derivatives)
+		J = mat2(
+			-c*(t0-t1)*vec2(ct1,st1), 
+			p*(ti-t2)*vec2(ct2,st2) + (h+e)*vec2(-st2,ct2),
+			)
+		# iteration
+		t1, t2 = vec2(t1,t2) - inverse(J)*f
+	li = t2 - ti	# interval size of interference curve
+	s0 = t0 - t1	# generation start of contact curve
+	
+	pts = []
+	n = 2 + settings.curve_resolution(h, step/(2*p) + alpha, resolution)	# number of points to place
+	
+	# parameter for first side
+	place = step/(2*p)*x	# place of intersection with the primitive circle
+	t0 = place + o0	# start of contact curve
+	ti = place + oi	# start of interference curve
+	# contact line
+	for i in range(n+1):
+		t = interpol1(t0-l0, t0-s0, i/n)
+		v = involute(c, t0, t)
+		pts.append(vec3(v,0))
+	# interference line
+	for i in range(n+1):
+		t = interpol1(ti+li, ti, i/n)
+		v = involuteof(p, ti, -h-e, t)
+		pts.append(vec3(v,0))
+	
+	# parameters for second side
+	place = step/(2*p)*(2-x)
+	t0 = place - o0
+	ti = place - oi
+	# interference line
+	for i in range(n+1):
+		t = interpol1(ti, ti-li, i/n)
+		v = involuteof(p, ti, -h-e, t)
+		pts.append(vec3(v,0))
+	# contact line
+	for i in range(n+1):
+		t = interpol1(t0+s0, t0+l0, i/n)
+		v = involute(c, t0, t)
+		pts.append(vec3(v,0))
+	
+	return Wire(pts, group='gear')
+
+def involute(c, t0, t):
+	''' give a point of parameter `t` on involute from circle or radius `c`, starting from `t0` on the circle
+		
+		`t` and `t0` are angular positions
+	'''
+	x = vec2(cos(t), sin(t))
+	y = vec2(-x[1], x[0])
+	return c*(x + y*(t0-t))
+	
+def involuteat(c, r):
+	''' give the parameter for the involute of circle radius `c` to reach radius `r` '''
+	return sqrt((r/c)**2 - 1)
+	
+def involuteof(c, t0, d, t):
+	''' give a point of parameter `t` on involute with offset, from circle or radius `c`, starting from `t0` on the circle
+		
+		`t` and `t0` are angular positions
+	'''
+	x = vec2(cos(t), sin(t))
+	y = vec2(-x[1], x[0])
+	return (c+d)*x + c*y*(t0-t)
+
+
+def angle(p):
+	return atan2(p[1], p[0])
 
