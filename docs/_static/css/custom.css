@@ -375,3 +375,13 @@ code {
 .rst-content table.docutils:not(.field-list) tr:nth-child(2n-1) td {
     background-color: #243435 !important;
 }
+
+/* markdown stuff */
+:not(li) > p {
+  padding-left: 20px;
+}
+
+h1, h2, h3 {
+  border-bottom: 1px solid;
+}
+
