@@ -139,16 +139,30 @@ def surfscrewgear(profile, m, z, b, radius, n=1, axis=(vec3(0,0,0), vec3(0,0,1))
 			
 	return generation.extrans(line, trans(), ((i,i+1) for i in range(div-1)))
 
-
-def gearprofile(step, z, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=None):
+	
+def rackprofile(step, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=None) -> Wire:
 	if h is None:
-		h = 0.5 * 2.25 * step/pi * cos(alpha)/cos(radians(20))
+		h = default_h(step, alpha)
+	e = h*e
+	
+	return Wire([
+		vec3(step*x/2 - tan(alpha) * ( h-e),   h-e,  0),
+		vec3(step*x/2 - tan(alpha) * (-h-e),  -h-e,  0),
+		vec3(step*(2-x)/2 + tan(alpha) * (-h-e),  -h-e,  0),
+		vec3(step*(2-x)/2 + tan(alpha) * ( h-e),   h-e,  0),
+		vec3(step*(2+x)/2 - tan(alpha) * ( h-e),   h-e,  0),
+		], group='rack')
+
+
+def gearprofile(step, z, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=None) -> Wire:
+	if h is None:
+		h = default_h(step, alpha)
 	e = h*e
 	p = step*z / (2*pi)	# primitive circle
 	c = p * cos(alpha)	# tangent circle to gliding axis
 	
 	o0 = angle(involute(c, 0, tan(alpha)))	# offset of contact curve
-	oi = (h+e)/p * tan(alpha)		# offset of interference curve
+	oi = atan((h+e)/p * tan(alpha))		# offset of interference curve
 	
 	l0 = involuteat(c, p+h-e)	# interval size of contact curve
 	
@@ -225,17 +239,25 @@ def gearprofile(step, z, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=N
 		t = interpol1(t0+s0, t0+l0, i/n)
 		v = involute(c, t0, t)
 		pts.append(vec3(v,0))
+		
+	pts.append(angleAxis(step/p, vec3(0,0,1)) * pts[0])
 	
 	return Wire(pts, group='gear')
 	
 def gearcircles(step, z, h=None, e=-0.05, x=0.5, alpha=radians(30)):
+	''' return the convenient circles radius for a gear with the given parameters 
+		return is `(primitive, base, bottom, top)`
+	'''
 	if h is None:
-		h = 0.5 * 2.25 * step/pi * cos(alpha)/cos(radians(20))
+		h = default_h(step, alpha)
 	e = h*e
 	p = step*z / (2*pi)	# primitive circle
 	c = p * cos(alpha)	# tangent circle to gliding axis
 	return p, c, p-h-e, p+h-e
 	
+	
+def default_h(step, alpha):
+	return 0.5 * 2.25 * step/pi * cos(alpha)/cos(radians(20))
 
 def involute(c, t0, t):
 	''' give a point of parameter `t` on involute from circle or radius `c`, starting from `t0` on the circle
