@@ -377,11 +377,7 @@ code {
 }
 
 /* markdown stuff */
-:not(li) > p {
-  padding-left: 20px;
-}
-
 h1, h2, h3 {
-  border-bottom: 1px solid;
+  border-bottom: 1px solid #c6c5c536;
 }
 
