@@ -34,6 +34,9 @@ extensions = [
     'sphinx_rtd_theme',
 ]
 
+# use a more recent version of mathjax, that can render ASCIIMATH
+mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/startup.js"
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 source_suffix = ['.rst', '.md']

@@ -1,13 +1,8 @@
-
 <script>
 	window.MathJax = {
-		loader: {load: ['input/asciimath', 'output/chtml', 'ui/menu']},
+		loader: {load: ['input/asciimath', 'output/chtml']},
 		asciimath: {delimiters: [['$', '$'], ['\\(', '\\)']]},
 	}
-</script>
-<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-<script id="MathJax-script" async
-		src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
 </script>
 
 
