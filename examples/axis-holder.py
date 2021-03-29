@@ -1,11 +1,12 @@
 from madcad import *
-from madcad.selection import *
 
+# define a base of vectors: origin and directions
 O = vec3(0,0,0)
 X = vec3(1,0,0)
 Y = vec3(0,1,0)
 Z = vec3(0,0,1)
 
+# part parameters
 dint = 20
 dext = 100
 h = 30
@@ -13,12 +14,16 @@ rvis = dext/3
 dvis = 3
 hvis = 3
 
+
+# create the revolution profile, called 'cone'
+# --------------------------------------------
+
 B = vec3(dint/2, 0, 0)
 S = vec3(dint/2, 0, h)
 E = vec3(dext/2, 0, 0)
 Eh = E+2*Z
 Se = S+5*X
-
+# sketch a profile
 line = [
 	Segment(B,S),
 	ArcCentered(((Se+S)/2, Y), S, Se),
@@ -26,7 +31,7 @@ line = [
 	Segment(Eh, E),
 	Segment(E, B),
 	]
-
+# mutate the profile to fit some geometrical constraints
 solve([
 		Tangent(line[0], line[1], S),
 		Tangent(line[1], line[2], Se),
@@ -37,18 +42,21 @@ solve([
 	fixed=[O,X,Y,Z,B,S,E],
 	precision=1e-12
 	)
-
+# generate the cone
 cone = revolution(
 			radians(360), 
 			(O,Z), 
 			web(line))
+# merge the start and end sections of the revolution (because its a 360° revolution)
 cone.mergeclose()
-chamfer(cone, 
-	suites(select(cone, edgenear(cone, B), crossover).edges)[0], 
-	('depth', 3)) 
-#bevel(cone, cone.select(B, crossover), ('depth', 2))
+# chamfer the lower edge: this is a chamfer over a circular edge
+chamfer(cone, cone.frontiers((0,4)), ('depth', 3))
 
-print('mergeclose', cone.mergeclose())
+
+
+# create the slots for screws
+# ---------------------------
+# we remove a partially defined volume
 
 rplace = dvis*3+2
 C = vec3(rvis,0,hvis)
@@ -56,6 +64,7 @@ A = vec3(rvis, rplace,hvis)
 B = vec3(rvis,-rplace,hvis)
 Ae = A+vec3(dext/2, 60,0)
 Be = B+vec3(dext/2,-60,0)
+# sketch its line
 line = [
 	Segment(Ae, A),
 	ArcCentered((C,Z), A, B),
@@ -73,22 +82,47 @@ solve([
 	fixed=[O,X,Y,Z,C],
 	precision=1e-12,
 	)
-w = web(line)
-place = extrusion(vec3(0,0,h), w) + flatsurface(wire(w).flip())
+# extrude that base line and add a bottom face
+place = (	extrusion(vec3(0,0,h), line) 
+		+	flatsurface(wire(line).flip())
+		)
+# merge outlines of both generated faces
 place.mergeclose()
-sel = select(place, edgenear(place, C-vec3(rplace,0,0)), straight | stopangle(radians(20)))
-bevel(place, 
-	suites(sel.edges)[0],
+# round the cutting edge to have smooth transition
+bevel(
+	place, 	
+	(   place.frontiers(0,3) 	# this is the frontier line between group 0 and group 3
+	  + place.frontiers(1,3) 	# this is the frontier line between group 1 and group 3
+	  + place.frontiers(2,3) ), 
 	('depth', 2))
-place.mergeclose()
 
+# make the screw holes:
+# a cylinder (not necessarily closed on its ends as we don't care of that surfaces)
 vis = extrusion(vec3(0,0,-2*h), web(Circle((C+vec3(0,0,h),-Z), dvis)))
-place = union(place, vis)
-big = multiple(place, 6, angle=radians(60), axis=(O,Z))
 
+
+# assemble everything
+# -------------------
+# get 6 shapes with the slot and the hole for the scren
+big = multiple(
+		union(place, vis), 	# this union cuts the slot to add the hole
+		6, axis=(O,Z), angle=radians(60))
+# cut the cone to put the slots and holes
 part = difference(cone, big)
+# this is the final touch for parts: optimize the buffers and check mesh validity
 part.finish()
 
-#write(part, 'tests/demo1.ply')
 
-quickdisplay([part])
+
+
+# if we want we can at any moment place some fancy notes
+notes = [
+	note_leading(part.group(2), text="conic surface"),
+	note_leading(part.group(11), vec3(-5,0,-10), text='ø'+str(dvis)),
+	]
+
+# write the part to a ply file
+write(part, 'tests/axis-holder.ply')
+
+# display what we want
+show([part, notes])
