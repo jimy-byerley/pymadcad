@@ -10,7 +10,7 @@ involute gears
 ==============
 
 
-![everything comes from the rack](file:///home/jimy/cad/pymadcad/docs/schemes/gear-from-rack.png)
+![everything comes from the rack](/schemes/gear-from-rack.png)
 
 
 ## involute curve
@@ -26,9 +26,9 @@ Those are very important for involute gears, check at [wikipedia for more detail
 $ => $ involute of circle (with radius r): 	
 $ theta(t) =  r ((cos(t)), (sin(t))) + r*(t_0-t) ((-sin(t)), (cos(t))) $
 
-![involute of circle](file:///home/jimy/cad/pymadcad/docs/schemes/gear-circle-involute.png)
+![involute of circle](/schemes/gear-circle-involute.png)
 
-### few remarks
+#### few remarks
 
 An involute is symetric over $t_0$: 
 - $ theta([t_0, +oo[) $	is an involute developped by a direct rotation
@@ -44,7 +44,7 @@ An involute is symetric over $t_0$:
 - $ s = $ gear step (distance on the primitive)
 - $ z = $ number of tooths on the gear
 - $ alpha = $ pressure angle (angle of the rack tooths)
-- $ h = $ rack half height = $ "total height" / 2 $
+- $ h = $ rack half height = $ text(total height) / 2 $
 - $ e = $ deport (fraction of h to shift the top and bottom of the rack). Useful to avoid the interference to be too big on the tooth.
 - $ x = $ fraction of the rack above the primitive (usually 0.5)
 
@@ -60,7 +60,7 @@ An involute is symetric over $t_0$:
 The contact that transmits the torque is always oriented toward the rack tooth normal (angle $alpha$).
 The only solution for this is to have the contact point moving on an axis from the contact between both primitives, and oriented along $alpha$
 
-![contact points](file:///home/jimy/cad/pymadcad/docs/schemes/gear-contact-curve.png)
+![contact points](/schemes/gear-contact-curve.png)
 
 The contact curve is then an involute of circle.
 
@@ -69,19 +69,19 @@ $ theta_0(t) = $ contact curve $ = c ((cos(t)), (sin(t))) + c*(t_0-t) ((-sin(t))
 
 As the tooth is moving in/out of the gear, its opposite corner to the contact point may collide with a next tooth. This interference force us to remove material from the tooth, using the interference curve.
 
-![interference point](file:///home/jimy/cad/pymadcad/docs/schemes/gear-interference-curve.png)
+![interference point](/schemes/gear-interference-curve.png)
 
 The interference curve is then an involute of circle with a radial offset.
 
 $ theta_i(t) = $ interference curve $ = p ((cos(t)), (sin(t))) + p*(t_i-t) ((-sin(t)), (cos(t))) - (h+e) ((cos(t)), (sin(t))) $
 
-![curves of tooths identified](gear-curves-identified.png)
+![curves of tooths identified](/schemes/gear-curves-identified.png)
 
 
 
 ### start points
 
-![curves start points](file:///home/jimy/cad/pymadcad/docs/schemes/gear-curves-start.png)
+![curves start points](/schemes/gear-curves-start.png)
 
 If we consider a period starting from the middle of the tooth top, there is two places our curves start (one each tooth). We can define them relatively to the crossing point between the primitive circle and the involute.
 
@@ -90,9 +90,19 @@ Crossing point between primitive circle and involute:	$ t_s = { m/p * x/2,  m/p 
 
 #### $ t_0 $
 
-$ t_0 - t_s = angle( theta(tan(alpha)) - theta(0) ) $
+Can be determined relatively to $ t_s $ which is the place (but not the parameter) where $ theta_0 $ reachs radius $ p $ :
+
+$ norm(theta_0(t)) = p  <=>   p^2 = norm(theta_0(t))^2 = c^2( 1 + (t-t_0)^2 )    <=>   t - t_0 = sqrt((p/c)^2 - 1)    =   tan(alpha) $
+
+we just need to take the angle for the obtained $ t $
+
+$ t_0 - t_s = angle( theta(t_0 + tan(alpha)) - theta(t_0) ) $
 
 #### $ t_i $
+
+$ theta_i $ starts at the very moment the tooth offset is radial:
+
+![gear offset radial](/schemes/gear-offset-radial.png)
 
 $ t_i - t_s = arctan((s+e)/p * tan(alpha)) $
 
@@ -130,8 +140,8 @@ $
 
 To make sure it will converge to the desired solution, we need to take an initial state in the convex zone of the solution:
 
-- $t_1$ on the primitive circle: 	$ t_{1,"initial"} = t_0 - tan(alpha)$
-- $t_2$ on the base circle: 	$ t_{2,"initial"} = t_i + sqrt( c^2 - (p-h-e)^2 )/p  $
+- $t_1$ on the primitive circle: 	$ t_{1,text(initial)} = t_0 - tan(alpha)$
+- $t_2$ on the base circle: 	$ t_{2,text(initial)} = t_i + sqrt( c^2 - (p-h-e)^2 )/p  $
 
 It ends with the parameters $ t_1, t_2 $ of $ theta_0, theta_i $ at the intersection.
 
