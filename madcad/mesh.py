@@ -203,7 +203,12 @@ class Mesh(Container):
 	def __add__(self, other):
 		''' append the faces and points of the other mesh '''
 		if isinstance(other, Mesh):
-			r = Mesh(self.points, self.faces[:], self.tracks[:], self.groups, self.options)
+			r = Mesh(
+				self.points if self.points is other.points else self.points[:], 
+				self.faces[:], 
+				self.tracks[:], 
+				self.groups if self.groups is other.groups else self.groups[:],
+				)
 			r.__iadd__(other)
 			return r
 		else:
@@ -849,7 +854,12 @@ class Web(Container):
 	def __add__(self, other):
 		''' append the faces and points of the other mesh '''
 		if isinstance(other, Web):
-			r = Web(self.points, self.edges[:], self.tracks[:], self.groups, self.options)
+			r = Mesh(
+				self.points if self.points is other.points else self.points[:], 
+				self.edges[:], 
+				self.tracks[:], 
+				self.groups if self.groups is other.groups else self.groups[:],
+				)
 			r.__iadd__(other)
 			return r
 		else:
