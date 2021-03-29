@@ -203,7 +203,7 @@ class Mesh(Container):
 	def __add__(self, other):
 		''' append the faces and points of the other mesh '''
 		if isinstance(other, Mesh):
-			r = deepcopy(self)
+			r = Mesh(self.points, self.faces[:], self.tracks[:], self.groups, self.options)
 			r.__iadd__(other)
 			return r
 		else:
@@ -472,11 +472,14 @@ class Mesh(Container):
 					edges[(e[1],e[0])] = track
 		return edges
 		
-	def frontiers(self, groups:set=None):
+	def frontiers(self, *args):
 		''' return a Web of UNORIENTED edges between the given groups 
 		
 			if groups is None, then return the frontiers between any groups
 		'''
+		if len(args) == 1 and hasattr(args[0], '__iter__'):
+			args = args[0]
+		groups = set(args)
 		edges = []
 		tracks = []
 		couples = {}
@@ -846,7 +849,7 @@ class Web(Container):
 	def __add__(self, other):
 		''' append the faces and points of the other mesh '''
 		if isinstance(other, Web):
-			r = deepcopy(self)
+			r = Web(self.points, self.edges[:], self.tracks[:], self.groups, self.options)
 			r.__iadd__(other)
 			return r
 		else:
@@ -1256,7 +1259,7 @@ class Wire:
 	
 	def __iadd__(self, other):
 		if not isinstance(other, Wire):		return NotImplemented
-		if self.points is other.points:	#raise ValueError("edges doesn't refer to the same points buffer")
+		if self.points is other.points:
 			self.indices.extend(other.indices)
 		else:
 			return NotImplemented
@@ -1264,7 +1267,7 @@ class Wire:
 	
 	def __add__(self, other):
 		if not isinstance(other, Wire):		return NotImplemented
-		if self.points is other.points:	#raise ValueError("edges doesn't refer to the same points buffer")
+		if self.points is other.points:
 			return Wire(self.points, self.indices+other.indices)
 		else:
 			l = []
