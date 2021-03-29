@@ -9,6 +9,7 @@
 from .mathutils import *
 from .mesh import Mesh, Web, Wire, lineedges, connef, connpp, edgekey, suites, line_simplification
 from . import generation as gt
+from . import hashing
 from . import text
 from . import settings
 
@@ -95,6 +96,7 @@ def cut(mesh, start, cutplane, stops, conn, prec, removal, cutghost=True):
 		:cutghost:  whether the function should propagate on faces already marked for removal (previously or during the propagation)
 	'''
 	pts = mesh.points
+	ptmgr = hashing.PointSet(prec, manage=pts)
 	stops = list(filter(lambda e:e, stops))
 	# find the intersections axis between the planes
 	axis = [intersection_plane_plane(cutplane, stop)	for stop in stops]
@@ -134,8 +136,7 @@ def cut(mesh, start, cutplane, stops, conn, prec, removal, cutghost=True):
 		if p:
 			# mark cutplane change
 			# empty faces can be generated, but they are necessary to keep the connectivity working
-			pi = len(mesh.points)
-			mesh.points.append(p)
+			pi = ptmgr.add(p)
 			l = len(mesh.faces)
 			mesh.faces[fi] = (f[0], f[1], pi)
 			mesh.faces.append((f[1], f[2], pi))
@@ -191,8 +192,8 @@ def cut(mesh, start, cutplane, stops, conn, prec, removal, cutghost=True):
 						continue
 					
 					# cut the face (create face even for non kept side, necessary for propagation)
-					p1 = mesh.usepointat(cut[j], prec)
-					p2 = mesh.usepointat(cut[j-1], prec)
+					p1 = ptmgr.add(cut[j])
+					p2 = ptmgr.add(cut[j-1])
 					
 					l = len(mesh.faces)
 					mesh.faces[fi] = (p1, f[j-2], f[j-1])
