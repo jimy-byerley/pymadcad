@@ -158,7 +158,13 @@ def cut(mesh, start, cutplane, stops, conn, prec, removal, cutghost=True):
 		for j,pi in enumerate(f):
 			goodside[j] = 	dot(pts[pi]-cutplane[0], cutplane[1]) >= -prec
 		
+		# abort conditions
 		if not any(goodside):
+			continue
+		outside = any( all( dot(pts[pi]-stop[0], stop[1]) <= -prec
+							for pi in f)
+						for stop in stops)
+		if outside:
 			continue
 		
 		# True if the point is over or on for all stop planes
