@@ -258,10 +258,10 @@ class Problem:
 					self.unregister(var)
 			for varname in obj.slvvars:
 				var = getattr(obj, varname)
-				if isinstance(v, (float,int)):
+				if isinstance(var, (float,int)):
 					del self.slvvars[(id(obj), varname)]
 				else:
-					self.unregister(v)
+					self.unregister(var)
 		elif isinstance(obj, tuple):
 			for p in obj:
 				self.unregister(p)
