@@ -645,18 +645,21 @@ class Mesh(Container):
 				note that if the mesh contains multiple islands, that direction must make sense for each single island
 		'''
 		if dir:	
-			metric = lambda p, n: (dot(p, dir), dot(n, dir))
+			metric = lambda p, n: (dot(p, dir), abs(dot(n, dir)))
+			orient = lambda p, n: dot(n, dir)
 		else:	
 			center = self.barycenter()
-			metric = lambda p, n: (length2(p-center), dot(n, p-center))
+			print('center', center)
+			metric = lambda p, n: (length2(p-center), abs(dot(n, p-center)))
+			orient = lambda p, n: dot(n, p-center)
 		if not conn:	
-			conn = Asso((edgekey(*e),i)
+			conn = Asso(  (edgekey(*e),i)
 							for i,f in enumerate(self.faces)
 							for e in ((f[0],f[1]), (f[1],f[2]), (f[2],f[0]))
 							)
 		
-		normals = self.facenormals()
 		faces = self.faces[:]
+		normals = self.facenormals()
 		
 		reached = [False] * len(self.faces)	# faces reached
 		stack = []
@@ -672,10 +675,13 @@ class Mesh(Container):
 						score = metric(self.points[p], normals[i])
 						if score > best:
 							best, candidate = score, i
-			if candidate is not None:
-				stack.append(candidate)
+							if orient(self.points[p], normals[i]) < 0:
+								faces[i] = (f[2],f[1],f[0])
 			# end when everything reached
-			if not stack:	break
+			if candidate is None:
+				break
+			else:
+				stack.append(candidate)
 			# process neighbooring
 			while stack:
 				i = stack.pop()
@@ -690,7 +696,7 @@ class Mesh(Container):
 						nf = faces[n]
 						# check for orientation continuity
 						if arrangeface(nf,f[i-1])[1] == f[i]:
-							faces[n] = (nf[0],nf[2],nf[1])
+							faces[n] = (nf[2],nf[1],nf[0])
 						# propagate
 						stack.append(n)
 		
