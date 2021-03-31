@@ -410,6 +410,9 @@ def blendpair(*interfaces, match='length', tangents='tangent', weight=1., resolu
 	else:
 		raise ValueError('matching method {} not implemented'.format(match))
 	
+	if loops[0][0] == loops[0][-1]:		loops[0] = synchronize(Wire(pts, loops[1]), Wire(pts, loops[0])).indices
+	elif loops[1][0] == loops[1][-1]:	loops[1] = synchronize(Wire(pts, loops[0]), Wire(pts, loops[1])).indices
+	
 	match = list(method(Wire(pts, loops[0]), Wire(pts, list(reversed(loops[1])))))
 	# get the discretisation
 	div = 0
@@ -450,6 +453,51 @@ def blenditer(parameters, div, interpol) -> Mesh:
 	return mesh
 
 
+def synchronize(ref:Wire, loop:Wire) -> Wire:
+	''' assuming loop is a closed Wire, it will change its start point to match the startpoint of ref 
+	'''
+	r0, r1 = 0, int(wire_atlength(ref, ref.length()/2))	# lookup points on ref
+	l0 = l1 = 0	# lookup points on loop: start and middle
+	s0 = s1 = 0	# offset distance of lookup points on loop
+	half = wire_atlength(loop, loop.length()/2)
+	l1 = int(half)
+	s1 = distance(loop[l1-1], loop[l1]) * (half - l1)
+	
+	# take the l0,l1 couple that minimize the squared distance between matching lookup points
+	best = inf
+	candidate = l0
+	for l0 in range(1,len(loop)):
+		# increment l0
+		incr = distance(loop[l0-1], loop[l0])
+		s0 += incr
+		# increment l1
+		while s1 < s0:
+			s1 += distance(loop[l1-1], loop[l1])
+			l1 = (l1+1) % len(loop)
+		# search for a minimum
+		score = distance2(ref[r0], loop[l0]) + distance2(ref[r1], loop[l1])
+		if score < best:
+			candidate = l0
+			best = score
+	l0 = candidate
+	
+	# circulate the loop
+	end = loop.indices[l0:]
+	if loop[0] == loop[-1]:		end.pop()
+	return Wire(loop.points, end + loop.indices[:l0+1])
+
+def wire_atlength(wire, length):
+	''' return the index of the wire point at the given length.
+	
+		the returned value is float whose integer part is the index and floating part is the 
+		ratio of the next segment to use to reach the exact desired length.
+	''' 
+	s = 0
+	for i in range(len(wire)):
+		d = distance(wire[i-1], wire[i])
+		s += d
+		if s > length:
+			return i + (length-s+d)/d
 	
 def join(mesh, line1, line2):
 	''' simple straight surface created from matching couples of line1 and line2 using mesh indices for lines '''
