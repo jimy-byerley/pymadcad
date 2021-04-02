@@ -119,8 +119,8 @@ def scaledir(dir, factor=None) -> mat3:
 def rotatearound(angle, *args) -> mat4:
 	''' return a transformation matrix for a rotation around an axis
 		
-		rotatearound(axis, angle)
-		rotatearound(origin, dir, angle)
+		rotatearound(angle, axis)
+		rotatearound(angle, origin, dir)
 	'''
 	if len(args) == 1:		origin, dir = args[0]
 	elif len(args) == 2:	origin, dir = args
