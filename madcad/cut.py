@@ -35,10 +35,12 @@ def cutter_depth(dist, fn1, fn2):
 	''' plane offset for a cut based on the distance to the cutted edge '''
 	return -dist * cross(normalize(cross(fn1,fn2)), fn1-fn2)
 
-def cutter_angle(depth, fn1, fn2):
+def cutter_radius(depth, fn1, fn2):
 	''' plane offset for a cut based on the angle between faces '''
+	n = normalize(fn1 + fn2)
 	s = dot(fn1,n)
-	return -depth/2 * (1/s - s) * n
+	return -depth * (1/s - s) * n
+
 
 
 # ----- algorithm ------

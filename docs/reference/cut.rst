@@ -46,14 +46,8 @@ cutters (cut methods)
 			this cut method can be unstable at the moment
 
 	.. autofunction:: cutter_depth
-
-		.. warning::
-			this cut method can be unstable at the moment
-			
-	.. autofunction:: cutter_angle
-
-		.. warning::
-			this cut method can be unstable at the moment
+		
+	.. autofunction:: cutter_radius
 
 helpers
 -------
