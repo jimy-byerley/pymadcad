@@ -403,7 +403,7 @@ def blendpair(*interfaces, match='length', tangents='tangent', weight=1., resolu
 	'''
 	pts, tangents, weights, loops = get_interfaces(interfaces, tangents, weight)
 	if len(loops) != 2:	
-		raise ValueError('interface must have exactly 2 loops')
+		raise ValueError('interface must have exactly 2 loops, got '+str(len(loops)))
 	
 	if match == 'length':		method = match_length
 	elif match == 'closest':	method = match_closest

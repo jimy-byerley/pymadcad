@@ -860,7 +860,7 @@ class Web(Container):
 	def __add__(self, other):
 		''' append the faces and points of the other mesh '''
 		if isinstance(other, Web):
-			r = Mesh(
+			r = Web(
 				self.points if self.points is other.points else self.points[:], 
 				self.edges[:], 
 				self.tracks[:], 
