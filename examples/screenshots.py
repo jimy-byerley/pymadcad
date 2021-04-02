@@ -20,7 +20,7 @@ if False:
 	assert m5.issurface()
 	#m4.options.update({'debug_display': True, 'debug_points': True})
 	
-	quickdisplay([m5, w1, w2], {'display_points':True, 'display_wire':True, 'display_groups':False})
+	show([m5, w1, w2], {'display_points':True, 'display_wire':True, 'display_groups':False})
 
 if False:
 	O = vec3(0)
@@ -33,7 +33,7 @@ if False:
 		web(Circle((A,Y), 0.5)),
 		)
 	
-	quickdisplay([m, (O,Z), A], {'display_points':False, 'display_wire':True})
+	show([m, (O,Z), A], {'display_points':False, 'display_wire':True})
 
 if False:
 	O = vec3(0)
@@ -65,7 +65,7 @@ if False:
 	kin = Kinematic(csts, fixed=[base])
 	
 	makescheme(csts)
-	quickdisplay([kin])
+	show([kin])
 	
 if True:
 	# define points
@@ -86,5 +86,5 @@ if True:
         ]
 	#solve(csts, fixed=[0]) 
 	
-	quickdisplay([line, O, A, B, C])
+	show([line, O, A, B, C])
 
