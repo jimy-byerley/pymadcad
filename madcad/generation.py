@@ -206,7 +206,10 @@ def thicken(surf, thickness, alignment=0, method='face') -> 'Mesh':
 # --- filling things ---
 
 def flatsurface(outline, normal=None) -> 'Mesh':
-	''' generates a surface for a flat outline using the prefered triangulation method '''
+	''' generates a surface for a flat outline using the prefered triangulation method .
+	
+		if `normal` is specified, it must be the normal vector to the plane, and will be used to orient the face.
+	'''
 	m = triangulation.triangulation_outline(wire(outline), normal)
 	if normal and dot(m.facenormal(0), normal) < 0:
 		m = m.flip()

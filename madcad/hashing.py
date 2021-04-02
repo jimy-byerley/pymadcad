@@ -254,14 +254,22 @@ class PointSet:
 	
 	def keyfor(self, pt):
 		''' hash key for a point '''
-		return tuple(i64vec3(pt/self.cellsize))
+		return tuple(i64vec3(glm.floor(pt/self.cellsize)))
 		
 	def keysfor(self, pt):
 		''' iterable of positions at whic an equivalent point can be '''
 		vox = pt/self.cellsize
-		k = i64vec3(glm.floor(vox-0.5)), i64vec3(glm.floor(vox+0.5))
-		for i in range(1<<3):
-			yield (k[i&1][0], k[(i>>1)&1][1], k[i>>2][2])
+		k = i64vec3(glm.floor(vox-0.5+NUMPREC)), i64vec3(glm.floor(vox+0.5-NUMPREC))
+		return (
+			(k[0][0], k[0][1], k[0][2]),
+			(k[1][0], k[0][1], k[0][2]),
+			(k[0][0], k[1][1], k[0][2]),
+			(k[1][0], k[1][1], k[0][2]),
+			(k[0][0], k[0][1], k[1][2]),
+			(k[1][0], k[0][1], k[1][2]),
+			(k[0][0], k[1][1], k[1][2]),
+			(k[1][0], k[1][1], k[1][2]),
+			)
 	
 	def update(self, iterable):
 		''' add the points from an iterable '''
@@ -275,7 +283,7 @@ class PointSet:
 		for key in self.keysfor(pt):
 			if key in self.dict:
 				return self.dict[key]
-		self.dict[key] = l = len(self.points)
+		self.dict[self.keyfor(pt)] = l = len(self.points)
 		self.points.append(pt)
 		return l
 	def remove(self, pt):

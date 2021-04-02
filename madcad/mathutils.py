@@ -13,7 +13,7 @@ any = __builtins__['any']
 all = __builtins__['all']
 round = __builtins__['round']
 
-
+# alias definitions
 vec2 = dvec2
 mat2 = dmat2
 vec3 = dvec3
@@ -22,12 +22,19 @@ vec4 = dvec4
 mat4 = dmat4
 quat = dquat
 
-NUMPREC = 1e-13
+# numerical precision of floats used
+NUMPREC = 1e-13	# float64 here, so 14 decimals
+#NUMPREC = 1e-6	# float32 here, so 7 decimals, so 1e-6 when exponent is 1
 COMPREC = 1-NUMPREC
 
-# numerical precision of floats used (float32 here, so 7 decimals, so 1e-6 when exponent is 1)
-#NUMPREC = 1e-6
-#COMPREC = 1-NUMPREC
+
+
+# common base definition, for end user
+O = vec3(0,0,0)
+X = vec3(1,0,0)
+Y = vec3(0,1,0)
+Z = vec3(0,0,1)
+
 
 def isfinite(x):
 	''' return false if x contains a `inf` or a `nan` '''
@@ -112,8 +119,8 @@ def scaledir(dir, factor=None) -> mat3:
 def rotatearound(angle, *args) -> mat4:
 	''' return a transformation matrix for a rotation around an axis
 		
-		rotatearound(axis, angle)
-		rotatearound(origin, dir, angle)
+		rotatearound(angle, axis)
+		rotatearound(angle, origin, dir)
 	'''
 	if len(args) == 1:		origin, dir = args[0]
 	elif len(args) == 2:	origin, dir = args
