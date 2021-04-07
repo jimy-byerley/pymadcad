@@ -329,6 +329,27 @@ def match_length(line1, line2) -> '[(int, int)]':
 		yield line1.indices[i1-1], line2.indices[i2-1]
 
 
+#def match_length(line1, line2) -> '[(int, int)]':
+	#''' yield couples of point indices where the curved absciss are the closest '''
+	#yield line1.indices[0], line2.indices[0]
+	#l1, l2 = line1.length(), line2.length()
+	#i1, i2 = 1, 1
+	#x1, x2 = 0, 0
+	#while i1 < len(line1.indices) and i2 < len(line2.indices):
+		#p1 = distance(line1.points[line1.indices[i1-1]], line1.points[line1.indices[i1]]) / l1
+		#p2 = distance(line2.points[line2.indices[i2-1]], line2.points[line2.indices[i2]]) / l2
+		#if x1+p1/2 < x2+p2/2:
+			#i1 += 1; x1 += p1
+		#else:
+			#i2 += 1; x2 += p2
+		#yield line1.indices[i1-1], line2.indices[i2-1]
+	#while i1 < len(line1.indices):
+		#i1 += 1
+		#yield line1.indices[i1-1], line2.indices[i2-1]
+	#while i2 < len(line2.indices):
+		#i2 += 1
+		#yield line1.indices[i1-1], line2.indices[i2-1]
+
 def match_closest(line1, line2) -> '[(int, int)]':
 	''' yield couples of points by cutting each line at the curvilign absciss of the points of the other '''
 	l1, l2 = line1.length(), line2.length()
@@ -371,7 +392,7 @@ def blendloop(interface, center=None, tangents='tangent', weight=1., resolution=
 	 
 		see `junction` for the parameters.
 	'''
-	pts, tangents, weights, loops = get_interface(interface, tangents, weight)
+	pts, tangents, weights, loops = get_interfaces([interface], tangents, weight)
 	if len(loops) > 1:	
 		raise ValueError('interface must have one loop only')
 	loop = loops[0]
@@ -464,18 +485,21 @@ def synchronize(ref:Wire, loop:Wire) -> Wire:
 	s1 = distance(loop[l1-1], loop[l1]) * (half - l1)
 	
 	# take the l0,l1 couple that minimize the squared distance between matching lookup points
-	best = inf
+	best = distance2(ref[r0], loop[l0]) + distance2(ref[r1], loop[l1])
 	candidate = l0
 	for l0 in range(1,len(loop)):
 		# increment l0
 		incr = distance(loop[l0-1], loop[l0])
 		s0 += incr
 		# increment l1
-		while s1 < s0:
-			s1 += distance(loop[l1-1], loop[l1])
+		while True:
+			incr = distance(loop[l1], loop[(l1+1)%len(loop)])
+			if abs(s1-s0+incr) > abs(s1-s0):
+				break
+			s1 += incr
 			l1 = (l1+1) % len(loop)
 		# search for a minimum
-		score = distance2(ref[r0], loop[l0]) + distance2(ref[r1], loop[l1])
+		score = distance2(loop[l0], ref[r0]) + distance2(loop[l1], ref[r1])
 		if score < best:
 			candidate = l0
 			best = score
@@ -493,11 +517,11 @@ def wire_atlength(wire, length):
 		ratio of the next segment to use to reach the exact desired length.
 	''' 
 	s = 0
-	for i in range(len(wire)):
+	for i in range(1,len(wire)):
 		d = distance(wire[i-1], wire[i])
 		s += d
 		if s > length:
-			return i + (length-s+d)/d
+			return i - (length-s)/d
 	
 def join(mesh, line1, line2):
 	''' simple straight surface created from matching couples of line1 and line2 using mesh indices for lines '''
