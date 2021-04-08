@@ -313,10 +313,10 @@ def match_length(line1, line2) -> '[(int, int)]':
 	while i1 < len(line1.indices) and i2 < len(line2.indices):
 		p1 = distance(line1.points[line1.indices[i1-1]], line1.points[line1.indices[i1]]) / l1
 		p2 = distance(line2.points[line2.indices[i2-1]], line2.points[line2.indices[i2]]) / l2
-		if x1 <= x2 and x2 <= x1+p1   or   x2 <= x1 and x1 <= x2+p2:
+		if x1 <= x2+0.5*p2 and x2+0.5*p2 <= x1+p1    or    x2 <= x1+0.5*p1 and x1+0.5*p1 <= x2+p2:
 			i1 += 1; x1 += p1
 			i2 += 1; x2 += p2
-		elif x1 < x2:	
+		elif x1+0.5*p1 < x2+0.5*p2:	
 			i1 += 1; x1 += p1
 		else:				
 			i2 += 1; x2 += p2
@@ -328,27 +328,6 @@ def match_length(line1, line2) -> '[(int, int)]':
 		i2 += 1
 		yield line1.indices[i1-1], line2.indices[i2-1]
 
-
-#def match_length(line1, line2) -> '[(int, int)]':
-	#''' yield couples of point indices where the curved absciss are the closest '''
-	#yield line1.indices[0], line2.indices[0]
-	#l1, l2 = line1.length(), line2.length()
-	#i1, i2 = 1, 1
-	#x1, x2 = 0, 0
-	#while i1 < len(line1.indices) and i2 < len(line2.indices):
-		#p1 = distance(line1.points[line1.indices[i1-1]], line1.points[line1.indices[i1]]) / l1
-		#p2 = distance(line2.points[line2.indices[i2-1]], line2.points[line2.indices[i2]]) / l2
-		#if x1+p1/2 < x2+p2/2:
-			#i1 += 1; x1 += p1
-		#else:
-			#i2 += 1; x2 += p2
-		#yield line1.indices[i1-1], line2.indices[i2-1]
-	#while i1 < len(line1.indices):
-		#i1 += 1
-		#yield line1.indices[i1-1], line2.indices[i2-1]
-	#while i2 < len(line2.indices):
-		#i2 += 1
-		#yield line1.indices[i1-1], line2.indices[i2-1]
 
 def match_closest(line1, line2) -> '[(int, int)]':
 	''' yield couples of points by cutting each line at the curvilign absciss of the points of the other '''
@@ -431,8 +410,8 @@ def blendpair(*interfaces, match='length', tangents='tangent', weight=1., resolu
 	else:
 		raise ValueError('matching method {} not implemented'.format(match))
 	
-	if loops[0][0] == loops[0][-1]:		loops[0] = synchronize(Wire(pts, loops[1]), Wire(pts, loops[0])).indices
-	elif loops[1][0] == loops[1][-1]:	loops[1] = synchronize(Wire(pts, loops[0]), Wire(pts, loops[1])).indices
+	#if loops[1][0] == loops[1][-1]:		loops[1] = synchronize(Wire(pts, loops[0]), Wire(pts, loops[1])).indices
+	#elif loops[0][0] == loops[0][-1]:	loops[0] = synchronize(Wire(pts, loops[1]), Wire(pts, loops[0])).indices
 	
 	match = list(method(Wire(pts, loops[0]), Wire(pts, list(reversed(loops[1])))))
 	# get the discretisation
