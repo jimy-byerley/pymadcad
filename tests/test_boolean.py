@@ -34,7 +34,10 @@ m1 = Mesh(
 	[None] * 6,
 	)
 
-m2 = m1.transform(vec3(0.5, 0.3, 0.4)).transform(quat(0.7*vec3(1,1,0)))
+m2 = (deepcopy(m1)
+		.transform(vec3(0.5, 0.3, 0.4))
+		.transform(quat(0.7*vec3(1,1,0)))
+		)
 
 #boolean.debug_propagation = True
 #boolean.scn3D = scn3D
