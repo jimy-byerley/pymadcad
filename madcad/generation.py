@@ -10,7 +10,7 @@ from .nprint import nprint
 
 __all__ = [
 	'extrans', 'extrusion', 'revolution', 'saddle', 'tube', 
-	'multiple', 'thicken', 'inflate', 'inflateoffsets',
+	'repeat', 'thicken', 'inflate', 'inflateoffsets',
 	'flatsurface', 'icosurface', 'subdivide',
 	'brick', 'icosahedron', 'icosphere', 'uvsphere', 
 	]

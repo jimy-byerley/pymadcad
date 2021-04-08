@@ -313,7 +313,9 @@ def match_length(line1, line2) -> '[(int, int)]':
 	while i1 < len(line1.indices) and i2 < len(line2.indices):
 		p1 = distance(line1.points[line1.indices[i1-1]], line1.points[line1.indices[i1]]) / l1
 		p2 = distance(line2.points[line2.indices[i2-1]], line2.points[line2.indices[i2]]) / l2
-		if x1 <= x2+0.5*p2 and x2+0.5*p2 <= x1+p1    or    x2 <= x1+0.5*p1 and x1+0.5*p1 <= x2+p2:
+		x1p = x1+0.5*p1
+		x2p = x2+0.5*p2
+		if x1 <= x2p and x2p <= x1+p1    and    x2 <= x1p and x1p <= x2+p2:
 			i1 += 1; x1 += p1
 			i2 += 1; x2 += p2
 		elif x1+0.5*p1 < x2+0.5*p2:	

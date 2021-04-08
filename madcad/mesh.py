@@ -43,9 +43,10 @@ class MeshError(Exception):	pass
 class Container:
 	''' common methods for points container (typically Mesh or Wire) '''
 	
-	def __init__(self, points=(), groups=()):
+	def __init__(self, points=(), groups=(), options=None):
 		self.points = points
 		self.groups = groups
+		self.options = options or {}
 	
 	# --- basic transformations of points ---
 	
@@ -175,7 +176,15 @@ class Container:
 				if   pt[i] < min[i]:	min[i] = pt[i]
 				elif pt[i] > max[i]:	max[i] = pt[i]
 		return Box(min, max)
-	
+		
+		
+	def option(self, update=None, **kwargs):
+		''' update the internal options with the given dictionnary and the keywords arguments.
+			This is only a shortcut to set options in a method style.
+		'''
+		if update:	self.options.update(update)
+		if kwargs:	self.options.update(kwargs)
+		return self
 
 
 class Mesh(Container):
@@ -1105,7 +1114,7 @@ def glmarray(array, dtype='f4'):
 		buff[i][:] = e
 	return buff
 
-def web(*args):
+def web(*arg):
 	''' Build a web object from supported objects:
 	
 		:web:               return it with no copy
@@ -1115,19 +1124,25 @@ def web(*args):
 		:list of vec3:      reference it and generate trivial indices
 		:iterable of vec3:  get points and generate trivial indices
 	'''
-	if not args:	raise TypeError('web take at least one argument')
-	if len(args) == 1:	args = args[0]
-	if isinstance(args, Web):		return args
-	elif isinstance(args, Wire):	return Web(args.points, list(lineedges(args)), groups=[args.group])
-	elif hasattr(args, 'mesh'):
-		return web(args.mesh())
-	elif isinstance(args, list) and isinstance(args[0], vec3):
-		return Web(args, [(i,i+1) for i in range(len(args)-1)])
-	elif isinstance(args, tuple) and isinstance(args[0], vec3):
-		return Web(list(args), [(i,i+1) for i in range(len(args)-1)])
-	elif hasattr(args, '__iter__'):
+	if not arg:	raise TypeError('web take at least one argument')
+	if len(arg) == 1:	arg = arg[0]
+	if isinstance(arg, Web):		return arg
+	elif isinstance(arg, Wire):	
+		return Web(
+				arg.points, 
+				arg.edges(), 
+				arg.tracks[:-1] if arg.tracks else None, 
+				groups=arg.groups,
+				)
+	elif hasattr(arg, 'mesh'):
+		return web(arg.mesh())
+	elif isinstance(arg, list) and isinstance(arg[0], vec3):
+		return Web(arg, [(i,i+1) for i in range(len(arg)-1)])
+	elif isinstance(arg, tuple) and isinstance(arg[0], vec3):
+		return Web(list(arg), [(i,i+1) for i in range(len(arg)-1)])
+	elif hasattr(arg, '__iter__'):
 		pool = Web()
-		for primitive in args:
+		for primitive in arg:
 			pool += web(primitive)
 		pool.mergeclose()
 		return pool
@@ -1135,22 +1150,25 @@ def web(*args):
 		raise TypeError('incompatible data type for Web creation')
 
 
-class Wire:
+class Wire(Container):
 	''' Line as continuous suite of points 
 		Used to borrow reference of points from a mesh by keeping their original indices
 
 		Attributes:
 			:points:	points buffer
 			:indices:	indices of the line's points in the buffer
-			:group:		data associated to all the points, much like Web.groups but there is only one here
+			:tracks:	group index for each point in indices
+						it can be used to associate groups to points or to edges (if to edges, then take care to still have as many track as indices)
+			:groups:	data associated to each point (or edge)
 	'''
-	__slots__ = 'points', 'indices', 'group'
+	__slots__ = 'points', 'indices', 'tracks', 'groups'
 	
-	def __init__(self, points, indices=None, group=None):
-		self.points = points
-		if indices is None:	self.indices = list(range(len(points))) #arraylike(lambda i: i, lambda: len(points))
-		else:				self.indices = indices
-		self.group = group
+	def __init__(self, points=None, indices=None, tracks=None, groups=None, options=None):
+		self.points = points or []
+		self.indices = indices or list(range(len(self.points)))
+		self.tracks = tracks or None #jitmap(self.indices, lambda i:0)
+		self.groups = groups or [None]
+		self.options = options or {}
 	
 	def __len__(self):	return len(self.indices)
 	def __iter__(self):	return (self.points[i] for i in self.indices)
@@ -1162,10 +1180,17 @@ class Wire:
 	def flip(self):
 		indices = self.indices[:]
 		indices.reverse()
-		return Wire(self.points, indices, self.group)
+		if self.tracks:
+			tracks = self.tracks[:]
+			tracks.reverse()
+		else:
+			tracks = None
+		return Wire(self.points, indices, tracks, self.groups, self.options)
 		
 	def close(self):
 		self.indices.append(self.indices[0])
+		if self.tracks:
+			self.tracks.append(self.tracks[0])
 		return self
 		
 	def mergeclose(self, limit=None):
@@ -1176,9 +1201,12 @@ class Wire:
 		limit *= limit
 		merges = {}
 		for i in reversed(range(1, len(self.indices))):
-			if distance2(self.points[self.indices[i-1]], self.points[self.indices[i]]) <= limit:
-				self.indices.pop(i)
+			if distance2(self[i-1], self[i]) <= limit:
 				merges[self.indices[i]] = self.indices[i-1]
+				self.indices.pop(i)
+		if distance2(self[0], self[-1]) < limit:
+			merges[self.indices[-1]] = self.indices[0]
+			self.indices[-1] = self.indices[0]
 		return merges
 		
 	def isvalid(self):
@@ -1192,6 +1220,9 @@ class Wire:
 		l = len(self.points)
 		for i in self.indices:
 			if i >= l:	raise MeshError("some indices are greater than the number of points", i, l)
+		if self.tracks:
+			if len(self.indices) != len(self.tracks):	raise MeshError("tracks list doesn't match indices list length")
+			if max(self.tracks) >= len(self.groups):	raise MeshError("some tracks are greater than the number of groups", max(self.tracks), len(self.groups))
 
 	def edge(self, i):
 		''' ith edge of the wire '''
@@ -1199,16 +1230,13 @@ class Wire:
 	def edges(self):
 		''' list of successive edges of the wire '''
 		return [self.edge(i)  for i in range(len(self.indices)-1)]
-		
-		
-	maxnum = Container.maxnum
-	precision = Container.precision
+	
 	
 	def length(self):
 		''' curviform length of the wire (sum of all edges length) '''
 		s = 0
 		for i in range(1,len(self.indices)):
-			s += distance(self.points[self.indices[i-1]], self.points[self.indices[i]])
+			s += distance(self[i-1], self[i])
 		return s
 		
 	def barycenter(self):
@@ -1268,30 +1296,52 @@ class Wire:
 			if this is not a loop the result is undefined.
 		'''
 		area = vec3(0)
-		c = self.points[self.indices[0]]
+		c = self[0]
 		for i in range(len(self.indices)):
-			area += cross(self.points[self.indices[i]]-c, self.indices[i-1]-c)
+			area += cross(self[i]-c, self[i-1]-c)
 		return normalize(area)
 	
-	def __iadd__(self, other):
-		if not isinstance(other, Wire):		return NotImplemented
-		if self.points is other.points:
-			self.indices.extend(other.indices)
+	def __add__(self, other):
+		''' append the indices and points of the other wire '''
+		if isinstance(other, Wire):
+			r = Wire(
+				self.points if self.points is other.points else self.points[:], 
+				self.indices[:], 
+				self.tracks[:] if self.tracks else None, 
+				self.groups if self.groups is other.groups else self.groups[:],
+				)
+			r.__iadd__(other)
+			return r
 		else:
 			return NotImplemented
 			
-	
-	def __add__(self, other):
-		if not isinstance(other, Wire):		return NotImplemented
-		if self.points is other.points:
-			return Wire(self.points, self.indices+other.indices)
+	def __iadd__(self, other):
+		''' append the indices and points of the other wire '''
+		if isinstance(other, Wire):		
+			if self.points is other.points:
+				self.indices.extend(other.indices)
+			else:
+				lp = len(self.points)
+				self.points.extend(other.points)
+				self.indices.extend(i+lp  for i in other.indices)
+			if self.groups is other.groups:
+				if self.tracks:
+					self.tracks.extend(other.tracks or [0])
+			else:
+				lt = len(self.groups)
+				self.groups.extend(other.groups)
+				if not self.tracks:	
+					self.tracks = [0]*len(self.indices)
+				if other.tracks:
+					self.tracks.extend(track+lt	for lt in other.tracks)
+				else:
+					self.tracks.extend([lt]*len(other.indices))
+			return self
 		else:
-			l = []
-			l.extend(self)
-			l.extend(other)
-			return Wire(l)
+			return NotImplemented
 		
 	def strippoints(self):
+		
 		self.points = [self.points[i]	for i in self.indices]
 		self.indices = list(range(len(self.points)))
 		if self.points[-1] == self.points[0]:	
@@ -1302,12 +1352,16 @@ class Wire:
 		return web(self).display(scene)
 	
 	def __repr__(self):
-		return 'Wire(\n  points={},\n  indices={},\n  group={})'.format(
+		return 'Wire(\n  points={},\n  indices={},\n  tracks={},\n  groups={})'.format(
 					reprarray(self.points, 'points'),
 					reprarray(self.indices, 'indices'),
-					repr(self.group))
+					reprarray(self.tracks, 'tracks') if self.tracks else None,
+					repr(self.groups))
+					
+	#def __repr__(self):
+		#return '<Wire at {:x} with {} points, {} faces>'.format(id(self), len(self.points), len(self.faces))
 
-def wire(*args):
+def wire(*arg):
 	''' Build a Wire object from the other compatible types.
 		Supported types are:
 		
@@ -1318,23 +1372,22 @@ def wire(*args):
 		:list of vec3:      reference it and put trivial indices
 		:iterable of vec3:  create internal point list from it, and put trivial indices
 	'''
-	if not args:	raise TypeError('web take at least one argument')
-	if len(args) == 1:	args = args[0]
-	if isinstance(args, Wire):		return args
-	elif isinstance(args, Web):
-		indices = suites(args.edges)
+	if not arg:	raise TypeError('web take at least one argument')
+	if len(arg) == 1:	arg = arg[0]
+	if isinstance(arg, Wire):		return arg
+	elif isinstance(arg, Web):
+		indices = suites(arg.edges)
 		if len(indices) > 1:	raise ValueError('the given web has junctions or is discontinuous')
-		return Wire(args.points, indices[0], 
-					group=args.groups[0] if len(args.groups)==1 else None)
-	elif hasattr(args, 'mesh'):
-		return wire(args.mesh())
-	elif isinstance(args, list) and isinstance(args[0], vec3):
-		return Wire(args, list(range(len(args)-1)))
-	elif isinstance(args, tuple) and isinstance(args[0], vec3):
-		return Wire(list(args), list(range(len(args)-1)))
-	elif hasattr(args, '__iter__'):
+		return Wire(arg.points, indices[0], groups=[None])	# TODO: find a way to get the groups from the Web edges through suites or not
+	elif hasattr(arg, 'mesh'):
+		return wire(arg.mesh())
+	elif isinstance(arg, list) and isinstance(arg[0], vec3):
+		return Wire(arg, list(range(len(arg)-1)))
+	elif isinstance(arg, tuple) and isinstance(arg[0], vec3):
+		return Wire(list(arg), list(range(len(arg)-1)))
+	elif hasattr(arg, '__iter__'):
 		pool = Wire([])
-		for primitive in args:
+		for primitive in arg:
 			add = wire(primitive)
 			l = len(pool.points)
 			pool.points.extend(add.points)
@@ -1345,6 +1398,60 @@ def wire(*args):
 		raise TypeError('incompatible data type for Wire creation')
 		
 # --- common tools ----
+
+class mono(object):
+	''' this is a class pretending to be an array
+		its __getitem__ and __setitem__ will always answer that its elements are its provided `value`
+	'''
+	__slots__ = 'value',
+	
+	def __init__(self, value):
+		self.value = value
+	def __getitem__(self, index):
+		if isinstance(index, int):	
+			return self.value
+		elif isinstance(index, slice):
+			return [self.value] * ( (index.stop-index.start) // (index.step or 1) )
+	def __setitem__(self, index, value):
+		self.value = value
+	def __iter__(self):
+		while True:
+			yield self.value
+
+class jitmap(object):
+	''' array like map that supports __getitem__ and __setitem__ '''
+	__slots__ = 'func', 'inverse', 'source'	
+	def __init__(self, source, func, inverse=None):
+		self.func = func
+		self.source = source
+		self.inverse = inverse
+		if not callable(func):		raise TypeError('func must be callable')
+		if inverse and not callable(inverse):	raise TypeError('inverse must be callable')
+		if not hasattr(source, '__getitem__'):	raise TypeError('source has no __getitem__')
+		
+	def __getitem__(self, index):
+		if isinstance(index, int):
+			return self.func(self.source[index])
+		elif isinstance(index, slice):
+			return [func(o)	for o in self.source[index]]
+		else:
+			raise TypeError('index must be int or slice')
+			
+	def __setitem__(self, index, value):
+		if not self.inverse:
+			raise TypeError('inverse function not defined for this jitmap')
+		if isinstance(index, int):
+			self.source[index] = self.inverse(value)
+		elif isinstance(index, slice):
+			self.source[index] = (self.inverse(o)	for o in value)
+			
+	def __len__(self):
+		return len(self.source)
+		
+	def __iter__(self):
+		return map(self.func, self.source)
+
+
 # connectivity:
 		
 def edgekey(a,b):

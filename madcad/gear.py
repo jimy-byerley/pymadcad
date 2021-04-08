@@ -151,7 +151,7 @@ def rackprofile(step, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=None
 		vec3(step*(2-x)/2 + tan(alpha) * (-h-e),  -h-e,  0),
 		vec3(step*(2-x)/2 + tan(alpha) * ( h-e),   h-e,  0),
 		vec3(step*(2+x)/2 - tan(alpha) * ( h-e),   h-e,  0),
-		], group='rack')
+		], groups=['rack'])
 
 
 def gearprofile(step, z, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=None) -> Wire:
@@ -242,7 +242,7 @@ def gearprofile(step, z, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=N
 		
 	pts.append(angleAxis(step/p, vec3(0,0,1)) * pts[0])
 	
-	return Wire(pts, group='gear')
+	return Wire(pts, groups=['gear'])
 	
 def gearcircles(step, z, h=None, e=-0.05, x=0.5, alpha=radians(30)):
 	''' return the convenient circles radius for a gear with the given parameters 
