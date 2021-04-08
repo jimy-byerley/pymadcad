@@ -156,6 +156,8 @@ def triangulation_outline(outline: Wire, normal=None) -> Mesh:
 		the returned mesh uses the same buffer of points than the input
 		complexity:  O(n**2) mat2 operations
 	'''
+	# get a normal in the right direction for loop winding
+	if not normal:		normal = outline.normal()
 	try:				proj = planeproject(outline, normal)
 	except ValueError:	return Mesh()
 	hole = list(outline.indices)
