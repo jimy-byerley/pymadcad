@@ -318,7 +318,7 @@ def match_length(line1, line2) -> '[(int, int)]':
 		if x1 <= x2p and x2p <= x1+p1    and    x2 <= x1p and x1p <= x2+p2:
 			i1 += 1; x1 += p1
 			i2 += 1; x2 += p2
-		elif x1+0.5*p1 < x2+0.5*p2:	
+		elif x1p < x2p:	
 			i1 += 1; x1 += p1
 		else:				
 			i2 += 1; x2 += p2

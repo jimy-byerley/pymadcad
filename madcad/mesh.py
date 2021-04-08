@@ -658,7 +658,6 @@ class Mesh(Container):
 			orient = lambda p, n: dot(n, dir)
 		else:	
 			center = self.barycenter()
-			print('center', center)
 			metric = lambda p, n: (length2(p-center), abs(dot(n, p-center)))
 			orient = lambda p, n: dot(n, p-center)
 		if not conn:	
@@ -1302,7 +1301,7 @@ class Wire(Container):
 		'''
 		area = vec3(0)
 		c = self[0]
-		for i in range(len(self.indices)):
+		for i in range(len(self)):
 			area += cross(self[i]-c, self[i-1]-c)
 		return normalize(area)
 	
