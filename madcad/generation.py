@@ -403,18 +403,14 @@ def uvsphere(center, radius, alignment=vec3(0,0,1), resolution=None) -> 'Mesh':
 	return mesh
 
 
-def multiple(pattern, n, trans=None, axis=None, angle=None) -> 'Mesh':
+def repeat(pattern, n, trans):
 	''' create a mesh duplicating n times the given pattern, each time applying the given transform.
 		
-		:pattern:   can either be a `Mesh`, `Web` or `Wire`
-		:trans:     is the transformation between each duplicate. If none, `axis` and `angle` must define a rotation around an axis.
+		:pattern:   can either be a `Mesh`, `Web` or `Wire`   
+					the return type will depend on the input type
+		:n:         the number of repetitions
+		:trans:     is the transformation between each duplicate
 	'''
-	if trans is None:
-		if isinstance(axis, tuple) and len(axis) == 2 and angle:
-			trans = transform(axis[0]) * transform(angleAxis(angle, axis[1])) * transform(axis[0])
-		else:
-			raise TypeError('transform must be set, or axis and angle must be axis and angle for rotation')
-	
 	current = pattern
 	pool = type(pattern)(groups=pattern.groups)
 	if n:	pool += current
