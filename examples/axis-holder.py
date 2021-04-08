@@ -104,9 +104,9 @@ vis = extrusion(vec3(0,0,-2*h), web(Circle((C+vec3(0,0,h),-Z), dvis)))
 # assemble everything
 # -------------------
 # get 6 shapes with the slot and the hole for the scren
-big = multiple(
+big = repeat(
 		union(place, vis), 	# this union cuts the slot to add the hole
-		6, axis=(O,Z), angle=radians(60))
+		6, rotatearound(radians(60), (O,Z)))
 # cut the cone to put the slots and holes
 part = difference(cone, big)
 # this is the final touch for parts: optimize the buffers and check mesh validity
