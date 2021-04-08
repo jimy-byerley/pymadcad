@@ -147,9 +147,9 @@ def triangulation_skeleton(outline: Wire, prec=NUMPREC) -> Mesh:
 def priority(u,v):
 	''' priority criterion for 2D triangles, depending on its shape
 	'''
-	#return perpdot(u,v) / (length(u)+length(v)+length(u-v))**2
-	#return dot(u,v)
-	return dot(u,v) / (length(u)*length(v))
+	uv = length(u)*length(v)
+	if not uv:	return 0
+	return dot(u,v) / uv
 
 def triangulation_outline(outline: Wire, normal=None) -> Mesh:
 	''' return a mesh with the triangles formed in the outline
@@ -170,16 +170,17 @@ def triangulation_outline(outline: Wire, normal=None) -> Mesh:
 		if triangle[0] == triangle[1] or triangle[1] == triangle[2]:	return 0
 		if perpdot(u,v) < -NUMPREC:		return -inf
 		sc = priority(u,v)
-		# check that there is not point of the outline inside the triangle
-		decomp = inverse(dmat2(u,v))
-		o = proj[i]
-		for j in range(l):
-			if hole[j] not in triangle:
-				p = proj[j]
-				uc,vc = decomp * dvec2(p-o)
-				if 0 <= uc and 0 <= vc and uc+vc <= 1:
-					sc = -inf
-					break
+		if perpdot(u,v) > NUMPREC:
+			# check that there is not point of the outline inside the triangle
+			decomp = inverse(dmat2(u,v))
+			o = proj[i]
+			for j in range(l):
+				if hole[j] not in triangle:
+					p = proj[j]
+					uc,vc = decomp * dvec2(p-o)
+					if 0 <= uc and 0 <= vc and uc+vc <= 1:
+						sc = -inf
+						break
 		return sc
 	scores = [score(i) for i in range(len(hole))]
 	
