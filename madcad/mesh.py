@@ -496,7 +496,7 @@ class Mesh(Container):
 		groups = set(args)
 		edges = []
 		tracks = []
-		couples = {}
+		couples = OrderedDict()
 		belong = {}
 		for i,face in enumerate(self.faces):
 			if groups and self.tracks[i] not in groups:	continue
@@ -816,6 +816,9 @@ class Mesh(Container):
 				)
 	
 	def __repr__(self):
+		return '<Mesh with {} points at 0x{:x}, {} faces>'.format(len(self.points), id(self.points), len(self.faces))
+	
+	def __str__(self):
 		return 'Mesh(\n  points={},\n  faces={},\n  tracks={},\n  groups={},\n  options={})'.format(
 					reprarray(self.points, 'points'),
 					reprarray(self.faces, 'faces'),
@@ -1061,8 +1064,10 @@ class Web(Container):
 		if isinstance(e, int):	e = self.edges[e]
 		return normalize(self.points[e[1]] - self.points[e[0]])
 	
-	
 	def __repr__(self):
+		return '<Web with {} points at 0x{:x}, {} edges>'.format(len(self.points), id(self.points), len(self.edges))
+	
+	def __str__(self):
 		return 'Web(\n  points={},\n  edges={},\n  tracks={},\n  groups={},\n  options={})'.format(
 					reprarray(self.points, 'points'),
 					reprarray(self.edges, 'edges'),
@@ -1352,6 +1357,9 @@ class Wire(Container):
 		return web(self).display(scene)
 	
 	def __repr__(self):
+		return '<Wire with {} points at 0x{:x}, {} indices>'.format(len(self.points), id(self.points), len(self.indices))
+	
+	def __str__(self):
 		return 'Wire(\n  points={},\n  indices={},\n  tracks={},\n  groups={})'.format(
 					reprarray(self.points, 'points'),
 					reprarray(self.indices, 'indices'),
