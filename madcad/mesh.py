@@ -907,6 +907,17 @@ class Web(Container):
 		''' reverse direction of all edges '''
 		return Web(self.points, [(b,a)  for a,b in self.edges], self.tracks, self.groups)
 		
+	def segmented(self, group=None):
+		''' return a copy of the mesh with a group each edge 
+		
+			if group is specified, it will be the new definition put in each groups
+		'''
+		return Web(self.points, self.edges,
+					list(range(len(self.edges))),
+					[group]*len(self.edges),
+					self.options,
+					)
+		
 	# --- mesh optimization ---
 	
 	def mergepoints(self, merges):
@@ -1051,7 +1062,7 @@ class Web(Container):
 		''' curve barycenter of the mesh '''
 		return sum(	self.points[a]+self.points[b]		for a,b in self.edges) / (2*len(self.edges))
 	
-	def segments(self):
+	def arcs(self):
 		''' return the contiguous portions of this web '''
 		return [Wire(self.points, loop)		for loop in suites(self.edges, oriented=False)]
 		
@@ -1197,6 +1208,17 @@ class Wire(Container):
 			self.tracks.append(self.tracks[0])
 		return self
 		
+	def segmented(self, group=None):
+		''' return a copy of the mesh with a group each edge 
+		
+			if group is specified, it will be the new definition put in each groups
+		'''
+		return Wire(self.points, self.indices,
+					list(range(len(self.indices))),
+					[group]*len(self.indices),
+					self.options,
+					)
+	
 	def mergeclose(self, limit=None):
 		''' merge close points ONLY WHEN they are already linked by an edge.
 			the meaning of this method is different than `Web.mergeclose()`
@@ -1389,9 +1411,9 @@ def wire(*arg):
 	elif hasattr(arg, 'mesh'):
 		return wire(arg.mesh())
 	elif isinstance(arg, list) and isinstance(arg[0], vec3):
-		return Wire(arg, list(range(len(arg)-1)))
+		return Wire(arg)
 	elif isinstance(arg, tuple) and isinstance(arg[0], vec3):
-		return Wire(list(arg), list(range(len(arg)-1)))
+		return Wire(list(arg))
 	elif hasattr(arg, '__iter__'):
 		pool = Wire([])
 		for primitive in arg:

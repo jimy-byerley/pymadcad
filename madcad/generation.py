@@ -12,7 +12,7 @@ __all__ = [
 	'extrans', 'extrusion', 'revolution', 'saddle', 'tube', 
 	'repeat', 'thicken', 'inflate', 'inflateoffsets',
 	'flatsurface', 'icosurface', 'subdivide',
-	'brick', 'icosahedron', 'icosphere', 'uvsphere', 
+	'brick', 'icosahedron', 'icosphere', 'uvsphere', 'regon',
 	]
 
 	
@@ -402,6 +402,12 @@ def uvsphere(center, radius, alignment=vec3(0,0,1), resolution=None) -> 'Mesh':
 	mesh.mergeclose()
 	return mesh
 
+def regon(axis, radius, n, alignment=None) -> 'Wire':
+	''' create a regular n-gon `Wire`, the same way we create a `Circle` '''
+	return primitives.Circle(axis, radius, 
+				resolution=('div',n), 
+				alignment=alignment or vec3(1,0,0),
+				).mesh()
 
 def repeat(pattern, n, trans):
 	''' create a mesh duplicating n times the given pattern, each time applying the given transform.

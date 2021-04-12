@@ -16,7 +16,7 @@ from . import settings
 __all__ = [	'chamfer', 'bevel',
 			'cut', 'multicut', 'planeoffsets',
 			'tangentend', 'tangentcorner', 'tangentjunction',
-			'cutter_width', 'cutter_distance', 'cutter_depth', 'cutter_angle',
+			'cutter_width', 'cutter_distance', 'cutter_depth', 'cutter_radius',
 			]
 
 # ---- cut methods -----
