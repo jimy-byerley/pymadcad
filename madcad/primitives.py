@@ -199,7 +199,7 @@ class ArcTangent(object):
 	
 	@property
 	def center(self):
-		n = normalize(self.b + self.c - 2*self.a)
+		n = normalize(self.a + self.c - 2*self.b)
 		return mix(	unproject(self.a-self.b, n),
 					unproject(self.c-self.b, n),
 					0.5)	+ self.b
@@ -215,14 +215,17 @@ class ArcTangent(object):
 	
 	def tangent(self, pt):
 		''' tangent to the closest point of the curve to pt '''
-		z = cross(self.b-self.a, self.c-self.a)
+		z = cross(self.a-self.b, self.c-self.b)
 		return normalize(cross(pt-self.center, z))
 	
 	slvvars = 'a', 'b', 'c'
 	slv_tangent = tangent
 	
+	def fit(self):
+		return (distance(self.a, self.b) - distance(self.c, self.b)) **2
+	
 	def mesh(self, resolution=None):
-		return mkarc(self.axis, self.a, self.b, resolution or self.resolution)
+		return mkarc(self.axis, self.a, self.c, resolution or self.resolution)
 		
 	def __repr__(self):
 		return 'ArcTangent({}, {}, {})'.format(self.a, self.b, self.c)
@@ -271,14 +274,13 @@ class TangentEllipsis(object):
 	def mesh(self, resolution=None):
 		''' axis directions doesn't need to be normalized nor oriented '''
 		origin = self.b
-		x = self.a - origin
-		y = self.b - origin
-		angleapprox = acos(dot(x,-y))
-		div = settings.curve_resolution(distance(self.a,self.b), angleapprox, self.resolution or resolution)
+		x = origin - self.a
+		y = origin - self.c
+		div = settings.curve_resolution(distance(self.a,self.c), anglebt(x,-y), self.resolution or resolution)
 		pts = []
 		for i in range(div+2):
-			u = pi/2 * i/(div+1)
-			pts.append(x*a*(1-cos(u)) + y*b*(1-sin(u)) + origin)
+			t = pi/2 * i/(div+1)
+			pts.append(x*sin(t) + y*cos(t) + origin-x-y)
 		return mesh.Wire(pts, groups=['ellipsis'])
 		
 	def __repr__(self):
