@@ -36,4 +36,4 @@ others
 .. autofunction:: icosurface
 .. autofunction:: brick
 .. autofunction:: subdivide
-.. autofunction:: multiple
+.. autofunction:: repeat
