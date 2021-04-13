@@ -16,12 +16,12 @@ classes
 	
 		Support for ``+, += Mesh``
 
-		.. automethod:: box
 		.. automethod:: transform
+		.. automethod:: flip
+		.. automethod:: splitgroups
 		.. automethod:: mergepoints
 		.. automethod:: mergeclose
 		.. automethod:: finish
-		.. automethod:: precision
 		.. automethod:: strippoints
 		.. automethod:: stripgroups
 		
@@ -58,13 +58,11 @@ classes
 		.. automethod:: frontiers
 		.. automethod:: tangents
 		.. automethod:: islands
+		.. automethod:: precision
+		.. automethod:: box
 		.. automethod:: surface
 		.. automethod:: barycenter
 	
-	**other methods**
-	
-		.. automethod:: splitgroups
-		.. automethod:: flip
 
 
 		
@@ -75,12 +73,12 @@ classes
 	
 		Support for ``+, += Web``
 
-		.. automethod:: box
 		.. automethod:: transform
+		.. automethod:: flip
+		.. automethod:: segmented
 		.. automethod:: mergepoints
 		.. automethod:: mergeclose
 		.. automethod:: finish
-		.. automethod:: precision
 		.. automethod:: strippoints
 		.. automethod:: stripgroups
 		
@@ -102,18 +100,32 @@ classes
 	
 		.. automethod:: extremities
 		.. automethod:: groupextremities
-		.. automethod:: segments
+		.. automethod:: arcs
+		.. automethod:: box
+		.. automethod:: precision
 		.. automethod:: length
 		.. automethod:: barycenter
 	
-	**other methods**
-	
-		.. automethod:: flip
 
 
 
 .. autoclass:: madcad.mesh.Wire
+
+	Support for item access to underlying points: 
 	
+	.. automethod:: __getitem__
+	
+	**Point container methods**
+	
+		Support for ``+, += Wire``
+		
+		.. automethod:: transform
+		.. automethod:: flip
+		.. automethod:: segmented
+		.. automethod:: close
+		.. automethod:: mergeclose
+		.. automethod:: strippoints
+		
 	**check methods**
 	
 		.. automethod:: check
@@ -128,11 +140,6 @@ classes
 		.. automethod:: normal
 		.. automethod:: length
 		.. automethod:: barycenter
-	
-	**other methods**
-	
-		.. automethod:: strippoints
-		.. automethod:: flip
 
 
 conversion functions

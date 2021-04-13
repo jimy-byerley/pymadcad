@@ -15,4 +15,5 @@ show([
 	
 	coilspring_compression(20) .transform(vec3(0,10,0)),
 	coilspring_tension(20) .transform(vec3(10,10,0)),
+	coilspring_torsion(5) .transform(vec3(-10,10,0)),
 	])

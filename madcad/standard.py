@@ -1,5 +1,15 @@
 '''
-	[standard screw thread](https://en.wikipedia.org/wiki/ISO_metric_screw_thread)
+	Module exposing many functions to create/visualize standard parts.
+	Those are following the ISO (metric) specifications as often as possible.
+	
+	Most parts are as easy to create as:
+	
+		>>> nut(8)    # nut with nominal diameter 8mm
+		>>> screw(8, 16)   # screw with match diameter 8mm, and length 16mm
+		
+	The parts usually have many optional parameters that default to usual recommended values. You can override this by setting the keyword arguments:
+	
+		>>> screw(8, 16, head='button', drive='slot')
 '''
 
 from operator import itemgetter
@@ -16,13 +26,14 @@ from .io import cachefunc
 cachefunc = lambda x:x	# debug purpose
 
 
+__all__ = [	'nut', 'screw', 'washer', 
+			'coilspring_compression', 'coilspring_tension', 'coilspring_torsion',
+			]
+
+
 def ipn(h) -> Web:
 	indev
 
-	
-def screw(d, l, type, detail=False) -> Mesh:
-	indev
-	
 def nut(d, b, h, type, detail=False) -> Mesh:
 	indev
 
@@ -158,6 +169,8 @@ def screwhead_none(d):
 	SHCS 	socket head cap screw 	
 	SHSS 	socket head set screw 	Sometimes Socket Head Shoulder Screw.
 	STS 	self-tapping screw
+	
+	[standard screw thread](https://en.wikipedia.org/wiki/ISO_metric_screw_thread)
 '''
 
 screwheads_codes = {
@@ -199,11 +212,39 @@ def screw_spec(head, drive=None):
 	return head, drive
 
 @cachefunc
-def screw(d, length, filet_length=None, head='SH', drive=None):
+def screw(d, length, filet_length=None, head='SH', drive=None, detail=False):
 	''' create a standard screw using the given drive and head shapes
 	
-		see wikipedia for the [drive types](https://en.wikipedia.org/wiki/List_of_screw_drives)
-		see [here for a guide of what to use](https://www.homestratosphere.com/types-of-screws/)
+	Parameters:
+		:d:             nominal diameter of the screw
+		:length:        length from the screw head to the tip of the screw
+		:filet_length:  length of the filet on the screw (from the tip), defaults to `length`
+		
+		:head:          name of the screw head shape
+		:drive:			name of the screw drive shape
+		:detail:   if True, the thread surface will be generated, else it will only be a cylinder
+		
+	It's also possible to specify head and drive at once, using their codenames:
+	
+		>>> screw(5, 16, head='SHT')   # socket head and torx drive
+		
+	available screw heads:
+		* socket (default)
+		* button
+		* flat (aka. cone)
+		
+	available screw drives:
+		* hex
+		* torx  *(not yet available)*
+		* phillips (cross)  *(not yet available)*
+		* slot
+	
+	All possible shapes:
+		* see wikipedia for the [drive types](https://en.wikipedia.org/wiki/List_of_screw_drives)
+		* see [here for a guide of what to use](https://www.homestratosphere.com/types-of-screws/)
+		* see wikipedia for [standard screw thread](https://en.wikipedia.org/wiki/ISO_metric_screw_thread)
+		
+		
 	'''
 	if filet_length is None:	filet_length = length - 0.05*d
 	elif length < filet_length:	raise ValueError('filet_length must be smaller than length')
@@ -256,7 +297,18 @@ def hexnut(d, w, h):
 	return nut
 
 @cachefunc
-def nut(d):
+def nut(d, type='hex', detail=False) -> Mesh:
+	''' create a standard nut model using the given shape type 
+	
+		Parameters
+			:d:        nominal diameter of the matching screw
+			:type:     the nut shape
+			:detail:   if True, the thread surface will be generated, else it will only be a cylinder
+	
+		If `d` alone is given, the other parameters default to the ISO specs: https://www.engineersedge.com/iso_flat_washer.htm
+		
+		Currently only shape 'hex' is available.
+	'''
 	args = standard_hexnuts[bisect(standard_hexnuts, d, key=itemgetter(0))]
 	if args[0] != d:
 		raise ValueError('no standard nut for the given diameter')
@@ -302,6 +354,17 @@ standard_hexnuts = [
 	
 @cachefunc
 def washer(d, e=None, h=None) -> Mesh:
+	''' create a standard washer.
+		Washers are useful to offset screws and avoid them to scratch the mount part
+		
+		Parameters
+			:d:        the nominal interior diameter (screw or anything else),
+			           the exact washer interior is slightly bigger
+			:e:        exterior diameter
+			:h:        height/thickness
+			
+		If `d` alone is given, the other parameters default to the ISO specs: https://www.engineersedge.com/iso_flat_washer.htm
+	'''
 	if e is None:	e = d*2
 	if h is None:	h = d*0.1
 	d *= 1.1
@@ -369,6 +432,7 @@ def linrange(start, stop=None, step=None, div=0, end=True):
 	'''
 	if stop is None:	start, stop = 0, start
 	if step is None:	step = (stop-start)/(div+1)
+	elif step * (stop-start) < 0:	step = -step
 	if not end:			stop -= step
 	stop += NUMPREC
 	
@@ -377,13 +441,15 @@ def linrange(start, stop=None, step=None, div=0, end=True):
 		yield t
 		t += step
 	
+@cachefunc
 def coilspring_compression(length, d=None, thickness=None, solid=True):
-	''' return a Mesh model of a croilspring meant for use in tension 
+	''' return a Mesh model of a croilspring meant for use in compression
 	
-		:length:     the distance between its two hooks
-		:d:          the exterior diameter (the coilspring can fit in a cylinder of that diameter)
-		:thickness:  the wire diameter of the spring (useless if solid is disabled)
-		:solid:      disable it to get only the tube path of the coil, and have a `Wire` as return value
+		Parameters
+			:length:     the distance between its two ends
+			:d:          the exterior diameter (the coilspring can fit in a cylinder of that diameter)
+			:thickness:  the wire diameter of the spring (useless if solid is disabled)
+			:solid:      disable it to get only the tube path of the coil, and have a `Wire` as return value
 	'''
 	if not d:			d = length*0.2
 	if not thickness:	thickness = d*0.1
@@ -409,7 +475,7 @@ def coilspring_compression(length, d=None, thickness=None, solid=True):
 	for t in linrange(t0, t0 + 4*pi, step):
 		bot.append( vec3(r*cos(t), r*sin(t), z0 + (t-t0)/(2*pi) * thickness) )
 		
-	path = Wire(top, groups=['tube']) + Wire(coil, groups=['spring']) + Wire(bot, groups=['tube'])
+	path = Wire(top, groups=['coil']) + Wire(coil, groups=['spring']) + Wire(bot, groups=['coil'])
 	
 	if not solid:
 		return path
@@ -423,13 +489,15 @@ def coilspring_compression(length, d=None, thickness=None, solid=True):
 			path,
 			)
 	
+@cachefunc
 def coilspring_tension(length, d=None, thickness=None, solid=True):
 	''' return a Mesh model of a croilspring meant for use in tension 
 	
-		:length:     the distance between its two hooks
-		:d:          the exterior diameter (the coilspring can fit in a cylinder of that diameter)
-		:thickness:  the wire diameter of the spring (useless if solid is disabled)
-		:solid:      disable it to get only the tube path of the coil, and have a `Wire` as return value
+		Parameters
+			:length:     the distance between its two hooks
+			:d:          the exterior diameter (the coilspring can fit in a cylinder of that diameter)
+			:thickness:  the wire diameter of the spring (useless if solid is disabled)
+			:solid:      disable it to get only the tube path of the coil, and have a `Wire` as return value
 	'''
 	if not d:			d = length*0.2
 	if not thickness:	thickness = d*0.1
@@ -468,8 +536,68 @@ def coilspring_tension(length, d=None, thickness=None, solid=True):
 			path,
 			)
 	
-def coilspring_torsion(radius, length=None, d=None, thickness=None):
-	indev
+@cachefunc
+def coilspring_torsion(arm, angle=radians(45), d=None, length=None, thickness=None, hook=None, solid=True):
+	''' return a Mesh model of a croilspring meant for use in torsion
+	
+		Parameters
+			:arm:        the arms length from the coil axis
+			:length:     the coil length (and distance between its hooks)
+			:d:          the exterior diameter (the coilspring can fit in a cylinder of that diameter)
+			:thickness:  the wire diameter of the spring (useless if solid is disabled)
+			:hook:       the length of arm hooks (negative for hooks toward the interior)
+			:solid:      disable it to get only the tube path of the coil, and have a `Wire` as return value
+	'''
+	if not length:		length = arm*0.5
+	if not d:			d = arm
+	if not thickness:	thickness = d*0.1
+	if not hook:		hook = -length
+	r = d/2 - thickness		# coil radius
+	e = r					# coil step
+	angle = pi - angle
+	
+	# separate the coilspring in 3 parts:  the coil and the 2 hooks at both ides
+	ncoil = ceil(length / thickness) + angle/(2*pi)
+	
+	# create coil
+	div = settings.curve_resolution(d*pi, 2*pi)
+	step = 2*pi/(div+1)
+	z0 = -0.5 * ncoil * thickness
+	coil = Wire([	vec3(-r*sin(t), r*cos(t), z0 + t/(2*pi) * thickness)
+					for t in linrange(0, 2*pi * ncoil, step) ], 
+				groups=['spring'])
+				
+	# create hooks
+	c = thickness * sign(hook)
+	if abs(c) > abs(hook):
+		hook = c
+	top = Wire([
+			vec3(arm, 0, hook),
+			vec3(arm, 0, c),
+			vec3(arm-abs(c), 0, 0),
+			vec3(0),
+			]) .transform(coil[0])
+	bot = (top 
+			.flip() 
+			.transform(scaledir(Z,-1)*scaledir(X,-1)) 
+			.transform(angleAxis(angle, Z))
+			)
+	
+	# create path
+	path = top + coil + bot
+	path.mergeclose()
+	
+	if not solid:
+		return path
+	
+	return tube(
+		flatsurface(Circle(
+			(path[0], normalize(path[0]-path[1])),
+			thickness/2,
+			resolution=('div',6),
+			)),
+		path,
+		)
 
 '''
 * profilés

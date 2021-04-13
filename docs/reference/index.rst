@@ -32,6 +32,7 @@ submodules
 	hashing.rst
 	rendering.rst
 	scheme.rst
+	standard.rst
 
 .. py:module:: madcad
 
@@ -67,3 +68,9 @@ cut functions
 
 	.. autofunction:: chamfer
 	.. autofunction:: bevel
+	
+standard parts
+~~~~~~~~~~~~~~
+
+pyadcad contains a collection of functions to generate some of the most standard parts.
+checkout module :ref:`standard module<standard>`
