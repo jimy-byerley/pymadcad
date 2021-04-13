@@ -32,8 +32,9 @@ def extrans_pre(obj):
 	
 def extrans_post(mesh, face, first, last):
 	if face:
-		mesh += face.transform(first) + face.transform(last).flip()
-		
+		mesh += face.transform(first) 
+		mesh += face.transform(last).flip()
+
 
 def extrusion(displt, line):
 	''' create a surface by extruding the given outline by a displacement vector '''
@@ -67,7 +68,7 @@ def revolution(angle, axis, profile, resolution=None):
 	def trans():
 		for i in range(steps):
 			yield rotatearound(i/(steps-1)*angle, axis)
-	return extrans(profile, trans(), ((i,i+1) for i in range(steps-1)))
+	return extrans(profile, trans(), ((i,i+1,0) for i in range(steps-1)))
 
 def saddle(web1, web2):
 	''' create a surface by extruding outine1 translating each instance to the next point of outline2
@@ -77,7 +78,7 @@ def saddle(web1, web2):
 		s = web2.points[0]
 		for p in web2.points:
 			yield translate(mat4(1), p-s)
-	return extrans(web1, trans(), web2.edges)
+	return extrans(web1, trans(), ((*e,t)  for e,t in zip(web2.edges, web2.tracks)))
 
 def tube(outline, path, end=True, section=True):
 	''' create a tube surface by extrusing the outline along the path
@@ -115,31 +116,47 @@ def tube(outline, path, end=True, section=True):
 	
 	trans = trans()
 	if not end:		next(trans)
-	return extrans(outline, trans, ((i,i+1) for i in range(len(path)-1)))
+	return extrans(outline, trans, ((i, i+1, path.tracks[i]) for i in range(len(path)-1)))
 
 
 
-def extrans(web, transformations, links) -> 'Mesh':
+def extrans(section, transformations, links) -> 'Mesh':
 	''' create a surface by extruding and transforming the given outline.
-		transformations must be an iterable of mat4
+		
+		:transformations:   iterable of mat4, one each section
+		:link:              iterable of tuples (a,b,t)  with:
+								`(a,b)` the sections to link (indices of values returned by `transformation`).
+								`t` the group number of that link, to combine with the section groups		
 	'''
-	web, face = extrans_pre(web)
-	mesh = Mesh(groups=web.groups)
-	l = len(web.points)
-	transformations = iter(transformations)
+	# prepare
+	section, face = extrans_pre(section)
+	mesh = Mesh()
+	groups = {}
+	
+	# generate all sections points using transformations
+	l = len(section.points)
 	first = trans = None
 	for k,trans in enumerate(transformations):
-		for p in web.points:
+		for p in section.points:
 			mesh.points.append(vec3(trans*vec4(p,1)))
 		if not first:	first = trans
-	for (a,b) in links:
+	
+	# generate all sections faces using links
+	for a,b,u in links:
 		al = a*l
 		bl = b*l
-		for (c,d),t in zip(web.edges, web.tracks):
+		for (c,d),v in zip(section.edges, section.tracks):
 			mesh.faces.append((al+c, al+d, bl+d))
 			mesh.faces.append((al+c, bl+d, bl+c))
+			t = groups.setdefault((u,v), len(groups))
 			mesh.tracks.append(t)
 			mesh.tracks.append(t)
+	
+	# generate all combined groups
+	mesh.groups = [None] * len(groups)
+	for (u,v), t in groups.items():
+		mesh.groups[t] = section.groups[v]	# NOTE will change in the future to mention both u and v
+	
 	extrans_post(mesh, face, first, trans)
 	return mesh
 
@@ -407,7 +424,7 @@ def regon(axis, radius, n, alignment=None) -> 'Wire':
 	return primitives.Circle(axis, radius, 
 				resolution=('div',n), 
 				alignment=alignment or vec3(1,0,0),
-				).mesh()
+				).mesh() .segmented()
 
 def repeat(pattern, n, trans):
 	''' create a mesh duplicating n times the given pattern, each time applying the given transform.
