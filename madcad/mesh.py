@@ -168,7 +168,7 @@ class Container:
 					
 	def box(self):
 		''' return the extreme coordinates of the mesh (vec3, vec3) '''
-		if not self.points:		return None
+		if not self.points:		return Box()
 		max = deepcopy(self.points[0])
 		min = deepcopy(self.points[0])
 		for pt in self.points:
@@ -1230,9 +1230,11 @@ class Wire(Container):
 			if distance2(self[i-1], self[i]) <= limit:
 				merges[self.indices[i]] = self.indices[i-1]
 				self.indices.pop(i)
+				self.tracks.pop(i-1)
 		if distance2(self[0], self[-1]) < limit:
 			merges[self.indices[-1]] = self.indices[0]
 			self.indices[-1] = self.indices[0]
+			self.tracks[-1] = self.tracks[0]
 		return merges
 		
 	def isvalid(self):
@@ -1344,30 +1346,34 @@ class Wire(Container):
 	def __iadd__(self, other):
 		''' append the indices and points of the other wire '''
 		if isinstance(other, Wire):		
+			li = len(self.indices)
+			
 			if self.points is other.points:
 				self.indices.extend(other.indices)
 			else:
 				lp = len(self.points)
 				self.points.extend(other.points)
 				self.indices.extend(i+lp  for i in other.indices)
+			
 			if self.groups is other.groups:
-				if self.tracks:
-					self.tracks.extend(other.tracks or [0])
+				if self.tracks or other.tracks:
+					if not self.tracks:
+						self.tracks = [0]*li
+					self.tracks.extend(other.tracks or [0]*len(other.indices))
 			else:
-				lt = len(self.groups)
+				lg = len(self.groups)
 				self.groups.extend(other.groups)
 				if not self.tracks:	
-					self.tracks = [0]*len(self.indices)
+					self.tracks = [0]*li
 				if other.tracks:
-					self.tracks.extend(track+lt	for lt in other.tracks)
+					self.tracks.extend(track+lg	for track in other.tracks)
 				else:
-					self.tracks.extend([lt]*len(other.indices))
+					self.tracks.extend([lg]*len(other.indices))
 			return self
 		else:
 			return NotImplemented
 		
 	def strippoints(self):
-		
 		self.points = [self.points[i]	for i in self.indices]
 		self.indices = list(range(len(self.points)))
 		if self.points[-1] == self.points[0]:	
@@ -1415,12 +1421,9 @@ def wire(*arg):
 	elif isinstance(arg, tuple) and isinstance(arg[0], vec3):
 		return Wire(list(arg))
 	elif hasattr(arg, '__iter__'):
-		pool = Wire([])
+		pool = Wire()
 		for primitive in arg:
-			add = wire(primitive)
-			l = len(pool.points)
-			pool.points.extend(add.points)
-			pool.indices.extend((i+l  for i in add.indices))
+			pool += wire(primitive)
 		pool.mergeclose()
 		return pool
 	else:
