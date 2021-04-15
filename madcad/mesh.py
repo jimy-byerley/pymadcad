@@ -124,6 +124,7 @@ class Container:
 		#self.strippoints()	# not needed since the new merclose implementation
 		self.stripgroups()
 		self.check()
+		return self
 	
 	# --- verification methods ---
 		
@@ -522,7 +523,15 @@ class Mesh(Container):
 	
 	def barycenter(self):
 		''' surface barycenter of the mesh '''
-		return sum(	sum(self.facepoints(f))		for f in self.faces) / (3*len(self.faces))
+		if not self.faces:	return vec3(0)
+		acc = vec3(0)
+		tot = 0
+		for f in self.faces:
+			a,b,c = self.facepoints(f)
+			weight = length(cross(b-a, c-a))
+			tot += weight
+			acc += weight*(a+b+c)
+		return acc / (3*tot)
 	
 	def splitgroups(self, edges=None):
 		''' split the mesh groups into connectivity separated groups.
@@ -1060,7 +1069,15 @@ class Web(Container):
 	
 	def barycenter(self):
 		''' curve barycenter of the mesh '''
-		return sum(	self.points[a]+self.points[b]		for a,b in self.edges) / (2*len(self.edges))
+		if not self.edges:	return vec3(0)
+		acc = vec3(0)
+		tot = 0
+		for e in self.edges:
+			a,b = self.edgepoints(e)
+			weight = distance(a,b)
+			tot += weight
+			acc += weight*(a+b)
+		return acc / (2*tot)
 	
 	def arcs(self):
 		''' return the contiguous portions of this web '''
@@ -1188,6 +1205,10 @@ class Wire(Container):
 	def __len__(self):	return len(self.indices)
 	def __iter__(self):	return (self.points[i] for i in self.indices)
 	def __getitem__(self, i):
+		''' return the ith point of the wire, useful to use the wire in a same way as list of points
+		
+			equivalent to `self.points[self.indices[i]]` 
+		'''
 		if isinstance(i, int):		return self.points[self.indices[i]]
 		elif isinstance(i, slice):	return [self.points[j] for j in self.indices[i]]
 		else:						raise TypeError('item index must be int or slice')
@@ -1269,6 +1290,20 @@ class Wire(Container):
 		
 	def barycenter(self):
 		''' curve barycenter '''
+		if not self.indices:	return vec3(0)
+		if len(self.indices) == 1:	return self.points[self.indices[0]]
+		acc = vec3(0)
+		tot = 0
+		for i in range(1,len(self)):
+			a,b = self[i-1], self[i]
+			weight = distance(a,b)
+			tot += weight
+			acc += weight*(a+b)
+		return acc / (2*tot)
+			
+		
+	def barycenter_points(self):
+		''' barycenter of points used '''
 		return sum(self.points[i]	for i in self.indices) / len(self.indices)
 	
 	def vertexnormals(self, loop=False):
