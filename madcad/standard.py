@@ -36,6 +36,67 @@ def ipn(h) -> Web:
 
 def nut(d, b, h, type, detail=False) -> Mesh:
 	indev
+	
+	
+# --------- screw stuff -----------------------
+	
+	
+@cachefunc
+def screw(d, length, filet_length=None, head='SH', drive=None, detail=False):
+	''' create a standard screw using the given drive and head shapes
+	
+	Parameters:
+		:d:             nominal diameter of the screw
+		:length:        length from the screw head to the tip of the screw
+		:filet_length:  length of the filet on the screw (from the tip), defaults to `length`
+		
+		:head:          name of the screw head shape
+		:drive:			name of the screw drive shape
+		:detail:   if True, the thread surface will be generated, else it will only be a cylinder
+		
+	It's also possible to specify head and drive at once, using their codenames:
+	
+		>>> screw(5, 16, head='SHT')   # socket head and torx drive
+		
+	available screw heads:
+		* socket (default)
+		* button
+		* flat (aka. cone)
+		
+	available screw drives:
+		* hex
+		* torx  *(not yet available)*
+		* phillips (cross)  *(not yet available)*
+		* slot
+	
+	All possible shapes:
+		* see wikipedia for the [drive types](https://en.wikipedia.org/wiki/List_of_screw_drives)
+		* see [here for a guide of what to use](https://www.homestratosphere.com/types-of-screws/)
+		* see wikipedia for [standard screw thread](https://en.wikipedia.org/wiki/ISO_metric_screw_thread)
+		
+		
+	'''
+	if filet_length is None:	filet_length = length - 0.05*d
+	elif length < filet_length:	raise ValueError('filet_length must be smaller than length')
+	
+	
+	head, drive = screw_spec(head, drive)
+	head = globals()['screwhead_'+head](d)
+	if drive:
+		drive = globals()['screwdrive_'+drive](d) .transform(boundingbox(head).max[2]*Z)
+		head = intersection(head, drive)
+		
+	r = 0.5*d
+	body = revolution(2*pi, (vec3(0),vec3(0,0,1)), wire([
+					-vec3(r, 0, 0.05*d),
+					-vec3(r, 0, length-filet_length),
+					-vec3(r, 0, length-r*0.2),
+					-vec3(r*0.8, 0, length),
+					-vec3(0, 0, length),
+					]) .segmented())
+	screw = body + head
+	screw.finish()
+	return screw
 
 def screwdrive_torx(d):
 	indev
@@ -45,6 +106,9 @@ def screwdrive_hex(d):
 	socket = extrusion(d*Z, base) + blendloop(base, center=-0.6*d*Z, weight=-1)
 	socket.mergeclose()
 	return socket
+	
+def screwdrive_cross(d):
+	indev
 	
 def screwdrive_slot(d):
 	w = 0.15*d
@@ -211,64 +275,28 @@ def screw_spec(head, drive=None):
 		
 	return head, drive
 
+
+# ------------------- nut stuff ----------------------
+
 @cachefunc
-def screw(d, length, filet_length=None, head='SH', drive=None, detail=False):
-	''' create a standard screw using the given drive and head shapes
+def nut(d, type='hex', detail=False) -> Mesh:
+	''' create a standard nut model using the given shape type 
 	
-	Parameters:
-		:d:             nominal diameter of the screw
-		:length:        length from the screw head to the tip of the screw
-		:filet_length:  length of the filet on the screw (from the tip), defaults to `length`
-		
-		:head:          name of the screw head shape
-		:drive:			name of the screw drive shape
-		:detail:   if True, the thread surface will be generated, else it will only be a cylinder
-		
-	It's also possible to specify head and drive at once, using their codenames:
+		Parameters
+			:d:        nominal diameter of the matching screw
+			:type:     the nut shape
+			:detail:   if True, the thread surface will be generated, else it will only be a cylinder
 	
-		>>> screw(5, 16, head='SHT')   # socket head and torx drive
+		If `d` alone is given, the other parameters default to the ISO specs: https://www.engineersedge.com/iso_flat_washer.htm
 		
-	available screw heads:
-		* socket (default)
-		* button
-		* flat (aka. cone)
-		
-	available screw drives:
-		* hex
-		* torx  *(not yet available)*
-		* phillips (cross)  *(not yet available)*
-		* slot
-	
-	All possible shapes:
-		* see wikipedia for the [drive types](https://en.wikipedia.org/wiki/List_of_screw_drives)
-		* see [here for a guide of what to use](https://www.homestratosphere.com/types-of-screws/)
-		* see wikipedia for [standard screw thread](https://en.wikipedia.org/wiki/ISO_metric_screw_thread)
-		
-		
+		Currently only shape 'hex' is available.
 	'''
-	if filet_length is None:	filet_length = length - 0.05*d
-	elif length < filet_length:	raise ValueError('filet_length must be smaller than length')
-	
-	
-	head, drive = screw_spec(head, drive)
-	head = globals()['screwhead_'+head](d)
-	if drive:
-		drive = globals()['screwdrive_'+drive](d) .transform(boundingbox(head).max[2]*Z)
-		head = intersection(head, drive)
-		
-	r = 0.5*d
-	body = revolution(2*pi, (vec3(0),vec3(0,0,1)), wire([
-					-vec3(r, 0, 0.05*d),
-					-vec3(r, 0, length-filet_length),
-					-vec3(r, 0, length-r*0.2),
-					-vec3(r*0.8, 0, length),
-					-vec3(0, 0, length),
-					]) .segmented())
-	screw = body + head
-	screw.finish()
-	return screw
+	args = standard_hexnuts[bisect(standard_hexnuts, d, key=itemgetter(0))]
+	if args[0] != d:
+		raise ValueError('no standard nut for the given diameter')
+	return hexnut(*args)
 
-
+	
 def hexnut(d, w, h):
 	''' create an hexagon nut with custom dimensions '''
 	# revolution profile
@@ -295,24 +323,6 @@ def hexnut(d, w, h):
 
 	nut.finish()
 	return nut
-
-@cachefunc
-def nut(d, type='hex', detail=False) -> Mesh:
-	''' create a standard nut model using the given shape type 
-	
-		Parameters
-			:d:        nominal diameter of the matching screw
-			:type:     the nut shape
-			:detail:   if True, the thread surface will be generated, else it will only be a cylinder
-	
-		If `d` alone is given, the other parameters default to the ISO specs: https://www.engineersedge.com/iso_flat_washer.htm
-		
-		Currently only shape 'hex' is available.
-	'''
-	args = standard_hexnuts[bisect(standard_hexnuts, d, key=itemgetter(0))]
-	if args[0] != d:
-		raise ValueError('no standard nut for the given diameter')
-	return hexnut(*args)
 
 ''' iso hexagon nuts according to [EN ISO 4032](https://www.fasteners.eu/standards/ISO/4032/)
 	columns:
@@ -352,6 +362,9 @@ standard_hexnuts = [
 	(64,   95,  51),
 	]
 	
+	
+# -------------- washer stuff ----------------------
+	
 @cachefunc
 def washer(d, e=None, h=None) -> Mesh:
 	''' create a standard washer.
@@ -365,9 +378,16 @@ def washer(d, e=None, h=None) -> Mesh:
 			
 		If `d` alone is given, the other parameters default to the ISO specs: https://www.engineersedge.com/iso_flat_washer.htm
 	'''
-	if e is None:	e = d*2
-	if h is None:	h = d*0.1
-	d *= 1.1
+	if e is None and h is None:
+		args = standard_washers[bisect(standard_washers, d, key=itemgetter(0))]
+		if abs(args[0] - d)/d < 0.2:
+			_, d, e, h = args
+		else:
+			raise ValueError('no standard nut for the given diameter')
+	else:
+		d *= 1.1
+		if e is None:	e = d*2
+		if h is None:	h = d*0.1
 	o = vec3(0)
 	surf = blendpair(
 			Circle((o,vec3(0,0,-1)), d/2), 
@@ -416,31 +436,10 @@ standard_washers	= [
 	(56,  58,  105, 9),
 	]
 	
-def linrange(start, stop=None, step=None, div=0, end=True):
-	''' yield successive intermediate values between start and stop 
-		
-		stepping:
-		* if `step` is given, it will be the amount between raised value until it gets over `stop`
-		* if `div` is given, it will be the number of intermediate steps between `start` and `stop` (with linear spacing)
-		
-		ending:
-		* if `end` is True, it will stop iterate with value `stop` (or just before)
-		* if `end` is False, it will stop iterating just before `stop` and never with `stop`
-		
-		NOTE:  
-			If step is given and is not a multiple of `stop-start` then `end` has not influence
-	'''
-	if stop is None:	start, stop = 0, start
-	if step is None:	step = (stop-start)/(div+1)
-	elif step * (stop-start) < 0:	step = -step
-	if not end:			stop -= step
-	stop += NUMPREC
 	
-	t = start
-	while t <= stop:
-		yield t
-		t += step
 	
+# --------------------- coilspring stuff ------------------------
+
 @cachefunc
 def coilspring_compression(length, d=None, thickness=None, solid=True):
 	''' return a Mesh model of a croilspring meant for use in compression
@@ -598,6 +597,68 @@ def coilspring_torsion(arm, angle=radians(45), d=None, length=None, thickness=No
 			)),
 		path,
 		)
+		
+		
+		
+# ----------------------- bearing stuff --------------------------
+
+@cachefunc
+def bearing(dint, dext=None, h=None, circulating='ball', contact='radial', sealing=False, detail=False):
+	''' 
+		see bearing specs at https://koyo.jtekt.co.jp/en/support/bearing-knowledge/
+		
+		circulating
+		
+			- ball
+			- roller
+			
+		orient
+		
+			- straight
+			- inclined
+			- radial
+	'''
+	if isinstance(dint, str):
+		dint, dext, h = bearing_spec(dint)
+	else:
+		if not dext:	dext = 2*dint
+		if not h:		h = 0.5*dint
+	
+	rint = dint/2
+	rext = dext/2
+	c = 0.05*h
+	w = 0.5*h
+	e = (dext-dint)/8
+
+	axis = Axis(O,Z)
+	interior = Wire([
+		vec3(rint+c, 0, w), vec3(rint, 0, w-c),
+		vec3(rint,	0,	-w+c), vec3(rint+c, 0,	-w),
+		vec3(rint+e, 0,	-w), vec3(rint+e, 0, -w+c),
+		]) .close() .segmented() .flip()
+	exterior = Wire([
+		vec3(rext-e, 0,	-w+c), vec3(rext-e,	0, -w),
+		vec3(rext-c, 0, -w), vec3(rext, 0, -w+c),
+		vec3(rext, 0, w-c), vec3(rext-c, 0, w),
+		]) .close() .segmented() .flip()
+	rlt = revolution(pi, axis, web([exterior, interior]))
+	indev
+	
+	
+def bearing_spec(code):
+	# iso code
+	if ' ' in code:
+		indev
+	# simple code
+	elif re.match(r'[\d\.]+x[\d\.]+x[\d\.]+', code):
+		return tuple(float(d) for d in re.split('x'))
+	
+'''
+	all existing bearing dimensions according to https://koyo.jtekt.co.jp/en/support/bearing-knowledge/6-3000.html
+'''
+standard_bearing_ball_straight = [
+	(16, 35, 11),
+	]
 
 '''
 * profilés
@@ -657,3 +718,28 @@ def coilspring_torsion(arm, angle=radians(45), d=None, length=None, thickness=No
 pour tout:
 	- liste des tailles standard
 '''
+
+def linrange(start, stop=None, step=None, div=0, end=True):
+	''' yield successive intermediate values between start and stop 
+		
+		stepping:
+		* if `step` is given, it will be the amount between raised value until it gets over `stop`
+		* if `div` is given, it will be the number of intermediate steps between `start` and `stop` (with linear spacing)
+		
+		ending:
+		* if `end` is True, it will stop iterate with value `stop` (or just before)
+		* if `end` is False, it will stop iterating just before `stop` and never with `stop`
+		
+		NOTE:  
+			If step is given and is not a multiple of `stop-start` then `end` has not influence
+	'''
+	if stop is None:	start, stop = 0, start
+	if step is None:	step = (stop-start)/(div+1)
+	elif step * (stop-start) < 0:	step = -step
+	if not end:			stop -= step
+	stop += NUMPREC
+	
+	t = start
+	while t <= stop:
+		yield t
+		t += step
