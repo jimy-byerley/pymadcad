@@ -228,7 +228,7 @@ def cut(mesh, start, cutplane, stops, conn, prec, removal, cutghost=True):
 			front.append((f[j],f[j-1]))
 	
 	return intersections
-
+			
 	
 def propagate(mesh, edges, conn, prec):
 	front = list(edges)
@@ -671,6 +671,215 @@ def bevel(mesh, edges, cutter, resolution=None):
 	new.tracks = [0] * len(new.faces)
 	mesh += new
 	mesh.mergeclose()
+
+	
+
+def web_cut(web, start, cutplane, conn, prec, removal):
+	''' propagation cut for a point 
+		
+		:start:		the edge or point to start propagation from
+		:cutplane:	the plane cutting the faces. Its normal must be oriented toward the propagation area.
+	'''
+	intersections = []
+	
+	# propagate from point to point
+	seen = set()
+	front = list(conn[start])
+	while front:
+		ei = front.pop()
+		if ei in seen:	continue
+		seen.add(ei)
+		e = web.edges[ei]
+		
+		# look intersection with the cutplane
+		ep = web.edgepoints(e)
+		side = [dot(p-cutplane[0], cutplane[1])		for p in ep]
+		if side[0]*side[1] <= prec:
+			p = intersection_edge_plane(ep, cutplane)
+			
+			pi = len(web.points)
+			web.points.append(p)
+			intersections.append(pi)
+			if side[0] <= prec:
+				if distance2(p,ep[1]) < prec**2:
+					pi = ei[1]
+				web.edges[ei] = (pi, ei[1]) 
+				web.edges.append((ei[0], pi))
+				conn.remove(e[0], ei)
+				conn.add(pi, ei)
+				conn.add(e[0], l)
+			else:
+				if distance2(p,ep[0]) < prec**2:
+					pi = ei[0]
+				web.edges[ei] = (ei[0], pi)
+				web.edges.append((pi, ei[1]))
+				conn.remove(e[1], ei)
+		else:
+			removal.add(ei)
+			
+		# propagate
+		else:
+			for p in e:
+				front.append(conn[p])
+	return intersections
+
+def web_multicut(web, points, cutter, conn=None, prec=None, removal=None):
+	if conn is None:	conn = connpe(web.edges)
+	if prec is None:	prec = web.precision()
+	if isinstance(points, Wire):	points = points.indices
+	
+	removal = set()
+	cutter = interpretcutter(cutter)
+	pts = web.points
+	intersections = {}
+	
+	for pi in points:
+		dirs = [ normalize(pts[pi]-pts[ni])   for ni in conn[pi] ]
+		normal = normalize(sum(dirs))
+		c = sum(dot(normal,d) for d in dirs)
+		s = sqrt(1-c**2)
+		x,_,_ = dirbase(normal)
+		offset = cutter(c*x + s*normal, -c*x + s*normal)
+		plane = (pts[pi]+offset, -normalize(offset))
+		
+		intersections[pi] = web_cut(web, pi, plane, conn, prec, removal)
+		
+	return intersections
+	
+def web_chamfer(web, points, cutter):
+	conn = connpe(web.edges)
+	def link(e):
+		if web.edges[next(conn[e[0]])][0] == p:	return (e[1],e[0])
+		else:                                  	return e
+	
+	for cuts in web_multicut(web, points, cutter, conn).values():
+		if len(cuts) == 2:
+			web.edges.append(link(tuple(cuts)))
+		else:
+			pi = len(web.points)
+			web.points.append(sum(web.points[c] for c in cuts) / len(cuts))
+			web.edges.extend( link((c,pi))  for c in cuts )
+			
+def web_bevel(web, points, cutter):
+	conn = connpe(web.edges)
+	pts = web.points
+	div = 6
+	
+	def tangentat(p):
+		''' find the tangent axis to the given cut point, 
+			the third element is whether the original edge direction is opposite to the given tangent 
+		'''
+		e = next(conn[p])
+		if e[0] == p:	return pts[p], normalize(pts[p] - pts[e[1]]), True
+		else:			return pts[p], normalize(pts[e[0]] - pts[p]), False
+	
+	for cuts in web_multicut(web, points, cutter, conn).values():
+		if len(cuts) == 2:
+			# place an arc between the two ends
+			s0 = tangentat(cuts[0])
+			s1 = tangentat(cuts[1])
+			corner = web([ interpol2(s0, s1, i/(div+1))   for i in range(div+2) ])
+			if s0[2]:	corner = corner.flip()
+			web += corner
+			
+		else:
+			# find an approximate sphere center
+			tangents = [tangentat(i)  for i in cuts]
+			normal = normalize(sum(t[1]  for t in tangents))
+			med = sum(pts[i]    for i in cuts) / len(cuts)
+			center = sum(pts[i] + unproject(med-pts[i], normal)   for i in cuts)
+			radius = sum(distance(pts[i], center)   for i in cuts)
+			
+			# place summit
+			pi = len(pts)
+			top = center + normal*radius
+			pts.append(top)
+			# place arcs
+			for t in tangents:
+				u = (top, noproject(t[0]-top, normal))
+				corner = web([ interpol2(t, u, j/(div+1))   for j in range(div+2) ])
+				if t[2]:	corner = corner.flip()
+				web += corner
+
+
+def wire_chamfer(wire, points, cutter):
+	if isinstance(points, Wire):	points = points.indices
+	prec = wire.precision()
+	
+	cutter = interpretcutter(cutter)
+	
+	for origin in points:
+		start, end = 0, l
+		# propagate backward
+		i, l = origin, len(wire)
+		while i > 0:
+			p0, p1 = wire[i], wire[i+1]
+			p = intersection_edge_plane((p0, p1), cutplane, prec)
+			if p:
+				# insert intersection
+				wire.indices.insert(i+1, len(wire.points))
+				wire.points.append(p)
+				start = i+1
+				break
+		# propagate forward
+		i, l = origin, len(wire)
+		while i < l:
+			p0, p1 = wire[i-1], wire[i]
+			p = intersection_edge_plane((p0, p1), cutplane, prec)
+			if p:
+				# insert intersection
+				wire.indices.insert(i, len(wire.points))
+				wire.points.append(p)
+				end = i
+				break
+		# remove fragment
+		del wire.indices[start:end]
+
+def wire_chamfer(wire, points, cutter):
+	if isinstance(points, Wire):	points = points.indices
+	prec = wire.precision()
+	
+	cutter = interpretcutter(cutter)
+	cut = []
+	
+	for origin in points:
+		start, end = 0, l
+		# propagate backward
+		i, l = origin, len(wire)
+		while i > 0:
+			p0, p1 = wire[i], wire[i+1]
+			p = intersection_edge_plane((p0, p1), cutplane, prec)
+			if p:
+				# insert intersection
+				wire.indices.insert(i+1, len(wire.points))
+				wire.points.append(p)
+				start = i+1
+				break
+		# propagate forward
+		i, l = origin, len(wire)
+		while i < l:
+			p0, p1 = wire[i-1], wire[i]
+			p = intersection_edge_plane((p0, p1), cutplane, prec)
+			if p:
+				# insert intersection
+				wire.indices.insert(i, len(wire.points))
+				wire.points.append(p)
+				end = i
+				break
+		# register insertion zone with tangents
+		cut.append((
+			(start, normalize(wire[start]-wire[start-1])),
+			(end, normalize(wire[end]-wire[end+1])),
+			))
+		# remove fragment
+		del wire.indices[start:end]
+		
+	for arc in rebuild:
+		t0 = wire[arc[0][0]], arc[0][1]
+		t1 = wire[arc[1][0]], arc[1][1]
+		wire.indices[arc[0][0] : arc[1][0]] = range(len(wire.points), len(wire.points)+div)
+		wire.points.extend( interpol2(t0, t1, i/(div+1))   for i in range(div+2) )
+
 
 
 def tangentend(points, edge, normals, div):

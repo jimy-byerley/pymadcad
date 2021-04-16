@@ -1557,8 +1557,16 @@ def connef(faces):
 		for e in ((f[0],f[1]), (f[1],f[2]), (f[2],f[0])):
 			conn[e] = i
 	return conn
+	
+def connpe(edges):
+	conn = Asso()
+	for i,edge in enumerate(edges):
+		for p in edge:
+			conn.add(p,i)
+	return conn
 
 def connexity(links):
+	''' return the number of links referencing each point as a dictionnary {point: num links} '''
 	reach = {}
 	for l in links:
 		for p in l:
