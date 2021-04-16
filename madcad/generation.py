@@ -116,8 +116,10 @@ def tube(outline, path, end=True, section=True):
 	
 	trans = trans()
 	if not end:		next(trans)
+	# handle wires with no tracks
 	if path.tracks:		links = ((i, i+1, path.tracks[i]) for i in range(len(path)-1))
 	else:				links = ((i, i+1, 0) for i in range(len(path)-1))
+	# generate
 	return extrans(outline, trans, links)
 
 
