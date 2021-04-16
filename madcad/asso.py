@@ -37,6 +37,35 @@ class Asso(object):
 				return
 			i += 1
 	
+	def remove(self, key, value):
+		''' remove a (key,value) pair of that table '''
+		i = 0
+		while True:
+			k = (i,key)
+			if k not in self._table:
+				break
+			if self._table[k] == value:
+				place = i
+			i += 1
+		if not i:
+			raise KeyError('key not in table')
+		last = (i-1, key)
+		self._table[place] = self._table[last]
+		del self._table[last]
+		
+	def discard(self, key, value):
+		''' remove all (key,value) pair of that table '''
+		l = self.connexity(key)-1
+		i = l
+		while i:
+			k = (i,key)
+			if self._table[k] == value:
+				last = (l,key)
+				self._table[k] = self._table[last]
+				del self._table[last]
+				l -= 1
+			i -= 1
+	
 	def update(self, other):
 		''' append all key,value associations to this Asso '''
 		if isinstance(other, dict):
@@ -78,6 +107,17 @@ class Asso(object):
 	def values(self):
 		''' iterator of the values '''
 		return self._table.values()
+		
+	def connexity(self, key):
+		''' return the number of values associated to the given key '''
+		i = 0
+		while True:
+			k = (i,key)
+			if k not in self._table:
+				break
+			i += 1
+		return i
+		
 
 	def __contains__(self, key):
 		''' return True if key is associated to something '''
