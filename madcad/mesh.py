@@ -362,8 +362,18 @@ class Mesh(Container):
 			normals[e] = normalize(normal)
 		return normals
 	
+		
 	def vertexnormals(self):
 		''' list of normals for each point '''
+		
+		# collect the mesh border as edges and as points
+		outline = self.outlines_oriented()
+		border = set()
+		for a,b in outline:
+			border.add(a)
+			border.add(b)
+		
+		# sum contributions to normals
 		l = len(self.points)
 		normals = [vec3(0) for _ in range(l)]
 		for face in self.faces:
@@ -371,8 +381,17 @@ class Mesh(Container):
 			if not isfinite(normal):	continue
 			for i in range(3):
 				o = self.points[face[i]]
-				contrib = anglebt(self.points[face[i-2]]-o, self.points[face[i-1]]-o)
-				normals[face[i]] += contrib * normal
+				# point on the surface
+				if face[i] not in border:
+					# triangle normals are weighted by their angle at the point
+					contrib = anglebt(self.points[face[i-2]]-o, self.points[face[i-1]]-o)
+					normals[face[i]] += contrib * normal
+				# point on the outline
+				elif (face[i], face[i-1]) in outline:
+					# only the triangle creating the edge does determine its normal
+					normals[face[i]] += normal
+					normals[face[i-1]] += normal
+		
 		for i in range(l):
 			normals[i] = normalize(normals[i])
 		return normals

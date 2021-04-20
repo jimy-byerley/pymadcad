@@ -163,6 +163,11 @@ def extrans(section, transformations, links) -> 'Mesh':
 	
 	extrans_post(mesh, face, first, trans)
 	return mesh
+	
+def linstep(start, stop, x):
+	if x <= start:	return 0
+	if x >= stop:	return 1
+	return (x-start)/(stop-start)
 
 def inflateoffsets(surf, distance, method='face') -> '[vec3]':
 	''' displacements vectors for points of a surface we want to inflate.
@@ -172,19 +177,37 @@ def inflateoffsets(surf, distance, method='face') -> '[vec3]':
 			possible values: `'face', 'edge', 'point'`
 	'''
 	pnormals = surf.vertexnormals()
+	
+	# smooth normal offsets laterally when they are closer than `distance`
+	outlines = surf.outlines_oriented()
+	l = len(pnormals)
+	normals = deepcopy(pnormals)
+	for i in range(5):	# the number of steps is the diffusion distance through the mesh
+		for a,b in outlines:
+			d = surf.points[a] - surf.points[b]		# edge direction
+			t = cross(pnormals[a]+pnormals[b], d)	# surface tangent normal to the edge
+			# contribution stars when the offseted points are closer than `distance`
+			contrib = 1 - smoothstep(0, distance, length(distance*(pnormals[a]-pnormals[b])+d))
+			normals[a] += contrib * 0.5*project(pnormals[b]-pnormals[a], t)
+			normals[b] += contrib * 0.5*project(pnormals[a]-pnormals[b], t)
+		# renormalize
+		for i in range(l):
+			pnormals[i] = normals[i] = normalize(normals[i])
+	
+	# compute offset length depending on the method
 	if method == 'face':
-		lengths = [0]*len(pnormals)
-		for i,face in enumerate(surf.faces):
-			fnormal = surf.facenormal(i)
+		lengths = [inf]*len(pnormals)
+		for face in surf.faces:
+			fnormal = surf.facenormal(face)
 			for p in face:
-				lengths[p] = max(lengths[p], 1/dot(pnormals[p], fnormal))
+				lengths[p] = min(lengths[p], 1/dot(pnormals[p], fnormal))
 		return [pnormals[p]*lengths[p]*distance   for p in range(len(pnormals))]
 	
 	elif method == 'edge':
-		lengths = [0]*len(pnormals)
-		for edge,enormal in surf.edgenormals():
+		lengths = [inf]*len(pnormals)
+		for edge,enormal in surf.edgenormals().items():
 			for p in edge:
-				lengths[p] = max(lengths[p], 1/dot(pnormal[p], enormal))
+				lengths[p] = min(lengths[p], 1/dot(pnormals[p], enormal))
 		return [pnormals[p]*lengths[p]*distance	for p in range(len(pnormals))]
 		
 	elif method == 'point':
@@ -212,7 +235,7 @@ def thicken(surf, thickness, alignment=0, method='face') -> 'Mesh':
 	a = alignment
 	b = alignment-1
 	m = (	Mesh([p+d*a  for p,d in zip(surf.points,displts)], surf.faces[:], surf.tracks[:], surf.groups)
-		+	Mesh([p+d*b  for p,d in zip(surf.points,displts)], surf.faces, surf.tracks, surf.groups)
+		+	Mesh([p+d*b  for p,d in zip(surf.points,displts)], surf.faces, surf.tracks, surf.groups[:])
 			.flip() 
 		)
 	t = len(m.groups)
