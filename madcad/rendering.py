@@ -68,7 +68,7 @@ def show(objs, options=None, interest=None):
 	import sys
 	
 	QApplication.setAttribute(Qt.AA_ShareOpenGLContexts, True)
-	app = QApplication(sys.argv)
+	app = QApplication.instance() or QApplication(sys.argv)
 	
 	# use the Qt color scheme if specified
 	if settings.display['system_theme']: 
