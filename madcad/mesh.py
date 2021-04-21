@@ -39,7 +39,7 @@ from .asso import Asso
 __all__ = [
 		'Mesh', 'Web', 'Wire', 'MeshError', 'web', 'wire', 
 		'edgekey', 'lineedges', 'striplist', 'suites', 'line_simplification', 'mesh_distance',
-		'connpp', 'connpp', 'connpe',
+		'connpp', 'connpp', 'connpe', 'connef',
 		]
 
 class MeshError(Exception):	pass
@@ -1274,11 +1274,13 @@ class Wire(Container):
 			if distance2(self[i-1], self[i]) <= limit:
 				merges[self.indices[i]] = self.indices[i-1]
 				self.indices.pop(i)
-				self.tracks.pop(i-1)
+				if self.tracks:
+					self.tracks.pop(i-1)
 		if distance2(self[0], self[-1]) < limit:
 			merges[self.indices[-1]] = self.indices[0]
 			self.indices[-1] = self.indices[0]
-			self.tracks[-1] = self.tracks[0]
+			if self.tracks:
+				self.tracks[-1] = self.tracks[0]
 		return merges
 		
 	def isvalid(self):
