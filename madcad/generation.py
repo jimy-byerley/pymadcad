@@ -36,20 +36,22 @@ def extrans_post(mesh, face, first, last):
 		mesh += face.transform(last).flip()
 
 
-def extrusion(displt, line):
-	''' create a surface by extruding the given outline by a displacement vector '''
-	line, face = extrans_pre(line)
-	mesh = Mesh([], [], [], line.groups)
-	mesh.points.extend(line.points)
-	mesh.points.extend((p+displt for p in line.points))
-	l = len(line.points)
-	for (a,b),t in zip(line.edges, line.tracks):
-		mesh.faces.append((a, b,   b+l))
-		mesh.faces.append((a, b+l, a+l))
-		mesh.tracks.append(t)
-		mesh.tracks.append(t)
-	extrans_post(mesh, face, vec3(0), displt)
-	return mesh
+	
+def extrusion(trans, line, alignment=0):
+	''' create a surface by extruding the given outline by a transformation
+		
+		parameters:
+			:line:         a line (Web or Wire) or a surface (Mesh) to extrude
+			:trans:        any transformation object accepted by `mathutils.transform`
+			:alignment:	   when > 0 the line is extruded both sides (the transformation is linearly interpoled)
+	'''
+	trans = transform(trans)
+	neutral = mat4()
+	return extrans(line, [
+				neutral + (trans-neutral)*(-alignment),
+				neutral + (trans-neutral)*(1-alignment),
+				],
+				[(0,1,0)])
 
 def revolution(angle, axis, profile, resolution=None):
 	''' create a revolution surface by extruding the given outline
