@@ -38,26 +38,23 @@ class Asso(object):
 			i += 1
 	
 	def remove(self, key, value):
-		''' remove a (key,value) pair of that table '''
-		i = 0
-		while True:
+		l = self.connexity(key)-1
+		i = l
+		while i>=0:
 			k = (i,key)
-			if k not in self._table:
-				break
 			if self._table[k] == value:
-				place = i
-			i += 1
-		if not i:
-			raise KeyError('key not in table')
-		last = (i-1, key)
-		self._table[place] = self._table[last]
-		del self._table[last]
+				last = (l,key)
+				self._table[k] = self._table[last]
+				del self._table[last]
+				return
+			i -= 1
+		raise KeyError('key not in table')
 		
 	def discard(self, key, value):
 		''' remove all (key,value) pair of that table '''
 		l = self.connexity(key)-1
 		i = l
-		while i:
+		while i>=0:
 			k = (i,key)
 			if self._table[k] == value:
 				last = (l,key)

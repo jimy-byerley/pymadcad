@@ -1108,7 +1108,7 @@ class Web(Container):
 		
 	def edgepoints(self, e):
 		if isinstance(e, int):	e = self.edges[e]
-		return self.points[e[0]], self.points[e[0]]
+		return self.points[e[0]], self.points[e[1]]
 	
 	def edgedirection(self, e):
 		if isinstance(e, int):	e = self.edges[e]
