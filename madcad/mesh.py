@@ -36,7 +36,11 @@ from . import hashing
 
 from .asso import Asso
 
-__all__ = ['Mesh', 'Web', 'Wire', 'MeshError', 'web', 'wire', 'edgekey', 'lineedges', 'striplist', 'suites', 'line_simplification', 'mesh_distance']
+__all__ = [
+		'Mesh', 'Web', 'Wire', 'MeshError', 'web', 'wire', 
+		'edgekey', 'lineedges', 'striplist', 'suites', 'line_simplification', 'mesh_distance',
+		'connpp', 'connpp', 'connpe',
+		]
 
 class MeshError(Exception):	pass
 
@@ -305,7 +309,7 @@ class Mesh(Container):
 				if p < 0:	raise MeshError("point indices must be positive", face)
 			if face[0] == face[1] or face[1] == face[2] or face[2] == face[0]:	raise MeshError("some faces use the same point multiple times", face)
 		if len(self.faces) != len(self.tracks):	raise MeshError("tracks list doesn't match faces list length")
-		if max(self.tracks, default=-1) >= len(self.groups): raise MeshError("some face group indices are greater than the number of groups", max(self.tracks), len(self.groups))
+		if max(self.tracks, default=-1) >= len(self.groups): raise MeshError("some face group indices are greater than the number of groups", max(self.tracks, default=-1), len(self.groups))
 	
 	def finish(self):
 		''' finish and clean the mesh 
@@ -984,7 +988,7 @@ class Web(Container):
 				if p < 0:	raise MeshError("point indices must be positive", line)
 			if line[0] == line[1]:	raise MeshError("some edges use the same point multiple times", line)
 		if len(self.edges) != len(self.tracks):	raise MeshError("tracks list doesn't match edge list length")
-		if max(self.tracks) >= len(self.groups): raise MeshError("some line group indices are greater than the number of groups", max(self.tracks), len(self.groups))
+		if max(self.tracks, default=-1) >= len(self.groups): raise MeshError("some line group indices are greater than the number of groups", max(self.tracks, default=-1), len(self.groups))
 		
 	# --- extraction methods ---
 		
