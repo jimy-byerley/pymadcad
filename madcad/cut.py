@@ -819,7 +819,7 @@ def web_chamfer(web, points, cutter):
 			web.tracks.extend( [g] * len(cuts) )
 	
 @bevel.register(Web)
-def web_bevel(obj, points, cutter):
+def web_bevel(obj, points, cutter, resolution=None):
 	holes = web_multicut(obj, points, cutter)
 
 	conn = connpe(obj.edges)
@@ -842,7 +842,7 @@ def web_bevel(obj, points, cutter):
 			# place an arc between the two ends
 			s0 = tangentat(cuts[0])
 			s1 = tangentat(cuts[1])
-			corner = web(tangentarc(s0[:2], s1[:2]))
+			corner = web(tangentarc(s0[:2], s1[:2], resolution))
 			if s0[2]:	corner = corner.flip()
 			obj += corner
 			
@@ -861,7 +861,7 @@ def web_bevel(obj, points, cutter):
 			# place arcs
 			for t in tangents:
 				u = (top, noproject(t[0]-top, normal))
-				corner = web(tangentarc(t,u))
+				corner = web(tangentarc(t[:2], u, resolution))
 				if t[2]:	corner = corner.flip()
 				obj += corner
 
@@ -925,7 +925,7 @@ def wire_multicut(wire, points, cutter):
 		wire.indices[start:end] = [m,m+1]
 		wire.tracks[start:end-1] = [g]
 		
-		cuts.append((start, start+1))
+		cuts.append((m,m+1))
 	return cuts
 		
 @chamfer.register(Wire)
@@ -933,29 +933,31 @@ def wire_chamfer(wire, points, cutter):
 	wire_multicut(wire, points, cutter)
 
 @bevel.register(Wire)
-def wire_bevel(wire, points, cutter):
-	cuts = sorted(
-			wire_multicut(wire, points, cutter), 
-			key=lambda cut: cut[0])
+def wire_bevel(wire, points, cutter, resolution=None):
+	cuts = set(wire_multicut(wire, points, cutter))
 	g = len(wire.groups)-1
 	wire.groups[g] = 'bevel'
 	
-	for cut in reversed(cuts):
-		p0 = wire[cut[0]]
-		p1 = wire[cut[1]]
-		t0 = normalize(p0 - wire[cut[0]-1])
-		t1 = normalize(p1 - wire[(cut[1]+1) % len(wire)])
-		l = len(wire.points)
-		wire.points.extend( tangentarc((p0,t0), (p1,t1)) )
-		wire.indices[cut[0] : cut[1]] = range(l, len(wire.points))
-		wire.tracks[cut[0] : cut[1]-1] = [g] * (len(wire.points)-l-1)
+	i = 0
+	while i < len(wire.indices)-2:
+		i0, i1 = wire.indices[i], wire.indices[i+1]
+		if (i0,i1) in cuts:
+			p0 = wire.points[i0]
+			p1 = wire.points[i1]
+			t0 = normalize(p0 - wire[i-1])
+			t1 = normalize(p1 - wire[i+2])
+			l = len(wire.points)
+			wire.points.extend( tangentarc((p0,t0), (p1,t1), resolution) )
+			wire.indices[i:i+1] = range(l, len(wire.points))
+			wire.tracks[i:i] = [g] * (len(wire.points)-l-1)
+		i += 1
 
 
 		
 		
 # --- mesh tangent generation functions ----
 
-def tangentarc(s0, s1):
+def tangentarc(s0, s1, resolution=None):
 	''' create a tangent curve to both given axis. 
 		return the curve as a list of points 
 	'''
@@ -965,7 +967,7 @@ def tangentarc(s0, s1):
 	factor = arclength(p0, p1, cross(z,t0), cross(t1,z))
 	s0 = (p0, factor*t0)
 	s1 = (p1, factor*t1)
-	div = settings.curve_resolution(factor, anglebt(t0,-t1))
+	div = settings.curve_resolution(factor, anglebt(t0,-t1), resolution)
 	return [ interpol2(s0, s1, j/(div+1))   for j in range(div+2) ]
 
 def tangentend(points, edge, normals, div):
