@@ -1032,7 +1032,7 @@ class Web(Container):
 		for i,edge in enumerate(self.edges):
 			for p in edge:
 				if p in tmp:
-					if self.tracks[tmp[p]] != self.tracks[tmp[i]]:
+					if self.tracks[tmp[p]] != self.tracks[i]:
 						indices.append(p)
 					del tmp[p]
 				else:
