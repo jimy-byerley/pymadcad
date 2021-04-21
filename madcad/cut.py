@@ -7,17 +7,40 @@
 '''
 
 from .mathutils import *
-from .mesh import Mesh, Web, Wire, lineedges, connef, connpp, edgekey, suites, line_simplification
+from .mesh import *
 from . import generation as gt
 from . import hashing
 from . import text
 from . import settings
+from .triangulation import triangulation_outline
+from .blending import blenditer, match_length
 
-__all__ = [	'chamfer', 'bevel',
-			'cut', 'multicut', 'planeoffsets',
+from functools import singledispatch
+
+__all__ = [	'chamfer', 'bevel', 'multicut',
+			'mesh_cut', 'web_cut', 'planeoffsets',
 			'tangentend', 'tangentcorner', 'tangentjunction',
 			'cutter_width', 'cutter_distance', 'cutter_depth', 'cutter_radius',
 			]
+			
+			
+# ---- common cut methods ----
+
+@singledispatch
+def multicut(mesh, indices, cutter):
+	''' cut a Mesh/Web/Wire around the given edges/points, using the given cutter '''
+	raise TypeError('wrong argument type: {}'.format(type(mesh)))
+
+@singledispatch
+def chamfer(mesh, indices, cutter):
+	''' chamfer a Mesh/Web/Wire around the given edges/points, using the given cutter '''
+	raise TypeError('wrong argument type: {}'.format(type(mesh)))
+	
+@singledispatch
+def bevel(mesh, indices, cutter):
+	''' bevel a Mesh/Web/Wire around the given edges/points, using the given cutter '''
+	raise TypeError('wrong argument type: {}'.format(type(mesh)))
+
 
 # ---- cut methods -----
 
@@ -88,7 +111,7 @@ def interpretcutter(cutter):
 		raise TypeError("cutter must be a callable or a tuple (name, param)")
 
 		
-def cut(mesh, start, cutplane, stops, conn, prec, removal, cutghost=True):
+def mesh_cut(mesh, start, cutplane, stops, conn, prec, removal, cutghost=True):
 	''' propagation cut for an edge 
 		
 		:start:		the edge or point to start propagation from
@@ -178,7 +201,7 @@ def cut(mesh, start, cutplane, stops, conn, prec, removal, cutghost=True):
 		# intersections of triangle's edges with the plane
 		cut = [None]*3
 		for j in range(3):
-			cut[j] = intersection_edge_plane(cutplane, (pts[f[j]], pts[f[j-2]]), prec)
+			cut[j] = intersection_edge_plane((pts[f[j]], pts[f[j-2]]), cutplane, prec)
 			
 		
 		# don't intersect if the 2 points are at the corner of the triangle
@@ -251,7 +274,8 @@ def propagate(mesh, edges, conn, prec):
 	return seen
 
 	
-def multicut(mesh, edges, cutter, conn=None, prec=None, removal=None):
+@multicut.register(Mesh)
+def mesh_multicut(mesh, edges, cutter, conn=None, prec=None, removal=None):
 	''' general purpose edge cutting function.
 		cut the given edges and the crossing corners, resolving the interference issues.
 		
@@ -343,13 +367,13 @@ def multicut(mesh, edges, cutter, conn=None, prec=None, removal=None):
 	outlines = {}
 	# couper les aretes
 	for edge, offset in offsets.items():
-		outlines[edge] = cut(mesh, edge, 
+		outlines[edge] = mesh_cut(mesh, edge, 
 								(pts[edge[0]]+offset, -normalize(offset)), 
 								(separators.get(edge), separators.get((edge[1], edge[0]))), 
 								conn, prec, removal, True)
 	# couper les sommets
 	for corner,offset in corners.items():
-		outlines[corner] = cut(mesh, corner, 
+		outlines[corner] = mesh_cut(mesh, corner, 
 								(pts[corner]+offset, -normalize(offset)), 
 								(),
 								conn, prec, removal, False)
@@ -419,7 +443,7 @@ def intersection_plane_plane(p0, p1, neigh=None):
 		* dvec3(dot(p0[0],p0[1]), dot(p1[0],p1[1]), dot(neigh,d))
 		), normalize(d)
 
-def intersection_edge_plane(axis, edge, prec):
+def intersection_edge_plane(edge, axis, prec):
 	''' return the intersection point of an edge with a plane, or None if it doesn't exist 
 		In case of an intersection at an extremity of the edge, return that edge point
 	'''
@@ -459,6 +483,17 @@ def removefaces(mesh, crit):
 			newtracks.append(mesh.tracks[i])
 	mesh.faces = newfaces
 	mesh.tracks = newtracks
+	
+def removeedges(mesh, crit):
+	''' remove faces whose indices are present in faces, (for huge amount, prefer pass faces as a set) '''
+	newedges = []
+	newtracks = []
+	for i in range(len(mesh.edges)):
+		if not crit(i):
+			newedges.append(mesh.edges[i])
+			newtracks.append(mesh.tracks[i])
+	mesh.edges = newedges
+	mesh.tracks = newtracks
 
 #def facesurf(mesh, fi):
 	#o,x,y = mesh.facepoints(fi)
@@ -488,17 +523,14 @@ def faceheight(mesh, fi):
 	return m
 
 
-# ----- user functions ------
-from .triangulation import triangulation_outline
-from .generation import icosurface
-from .blending import blenditer, match_length
 
-def chamfer(mesh, edges, cutter):
+@chamfer.register(Mesh)
+def mesh_chamfer(mesh, edges, cutter):
 	''' create a chamfer on the given suite of points, create faces are planes.
 		cutter is described in function planeoffsets()
 	'''
 	# cut faces
-	segments = multicut(mesh, edges, cutter)
+	segments = mesh_multicut(mesh, edges, cutter)
 	
 	# create junctions
 	group = len(mesh.groups)
@@ -544,7 +576,8 @@ def chamfer(mesh, edges, cutter):
 		mesh.faces.extend(faces)
 		mesh.tracks.extend([group]*len(faces))
 
-def bevel(mesh, edges, cutter, resolution=None):
+@bevel.register(Mesh)
+def mesh_bevel(mesh, edges, cutter, resolution=None):
 	''' create a chamfer on the given suite of points, create faces are planes.
 		cutter is described in function planeoffsets()
 	'''
@@ -559,7 +592,7 @@ def bevel(mesh, edges, cutter, resolution=None):
 			mesh.facenormal(conn[(e[1],e[0])]),
 			)
 	# cut faces
-	segments = multicut(mesh, edges, cutter, conn)
+	segments = mesh_multicut(mesh, edges, cutter, conn)
 	conn = connef(mesh.faces)
 	pts = mesh.points
 	
@@ -673,7 +706,11 @@ def bevel(mesh, edges, cutter, resolution=None):
 	mesh.mergeclose()
 
 	
-
+	
+	
+	
+# ---- web operations -----
+	
 def web_cut(web, start, cutplane, conn, prec, removal):
 	''' propagation cut for a point 
 		
@@ -706,8 +743,8 @@ def web_cut(web, start, cutplane, conn, prec, removal):
 				web.edges[ei] = (pi, ei[1]) 
 				web.edges.append((ei[0], pi))
 				conn.remove(e[0], ei)
-				conn.add(pi, ei)
-				conn.add(e[0], l)
+				#conn.add(pi, ei)
+				#conn.add(e[0], l)
 			else:
 				if distance2(p,ep[0]) < prec**2:
 					pi = ei[0]
@@ -716,13 +753,13 @@ def web_cut(web, start, cutplane, conn, prec, removal):
 				conn.remove(e[1], ei)
 		else:
 			removal.add(ei)
-			
-		# propagate
-		else:
+			# propagate
 			for p in e:
-				front.append(conn[p])
+				front.extend(conn[p])
+		
 	return intersections
 
+@multicut.register(Web)
 def web_multicut(web, points, cutter, conn=None, prec=None, removal=None):
 	if conn is None:	conn = connpe(web.edges)
 	if prec is None:	prec = web.precision()
@@ -733,19 +770,31 @@ def web_multicut(web, points, cutter, conn=None, prec=None, removal=None):
 	pts = web.points
 	intersections = {}
 	
+	nprint('conn', conn)
+	
 	for pi in points:
-		dirs = [ normalize(pts[pi]-pts[ni])   for ni in conn[pi] ]
+		print('neigh', list(conn[pi]))
+		#dirs = [ normalize(pts[pi]-pts[ni])   for ni in conn[pi] ]
+		dirs = []
+		for ni in conn[pi]:
+			e = web.edges[ni]
+			dirs.append(normalize( pts[pi] - pts[e[e[0] == pi]] ))
 		normal = normalize(sum(dirs))
 		c = sum(dot(normal,d) for d in dirs)
-		s = sqrt(1-c**2)
+		s = sqrt(max(0,1-c**2))
 		x,_,_ = dirbase(normal)
 		offset = cutter(c*x + s*normal, -c*x + s*normal)
+		if dot(offset, normal) > 0:	offset = -offset
 		plane = (pts[pi]+offset, -normalize(offset))
 		
-		intersections[pi] = web_cut(web, pi, plane, conn, prec, removal)
+		print('cutplane', plane)
 		
+		intersections[pi] = web_cut(web, pi, plane, conn, prec, removal)
+	
+	removeedges(web, lambda i: i in removal)	
 	return intersections
 	
+@chamfer.register(Web)
 def web_chamfer(web, points, cutter):
 	conn = connpe(web.edges)
 	def link(e):
@@ -759,7 +808,8 @@ def web_chamfer(web, points, cutter):
 			pi = len(web.points)
 			web.points.append(sum(web.points[c] for c in cuts) / len(cuts))
 			web.edges.extend( link((c,pi))  for c in cuts )
-			
+	
+@bevel.register(Web)
 def web_bevel(web, points, cutter):
 	conn = connpe(web.edges)
 	pts = web.points
@@ -802,85 +852,99 @@ def web_bevel(web, points, cutter):
 				web += corner
 
 
-def wire_chamfer(wire, points, cutter):
-	if isinstance(points, Wire):	points = points.indices
-	prec = wire.precision()
-	
-	cutter = interpretcutter(cutter)
-	
-	for origin in points:
-		start, end = 0, l
-		# propagate backward
-		i, l = origin, len(wire)
-		while i > 0:
-			p0, p1 = wire[i], wire[i+1]
-			p = intersection_edge_plane((p0, p1), cutplane, prec)
-			if p:
-				# insert intersection
-				wire.indices.insert(i+1, len(wire.points))
-				wire.points.append(p)
-				start = i+1
-				break
-		# propagate forward
-		i, l = origin, len(wire)
-		while i < l:
-			p0, p1 = wire[i-1], wire[i]
-			p = intersection_edge_plane((p0, p1), cutplane, prec)
-			if p:
-				# insert intersection
-				wire.indices.insert(i, len(wire.points))
-				wire.points.append(p)
-				end = i
-				break
-		# remove fragment
-		del wire.indices[start:end]
+				
+				
+# ---- wire operations -----
 
-def wire_chamfer(wire, points, cutter):
+@multicut.register(Wire)
+def wire_multicut(wire, points, cutter):
 	if isinstance(points, Wire):	points = points.indices
 	prec = wire.precision()
 	
 	cutter = interpretcutter(cutter)
-	cut = []
+	if not wire.tracks:
+		wire.tracks = [0]*len(wire.indices)
+	g = len(wire.groups)
+	wire.groups.append('chamfer')
+	
+	cuts = []
 	
 	for origin in points:
-		start, end = 0, l
-		# propagate backward
-		i, l = origin, len(wire)
-		while i > 0:
-			p0, p1 = wire[i], wire[i+1]
-			p = intersection_edge_plane((p0, p1), cutplane, prec)
-			if p:
-				# insert intersection
-				wire.indices.insert(i+1, len(wire.points))
-				wire.points.append(p)
-				start = i+1
-				break
-		# propagate forward
-		i, l = origin, len(wire)
-		while i < l:
-			p0, p1 = wire[i-1], wire[i]
-			p = intersection_edge_plane((p0, p1), cutplane, prec)
-			if p:
-				# insert intersection
-				wire.indices.insert(i, len(wire.points))
-				wire.points.append(p)
-				end = i
-				break
-		# register insertion zone with tangents
-		cut.append((
-			(start, normalize(wire[start]-wire[start-1])),
-			(end, normalize(wire[end]-wire[end+1])),
-			))
-		# remove fragment
-		del wire.indices[start:end]
+		# get point location in the wire
+		if origin == wire.indices[0] or origin == wire.indices[-1]:
+			raise MeshError('a chamfer cannot have only one side')
+		index = wire.indices.index(origin)
 		
-	for arc in rebuild:
-		t0 = wire[arc[0][0]], arc[0][1]
-		t1 = wire[arc[1][0]], arc[1][1]
-		wire.indices[arc[0][0] : arc[1][0]] = range(len(wire.points), len(wire.points)+div)
-		wire.points.extend( interpol2(t0, t1, i/(div+1))   for i in range(div+2) )
+		# compute cut plane
+		t0, t1 = normalize(wire[index] - wire[index-1]),  normalize(wire[index+1] - wire[index])
+		axis = cross(t0, t1)
+		offset = cutter(normalize(cross(axis,t0)), normalize(cross(axis,t1)))
+		if dot(offset, t0) > 0:		offset = -offset
+		cutplane = (wire[index]+offset, -normalize(offset))
+	
+		l = len(wire)
+		start, end = 0, l
+		ps, pe = None, None
+		# propagate backward
+		i = index-1
+		while i >= 0:
+			p0, p1 = wire[i], wire[i+1]
+			p = intersection_edge_plane((p0, p1), cutplane, prec)
+			if p:
+				ps = p
+				start = i+1
+				break
+			i -= 1
+		# propagate forward
+		i = index+1
+		while i < l:
+			p0, p1 = wire[i-1], wire[i]
+			p = intersection_edge_plane((p0, p1), cutplane, prec)
+			if p:
+				pe = p
+				end = i
+				break
+			i += 1
+		# remove fragment
+		m = len(wire.points)
+		wire.points.append(ps)
+		wire.points.append(pe)
+		wire.indices[start:end] = [m,m+1]
+		wire.tracks[start:end-1] = [g]
+		
+		cuts.append((start, start+1))
+	return cuts
+		
+@chamfer.register(Wire)
+def wire_chamfer(wire, points, cutter):
+	wire_multicut(wire, points, cutter)
+
+@bevel.register(Wire)
+def wire_bevel(wire, points, cutter):
+	cuts = sorted(
+			wire_multicut(wire, points, cutter), 
+			key=lambda cut: cut[0])
+	g = len(wire.groups)-1
+	wire.groups[g] = 'bevel'
+	
+	for cut in reversed(cuts):
+		p0 = wire[cut[0]]
+		p1 = wire[cut[1]]
+		t0 = normalize(p0 - wire[cut[0]-1])
+		t1 = normalize(p1 - wire[(cut[1]+1) % len(wire)])
+		axis = normalize(cross(t0,t1))
+		factor = arclength(p0, p1, cross(axis,t0), cross(t1,axis))
+		div = settings.curve_resolution(factor, pi-anglebt(t0,t1))
+		t0 *= factor
+		t1 *= factor
+		wire.indices[cut[0] : cut[1]] = range(len(wire.points), len(wire.points)+div+2)
+		wire.tracks[cut[0] : cut[1]-1] = [g] * (div+1)
+		wire.points.extend( interpol2((p0,t0), (p1,t1), i/(div+1))   for i in range(div+2) )
 
 
+		
+		
+# --- mesh tangent generation functions ----
 
 def tangentend(points, edge, normals, div):
 	''' join a tangent surface resulting of `tangentcorner` or `tangentjunction` to a straight edge e 
@@ -917,7 +981,7 @@ def tangentcorner(pts, lp, normals, div):
 	# triangulate
 	for i in range(len(lp)):
 		a,b,c = lp[i-1], lp[i], p
-		new += icosurface(
+		new += gt.icosurface(
 					(pts[a],pts[b],pts[c]), 
 					(normals[a],normals[b],normals[c]),
 					resolution=('div',div))
