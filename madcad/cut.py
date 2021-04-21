@@ -42,6 +42,8 @@ def bevel(mesh, indices, cutter):
 	raise TypeError('wrong argument type: {}'.format(type(mesh)))
 
 
+
+
 # ---- cut methods -----
 
 def cutter_width(width, fn1, fn2):
@@ -66,7 +68,8 @@ def cutter_radius(depth, fn1, fn2):
 
 
 
-# ----- algorithm ------
+
+# ----- mesh operations ------
 
 def planeoffsets(mesh, edges, cutter):
 	''' compute the offsets for cutting planes using the given method 
@@ -710,6 +713,7 @@ def mesh_bevel(mesh, edges, cutter, resolution=None):
 	
 	
 # ---- web operations -----
+from .nprint import nprint
 	
 def web_cut(web, start, cutplane, conn, prec, removal):
 	''' propagation cut for a point 
@@ -732,31 +736,33 @@ def web_cut(web, start, cutplane, conn, prec, removal):
 		ep = web.edgepoints(e)
 		side = [dot(p-cutplane[0], cutplane[1])		for p in ep]
 		if side[0]*side[1] <= prec:
-			p = intersection_edge_plane(ep, cutplane)
+			p = intersection_edge_plane(ep, cutplane, prec)
 			
 			pi = len(web.points)
 			web.points.append(p)
 			intersections.append(pi)
 			if side[0] <= prec:
-				if distance2(p,ep[1]) < prec**2:
-					pi = ei[1]
-				web.edges[ei] = (pi, ei[1]) 
-				web.edges.append((ei[0], pi))
-				conn.remove(e[0], ei)
-				#conn.add(pi, ei)
-				#conn.add(e[0], l)
-			else:
 				if distance2(p,ep[0]) < prec**2:
-					pi = ei[0]
-				web.edges[ei] = (ei[0], pi)
-				web.edges.append((pi, ei[1]))
-				conn.remove(e[1], ei)
+					pi = e[0]
+				web.edges[ei] = (pi, e[1]) 
+				web.edges.append((e[0], pi))
+				web.tracks.append(web.tracks[ei])
+				conn.discard(e[0], ei)
+				conn.add(e[0], len(web.edges)-1)
+			else:
+				if distance2(p,ep[1]) < prec**2:
+					pi = e[1]
+				web.edges[ei] = (e[0], pi)
+				web.edges.append((pi, e[1]))
+				web.tracks.append(web.tracks[ei])
+				conn.discard(e[1], ei)
+				conn.add(e[1], len(web.edges)-1)
 		else:
-			removal.add(ei)
 			# propagate
 			for p in e:
 				front.extend(conn[p])
 		
+	removal.update(seen)
 	return intersections
 
 @multicut.register(Web)
@@ -770,24 +776,20 @@ def web_multicut(web, points, cutter, conn=None, prec=None, removal=None):
 	pts = web.points
 	intersections = {}
 	
-	nprint('conn', conn)
-	
 	for pi in points:
-		print('neigh', list(conn[pi]))
+		#print('neigh', list(conn[pi]))
 		#dirs = [ normalize(pts[pi]-pts[ni])   for ni in conn[pi] ]
 		dirs = []
 		for ni in conn[pi]:
 			e = web.edges[ni]
 			dirs.append(normalize( pts[pi] - pts[e[e[0] == pi]] ))
 		normal = normalize(sum(dirs))
-		c = sum(dot(normal,d) for d in dirs)
-		s = sqrt(max(0,1-c**2))
+		c = sum(dot(normal,d) for d in dirs) / len(dirs)
+		s = sqrt(max(0, 1-c**2))
 		x,_,_ = dirbase(normal)
 		offset = cutter(c*x + s*normal, -c*x + s*normal)
 		if dot(offset, normal) > 0:	offset = -offset
 		plane = (pts[pi]+offset, -normalize(offset))
-		
-		print('cutplane', plane)
 		
 		intersections[pi] = web_cut(web, pi, plane, conn, prec, removal)
 	
@@ -796,41 +798,53 @@ def web_multicut(web, points, cutter, conn=None, prec=None, removal=None):
 	
 @chamfer.register(Web)
 def web_chamfer(web, points, cutter):
+	holes = web_multicut(web, points, cutter)
+
+	g = len(web.groups)
+	web.groups.append('chamfer')
+	
 	conn = connpe(web.edges)
 	def link(e):
-		if web.edges[next(conn[e[0]])][0] == p:	return (e[1],e[0])
-		else:                                  	return e
+		if web.edges[next(conn[e[0]])][0] == e[0]:	return (e[1],e[0])
+		else:                                  		return e
 	
-	for cuts in web_multicut(web, points, cutter, conn).values():
+	for cuts in holes.values():
 		if len(cuts) == 2:
 			web.edges.append(link(tuple(cuts)))
+			web.tracks.append(g)
 		else:
 			pi = len(web.points)
 			web.points.append(sum(web.points[c] for c in cuts) / len(cuts))
 			web.edges.extend( link((c,pi))  for c in cuts )
+			web.tracks.extend( [g] * len(cuts) )
 	
 @bevel.register(Web)
-def web_bevel(web, points, cutter):
-	conn = connpe(web.edges)
-	pts = web.points
+def web_bevel(obj, points, cutter):
+	holes = web_multicut(obj, points, cutter)
+
+	conn = connpe(obj.edges)
+	pts = obj.points
 	div = 6
+	
+	g = len(obj.groups)
+	obj.groups.append('bevel')
 	
 	def tangentat(p):
 		''' find the tangent axis to the given cut point, 
 			the third element is whether the original edge direction is opposite to the given tangent 
 		'''
-		e = next(conn[p])
+		e = obj.edges[next(conn[p])]
 		if e[0] == p:	return pts[p], normalize(pts[p] - pts[e[1]]), True
-		else:			return pts[p], normalize(pts[e[0]] - pts[p]), False
+		else:			return pts[p], normalize(pts[p] - pts[e[0]]), False
 	
-	for cuts in web_multicut(web, points, cutter, conn).values():
+	for cuts in holes.values():
 		if len(cuts) == 2:
 			# place an arc between the two ends
 			s0 = tangentat(cuts[0])
 			s1 = tangentat(cuts[1])
-			corner = web([ interpol2(s0, s1, i/(div+1))   for i in range(div+2) ])
+			corner = web(tangentarc(s0[:2], s1[:2]))
 			if s0[2]:	corner = corner.flip()
-			web += corner
+			obj += corner
 			
 		else:
 			# find an approximate sphere center
@@ -847,12 +861,11 @@ def web_bevel(web, points, cutter):
 			# place arcs
 			for t in tangents:
 				u = (top, noproject(t[0]-top, normal))
-				corner = web([ interpol2(t, u, j/(div+1))   for j in range(div+2) ])
+				corner = web(tangentarc(t,u))
 				if t[2]:	corner = corner.flip()
-				web += corner
+				obj += corner
 
 
-				
 				
 # ---- wire operations -----
 
@@ -932,19 +945,28 @@ def wire_bevel(wire, points, cutter):
 		p1 = wire[cut[1]]
 		t0 = normalize(p0 - wire[cut[0]-1])
 		t1 = normalize(p1 - wire[(cut[1]+1) % len(wire)])
-		axis = normalize(cross(t0,t1))
-		factor = arclength(p0, p1, cross(axis,t0), cross(t1,axis))
-		div = settings.curve_resolution(factor, pi-anglebt(t0,t1))
-		t0 *= factor
-		t1 *= factor
-		wire.indices[cut[0] : cut[1]] = range(len(wire.points), len(wire.points)+div+2)
-		wire.tracks[cut[0] : cut[1]-1] = [g] * (div+1)
-		wire.points.extend( interpol2((p0,t0), (p1,t1), i/(div+1))   for i in range(div+2) )
+		l = len(wire.points)
+		wire.points.extend( tangentarc((p0,t0), (p1,t1)) )
+		wire.indices[cut[0] : cut[1]] = range(l, len(wire.points))
+		wire.tracks[cut[0] : cut[1]-1] = [g] * (len(wire.points)-l-1)
 
 
 		
 		
 # --- mesh tangent generation functions ----
+
+def tangentarc(s0, s1):
+	''' create a tangent curve to both given axis. 
+		return the curve as a list of points 
+	'''
+	p0, t0 = s0
+	p1, t1 = s1
+	z = cross(t0,t1)
+	factor = arclength(p0, p1, cross(z,t0), cross(t1,z))
+	s0 = (p0, factor*t0)
+	s1 = (p1, factor*t1)
+	div = settings.curve_resolution(factor, anglebt(t0,-t1))
+	return [ interpol2(s0, s1, j/(div+1))   for j in range(div+2) ]
 
 def tangentend(points, edge, normals, div):
 	''' join a tangent surface resulting of `tangentcorner` or `tangentjunction` to a straight edge e 
