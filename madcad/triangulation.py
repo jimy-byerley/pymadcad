@@ -2,16 +2,16 @@
 
 from math import inf
 from .mathutils import *
-from .mesh import Mesh, Web, Wire, MeshError
+from .mesh import Mesh, Web, Wire, MeshError, connpe
 from .nprint import nformat, nprint
 
 
 class TriangulationError(Exception):	pass
 
 
-def triangulation(outline, prec=NUMPREC):
+def triangulation(outline, normal=None, prec=NUMPREC):
 	''' triangulate using the prefered method '''
-	return triangulation_sweepline(outline, prec=prec)
+	return triangulation_closest(outline, normal)
 
 
 def skeleting(outline: Wire, skeleting: callable, prec=NUMPREC) -> [vec2]:
@@ -470,8 +470,14 @@ def triangulation_sweepline(outline: Web, normal=None, prec=0) -> Mesh:
 	'''
 	pts = outline.points
 	m = Mesh(pts)
-	for loop in sweepline_loops(outline, normal):
-		m += triangulation_outline(Wire(outline.points, loop), normal)
+	loops = sweepline_loops(outline, normal)
+	try:
+		for loop in loops:
+			m += triangulation_outline(Wire(outline.points, loop), normal)
+	except TriangulationError as err:
+		from .rendering import show
+		show([Wire(outline.points, loop)  for loop in loops])
+		raise
 	return m
 	
 from .mesh import connef
@@ -541,66 +547,141 @@ def planenormals(web: 'Web', z) -> '[vec3]':
 	for i in range(len(pts)):
 		normals[i] = normalize(normals[i])
 	return normals
+	
+def closest_loops(lines: Web, normal=None, prec=0):
+	if len(lines.edges) < 3:	return Mesh()
+	finalized = []
+	x,y,z = guessbase(lines.points, normal)
+	#debprint('sortdim', x, 'y', y)
+	# projection of the lines points on x and y
+	pts = {}
+	for e in lines.edges:
+		for i in e:
+			if i not in pts:
+				p = lines.points[i]
+				pts[i] = vec2(dot(p,x), dot(p,y))
+			
+	loops = []
 
-def line_bridges(parts: 'Web', z=None) -> '[edges]':
-	''' find the shortest couples of points to make the wire islands connex 
-		
-		if z is given, the lines will be considered oriented and there will be no bridge connecting edges on their exterior side
-	'''
-	initial = parts
-	pts = parts.points
-	normals = planenormals(parts, z)
-	parts = suites(parts.edges)
-	
-	l = len(pts)
-	g = len(initial.groups)
-	initial.groups.append(None)
-	for i in range(len(pts)):
-		initial.edges.append((i, l+i))
-		initial.tracks.append(g)
-	initial.points.extend(0.5*n+p for n,p in zip(normals, pts))
-		
-	
-	closests = [(inf, None, None)] * len(parts)
-	# compute closest point from the line to each remaning point
-	def update_distance(line):
-		for j,part in enumerate(parts):
-			closest = closests[j]
-			for i in range(1,len(line)):
-				a,b = line[i-1], line[i]
-				nab = cross(pts[b]-pts[a], z)
-				for p in part:
-					if z and (dot(nab, normals[p]) > 0 or dot(normals[p], pts[a]-pts[p]) > 0):
-						continue
-					dist = distance_pe(pts[p], (pts[a], pts[b]))
-					if dist < closest[0]:
-						matched = b if distance(pts[a], pts[p]) > distance(pts[b], pts[p]) else a
-						closest = (dist, p, matched)
-			
-				for p in (part[0], part[-1]):
-					if dot(pts[p]-pts[b], nab) > 0:	continue
-					dist = distance(pts[p], pts[b])
-					if dist < closest[0]:
-						closest = (dist, p, b)
-			
-			assert closest[1] is not None, 'unable to compare distances'
-			closests[j] = closest
+def line_bridges(lines: Web, conn=None):
+	if conn is None:	conn = connpe(lines.edges)
+	pts = lines.points
 	
 	bridges = []
-	# start from one line
-	closests.pop()
-	update_distance(parts.pop())
-	while parts: 
-		# take the closest part in remains
-		i = min(range(len(closests)), key=lambda i:closests[i][0])
-		dist, p, closest = closests.pop(i)
-		bridges.append((p, closest))
-		# update the closests with the new junction and part edges
-		update_distance(parts.pop(i))
-		update_distance((p, closest))
-		update_distance((closest, p))
+	reached_points = set()
+	reached_edges = set()
+	remain_points = set(p 	 for e in lines.edges for p in e)
+	remain_edges = set(range(len(lines.edges)))
 	
-	return bridges
+	def propagate(start):
+		front = [start]
+		while front:
+			s = front.pop()
+			if s in reached_points:	continue
+			reached_points.add(s)
+			remain_points.discard(s)
+			for e in conn[s]:
+				reached_edges.add(e)
+				remain_edges.discard(e)
+				front.extend(lines.edges[e])
+	
+	def find_closest():
+		best = None
+		score = inf
+		for ac in reached_edges:
+			for ma in remain_points:
+				d = distance_pe(pts[ma], lines.edgepoints(ac))
+				if d < score:
+					e = lines.edges[ac]
+					if distance2(pts[ma], pts[e[0]]) < distance2(pts[ma], pts[e[1]]):
+						score, best = d, (ma, e[0])
+					else:
+						score, best = d, (ma, e[1])
+						
+		for ac in reached_points:
+			for ma in remain_edges:
+				d = distance_pe(pts[ac], lines.edgepoints(ma))
+				if d < score:
+					e = lines.edges[ma]
+					if distance2(pts[ac], pts[e[0]]) < distance2(pts[ac], pts[e[1]]):
+						score, best = d, (e[0], ac)
+					else:
+						score, best = d, (e[1], ac)
+						
+		return best
+	
+	propagate(lines.edges[0][0])
+	while True:
+		closest = find_closest()
+		if not closest:	break
+		bridges.append(closest)
+		bridges.append(tuple(reversed(closest)))
+		propagate(closest[0])
+		
+	return Web(lines.points, bridges)
+	
+from .asso import Asso
+	
+def flat_loops(lines: Web, normal=None):
+	x,y,z = guessbase(lines.points, normal)
+	pts = lines.points
+	conn = Asso()
+	for i,e in enumerate(lines.edges):
+		conn.add(e[0], i)
+	
+	used = [False]*len(lines.edges)
+	loops = []
+	
+	while True:
+		# find an unused edge
+		end = next((i  for i,u in enumerate(used) if not u), None)
+		if end is None:
+			break
+		
+		# assemble a loop
+		used[end] = True
+		loop = list(lines.edges[end])
+		while loop[-1] != loop[0]:
+			# take the most inward next edge
+			prev = normalize(pts[loop[-1]] - pts[loop[-2]])
+			
+			best = None
+			score = -inf
+			for edge in conn[loop[-1]]:
+				if used[edge]:	continue
+				e = lines.edges[edge]
+				dir = normalize(pts[e[1]] - pts[e[0]])
+				if isfinite(dir) and isfinite(prev):
+					angle = atan2(dot(cross(prev,dir),z), dot(prev,dir))
+				else:
+					angle = -pi
+				if pi-angle < NUMPREC:	angle -= 2*pi
+				if angle > score:
+					score, best = angle, edge
+			
+			# progress on the selected edge
+			if best is None:
+				from .rendering import show
+				nprint(lines.edges)
+				nprint(loops)
+				nprint(loop)
+				show([lines])
+			assert best is not None,  ("there is not only loops in that web", loop)
+			used[best] = True
+			loop.append(lines.edges[best][1])
+			
+		loops.append(Wire(lines.points, loop))
+
+	return loops
+
+	
+def triangulation_closest(outline, normal=None):
+	x,y,z = guessbase(outline.points, normal)
+	result = Mesh(outline.points)
+	for loop in flat_loops(outline + line_bridges(outline), z):
+		result += triangulation_outline(loop, z)
+	return result
+
 
 def discretise_from(func: 'f(float) -> vec', start, end, initial=1e-3) -> '[(x, f(x)]':
 	''' discretise the function in the [start, end] interval, the step is increasing with the parameter.

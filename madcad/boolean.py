@@ -163,10 +163,10 @@ def intersectwith(m1, m2, prec=None):
 			frontier += segts
 			
 			# retriangulate the cutted surface
-			segts.edges.extend(segts.edges)
+			segts.edges.extend([(b,a) for a,b in segts.edges])
 			segts.edges.extend(outline)
 			segts.tracks = [0] * len(segts.edges)
-			flat = triangulation.triangulation_sweepline(segts, normal, prec)
+			flat = triangulation.triangulation_closest(segts, normal)
 			# append the triangulated face, in association with the original track
 			flat.tracks = [track] * len(flat.faces)
 			flat.groups = m1.groups
