@@ -415,8 +415,15 @@ def sweepline_loops(lines: Web, normal=None):
 					and affiney(l1, p0[0]) > p0[1]):
 				clusters[i] = (l0, coedge)
 				clusters.insert(i, (edge, l1))
-				loops[i].append(coedge[0])
-				loops.insert(i, [edge[0], l1[0]])
+				# continue the cluster on the side with the higher x
+				if pts[l0[0]][0] < pts[l1[0]][0]:
+					# the existing loop stays at index i
+					loops[i].insert(0,edge[0])
+					loops.insert(i+1, [l0[0], coedge[0]])
+				else:
+					# the existing loop jumps to index i+1
+					loops[i].append(coedge[0])
+					loops.insert(i, [edge[0], l1[0]])
 				#debprint('      hole for ',i, edge)
 				#debprint('clusters', nformat(clusters))
 				#debprint('loops', loops)
