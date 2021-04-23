@@ -6,6 +6,8 @@ from .mesh import Mesh, Web, Wire, MeshError, connpe
 from .asso import Asso
 from .nprint import nformat, nprint
 
+from operator import itemgetter
+
 
 class TriangulationError(Exception):	pass
 
@@ -533,8 +535,9 @@ def line_bridges(lines: Web, conn=None):
 		score = inf
 		# minimum from edges to points
 		for ac in reached_edges:
+			ep = lines.edgepoints(ac)
 			for ma in remain_points:
-				d = distance_pe(pts[ma], lines.edgepoints(ac))
+				d = distance_pe(pts[ma], ep)
 				if d < score:
 					e = lines.edges[ac]
 					if distance2(pts[ma], pts[e[0]]) < distance2(pts[ma], pts[e[1]]):
@@ -542,9 +545,10 @@ def line_bridges(lines: Web, conn=None):
 					else:
 						score, best = d, (ma, e[1])
 		# minimum from points to edges
-		for ac in reached_points:
-			for ma in remain_edges:
-				d = distance_pe(pts[ac], lines.edgepoints(ma))
+		for ma in remain_edges:
+			ep = lines.edgepoints(ma)
+			for ac in reached_points:
+				d = distance_pe(pts[ac], ep)
 				if d < score:
 					e = lines.edges[ma]
 					if distance2(pts[ac], pts[e[0]]) < distance2(pts[ac], pts[e[1]]):
@@ -565,8 +569,101 @@ def line_bridges(lines: Web, conn=None):
 		
 	return Web(lines.points, bridges)
 	
+def line_bridges(lines: Web, conn=None) -> 'Web':
+	''' find what edges to insert in the given mesh to make all its loops connex.
+		returns a Web of the bridging edges.
+		
+		complexity:  O(n**2 + n*k)
+		with
+			n = number of points in the lines
+			k = average number of points per loop
+	'''
+	if conn is None:	conn = connpe(lines.edges)
+	pts = lines.points
 	
-def flat_loops(lines: Web, normal=None):
+	bridges = []	# edges created
+	# reached and remaining parts, both as edge indices and point indices
+	reached_points = {}	# closest to each reached point
+	reached_edges = {}	# closest to each reached edge
+	remain_points = set(p 	 for e in lines.edges for p in e)
+	remain_edges = set(range(len(lines.edges)))
+	
+	def propagate(start):
+		''' propagate from the given start point to make connex points and edges as reached '''
+		front = [start]
+		while front:
+			s = front.pop()
+			if s in reached_points:	continue
+			reached_points[s] = (inf, (s,s))
+			remain_points.discard(s)
+			for e in conn[s]:
+				if e in reached_edges: continue
+				reached_edges[e] = (inf, (s,s))
+				remain_edges.discard(e)
+				front.extend(lines.edges[e])
+				
+	def update_closest():
+		# from points to edges
+		for s, (score, best) in reached_points.items():
+			if best[0] in reached_points:
+				reached_points[s] = find_closest_point(s)
+		# from edges to points
+		for e, (score, best) in reached_edges.items():
+			if best[0] in reached_points:
+				reached_edges[e] = find_closest_edge(e)
+	
+	def find_closest_edge(ac):
+		''' find the bridge to the closest point to the given edge
+		'''
+		best = None
+		score = inf
+		# minimum from edge to points
+		ep = lines.edgepoints(ac)
+		for ma in remain_points:
+			d = distance_pe(pts[ma], ep)
+			if d < score:
+				e = lines.edges[ac]
+				if distance2(pts[ma], pts[e[0]]) < distance2(pts[ma], pts[e[1]]):
+					score, best = d, (ma, e[0])
+				else:
+					score, best = d, (ma, e[1])
+		
+		return score, best
+		
+	def find_closest_point(ac):
+		''' find the bridge to the closest edge to the given point
+		'''
+		best = None
+		score = inf
+		# minimum from point to edges
+		for ma in remain_edges:
+			d = distance_pe(pts[ac], lines.edgepoints(ma))
+			if d < score:
+				e = lines.edges[ma]
+				if distance2(pts[ac], pts[e[0]]) < distance2(pts[ac], pts[e[1]]):
+					score, best = d, (e[0], ac)
+				else:
+					score, best = d, (e[1], ac)
+						
+		return score, best
+	
+	# main loop
+	propagate(lines.edges[0][0])
+	while remain_edges:
+		update_closest()
+		closest = min(
+					min(reached_points.values(), key=itemgetter(0)),
+					min(reached_edges.values(), key=itemgetter(0)),
+					key=itemgetter(0)) [1]
+		bridges.append(closest)
+		bridges.append(tuple(reversed(closest)))
+		propagate(closest[0])
+		
+	return Web(lines.points, bridges)
+	
+def flat_loops(lines: Web, normal=None) -> '[Wire]':
+	''' collect the closed loops present in the given web, so that no loop overlap on the other ones.
+	'''
 	x,y,z = guessbase(lines.points, normal)
 	pts = lines.points
 	# create an oriented point to edge connectivity 
