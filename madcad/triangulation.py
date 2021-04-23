@@ -3,6 +3,7 @@
 from math import inf
 from .mathutils import *
 from .mesh import Mesh, Web, Wire, MeshError, connpe
+from .asso import Asso
 from .nprint import nformat, nprint
 
 
@@ -12,7 +13,14 @@ class TriangulationError(Exception):	pass
 def triangulation(outline, normal=None, prec=NUMPREC):
 	''' triangulate using the prefered method '''
 	return triangulation_closest(outline, normal)
+	
+	
+	
 
+'''
+	skeleting funtions and skeleting triangulations
+	does not work yet on very non convex cases
+'''
 
 def skeleting(outline: Wire, skeleting: callable, prec=NUMPREC) -> [vec2]:
 	''' skeleting procedure for the given wire
@@ -144,16 +152,18 @@ def triangulation_skeleton(outline: Wire, prec=NUMPREC) -> Mesh:
 	m.mergepoints(merges)
 	return m
 
-def priority(u,v):
-	''' priority criterion for 2D triangles, depending on its shape
-	'''
-	uv = length(u)*length(v)
-	if not uv:	return 0
-	return dot(u,v) / uv
+
+	
+'''
+	triangulation outline
+	triangulation using only points from the given outline, creating quite good triangles at cost of efficiency
+	O(n**2)
+'''
 
 def triangulation_outline(outline: Wire, normal=None) -> Mesh:
 	''' return a mesh with the triangles formed in the outline
 		the returned mesh uses the same buffer of points than the input
+		
 		complexity:  O(n**2) mat2 operations
 	'''
 	# get a normal in the right direction for loop winding
@@ -162,6 +172,13 @@ def triangulation_outline(outline: Wire, normal=None) -> Mesh:
 	except ValueError:	return Mesh()
 	hole = list(outline.indices)
 	if length2(outline[-1]-outline[0]) < 4*NUMPREC**2:		hole.pop()
+	
+	def priority(u,v):
+		''' priority criterion for 2D triangles, depending on its shape
+		'''
+		uv = length(u)*length(v)
+		if not uv:	return 0
+		return dot(u,v) / uv
 	
 	def score(i):
 		l = len(hole)
@@ -241,26 +258,18 @@ def guessbase(pts, normal=None, thres=10*NUMPREC):
 	except StopIteration:
 		raise ValueError('unable to extract 2 directions')
 
-def vmaxi(v):
-	''' index of maximum coordinate of a vec3 '''
-	i = 0
-	if v[1] > v[i]:	i = 1
-	if v[2] > v[i]:	i = 2
-	return i
-
-def vsorti(v):
-	''' coordinates sort indices for a vec3, decreasing order'''
-	i = 0
-	if v[1] > v[i]:	i = 1
-	if v[2] > v[i]:	i = 2
-	if v[(i+1)%3] > v[(i-1)%3]:		j,k = (i+1)%3, (i-1)%3
-	else:							j,k = (i-1)%3, (i+1)%3
-	return (i,j,k)
+	
+	
+'''
+	triangulation_sweepline
+	---------------------
+	loop holes briding based on a sweepline algorithm - complexity O(n log n)
+'''
 
 def sweepline_loops(lines: Web, normal=None):
 	''' sweep line algorithm to retreive monotone loops from a Web
 		the web edges should not be oriented, and thus the resulting face has no orientation
-		complexity: O(n*ln2(n))
+		complexity: O(n ln n)
 		
 		https://en.wikipedia.org/wiki/Monotone_polygon
 	'''
@@ -468,24 +477,186 @@ def triangulation_sweepline(outline: Web, normal=None, prec=0) -> Mesh:
 	''' extract loops from the web using sweepline_loops and trianglate them.
 		the resulting mesh have one group per loop, and all the normals have approximately the same direction (they are coherent)
 	'''
-	pts = outline.points
-	m = Mesh(pts)
-	loops = sweepline_loops(outline, normal)
-	try:
-		for loop in loops:
-			m += triangulation_outline(Wire(outline.points, loop), normal)
-	except TriangulationError as err:
-		from .rendering import show
-		show([Wire(outline.points, loop)  for loop in loops])
-		raise
+	x,y,z = guessbase(outline.points, normal)
+	m = Mesh(outline.points)
+	for loop in sweepline_loops(outline, z):
+		m += triangulation_outline(Wire(outline.points, loop), z)
 	return m
 	
-from .mesh import connef
 
-def arrangeface(f, p):
-	if   p == f[1]:	return f[1],f[2],f[0]
-	elif p == f[2]:	return f[2],f[0],f[1]
-	else:			return f
+'''
+	triangulation_closest
+	---------------------
+	loop holes briding based on the distance to the other holes
+'''
+
+def line_bridges(lines: Web, conn=None):
+	''' find what edges to insert in the given mesh to make all its loops connex.
+		returns a Web of the bridging edges.
+		
+		complexity: O(n**2 * n/k)
+		with
+			n = number of points in the lines
+			k = average number of points per loop
+			
+		could easily be improved to  O(n**2 + n*k)
+	'''
+	if conn is None:	conn = connpe(lines.edges)
+	pts = lines.points
+	
+	bridges = []	# edges created
+	# reached and remaining parts, both as edge indices and point indices
+	reached_points = set()
+	reached_edges = set()
+	remain_points = set(p 	 for e in lines.edges for p in e)
+	remain_edges = set(range(len(lines.edges)))
+	
+	def propagate(start):
+		''' propagate from the given start point to make connex points and edges as reached '''
+		front = [start]
+		while front:
+			s = front.pop()
+			if s in reached_points:	continue
+			reached_points.add(s)
+			remain_points.discard(s)
+			for e in conn[s]:
+				reached_edges.add(e)
+				remain_edges.discard(e)
+				front.extend(lines.edges[e])
+	
+	def find_closest():
+		''' find the next edge to create, 
+			so with the closest remaining element to the reached ones
+			distance is edge to edge
+		'''
+		best = None
+		score = inf
+		# minimum from edges to points
+		for ac in reached_edges:
+			for ma in remain_points:
+				d = distance_pe(pts[ma], lines.edgepoints(ac))
+				if d < score:
+					e = lines.edges[ac]
+					if distance2(pts[ma], pts[e[0]]) < distance2(pts[ma], pts[e[1]]):
+						score, best = d, (ma, e[0])
+					else:
+						score, best = d, (ma, e[1])
+		# minimum from points to edges
+		for ac in reached_points:
+			for ma in remain_edges:
+				d = distance_pe(pts[ac], lines.edgepoints(ma))
+				if d < score:
+					e = lines.edges[ma]
+					if distance2(pts[ac], pts[e[0]]) < distance2(pts[ac], pts[e[1]]):
+						score, best = d, (e[0], ac)
+					else:
+						score, best = d, (e[1], ac)
+						
+		return best
+	
+	# main loop
+	propagate(lines.edges[0][0])
+	while True:
+		closest = find_closest()
+		if not closest:	break
+		bridges.append(closest)
+		bridges.append(tuple(reversed(closest)))
+		propagate(closest[0])
+		
+	return Web(lines.points, bridges)
+	
+	
+def flat_loops(lines: Web, normal=None):
+	x,y,z = guessbase(lines.points, normal)
+	pts = lines.points
+	# create an oriented point to edge connectivity 
+	conn = Asso()
+	for i,e in enumerate(lines.edges):
+		conn.add(e[0], i)
+	
+	used = [False]*len(lines.edges)	# edges used and so no to use anymore
+	loops = []
+	
+	while True:
+		# find an unused edge
+		end = next((i  for i,u in enumerate(used) if not u), None)
+		if end is None:
+			break
+		
+		# assemble a loop
+		used[end] = True
+		loop = list(lines.edges[end])
+		while loop[-1] != loop[0]:
+			# take the most inward next edge
+			prev = normalize(pts[loop[-1]] - pts[loop[-2]])
+			
+			best = None
+			score = -inf
+			for edge in conn[loop[-1]]:
+				if used[edge]:	continue
+				e = lines.edges[edge]
+				dir = normalize(pts[e[1]] - pts[e[0]])
+				if isfinite(dir) and isfinite(prev):
+					angle = atan2(dot(cross(prev,dir),z), dot(prev,dir))
+				else:
+					angle = -pi
+				if pi-angle < NUMPREC:	angle -= 2*pi
+				if angle > score:
+					score, best = angle, edge
+			
+			# progress on the selected edge
+			#if best is None:
+				#from .rendering import show
+				#nprint(lines.edges)
+				#nprint(loops)
+				#nprint(loop)
+				#show([lines])
+			if best is None:
+				raise TriangulationError("there is not only loops in that web", loop)
+			used[best] = True
+			loop.append(lines.edges[best][1])
+			
+		loops.append(Wire(lines.points, loop))
+
+	return loops
+
+	
+def triangulation_closest(outline, normal=None):
+	x,y,z = guessbase(outline.points, normal)
+	result = Mesh(outline.points)
+	for loop in flat_loops(outline + line_bridges(outline), z):
+		result += triangulation_outline(loop, z)
+	return result
+
+	
+	
+	
+	
+	
+	
+''' 
+	other misc stuff, in development
+'''
+
+
+def vmaxi(v):
+	''' index of maximum coordinate of a vec3 '''
+	i = 0
+	if v[1] > v[i]:	i = 1
+	if v[2] > v[i]:	i = 2
+	return i
+
+def vsorti(v):
+	''' coordinates sort indices for a vec3, decreasing order'''
+	i = 0
+	if v[1] > v[i]:	i = 1
+	if v[2] > v[i]:	i = 2
+	if v[(i+1)%3] > v[(i-1)%3]:		j,k = (i+1)%3, (i-1)%3
+	else:							j,k = (i-1)%3, (i+1)%3
+	return (i,j,k)
+	
+	
+from .mesh import connef, arrangeface
 
 def retriangulate(mesh):
 	''' switch diagonals to improve the surface smoothness '''
@@ -534,7 +705,6 @@ def cloud_normal(pts: '[vec3]', start=None) -> vec3:
 	return normalize(sum(noproject(start, p-center)	for p in pts))
 
 from .mesh import suites
-from .mathutils import distance_pe
 from .nprint import nprint
 	
 def planenormals(web: 'Web', z) -> '[vec3]':
@@ -548,139 +718,6 @@ def planenormals(web: 'Web', z) -> '[vec3]':
 		normals[i] = normalize(normals[i])
 	return normals
 	
-def closest_loops(lines: Web, normal=None, prec=0):
-	if len(lines.edges) < 3:	return Mesh()
-	finalized = []
-	x,y,z = guessbase(lines.points, normal)
-	#debprint('sortdim', x, 'y', y)
-	# projection of the lines points on x and y
-	pts = {}
-	for e in lines.edges:
-		for i in e:
-			if i not in pts:
-				p = lines.points[i]
-				pts[i] = vec2(dot(p,x), dot(p,y))
-			
-	loops = []
-
-def line_bridges(lines: Web, conn=None):
-	if conn is None:	conn = connpe(lines.edges)
-	pts = lines.points
-	
-	bridges = []
-	reached_points = set()
-	reached_edges = set()
-	remain_points = set(p 	 for e in lines.edges for p in e)
-	remain_edges = set(range(len(lines.edges)))
-	
-	def propagate(start):
-		front = [start]
-		while front:
-			s = front.pop()
-			if s in reached_points:	continue
-			reached_points.add(s)
-			remain_points.discard(s)
-			for e in conn[s]:
-				reached_edges.add(e)
-				remain_edges.discard(e)
-				front.extend(lines.edges[e])
-	
-	def find_closest():
-		best = None
-		score = inf
-		for ac in reached_edges:
-			for ma in remain_points:
-				d = distance_pe(pts[ma], lines.edgepoints(ac))
-				if d < score:
-					e = lines.edges[ac]
-					if distance2(pts[ma], pts[e[0]]) < distance2(pts[ma], pts[e[1]]):
-						score, best = d, (ma, e[0])
-					else:
-						score, best = d, (ma, e[1])
-						
-		for ac in reached_points:
-			for ma in remain_edges:
-				d = distance_pe(pts[ac], lines.edgepoints(ma))
-				if d < score:
-					e = lines.edges[ma]
-					if distance2(pts[ac], pts[e[0]]) < distance2(pts[ac], pts[e[1]]):
-						score, best = d, (e[0], ac)
-					else:
-						score, best = d, (e[1], ac)
-						
-		return best
-	
-	propagate(lines.edges[0][0])
-	while True:
-		closest = find_closest()
-		if not closest:	break
-		bridges.append(closest)
-		bridges.append(tuple(reversed(closest)))
-		propagate(closest[0])
-		
-	return Web(lines.points, bridges)
-	
-from .asso import Asso
-	
-def flat_loops(lines: Web, normal=None):
-	x,y,z = guessbase(lines.points, normal)
-	pts = lines.points
-	conn = Asso()
-	for i,e in enumerate(lines.edges):
-		conn.add(e[0], i)
-	
-	used = [False]*len(lines.edges)
-	loops = []
-	
-	while True:
-		# find an unused edge
-		end = next((i  for i,u in enumerate(used) if not u), None)
-		if end is None:
-			break
-		
-		# assemble a loop
-		used[end] = True
-		loop = list(lines.edges[end])
-		while loop[-1] != loop[0]:
-			# take the most inward next edge
-			prev = normalize(pts[loop[-1]] - pts[loop[-2]])
-			
-			best = None
-			score = -inf
-			for edge in conn[loop[-1]]:
-				if used[edge]:	continue
-				e = lines.edges[edge]
-				dir = normalize(pts[e[1]] - pts[e[0]])
-				if isfinite(dir) and isfinite(prev):
-					angle = atan2(dot(cross(prev,dir),z), dot(prev,dir))
-				else:
-					angle = -pi
-				if pi-angle < NUMPREC:	angle -= 2*pi
-				if angle > score:
-					score, best = angle, edge
-			
-			# progress on the selected edge
-			if best is None:
-				from .rendering import show
-				nprint(lines.edges)
-				nprint(loops)
-				nprint(loop)
-				show([lines])
-			assert best is not None,  ("there is not only loops in that web", loop)
-			used[best] = True
-			loop.append(lines.edges[best][1])
-			
-		loops.append(Wire(lines.points, loop))
-
-	return loops
-
-	
-def triangulation_closest(outline, normal=None):
-	x,y,z = guessbase(outline.points, normal)
-	result = Mesh(outline.points)
-	for loop in flat_loops(outline + line_bridges(outline), z):
-		result += triangulation_outline(loop, z)
-	return result
 
 
 def discretise_from(func: 'f(float) -> vec', start, end, initial=1e-3) -> '[(x, f(x)]':
@@ -822,7 +859,3 @@ def loop_closer(lines: Web, ending=0) -> 'Web':
 		lines.append((outline[0], l))
 		lines.append((l+len(outline), outline[-1]))
 		lines.extend((i,i+1)	for i in range(len(outline)-1))
-	
-def envolope_closer(parts: Mesh) -> Mesh:
-	indev
-	
