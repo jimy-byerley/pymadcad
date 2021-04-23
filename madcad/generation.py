@@ -256,7 +256,10 @@ def flatsurface(outline, normal=None) -> 'Mesh':
 	
 		if `normal` is specified, it must be the normal vector to the plane, and will be used to orient the face.
 	'''
-	m = triangulation.triangulation_outline(wire(outline), normal)
+	if isinstance(outline, Wire):
+		m = triangulation.triangulation_outline(outline, normal)
+	else:
+		m = triangulation.triangulation(wire(outline), normal)
 	if normal and dot(m.facenormal(0), normal) < 0:
 		m = m.flip()
 	return m
