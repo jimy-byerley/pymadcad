@@ -681,9 +681,8 @@ def flat_loops(lines: Web, normal=None) -> '[Wire]':
 			break
 		
 		# assemble a loop
-		used[end] = True
 		loop = list(lines.edges[end])
-		while loop[-1] != loop[0]:
+		while True:
 			# take the most inward next edge
 			prev = normalize(pts[loop[-1]] - pts[loop[-2]])
 			
@@ -702,16 +701,14 @@ def flat_loops(lines: Web, normal=None) -> '[Wire]':
 					score, best = angle, edge
 			
 			# progress on the selected edge
-			#if best is None:
-				#from .rendering import show
-				#nprint(lines.edges)
-				#nprint(loops)
-				#nprint(loop)
-				#show([lines])
 			if best is None:
 				raise TriangulationError("there is not only loops in that web", loop)
 			used[best] = True
+			# stop when the best continuation is the start
+			if best == end:
+				break
 			loop.append(lines.edges[best][1])
+			
 			
 		loops.append(Wire(lines.points, loop))
 
