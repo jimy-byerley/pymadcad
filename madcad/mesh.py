@@ -1240,8 +1240,9 @@ class Wire(Container):
 		indices = self.indices[:]
 		indices.reverse()
 		if self.tracks:
-			tracks = self.tracks[:]
+			tracks = self.tracks[:-1]
 			tracks.reverse()
+			tracks.append(self.tracks[-1])
 		else:
 			tracks = None
 		return Wire(self.points, indices, tracks, self.groups, self.options)
