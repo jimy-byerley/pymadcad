@@ -19,7 +19,7 @@ from .primitives import *
 from .mesh import Mesh, Web, Wire, web, wire
 from .generation import *
 from .blending import *
-from .boolean import *
+from .boolean import union, difference, intersection, booleanwith
 from .cut import *
 from .io import cachefunc
 
@@ -28,6 +28,7 @@ cachefunc = lambda x:x	# debug purpose
 
 __all__ = [	'nut', 'screw', 'washer', 
 			'coilspring_compression', 'coilspring_tension', 'coilspring_torsion',
+			'bearing',
 			]
 
 
@@ -603,46 +604,46 @@ def coilspring_torsion(arm, angle=radians(45), d=None, length=None, thickness=No
 # ----------------------- bearing stuff --------------------------
 
 @cachefunc
-def bearing(dint, dext=None, h=None, circulating='ball', contact='radial', sealing=False, detail=False):
+def bearing(dint, dext=None, h=None, circulating='ball', contact=0, hint=None, hext=None, sealing=False, detail=False):
 	''' 
 		see bearing specs at https://koyo.jtekt.co.jp/en/support/bearing-knowledge/
 		
-		circulating
-		
-			- ball
-			- roller
+		parameters
+			:circulating:
 			
-		orient
-		
-			- straight
-			- inclined
-			- radial
+				- ball
+				- roller
+				
+			:orient:    0 for radial bearing, ` pi/2`  for thrust (axial) bearings
 	'''
 	if isinstance(dint, str):
 		dint, dext, h = bearing_spec(dint)
 	else:
 		if not dext:	dext = 2*dint
 		if not h:		h = 0.5*dint
-	
-	rint = dint/2
-	rext = dext/2
-	c = 0.05*h
-	w = 0.5*h
-	e = (dext-dint)/8
+		
+	assert 0 < h <= dint < dext
+	assert 0 <= contact
 
-	axis = Axis(O,Z)
-	interior = Wire([
-		vec3(rint+c, 0, w), vec3(rint, 0, w-c),
-		vec3(rint,	0,	-w+c), vec3(rint+c, 0,	-w),
-		vec3(rint+e, 0,	-w), vec3(rint+e, 0, -w+c),
-		]) .close() .segmented() .flip()
-	exterior = Wire([
-		vec3(rext-e, 0,	-w+c), vec3(rext-e,	0, -w),
-		vec3(rext-c, 0, -w), vec3(rext, 0, -w+c),
-		vec3(rext, 0, w-c), vec3(rext-c, 0, w),
-		]) .close() .segmented() .flip()
-	rlt = revolution(pi, axis, web([exterior, interior]))
-	indev
+	if circulating == 'roller':
+		if sealing:	
+			raise ValueError('sealing must be None for roller bearings')
+		return bearing_roller(dint, dext, h, contact, hint, hext, detail)
+	
+	elif circulating == 'ball':
+		if hint or hext:
+			raise ValueError('hint and hext must be None for ball bearings')
+		if abs(contact) < NUMPREC:
+			return bearing_ball(dint, dext, h, sealing, detail)
+		if abs(contact - 0.5*pi) < NUMPREC:
+			if sealing:
+				raise ValueError('sealing must be none for thrust bearings')
+			return bearing_thrust(dint, dext, h, detail)
+		else:
+			raise ValueError('ball bearings must not be angled')
+			
+	else:
+		raise ValueError('unknown circulating element {}'.format(repr(circulating)))
 	
 	
 def bearing_spec(code):
@@ -652,6 +653,106 @@ def bearing_spec(code):
 	# simple code
 	elif re.match(r'[\d\.]+x[\d\.]+x[\d\.]+', code):
 		return tuple(float(d) for d in re.split('x'))
+		
+		
+def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, detail=False):
+
+	if not hint:	hint = h*cos(contact)
+	if not hext:	hext = 0.8*hint
+
+	# convenient variables
+	rint = dint/2
+	rext = dext/2
+	c = 0.05*h
+	w = 0.5*h
+	e = 0.05*(dext-dint)
+	axis = Axis(O,Z)
+	
+	# cones definition points
+	if contact:
+		cr = vec3(mix(rint, rext, 0.5), 0, 0)
+		ct = -cr.x / tan(contact) *Z
+		angled = Axis(ct, vec3(sin(contact), 0, cos(contact)))
+
+		p1 = vec3(rext-e, 0, -w+hext)
+		p2 = vec3(rint+e, 0, w-hint+e)
+		a1 = Axis(p1, normalize(p1-ct))
+		a2 = Axis(p2, normalize(p2-ct))
+
+		p3 = angled[0] - project(reflect(p2-angled[0], angled[1]), a1[1])
+
+		p4 = angled[0] - reflect(p3-angled[0], angled[1])
+		p5 = angled[0] - reflect(p1-angled[0], angled[1])
+	else:
+		p1 = vec3(rext-e, 0, -w+hext-e)
+		p2 = vec3(rint+e, 0, w-hint+e)
+		#p4 = vec3(
+		indev
+
+	# exterior profiles
+	interior = Wire([
+		p5+e*X,
+		vec3(p5[0]+e, 0, w),
+		vec3(rint, 0, w),
+		vec3(rint,	0,	w-hint),
+		vec3(p4[0]+e, 0, w-hint),
+		p4+e*X,
+		]) .segmented()
+	exterior = Wire([
+		p3,
+		vec3(p3[0], 0, -w),
+		vec3(rext, 0, -w),
+		vec3(rext, 0, -w+hext),
+		vec3(rext-e,	0, -w+hext),
+		]) .segmented()
+	bevel(interior, [2,3], ('radius',c), resolution=('div',1))
+	bevel(exterior, [2,3], ('radius',c), resolution=('div',1))
+	
+	# create interior details
+	if detail:
+		interior += Wire([
+			p4,
+			p5,
+			p5+e*X,
+			]) .segmented()
+		exterior += Wire([p3])
+
+		roller = revolution(2*pi, angled, Segment(mix(p1,p3,0.05), mix(p3,p1,0.05)))
+		roller.mergeclose()
+		for hole in roller.outlines().islands():
+			roller += flatsurface(wire(hole))
+
+		nb = int(pi*(rint+rext) / (2.5*distance_pa(p1,angled)))
+		rollers = repeat(roller, nb, rotatearound(2*pi/nb, axis)) 
+		rollers.option(color=vec3(0,0.1,0.2))
+
+		p6 = mix(p4,p3,0.5) - e*Z
+		cage_profile = wire([
+			p6 - 2*e*X,
+			p6,
+			p6 + (distance(p1,p3)+2*e) * angled[1],
+			])
+		bevel(cage_profile, [1], ('radius',c))
+		cage = revolution(2*pi, axis, cage_profile)
+		cage.mergeclose()
+		booleanwith(cage, inflate(rollers, 0.5*c), False)
+		cage = thicken(cage, c) .option(color=vec3(0.3,0.2,0))
+		
+		part = revolution(2*pi, axis, web([
+					exterior, 
+					interior,
+					]).flip() )
+		part.mergeclose()
+	
+		return part + cage + rollers
+	# simply create a bounding representation
+	else:
+		part = revolution(2*pi, axis, 
+					(exterior + interior) .close() .flip()
+					)
+		part.mergeclose()
+		return part
+
 	
 '''
 	all existing bearing dimensions according to https://koyo.jtekt.co.jp/en/support/bearing-knowledge/6-3000.html
@@ -731,7 +832,7 @@ def linrange(start, stop=None, step=None, div=0, end=True):
 		* if `end` is False, it will stop iterating just before `stop` and never with `stop`
 		
 		NOTE:  
-			If step is given and is not a multiple of `stop-start` then `end` has not influence
+			If step is given and is not a multiple of `stop-start` then `end` has no influence
 	'''
 	if stop is None:	start, stop = 0, start
 	if step is None:	step = (stop-start)/(div+1)

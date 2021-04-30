@@ -16,4 +16,7 @@ show([
 	coilspring_compression(20) .transform(vec3(0,10,0)),
 	coilspring_tension(20) .transform(vec3(10,10,0)),
 	coilspring_torsion(5) .transform(vec3(-10,10,0)),
+	
+	bearing(16, circulating='roller', contact=radians(20)) .transform(vec3(0,-30,0)),
+	bearing(16, circulating='roller', contact=radians(20), detail=True) .transform(vec3(0,-30,20)),
 	])
