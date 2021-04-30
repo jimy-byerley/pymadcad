@@ -948,8 +948,8 @@ def wire_bevel(wire, points, cutter, resolution=None):
 			t1 = normalize(p1 - wire[i+2])
 			l = len(wire.points)
 			wire.points.extend( tangentarc((p0,t0), (p1,t1), resolution) )
-			wire.indices[i:i+1] = range(l, len(wire.points))
-			wire.tracks[i:i] = [g] * (len(wire.points)-l-1)
+			wire.indices[i:i+2] = range(l, len(wire.points))
+			wire.tracks[i:i+1] = [g] * (len(wire.points)-l-1)
 		i += 1
 
 
