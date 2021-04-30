@@ -2,7 +2,7 @@
 
 from math import inf
 from .mathutils import *
-from .mesh import Mesh, Web, Wire, MeshError, connpe
+from .mesh import Mesh, Web, Wire, MeshError, connpe, web
 from .asso import Asso
 from .nprint import nformat, nprint
 
@@ -716,6 +716,10 @@ def flat_loops(lines: Web, normal=None) -> '[Wire]':
 
 	
 def triangulation_closest(outline, normal=None):
+	if isinstance(outline, Wire):
+		return triangulation_outline(outline, normal)
+	else:
+		outline = web(outline)
 	x,y,z = guessbase(outline.points, normal)
 	result = Mesh(outline.points)
 	for loop in flat_loops(outline + line_bridges(outline), z):
