@@ -655,17 +655,96 @@ def bearing_spec(code):
 		return tuple(float(d) for d in re.split('x'))
 		
 		
+def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False):
+	rint = dint/2
+	rext = dext/2
+	c = 0.05*h
+	w = 0.5*h
+	e = 0.15*(dext-dint)
+
+	axis = Axis(O,Z)
+	interior = Wire([
+		vec3(rint+e, 0,	w), 
+		vec3(rint, 0, w),
+		vec3(rint,	0,	-w),
+		vec3(rint+e, 0,	-w), 
+		]) .segmented() .flip()
+	bevel(interior, [1, 2], ('radius',c), resolution=('div',1))
+
+	exterior = Wire([
+		vec3(rext-e,	0, -w),
+		vec3(rext, 0, -w),
+		vec3(rext, 0, w),
+		vec3(rext-e,	0, w),
+		]) .segmented() .flip()
+	bevel(exterior, [1,2], ('radius',c), resolution=('div',1))
+
+	if detail:
+		rb = (dint + dext)/4
+		rr = 0.75*(dext - dint)/4
+
+		hr = sqrt(rr**2 - (rb-rint-e)**2)
+		interior += wire(ArcCentered((rb*X,-Y), vec3(rint+e, 0, hr), vec3(rint+e, 0, -hr)))
+		exterior += wire(ArcCentered((rb*X,-Y), vec3(rext-e, 0, -hr), vec3(rext-e, 0, hr)))
+		interior.close()
+		exterior.close()
+
+		nb = int(0.7 * pi*rb/rr)
+		balls = repeat(icosphere(rb*X, rr), nb, angleAxis(radians(360)/nb, Z))
+			
+		curve = Wire([vec3(
+						rb*cos(t), 
+						rb*sin(t), 
+						(rr+0.5*c) * (1 - (0.5-0.5*cos(nb*t))**2) + c)
+					for t in linrange(0, 2*pi, div=nb*20-1)])
+		curve.mergeclose()
+
+		surf = extrusion(
+				scale(
+					(rb-rr*0.6)/rb, 
+					(rb-rr*0.6)/rb, 
+					1), 
+				curve, 
+				alignment=0.5)
+
+		cage = thicken(
+				surf + surf.transform(scale(1,1,-1)) .flip(), 
+				c) .option(color=vec3(0.5,0.3,0))
+				
+		part = revolution(2*pi, axis, web([exterior, interior]))
+		part.mergeclose()
+		return part + cage + balls
+
+	else:
+		interior = (
+			Wire([
+				exterior[-1], 
+				exterior[-1]+c*Z, 
+				interior[0]+c*Z, 
+				interior[0]]) .segmented()
+			+ interior
+			+ Wire([
+				interior[-1], 
+				interior[-1]-c*Z, 
+				exterior[0]-c*Z, 
+				exterior[0]]) .segmented()
+			)
+		part = revolution(2*pi, axis, web([exterior, interior]))
+		part.mergeclose()
+		return part
+
+
 def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, detail=False):
 
 	if not hint:	hint = h*cos(contact)
-	if not hext:	hext = 0.8*hint
+	if not hext:	hext = h*cos(contact) * 0.8 if contact else h
 
 	# convenient variables
 	rint = dint/2
 	rext = dext/2
 	c = 0.05*h
 	w = 0.5*h
-	e = 0.05*(dext-dint)
+	e = 0.08*(dext-dint)
 	axis = Axis(O,Z)
 	
 	# cones definition points
@@ -685,9 +764,10 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 		p5 = angled[0] - reflect(p1-angled[0], angled[1])
 	else:
 		p1 = vec3(rext-e, 0, -w+hext-e)
-		p2 = vec3(rint+e, 0, w-hint+e)
-		#p4 = vec3(
-		indev
+		p3 = vec3(rext-e, 0, -w+e)
+		p4 = vec3(rint+e, 0, w-hint+e)
+		p5 = vec3(rint+e, 0, -w+hext-e)
+		angled = Axis(0.5*(rint+rext) * X, Z)
 
 	# exterior profiles
 	interior = Wire([
@@ -726,11 +806,11 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 		rollers = repeat(roller, nb, rotatearound(2*pi/nb, axis)) 
 		rollers.option(color=vec3(0,0.1,0.2))
 
-		p6 = mix(p4,p3,0.5) - e*Z
+		p6 = mix(p4,p3,0.6) - e*angled[1]
 		cage_profile = wire([
-			p6 - 2*e*X,
+			p6 - 1.5*e*X,
 			p6,
-			p6 + (distance(p1,p3)+2*e) * angled[1],
+			p6 + (distance(p1,p3)+1.8*e) * angled[1],
 			])
 		bevel(cage_profile, [1], ('radius',c))
 		cage = revolution(2*pi, axis, cage_profile)
@@ -750,6 +830,81 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 		part = revolution(2*pi, axis, 
 					(exterior + interior) .close() .flip()
 					)
+		part.mergeclose()
+		return part
+		
+
+def bearing_thrust(dint, dext, h, detail=False):
+	rint = dint/2
+	rext = dext/2
+	c = 0.05*h
+	w = 0.5*h
+	e = 0.12*(dext-dint)
+
+	axis = Axis(O,Z)
+	top = Wire([
+		vec3(rext, 0, w-e), 
+		vec3(rext, 0, w),
+		vec3(rint, 0, w),
+		vec3(rint, 0, w-e), 
+		]) .segmented() .flip()
+	bevel(top, [1, 2], ('radius',c), resolution=('div',1))
+
+	bot = Wire([
+		vec3(rint, 0, -w+e),
+		vec3(rint, 0, -w),
+		vec3(rext, 0, -w),
+		vec3(rext, 0, -w+e),
+		]) .segmented() .flip()
+	bevel(bot, [1,2], ('radius',c), resolution=('div',1))
+
+	if detail:
+		rb = (dint + dext)/4	# balls guide radius
+		rr = 0.75*h/2		# ball radius
+		
+		hr = sqrt(rr**2 - (w-e)**2)
+		top += wire(ArcCentered((rb*X,-Y), vec3(rb+hr, 0, w-e), vec3(rb-hr, 0, w-e)))
+		bot += wire(ArcCentered((rb*X,-Y), vec3(rb-hr, 0, -w+e), vec3(rb+hr, 0, -w+e)))
+		top.close()
+		bot.close()
+		
+		nb = int(0.8 * pi*rb/rr)
+		balls = repeat(icosphere(rb*X, rr), nb, angleAxis(radians(360)/nb, Z))
+		balls.option(color=vec3(0,0.1,0.2))
+		
+		cage_profile = Wire([ 
+			vec3(rext-c, 0, -w+e+0.1*h),
+			vec3(rext-c, 0, w-e-0.1*h),
+			vec3(rint+c, 0, w-e-0.1*h),
+			vec3(rint+c, 0, -w+e+0.1*h),
+			])
+		bevel(cage_profile, [1,2], ('radius',c), resolution=('div',1))
+		
+		cage_surf = revolution(2*pi, axis, cage_profile)
+		cage_surf.mergeclose()
+		booleanwith(cage_surf, inflate(balls, 0.2*c), False)
+		cage = thicken(cage_surf, c) .option(color=vec3(0.3,0.2,0))  .option(color=vec3(0.3,0.2,0))
+		
+		part = revolution(2*pi, axis, web([top, bot]))
+		part.mergeclose()
+		return part + cage + balls
+		
+	else:
+		top = (
+			Wire([
+				bot[-1], 
+				bot[-1]+c*X, 
+				top[0]+c*X, 
+				top[0]]) .segmented()
+			+ top
+			+ Wire([
+				top[-1], 
+				top[-1]-c*X, 
+				bot[0]-c*X, 
+				bot[0]]) .segmented()
+			)
+
+		part = revolution(2*pi, axis, web([top, bot]))
 		part.mergeclose()
 		return part
 
@@ -844,3 +999,8 @@ def linrange(start, stop=None, step=None, div=0, end=True):
 	while t <= stop:
 		yield t
 		t += step
+	
+
+def scale(sx, sy, sz):
+	return mat3(sx,0,0,   0,sy,0,   0,0,sz)
+

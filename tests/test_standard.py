@@ -17,6 +17,11 @@ show([
 	coilspring_tension(20) .transform(vec3(10,10,0)),
 	coilspring_torsion(5) .transform(vec3(-10,10,0)),
 	
-	bearing(16, circulating='roller', contact=radians(20)) .transform(vec3(0,-30,0)),
-	bearing(16, circulating='roller', contact=radians(20), detail=True) .transform(vec3(0,-30,20)),
+	bearing(12, circulating='roller', contact=radians(20)) .transform(vec3(0,-30,0)),
+	bearing(12, circulating='roller', contact=radians(20), detail=True) .transform(vec3(0,-30,20)),
+	bearing(10, circulating='roller', contact=0, detail=True) .transform(vec3(0,-30,-20)),
+	bearing(12, circulating='ball') .transform(vec3(30,-30,0)),
+	bearing(12, circulating='ball', detail=True) .transform(vec3(30,-30,20)),
+	bearing(12, contact=radians(90)) .transform(vec3(-30,-30,0)),
+	bearing(12, contact=radians(90), detail=True) .transform(vec3(-30,-30,20)),
 	])
