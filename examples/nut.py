@@ -1,3 +1,7 @@
+'''
+	This is an example to generate a hexnut from scratch. Of course it's even better to use the provided function in module `madcad.standard`
+'''
+
 from madcad import *
 
 # create a base, for convenience in the code
