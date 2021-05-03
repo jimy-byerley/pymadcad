@@ -52,7 +52,8 @@ cutters (cut methods)
 helpers
 -------
 
-	.. autofunction:: cut
+	.. autofunction:: mesh_cut
+	.. autofunction:: web_cut
 	.. _planeoffsets:
 	.. autofunction:: planeoffsets
 	.. autofunction:: tangentjunction
