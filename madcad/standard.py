@@ -609,12 +609,31 @@ def bearing(dint, dext=None, h=None, circulating='ball', contact=0, hint=None, h
 		see bearing specs at https://koyo.jtekt.co.jp/en/support/bearing-knowledge/
 		
 		parameters
+			:dint:	interior bore diameter
+			:dext:  exterior ring diameter
+			:h:     total height of the bearing
+			
+			:hint:  height of the interior ring. Only for angled roller bearings
+			:hext:  height of the exterior ring. Only for angled roller bearings
+		
 			:circulating:
 			
-				- ball
-				- roller
+				The type of circulating element in the bearing:
+					- ball
+					- roller
 				
-			:orient:    0 for radial bearing, ` pi/2`  for thrust (axial) bearings
+			:contact:
+			
+				Contact angle (aka pressure angle).
+				It decided what directions of force the bearing can sustain.
+				
+					- `0` for radial bearing
+					- `pi/2`  for thrust (axial) bearings
+					- `0 < contact < pi/2` for conic bearings
+					
+			:sealing:  True if the bearing has a sealing side. Only for balls bearings with `contact = 0`
+					
+			:detail:   If True, the returned model will have the circulating elements and cage, if False the returned element is just a bounding representation
 	'''
 	if isinstance(dint, str):
 		dint, dext, h = bearing_spec(dint)
@@ -656,12 +675,14 @@ def bearing_spec(code):
 		
 		
 def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False):
+	# convenient variables
 	rint = dint/2
 	rext = dext/2
 	c = 0.05*h
 	w = 0.5*h
 	e = 0.15*(dext-dint)
 
+	# outer rings profiles
 	axis = Axis(O,Z)
 	interior = Wire([
 		vec3(rint+e, 0,	w), 
@@ -679,43 +700,46 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False):
 		]) .segmented() .flip()
 	bevel(exterior, [1,2], ('radius',c), resolution=('div',1))
 
-	if detail:
-		rb = (dint + dext)/4
-		rr = 0.75*(dext - dint)/4
+	if detail and not sealing:
+		rb = (dint + dext)/4	# balls path radius
+		rr = 0.75*(dext - dint)/4 # balls radius
 
-		hr = sqrt(rr**2 - (rb-rint-e)**2)
+		hr = sqrt(rr**2 - (rb-rint-e)**2)	# half balls inprint width in the rings
 		interior += wire(ArcCentered((rb*X,-Y), vec3(rint+e, 0, hr), vec3(rint+e, 0, -hr)))
 		exterior += wire(ArcCentered((rb*X,-Y), vec3(rext-e, 0, -hr), vec3(rext-e, 0, hr)))
 		interior.close()
 		exterior.close()
+		part = revolution(2*pi, axis, web([exterior, interior]))
+		part.mergeclose()
 
-		nb = int(0.7 * pi*rb/rr)
+		nb = int(0.7 * pi*rb/rr)	# number of balls that can fit in
 		balls = repeat(icosphere(rb*X, rr), nb, angleAxis(radians(360)/nb, Z))
-			
-		curve = Wire([vec3(
+		
+		# balls cage (simplified version)
+		cage_profile = Wire([vec3(
 						rb*cos(t), 
 						rb*sin(t), 
 						(rr+0.5*c) * (1 - (0.5-0.5*cos(nb*t))**2) + c)
 					for t in linrange(0, 2*pi, div=nb*20-1)])
-		curve.mergeclose()
+		cage_profile.mergeclose()
 
 		surf = extrusion(
 				scale(
 					(rb-rr*0.6)/rb, 
 					(rb-rr*0.6)/rb, 
 					1), 
-				curve, 
+				cage_profile, 
 				alignment=0.5)
 
 		cage = thicken(
 				surf + surf.transform(scale(1,1,-1)) .flip(), 
 				c) .option(color=vec3(0.5,0.3,0))
 				
-		part = revolution(2*pi, axis, web([exterior, interior]))
-		part.mergeclose()
+		# asemble
 		return part + cage + balls
 
 	else:
+		# assemble and close rings profiles
 		interior = (
 			Wire([
 				exterior[-1], 
@@ -735,7 +759,7 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False):
 
 
 def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, detail=False):
-
+	# interior and exterior heights (automatically deduced from total height if not specified)
 	if not hint:	hint = h*cos(contact)
 	if not hext:	hext = h*cos(contact) * 0.8 if contact else h
 
@@ -749,6 +773,7 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 	
 	# cones definition points
 	if contact:
+		# axis on a cone using the given contact angle
 		cr = vec3(mix(rint, rext, 0.5), 0, 0)
 		ct = -cr.x / tan(contact) *Z
 		angled = Axis(ct, vec3(sin(contact), 0, cos(contact)))
@@ -763,13 +788,14 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 		p4 = angled[0] - reflect(p3-angled[0], angled[1])
 		p5 = angled[0] - reflect(p1-angled[0], angled[1])
 	else:
+		# cylindrig bearing: infinite cone
 		p1 = vec3(rext-e, 0, -w+hext-e)
 		p3 = vec3(rext-e, 0, -w+e)
 		p4 = vec3(rint+e, 0, w-hint+e)
 		p5 = vec3(rint+e, 0, -w+hext-e)
 		angled = Axis(0.5*(rint+rext) * X, Z)
 
-	# exterior profiles
+	# ring profiles
 	interior = Wire([
 		p5+e*X,
 		vec3(p5[0]+e, 0, w),
@@ -790,6 +816,7 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 	
 	# create interior details
 	if detail:
+		# complete rings with their interiors
 		interior += Wire([
 			p4,
 			p5,
@@ -797,15 +824,24 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 			]) .segmented()
 		exterior += Wire([p3])
 
+		part = revolution(2*pi, axis, web([
+					exterior, 
+					interior,
+					]).flip() )
+		part.mergeclose()
+	
+		# create conic rollers
 		roller = revolution(2*pi, angled, Segment(mix(p1,p3,0.05), mix(p3,p1,0.05)))
 		roller.mergeclose()
 		for hole in roller.outlines().islands():
 			roller += flatsurface(wire(hole))
 
+		# number of rollers that can fit in
 		nb = int(pi*(rint+rext) / (2.5*distance_pa(p1,angled)))
 		rollers = repeat(roller, nb, rotatearound(2*pi/nb, axis)) 
 		rollers.option(color=vec3(0,0.1,0.2))
 
+		# roller cage
 		p6 = mix(p4,p3,0.6) - e*angled[1]
 		cage_profile = wire([
 			p6 - 1.5*e*X,
@@ -818,15 +854,12 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 		booleanwith(cage, inflate(rollers, 0.5*c), False)
 		cage = thicken(cage, c) .option(color=vec3(0.3,0.2,0))
 		
-		part = revolution(2*pi, axis, web([
-					exterior, 
-					interior,
-					]).flip() )
-		part.mergeclose()
-	
+		# assemble
 		return part + cage + rollers
+	
 	# simply create a bounding representation
 	else:
+		# assemble and close rings profiles
 		part = revolution(2*pi, axis, 
 					(exterior + interior) .close() .flip()
 					)
@@ -835,12 +868,14 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 		
 
 def bearing_thrust(dint, dext, h, detail=False):
+	# convenient variables
 	rint = dint/2
 	rext = dext/2
-	c = 0.05*h
-	w = 0.5*h
-	e = 0.12*(dext-dint)
+	c = 0.05*h	# corner radius
+	w = 0.5*h	# half height
+	e = 0.12*(dext-dint) # outer rings thickness
 
+	# rings outlines
 	axis = Axis(O,Z)
 	top = Wire([
 		vec3(rext, 0, w-e), 
@@ -862,16 +897,21 @@ def bearing_thrust(dint, dext, h, detail=False):
 		rb = (dint + dext)/4	# balls guide radius
 		rr = 0.75*h/2		# ball radius
 		
-		hr = sqrt(rr**2 - (w-e)**2)
+		hr = sqrt(rr**2 - (w-e)**2)		# half ball inprint width in the rings
+		# complete the rings with their interior
 		top += wire(ArcCentered((rb*X,-Y), vec3(rb+hr, 0, w-e), vec3(rb-hr, 0, w-e)))
 		bot += wire(ArcCentered((rb*X,-Y), vec3(rb-hr, 0, -w+e), vec3(rb+hr, 0, -w+e)))
 		top.close()
 		bot.close()
+		part = revolution(2*pi, axis, web([top, bot]))
+		part.mergeclose()
 		
+		# number of balls to place
 		nb = int(0.8 * pi*rb/rr)
 		balls = repeat(icosphere(rb*X, rr), nb, angleAxis(radians(360)/nb, Z))
 		balls.option(color=vec3(0,0.1,0.2))
 		
+		# cage
 		cage_profile = Wire([ 
 			vec3(rext-c, 0, -w+e+0.1*h),
 			vec3(rext-c, 0, w-e-0.1*h),
@@ -885,11 +925,11 @@ def bearing_thrust(dint, dext, h, detail=False):
 		booleanwith(cage_surf, inflate(balls, 0.2*c), False)
 		cage = thicken(cage_surf, c) .option(color=vec3(0.3,0.2,0))  .option(color=vec3(0.3,0.2,0))
 		
-		part = revolution(2*pi, axis, web([top, bot]))
-		part.mergeclose()
+		# assemble
 		return part + cage + balls
 		
 	else:
+		# assemble and close the profiles
 		top = (
 			Wire([
 				bot[-1], 
