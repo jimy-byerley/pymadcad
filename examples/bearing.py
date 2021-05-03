@@ -1,3 +1,7 @@
+'''
+	This is an example to generate a bearing from scratch. Of course it's even better to use the provided function in module `madcad.standard`
+'''
+
 from madcad import *
 
 # main generation dimensions
