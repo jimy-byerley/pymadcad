@@ -361,7 +361,14 @@ def subdivide(mesh, div=1) -> 'Mesh':
 # --- standard shapes ---
 	
 def brick(*args, **kwargs) -> 'Mesh':
-	''' a simple brick with rectangular sides '''
+	''' a simple brick with rectangular sides 
+	
+		constructors
+		
+			- brick(Box)
+			- brick(min, max)
+			- brick(center=vec3(0), width=vec3(-inf))
+	'''
 	if len(args) == 1 and not kwargs and isinstance(args[0], Box):		
 		box = args[0]
 	else:							

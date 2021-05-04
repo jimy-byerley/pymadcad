@@ -8,6 +8,8 @@ boolean    - boolean cut/intersect/stitch meshes
 most common
 -----------
 
+.. autofunction:: pierce
+
 .. autofunction:: boolean
 
 .. autofunction:: union

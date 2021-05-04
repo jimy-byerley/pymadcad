@@ -17,10 +17,12 @@ based on extrusion/transformation of a Web
 generation of common meshes
 ---------------------------
 
+.. autofunction:: square
 .. autofunction:: brick
 .. autofunction:: icosahedron
 .. autofunction:: icosphere
 .. autofunction:: uvsphere
+.. autofunction:: regon
 
 offseting
 ---------
@@ -34,6 +36,5 @@ others
 
 .. autofunction:: flatsurface
 .. autofunction:: icosurface
-.. autofunction:: brick
 .. autofunction:: subdivide
 .. autofunction:: repeat
