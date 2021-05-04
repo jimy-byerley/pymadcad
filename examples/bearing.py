@@ -66,20 +66,22 @@ part = revolution(4, axis, web([exterior, interior]))
 part.mergeclose()
 
 # cage
-envelope = difference(
+sides = pierce(
 	union(
 		repeat(
 			icosphere(rb*X, 2*c+rr), 
 			nb, angleAxis(2*pi/nb,Z),
 			), 
-		brick(width=vec3(dext,dext, 3*c)),
+		square((c*Z,Z), dext),
 		),
 	( extrusion(2*h*Z, Circle((-h*Z,Z), rb-rr*0.4, resolution=('rad',0.1)))
 	+ extrusion(2*h*Z, Circle((-h*Z,Z), rb+rr*0.4, resolution=('rad',0.1))) .flip()
 		),
 	)
-sides = envelope.group({0,4,6})
-cage = thicken(sides, c) .option(color=vec3(0.5,0.3,0))
+cage = thicken(
+			  sides 
+			+ sides.transform(scaledir(Z,-1)) .flip(), 
+			c) .option(color=vec3(0.5,0.3,0))
 
 
 
