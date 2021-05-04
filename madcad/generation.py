@@ -395,6 +395,17 @@ def brick(*args, **kwargs) -> 'Mesh':
 	for i in range(len(mesh.points)):
 		mesh.points[i] = mesh.points[i]*box.width + box.min
 	return mesh
+	
+def square(axis, width:float) -> 'Mesh':
+	''' return a simple square with the given normal axis and square width.
+		Useful to quickly create a cutplane
+	'''
+	x,y,z = dirbase(axis[1])
+	return Mesh(
+		[axis[0]+0.6*width*p   for p in ((x+y), (y-x), (-y-x), (-y+x))],
+		[(0,1,2), (2,3,0)],
+		groups=['flat'],
+		)
 
 def icosahedron(center, radius) -> 'Mesh':
 	''' a simple icosahedron (see https://en.wikipedia.org/wiki/Icosahedron) '''
