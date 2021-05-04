@@ -26,11 +26,18 @@ __all__ = ['intersect', 'boolean', 'intersection', 'union', 'difference']
 
 def intersect(m1: Mesh, m2: Mesh):
 	''' cut the faces of m1 and m2 at their intersections '''
+	if not prec:	prec = max(m1.precision(), m2.precision())
 	m3 = copy(m1)
-	intersectwith(m1, m2)
-	intersectwith(m2, m3)
+	return intersectwith(m1, m2, prec), intersectwith(m2, m3, prec)
+	
+def pierce(m1, m2, selector=False) -> Mesh:
+	''' cut the faces of m1 at their intersection with faces of m2, and remove the faces inside m2 (if `selector==False`) or the faces outside m2 (if `selector==True`)
+	'''
+	m3 = copy(m1)
+	booleanwith(m3, m2, selector)
+	return m3
 
-def boolean(m1: Mesh, m2: Mesh, selector: '(bool,bool)', prec=None) -> Mesh:
+def boolean(m1: Mesh, m2: Mesh, selector=(False,True), prec=None) -> Mesh:
 	''' execute boolean operation on volumes 
 	
 		selector decides which part of each mesh to keep
