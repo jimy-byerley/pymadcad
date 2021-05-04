@@ -20,7 +20,7 @@ from .mesh import Mesh, Web, edgekey, connef, line_simplification
 from . import hashing
 from . import triangulation
 
-__all__ = ['intersect', 'boolean', 'intersection', 'union', 'difference']
+__all__ = ['intersect', 'pierce', 'boolean', 'intersection', 'union', 'difference']
 		
 
 

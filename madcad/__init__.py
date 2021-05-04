@@ -139,6 +139,8 @@ from . import (
 		generation, boolean, cut, primitives, constraints, kinematic, joints,
 		# near-independant modules
 		io, hashing, triangulation,
+		# parts
+		standard,
 	)
 # gui
 from . import rendering, displays, text, scheme
@@ -146,9 +148,9 @@ from . import rendering, displays, text, scheme
 # the most common tools, imported to access it directly from madcad
 from .mathutils import *
 from .mesh import Mesh, Web, Wire, MeshError, web, wire, suites
-from .boolean import difference, union, intersection
+from .boolean import pierce, difference, union, intersection
 from .cut import chamfer, bevel, multicut, planeoffsets
-from .generation import flatsurface, extrans, extrusion, revolution, saddle, tube, icosurface, dividedtriangle, brick, icosahedron, icosphere, uvsphere, thicken, inflate, repeat
+from .generation import flatsurface, extrans, extrusion, revolution, saddle, tube, square, brick, icosahedron, icosphere, uvsphere, thicken, inflate, repeat
 from .blending import junction, multijunction, blend, blendloop, blendpair, blenditer
 from .primitives import isprimitive, Point, Axis, Segment, ArcThrough, ArcCentered, ArcTangent, TangentEllipsis, Circle, Interpolated, Softened, isaxis
 from .constraints import isconstraint, SolveError, Tangent, Distance, Angle, Parallel, Radius, PointOn, OnPlane, solve
@@ -161,3 +163,5 @@ from .triangulation import TriangulationError
 from .scheme import *
 from .text import Text
 from .rendering import Scene, Display, displayable, show
+
+from .standard import *

@@ -608,7 +608,8 @@ def bearing(dint, dext=None, h=None, circulating='ball', contact=0, hint=None, h
 	''' 
 		see bearing specs at https://koyo.jtekt.co.jp/en/support/bearing-knowledge/
 		
-		parameters
+		Parameters
+		
 			:dint:	interior bore diameter
 			:dext:  exterior ring diameter
 			:h:     total height of the bearing

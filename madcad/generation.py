@@ -12,7 +12,7 @@ __all__ = [
 	'extrans', 'extrusion', 'revolution', 'saddle', 'tube', 
 	'repeat', 'thicken', 'inflate', 'inflateoffsets',
 	'flatsurface', 'icosurface', 'subdivide',
-	'brick', 'icosahedron', 'icosphere', 'uvsphere', 'regon',
+	'square', 'brick', 'icosahedron', 'icosphere', 'uvsphere', 'regon', 
 	]
 
 	
