@@ -31,7 +31,7 @@ def extrans_pre(obj):
 	return line, face
 	
 def extrans_post(mesh, face, first, last):
-	if face:
+	if face and first != last:
 		mesh += face.transform(first) 
 		mesh += face.transform(last).flip()
 
@@ -57,7 +57,7 @@ def revolution(angle, axis, profile, resolution=None):
 	''' create a revolution surface by extruding the given outline
 		`steps` is the number of steps between the start and the end of the extrusion
 	'''
-	if not isinstance(profile, (Mesh,Wire,Web)):	
+	if not isinstance(profile, (Mesh,Web,Wire)):	
 		profile = web(profile)
 	# get the maximum radius, to compute the curve resolution
 	radius = 0
@@ -70,7 +70,11 @@ def revolution(angle, axis, profile, resolution=None):
 	def trans():
 		for i in range(steps):
 			yield rotatearound(i/(steps-1)*angle, axis)
-	return extrans(profile, trans(), ((i,i+1,0) for i in range(steps-1)))
+	def links():
+		for i in range(steps-2):          yield (i,i+1, 0)
+		if abs(angle-2*pi) <= NUMPREC:    yield (steps-2, 0, 0)
+		else:                             yield (steps-2, steps-1, 0)
+	return extrans(profile, trans(), links())
 
 def saddle(web1, web2):
 	''' create a surface by extruding outine1 translating each instance to the next point of outline2
@@ -124,7 +128,8 @@ def tube(outline, path, end=True, section=True):
 	# generate
 	return extrans(outline, trans, links)
 
-
+from copy import copy
+from nprint import nprint
 
 def extrans(section, transformations, links) -> 'Mesh':
 	''' create a surface by extruding and transforming the given outline.
@@ -135,17 +140,22 @@ def extrans(section, transformations, links) -> 'Mesh':
 								`t` the group number of that link, to combine with the section groups		
 	'''
 	# prepare
-	section, face = extrans_pre(section)
-	mesh = Mesh()
-	groups = {}
+	face = None
+	if isinstance(section, Mesh):
+		face = copy(section)
+		face.strippoints()
+		section = section.outlines()
+	else:
+		section = web(section)
+	section = copy(section)
+	reindex = section.strippoints()
 	
-	# generate all sections points using transformations
+	mesh = Mesh()	  # result mesh
+	extremities = {}  # index of extremities in links graph (similar to Web extremities), associated to a boolean telling the direction of that extremity
+	kept = {}         # transformations kept in memory, indexed by their sections
+	groups = {}       # groups created by the extransion
+	
 	l = len(section.points)
-	first = trans = None
-	for k,trans in enumerate(transformations):
-		for p in section.points:
-			mesh.points.append(vec3(trans*vec4(p,1)))
-		if not first:	first = trans
 	
 	# generate all sections faces using links
 	for a,b,u in links:
@@ -157,13 +167,37 @@ def extrans(section, transformations, links) -> 'Mesh':
 			t = groups.setdefault((u,v), len(groups))
 			mesh.tracks.append(t)
 			mesh.tracks.append(t)
+		# find extremities
+		if face:
+			if a in extremities:   del extremities[a]
+			else:	               extremities[a] = True
+			if b in extremities:   del extremities[b]
+			else:                  extremities[b] = False
 	
 	# generate all combined groups
 	mesh.groups = [None] * len(groups)
 	for (u,v), t in groups.items():
 		mesh.groups[t] = section.groups[v]	# NOTE will change in the future to mention both u and v
 	
-	extrans_post(mesh, face, first, trans)
+	# generate all sections points using transformations
+	for k,trans in enumerate(transformations):
+		for p in section.points:
+			mesh.points.append(vec3(trans*vec4(p,1)))
+		# keep extremities transformations
+		if face and k in extremities:
+			kept[k] = trans
+	
+	# append faces at extremities
+	if face:
+		merges = {}  # point merge dictionnary at faces insertion
+		
+		for k, orient in extremities.items():
+			for src,dst in enumerate(reindex):
+				merges[src + len(mesh.points)] = dst + l*k
+			end = face .transform(kept[k])
+			mesh += end if extremities[k] else end.flip()
+		mesh.mergepoints(merges)
+	
 	return mesh
 	
 def linstep(start, stop, x):

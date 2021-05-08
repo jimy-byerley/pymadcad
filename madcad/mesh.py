@@ -272,6 +272,8 @@ class Mesh(Container):
 	def strippoints(self, used=None):
 		''' remove points that are used by no faces, return the reindex list.
 			if used is provided, these points will be removed without usage verification
+			
+			return a table of the reindex made
 		'''
 		if used is None:
 			used = [False] * len(self.points)
@@ -970,7 +972,11 @@ class Web(Container):
 				i += 1
 	
 	def strippoints(self, used=None):
-		''' remove points that are used by no faces, return the reindex list '''
+		''' remove points that are used by no edges, return the reindex list.
+			if used is provided, these points will be removed without usage verification
+			
+			return a table of the reindex made
+		'''
 		if used is None:
 			used = [False] * len(self.points)
 			for edge in self.edges:
@@ -1435,6 +1441,11 @@ class Wire(Container):
 			return NotImplemented
 		
 	def strippoints(self):
+		''' remove points that are used by no edge, return the reindex list.
+			if used is provided, these points will be removed without usage verification
+			
+			return a table of the reindex made
+		'''
 		self.points = [self.points[i]	for i in self.indices]
 		self.indices = list(range(len(self.points)))
 		if self.points[-1] == self.points[0]:	

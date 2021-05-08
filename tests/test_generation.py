@@ -1,8 +1,7 @@
 from nprint import nprint
 from math import pi
-from madcad import vec3, normalize, web, Web, Wire, ArcThrough, Segment, extrusion, revolution, saddle, tube, junction, icosurface, Mesh, wire, Circle
+from madcad import *
 from madcad.generation import *
-from madcad import show
 
 
 # test extrusion
@@ -13,7 +12,6 @@ m1 = extrusion(vec3(0,0,0.5), Web(
 		))
 m1.check()
 assert m1.issurface()
-
 	
 # test revolution
 m2 = revolution(pi, (vec3(0,0,0), vec3(0,1,0)), web(
