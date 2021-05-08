@@ -7,7 +7,7 @@ from .mathutils import (
 		)
 from .mesh import Mesh, Web, edgekey, connpp, connef
 
-__all__ = ['select', 'stopangle', 'crossover', 'straight', 'short', 'SelExpr', 'edgenear']
+__all__ = ['select', 'stopangle', 'crossover', 'straight', 'short', 'selexpr', 'edgenear']
 
 def select(mesh, edge, stopleft=None, stopright=False, conn=None, web=None) -> Web:
 	''' Select edges by propagation across group outlines, until the stop criterion is verified
@@ -28,6 +28,9 @@ def select(mesh, edge, stopleft=None, stopright=False, conn=None, web=None) -> W
 	if stopleft is None:		stopleft = lambda *args: False
 	if stopright is None:		stopright = lambda *args: False
 	elif stopright is False:	stopright = stopleft
+	
+	if isinstance(edge, vec3):
+		edge = edgenear(web, edge)
 	
 	assert edge[0] in conn and edge[1] in conn[edge[0]], "the given edge doesn't exist"
 	# selection by propagation on each side
@@ -62,18 +65,21 @@ def selectside(shared, edge, stop, seen=None, revert=None):
 	return seen
 
 
-class SelExpr(object):
+class selexpr(object):
 	''' boolean expression for topology condition, used to define stop expressions for select() '''
 	__slots__ = 'func',
 	
 	def __init__(self, func):
 		self.func = func
 	
-	def __and__(self, other):	return SelExpr(lambda *args: self.func(*args) and other.func(*args))
-	def __or__(self, other):	return SelExpr(lambda *args: self.func(*args) or other.func(*args))
-	def __xor__(self, other):	return SelExpr(lambda *args: bool(self.func(*args) ^ other.func(*args)))
-	def __not__(self, other):	return SelExpr(lambda *args: not self.func(*args))
+	def __and__(self, other):	return selexpr(lambda *args: self.func(*args) and other.func(*args))
+	def __or__(self, other):	return selexpr(lambda *args: self.func(*args) or other.func(*args))
+	def __xor__(self, other):	return selexpr(lambda *args: bool(self.func(*args) ^ other.func(*args)))
+	def __not__(self, other):	return selexpr(lambda *args: not self.func(*args))
 	def __call__(self, *args):	return self.func(*args)
+	
+	def __repr__(self):
+		return 'selexpr({})'.format(self.func)
 
 # --- stop conditions ---
 
@@ -82,20 +88,20 @@ def stopangle(maxangle):
 	def stop(shared,last,curr,next): 
 		points = shared['web'].points
 		return anglebt(points[curr]-points[last], points[next]-points[curr]) >= maxangle
-	return SelExpr(stop)
+	return selexpr(stop)
 
-@SelExpr
+@selexpr
 def crossover(shared,last,curr,next):
 	return len(shared['conn'][curr]) > 2
 
-@SelExpr
+@selexpr
 def straight(shared,last,curr,next):
 	points = shared['web'].points
 	start = points[curr] - points[last]
 	other = min(shared['conn'][curr], key=lambda o: anglebt(start, points[o] - points[curr]))
 	return other != next
 
-@SelExpr
+@selexpr
 def short(shared,last,curr,next):
 	points = shared['web'].points
 	start = points[curr] - points[last]
@@ -123,7 +129,7 @@ def faceangle(minangle):
 			return anglebt(nl, nr) <= minangle
 		else:
 			return True
-	return SelExpr(stop)
+	return selexpr(stop)
 	
 # --- edge selection from mesh ---
 

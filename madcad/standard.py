@@ -28,7 +28,7 @@ cachefunc = lambda x:x	# debug purpose
 
 __all__ = [	'nut', 'screw', 'washer', 
 			'coilspring_compression', 'coilspring_tension', 'coilspring_torsion',
-			'bearing',
+			'bearing', 'slidebearing',
 			]
 
 
@@ -606,10 +606,13 @@ def coilspring_torsion(arm, angle=radians(45), d=None, length=None, thickness=No
 @cachefunc
 def bearing(dint, dext=None, h=None, circulating='ball', contact=0, hint=None, hext=None, sealing=False, detail=False):
 	''' 
+		Circulating bearings rely on rolling elements to avoid friction and widen the part life.
+		Its friction depends on the rotation speed but not on the current load.
+		
 		see bearing specs at https://koyo.jtekt.co.jp/en/support/bearing-knowledge/
 		
 		Parameters
-		
+
 			:dint:	interior bore diameter
 			:dext:  exterior ring diameter
 			:h:     total height of the bearing
@@ -763,6 +766,9 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 	# interior and exterior heights (automatically deduced from total height if not specified)
 	if not hint:	hint = h*cos(contact)
 	if not hext:	hext = h*cos(contact) * 0.8 if contact else h
+	
+	assert 0 < hint <= h
+	assert 0 < hext <= h
 
 	# convenient variables
 	rint = dint/2
@@ -956,6 +962,54 @@ def bearing_thrust(dint, dext, h, detail=False):
 standard_bearing_ball_straight = [
 	(16, 35, 11),
 	]
+
+
+
+from .selection import *
+
+@cachefunc
+def slidebearing(dint, h=None, thickness=None, shoulder=None, opened=False):
+	'''
+		Slide bearings rely on gliding parts to ensure a good pivot. It's much cheaper than circulating bearings and much more compact. But needs lubricant and has a shorter life than circulating bearings.
+		Its friction depends on the rotation speed and on the load.
+	
+		Parameters
+			:dint:       interior diameter
+			:h:          exterior height (under shoulder if there is)
+			:thickness:  shell thickness, can be automatically determined
+			:shoulder:   distance from bore to shoulder tip, put 0 to disable
+			:opened:     enable to have a slight breach that allows a better fitting to the placement hole 
+	'''
+	if h is None:			h = 1.2*dint
+	if thickness is None:	thickness = 0.05*dint
+	rint = dint/2
+	
+	profile = Wire([
+				vec3(rint,0,-0.5*h),
+				vec3(rint,0, 0.5*h),
+				])
+	if shoulder:
+		profile += Wire([ vec3(rint+shoulder, 0, 0.5*h) ])
+		profile = profile.segmented()
+		bevel(profile, [1], ('radius', 1.5*thickness), resolution=('div',2))
+
+	if opened:
+		shape = revolution(1.98*pi, (O,Z), profile)
+	else:
+		shape = revolution(2*pi, (O,Z), profile)
+		shape.mergeclose()
+	
+	part = thicken(shape, thickness)
+	line = (  select(part, vec3(0,0,-h), stopangle(pi/2))
+			+ select(part, vec3(dint,dint,-h), stopangle(pi/2))
+			)
+	if not shoulder:
+		line += (  select(part, vec3(0,0,h), stopangle(pi/2))
+				 + select(part, vec3(dint,dint,h), stopangle(pi/2))
+				)
+	
+	chamfer(part, line, ('width',0.5*thickness))
+	return part
 
 '''
 * profilés

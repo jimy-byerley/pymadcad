@@ -88,3 +88,28 @@ bearings
 		.. image:: /screenshots/bearing-thrust.png
 		
 		
+.. autofunction:: slidebearing
+
+**examples**
+
+	* with slight breach
+	
+		.. code::
+			
+			# put an openning to better fit bad bore diameter
+			slidebearing(10, 12, 0.5, open=True)
+			
+		.. image:: /screenshots/slidebearing-opened.png
+	
+	* with shoulder
+	
+		.. code::
+		
+			# put a shoulder to support a slight thrust
+			slidebearing(10, 12, shoulder=3)
+			
+		.. image:: /screenshots/slidebearing-shoulder.png
+	
+
+	
+		

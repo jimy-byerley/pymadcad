@@ -24,4 +24,7 @@ show([
 	bearing(12, circulating='ball', detail=True) .transform(vec3(30,-30,20)),
 	bearing(12, contact=radians(90)) .transform(vec3(-30,-30,0)),
 	bearing(12, contact=radians(90), detail=True) .transform(vec3(-30,-30,20)),
+	
+	slidebearing(10, shoulder=3) .transform(vec3(0, -60, 0)),
+	slidebearing(10, openning=True) .transform(vec3(-20, -60, 0)),
 	])
