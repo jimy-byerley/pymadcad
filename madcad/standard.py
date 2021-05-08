@@ -154,7 +154,6 @@ def screwhead_hex(d):
 		vec3(0.5*d+c, 0, 0),
 		vec3(0.5*d,   0, -c),
 		]) .segmented())
-	cone.mergeclose()
 	head = intersection(cone, profile)
 	head.finish()
 	return head
@@ -180,23 +179,19 @@ def screwhead_button(d):
 			vec3(0, 0.5*d, -c),
 			]) .segmented(),
 		]
-	head = revolution(2*pi, (O,Z), profile)
-	head.mergeclose()
-	return head
+	return revolution(2*pi, (O,Z), profile)
 	
 def screwhead_flat(d):
 	r = d
 	h = 0.5*d
 	e = 0.1*d
 	
-	cone = revolution(2*pi, (O,Z), web([
+	return revolution(2*pi, (O,Z), web([
 		vec3(0, 0, h+e),
 		vec3(0, r, h+e),
 		vec3(0, r, h),
 		vec3(0, 0.5*d, 0),
 		]) .segmented() )
-	cone.mergeclose()
-	return cone
 	
 def screwhead_none(d):
 	indev
@@ -312,7 +307,6 @@ def hexnut(d, w, h):
 		vec3(0.5*d,	0,	-0.5*h),
 		]) .close() .segmented()
 	base = revolution(2*pi, (O,Z), web(profile))
-	base.mergeclose()
 	
 	# exterior hexagon shape
 	hexagon = regon((-h*Z,Z),  w/cos(radians(30)), 6)
@@ -714,7 +708,6 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False):
 		interior.close()
 		exterior.close()
 		part = revolution(2*pi, axis, web([exterior, interior]))
-		part.mergeclose()
 
 		nb = int(0.7 * pi*rb/rr)	# number of balls that can fit in
 		balls = repeat(icosphere(rb*X, rr), nb, angleAxis(radians(360)/nb, Z))
@@ -757,9 +750,7 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False):
 				exterior[0]-c*Z, 
 				exterior[0]]) .segmented()
 			)
-		part = revolution(2*pi, axis, web([exterior, interior]))
-		part.mergeclose()
-		return part
+		return revolution(2*pi, axis, web([exterior, interior]))
 
 
 def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, detail=False):
@@ -835,11 +826,9 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 					exterior, 
 					interior,
 					]).flip() )
-		part.mergeclose()
 	
 		# create conic rollers
 		roller = revolution(2*pi, angled, Segment(mix(p1,p3,0.05), mix(p3,p1,0.05)))
-		roller.mergeclose()
 		for hole in roller.outlines().islands():
 			roller += flatsurface(wire(hole))
 
@@ -857,7 +846,6 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 			])
 		bevel(cage_profile, [1], ('radius',c))
 		cage = revolution(2*pi, axis, cage_profile)
-		cage.mergeclose()
 		booleanwith(cage, inflate(rollers, 0.5*c), False)
 		cage = thicken(cage, c) .option(color=vec3(0.3,0.2,0))
 		
@@ -870,7 +858,6 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 		part = revolution(2*pi, axis, 
 					(exterior + interior) .close() .flip()
 					)
-		part.mergeclose()
 		return part
 		
 
@@ -911,7 +898,6 @@ def bearing_thrust(dint, dext, h, detail=False):
 		top.close()
 		bot.close()
 		part = revolution(2*pi, axis, web([top, bot]))
-		part.mergeclose()
 		
 		# number of balls to place
 		nb = int(0.8 * pi*rb/rr)
@@ -928,7 +914,6 @@ def bearing_thrust(dint, dext, h, detail=False):
 		bevel(cage_profile, [1,2], ('radius',c), resolution=('div',1))
 		
 		cage_surf = revolution(2*pi, axis, cage_profile)
-		cage_surf.mergeclose()
 		booleanwith(cage_surf, inflate(balls, 0.2*c), False)
 		cage = thicken(cage_surf, c) .option(color=vec3(0.3,0.2,0))  .option(color=vec3(0.3,0.2,0))
 		
@@ -952,7 +937,6 @@ def bearing_thrust(dint, dext, h, detail=False):
 			)
 
 		part = revolution(2*pi, axis, web([top, bot]))
-		part.mergeclose()
 		return part
 
 	
@@ -993,11 +977,7 @@ def slidebearing(dint, h=None, thickness=None, shoulder=None, opened=False):
 		profile = profile.segmented()
 		bevel(profile, [1], ('radius', 1.5*thickness), resolution=('div',2))
 
-	if opened:
-		shape = revolution(1.98*pi, (O,Z), profile)
-	else:
-		shape = revolution(2*pi, (O,Z), profile)
-		shape.mergeclose()
+	shape = revolution(1.98*pi if opened else 2*pi, (O,Z), profile)
 	
 	part = thicken(shape, thickness)
 	line = (  select(part, vec3(0,0,-h), stopangle(pi/2))
