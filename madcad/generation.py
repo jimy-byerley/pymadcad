@@ -7,6 +7,8 @@ from . import settings
 from . import primitives
 from .nprint import nprint
 
+from copy import copy
+
 
 __all__ = [
 	'extrans', 'extrusion', 'revolution', 'saddle', 'tube', 
@@ -17,26 +19,8 @@ __all__ = [
 
 	
 # --- extrusion things ---
-	
-def extrans_pre(obj):
-	face = None
-	if isinstance(obj, Web):	
-		line = Web(obj.points[:], obj.edges, obj.tracks, obj.groups)
-	elif isinstance(obj, Mesh):	
-		line = obj.outlines()
-		face = obj
-	else:
-		line = web(obj)
-	line.strippoints()
-	return line, face
-	
-def extrans_post(mesh, face, first, last):
-	if face and first != last:
-		mesh += face.transform(first) 
-		mesh += face.transform(last).flip()
 
 
-	
 def extrusion(trans, line, alignment=0):
 	''' create a surface by extruding the given outline by a transformation
 		
@@ -128,8 +112,6 @@ def tube(outline, path, end=True, section=True):
 	# generate
 	return extrans(outline, trans, links)
 
-from copy import copy
-from nprint import nprint
 
 def extrans(section, transformations, links) -> 'Mesh':
 	''' create a surface by extruding and transforming the given outline.
