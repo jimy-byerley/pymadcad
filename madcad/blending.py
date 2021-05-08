@@ -174,15 +174,21 @@ def junction(*args, center=None, tangents='normal', weight=1., match='length', r
 	if len(loops) == 1:	
 		return blendloop(
 					(pts, tangents, weights, loops), 
-					center, resolution=('div',11))
+					center, resolution=resolution)
 	if len(loops) == 2:
-		n = ( interfaces_center(pts, loops[0])
-			- interfaces_center(pts, loops[1]))
-		i0 = imax( dot(pts[i],n)  for i in loops[0])
-		i1 = imax(-dot(pts[i],n)  for i in loops[1])
+		c0 = interfaces_center(pts, loops[0])
+		c1 = interfaces_center(pts, loops[1])
+		z = c1 - c0
+		p = pts[imax( length2(noproject(pts[i]-c0, z))   for i in loops[0] )]
+		x = noproject(p - c0, z)
+		i0 = imax( dot(pts[i], x)  for i in loops[0])
+		i1 = imax( dot(pts[i], x)  for i in loops[1])
 		return blendpair(
-					(pts, tangents, weights, loops),
-					resolution=('div',11))
+					(pts, tangents, weights, (
+						loops[0][i0:]+loops[0][1:i0+1],
+						loops[1][i1:]+loops[1][1:i1+1],
+						)),
+					resolution=resolution)
 	
 	# determine center and convex hull of centers
 	if not center:
@@ -419,12 +425,24 @@ def blendpair(*interfaces, match='length', tangents='tangent', weight=1., resolu
 	# get the discretisation
 	div = 0
 	for i in range(1, len(match)):
-		a,d = pts[match[i-1][0]], pts[match[i-1][1]]
-		b,c = pts[match[i][0]], pts[match[i][1]]
-		v = normalize((a+b) - (d+c))
-		angle = anglebt(a-b - project(a-b,v), d-c - project(d-c,v))
-		dist = min(distance(a,b), distance(d,c))
-		div = max(div, settings.curve_resolution(dist, angle, resolution))
+		a,d = match[i-1][0], match[i-1][1]
+		b,c = match[i][0], match[i][1]
+		m = (pts[a] + pts[b] + pts[c] + pts[d]) /4
+		ta = pts[a] -m
+		tb = pts[b] -m
+		tc = pts[c] -m
+		td = pts[d] -m
+		div = max(
+				div,
+				settings.curve_resolution(
+						distance(pts[a],pts[c]), 
+						anglebt(ta, -tc) + anglebt(ta, tangents[a]) + anglebt(tc, tangents[c]), 
+						resolution),
+				settings.curve_resolution(
+						distance(pts[b],pts[d]), 
+						anglebt(tb, -td) + anglebt(tb, tangents[b]) + anglebt(td, tangents[d]), 
+						resolution),
+				)
 	def infos():
 		for p0, p1 in match:
 			d = distance(pts[p0], pts[p1])
