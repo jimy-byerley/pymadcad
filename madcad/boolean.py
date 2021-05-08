@@ -1,7 +1,7 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
 '''	
-	Defines boolean operations for triangular meshes
+	Defines boolean operations for triangular meshes. Strictly speaking, boolean operations applies on sets, but considering the volumes delimited by their mesh envelopes, we can perform boolean operations on those volumes by manipulating only surface meshes.
 	
 	This relies on a new intersection algorithm named syandana. It finds candidates for intersections using a spacial hashing of triangles over a voxel (see madcad.hashing). This is solving the problem of putting triangles in an octree.
 	Also to avoid the increasing complexity of the operation with flat planes divided in multiple parallel triangles, the algorithm is implemented with a detection of ngons.
@@ -24,26 +24,31 @@ __all__ = ['intersect', 'pierce', 'boolean', 'intersection', 'union', 'differenc
 		
 
 
-def intersect(m1: Mesh, m2: Mesh):
+def intersect(m1, m2) -> '(Web, Web)':
 	''' cut the faces of m1 and m2 at their intersections '''
 	if not prec:	prec = max(m1.precision(), m2.precision())
 	m3 = copy(m1)
 	return intersectwith(m1, m2, prec), intersectwith(m2, m3, prec)
 	
 def pierce(m1, m2, selector=False) -> Mesh:
-	''' cut the faces of m1 at their intersection with faces of m2, and remove the faces inside m2 (if `selector==False`) or the faces outside m2 (if `selector==True`)
+	''' cut the faces of m1 at their intersection with faces of m2, and remove the faces inside
+	
+		selector decides which part of each mesh to keep
+	
+		 - False keep the exterior part (part exclusive to the other mesh)
+		 - True keep the common part
 	'''
 	m3 = copy(m1)
 	booleanwith(m3, m2, selector)
 	return m3
 
-def boolean(m1: Mesh, m2: Mesh, selector=(False,True), prec=None) -> Mesh:
+def boolean(m1, m2, selector=(False,True), prec=None) -> Mesh:
 	''' execute boolean operation on volumes 
 	
 		selector decides which part of each mesh to keep
 	
-			- False keep the exterior part (part exclusive to the other mesh)
-			- True keep the common part
+		 - False keep the exterior part (part exclusive to the other mesh)
+		 - True keep the common part
 	'''
 	if not prec:	prec = max(m1.precision(), m2.precision())
 	
@@ -64,19 +69,19 @@ def boolean(m1: Mesh, m2: Mesh, selector=(False,True), prec=None) -> Mesh:
 	elif selector[1] is not None:
 		return boolean(m2, m1, (selector[1], selector[0]))
 
-def union(a: Mesh, b: Mesh) -> Mesh:			
+def union(a, b) -> Mesh:			
 	''' return a mesh for the union of the volumes. 
 		It is a boolean with selector (False,False) 
 	'''
 	return boolean(a,b, (False,False))
 
-def intersection(a: Mesh, b: Mesh) -> Mesh:	
+def intersection(a, b) -> Mesh:	
 	''' return a mesh for the common volume. 
 		It is a boolean with selector (True, True) 
 	'''
 	return boolean(a,b, (True,True))
 
-def difference(a: Mesh, b: Mesh) -> Mesh:	
+def difference(a, b) -> Mesh:	
 	''' return a mesh for the volume of a less the common volume with b
 		It is a boolean with selector (False, True)
 	'''
@@ -84,7 +89,7 @@ def difference(a: Mesh, b: Mesh) -> Mesh:
 
 
 
-def intersectwith(m1, m2, prec=None):
+def intersectwith(m1, m2, prec=None) -> Web:
 	''' Cut m1 faces at their intersections with m2. 
 		Returning the intersection edges in m1 and associated m2 faces.
 		
@@ -189,8 +194,8 @@ def intersectwith(m1, m2, prec=None):
 	return frontier
 
 
-def booleanwith(m1, m2, side, prec=None):
-	''' execute the boolean operation only on m1 '''
+def booleanwith(m1, m2, side, prec=None) -> set:
+	''' execute the boolean operation inplace and only on m1 '''
 	if not prec:	prec = m1.precision()
 	frontier = intersectwith(m1, m2, prec)
 	
