@@ -136,13 +136,13 @@ def transform(*args) -> mat4:
 	''' create an affine transformation matrix.
 		
 		supported inputs:
-		
-		*	mat4
-		*	vec3                                    - translation only
-		*	quat, mat3, mat4                        - rotation only
-		*	(vec3,vec3), (vec3,mat3), (vec3,quat)   - (o,T) translation and rotation
-		*	(vec3,vec3,vec3)                        - (x,y,z) base of vectors for rotation
-		*	(vec3,vec3,vec3,vec3)                   - (o,x,y,z) translation and base of vectors for rotation
+			:mat4:                                    obviously returns it unmodified
+			:float:                                   scale using the given ratio 
+			:vec3:                                    translation only
+			:quat, mat3, mat4:                        rotation only
+			:(vec3,vec3), (vec3,mat3), (vec3,quat):   `(o,T)` translation and rotation
+			:(vec3,vec3,vec3):                        `(x,y,z)` base of vectors for rotation
+			:(vec3,vec3,vec3,vec3):                   `(o,x,y,z)` translation and base of vectors for rotation
 	'''
 	if len(args) == 1 and isinstance(args[0], (tuple,list)):
 		args = args[0]
@@ -151,6 +151,7 @@ def transform(*args) -> mat4:
 		elif isinstance(args[0], mat3):	return mat4(args[0])
 		elif isinstance(args[0], quat):	return mat4_cast(args[0])
 		elif isinstance(args[0], vec3):	return translate(mat4(1), args[0])
+		elif isinstance(args[0], (int,float)):	return mat4(args[0])
 	elif len(args) == 2:
 		if isinstance(args[0], vec3):
 			if   isinstance(args[1], mat3):		m = mat4(args[1])
@@ -170,15 +171,18 @@ def transform(*args) -> mat4:
 def transformer(trans):
 	''' return an function to apply the given transform on vectors
 		
-		:vec3:  translate the given position
-		:mat3:  rotate the given position
-		:quat:  rotate the given position
-		:mat4:  affine transform (rotate then translate)
+		supported inputs:
+			:float:	scale by the given ratio
+			:vec3:  translate the given position
+			:mat3:  rotate the given position
+			:quat:  rotate the given position
+			:mat4:  affine transform (rotate then translate)
 	'''
 	if isinstance(trans, (dquat, fquat)):		trans = mat3_cast(trans)
 	if callable(trans):							return trans
 	if isinstance(trans, (dvec3, fvec3)):		return lambda v: v + trans
 	if isinstance(trans, (dmat3, fmat3)):		return lambda v: trans * v
+	if isinstance(trans, (int, float)):			return lambda v: trans * v
 	if isinstance(trans, dmat4):				return lambda v: dvec3(trans * dvec4(v,1))
 	if isinstance(trans, fmat4):				return lambda v: fvec3(trans * fvec4(v,1))
 	raise TypeError('a transformer must be a  vec3, quat, mat3, mat4 or callable, not {}'.format(trans))
@@ -318,7 +322,7 @@ def imax(iterable, default=None):
 			score = o
 			best = i
 	if best is None:	raise IndexError('iterable is empty')
-	return i
+	return best
 
 
 class Box:
