@@ -223,6 +223,77 @@ def triangulation_outline(outline: Wire, normal=None) -> Mesh:
 	
 	return Mesh(outline.points, triangles)
 
+
+def triangulation_outline(outline: Wire, normal=None) -> Mesh:
+	''' return a mesh with the triangles formed in the outline
+		the returned mesh uses the same buffer of points than the input
+		
+		complexity:  O(n*k)  where k is the number of non convex points
+	'''
+	# get a normal in the right direction for loop winding
+	if not normal:		normal = outline.normal()
+	# project all points in the plane
+	try:				proj = planeproject(outline, normal)
+	except ValueError:	return Mesh()
+	# reducing contour, indexing proj and outlines.indices
+	hole = list(range(len(outline.indices)))
+	if length2(outline[-1]-outline[0]) < 4*NUMPREC**2:		hole.pop()
+	# set of remaining non-convexity points, indexing proj
+	l = len(outline.indices)
+	nonconvex = { i
+					for i in hole
+					if perpdot(proj[i]-proj[i-1], proj[(i+1)%l]-proj[i]) <= NUMPREC
+					}
+	
+	def priority(u,v):
+		''' priority criterion for 2D triangles, depending on its shape
+		'''
+		uv = length(u)*length(v)
+		if not uv:	return 0
+		return dot(u,v) / uv
+	
+	def score(i):
+		l = len(hole)
+		o = proj[hole[ i ]]
+		u = proj[hole[ (i+1)%l ]] - o
+		v = proj[hole[ (i-1)%l ]] - o
+		triangle = (hole[(i-1)%l], hole[i], hole[(i+1)%l])
+		
+		# check for badly oriented triangle
+		if perpdot(u,v) < -NUMPREC:		return -inf
+		# check for intersection with the rest
+		sc = priority(u,v)
+		if perpdot(u,v) > NUMPREC:
+			# check that there is not point of the outline inside the triangle
+			decomp = inverse(dmat2(u,v))
+			for j in nonconvex:
+				if j not in triangle:
+					uc,vc = decomp * dvec2(proj[j] - o)
+					if 0 <= uc and 0 <= vc and uc+vc <= 1:
+						sc = -inf
+						break
+		return sc
+	scores = [score(i) for i in range(len(hole))]
+	
+	triangles = []
+	while len(hole) > 2:
+		l = len(hole)
+		i = imax(scores)
+		if scores[i] == -inf:
+			raise TriangulationError("no more feasible triangles (algorithm failure or bad input outline)", [outline.indices[i] for i in hole])
+		triangles.append((
+			outline.indices[hole[(i-1)%l]], 
+			outline.indices[hole[i]], 
+			outline.indices[hole[(i+1)%l]],
+			))
+		nonconvex.discard(hole.pop(i))
+		scores.pop(i)
+		l -= 1
+		scores[(i-1)%l] = score((i-1)%l)
+		scores[i%l] = score(i%l)
+	
+	return Mesh(outline.points, triangles)
+
 def planeproject(pts, normal=None):
 	''' project an outline in a plane, to get its points as vec2 '''
 	x,y,z = guessbase(pts, normal)
