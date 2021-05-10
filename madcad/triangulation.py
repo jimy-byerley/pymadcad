@@ -260,6 +260,13 @@ def guessbase(pts, normal=None, thres=10*NUMPREC):
 	except StopIteration:
 		raise ValueError('unable to extract 2 directions')
 
+def convex_normal(web):
+	area = vec3(0)
+	pts = web.points
+	c = pts[web.edges[0][0]]
+	for e in web.edges:
+		area += cross(pts[e[1]] - pts[e[0]],  c - pts[e[0]])
+	return normalize(area)
 	
 	
 '''
@@ -720,7 +727,7 @@ def triangulation_closest(outline, normal=None):
 		return triangulation_outline(outline, normal)
 	else:
 		outline = web(outline)
-	x,y,z = guessbase(outline.points, normal)
+	x,y,z = dirbase(normal or convex_normal(outline))
 	result = Mesh(outline.points)
 	for loop in flat_loops(outline + line_bridges(outline), z):
 		result += triangulation_outline(loop, z)
