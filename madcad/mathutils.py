@@ -318,7 +318,7 @@ def imax(iterable, default=None):
 	best = default
 	score = -inf
 	for i,o in enumerate(iterable):
-		if o > score:
+		if o >= score:
 			score = o
 			best = i
 	if best is None:	raise IndexError('iterable is empty')
