@@ -2,6 +2,8 @@ from madcad import *
 from madcad.triangulation import *
 from copy import copy
 
+from variants import variants
+
 res = 13
 lines = Web(
 		[ vec3(2*cos(i/res*2*pi), 2*sin(i/res*2*pi), 0)	for i in range(res) ]
@@ -10,27 +12,24 @@ lines = Web(
 	)
 
 # tests variants over those points
-for variant in range(1<<4):
+for variant in variants(connection=range(4)):
 	w = copy(lines)
-	hole = variant & 0b0001
-	hole_cluster = variant & 0b0010
-	connection = variant >>2
 	
 	# with a hole piercing
-	if hole:
+	if variant['hole']:
 		w += Web(w.points, [ (i +res, (i+1)%res +res)  for i in range(res) ])
-	# with a hole filled
-	if hole_cluster:
-		w += Web(w.points, [ ((i+1)%res +res, i +res)  for i in range(res) ])
+		# with a hole filled
+		if variant['hole_cluster']:
+			w += Web(w.points, [ ((i+1)%res +res, i +res)  for i in range(res) ])
 		
 		# with connections between holes
-		if connection & 1:
+		if variant['connection'] & 0b01:
 			w += Web(w.points, [ (0,25), (25,0) ])		# y oriented
 		# with double connection
-		if connection & 1<<2:
+		if variant['connection'] & 0b10:
 			w += Web(w.points, [ (12,13), (13,12) ])	    # random
 
-	print('case', bin(variant))
+	print(variant)
 	w.check()
 	f = triangulation(w)
 	f.mergeclose()
@@ -40,6 +39,9 @@ for variant in range(1<<4):
 		print(w.edges)
 		show([w, f], options={'display_wire':True})
 		raise
+		
+	if variant['hole'] and variant['hole_cluster'] and variant['connection']:
+		show([w, f], options={'display_wire':True})
 
 # higher resolution test
 print('case splines')
