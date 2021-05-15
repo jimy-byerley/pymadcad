@@ -1,6 +1,6 @@
 from madcad import *
 from madcad.triangulation import *
-from copy import copy
+from copy import deepcopy
 
 from variants import variants
 
@@ -13,7 +13,7 @@ lines = Web(
 
 # tests variants over those points
 for variant in variants(connection=range(4)):
-	w = copy(lines)
+	w = deepcopy(lines)
 	
 	# with a hole piercing
 	if variant['hole']:
@@ -39,9 +39,6 @@ for variant in variants(connection=range(4)):
 		print(w.edges)
 		show([w, f], options={'display_wire':True})
 		raise
-		
-	if variant['hole'] and variant['hole_cluster'] and variant['connection']:
-		show([w, f], options={'display_wire':True})
 
 # higher resolution test
 print('case splines')
