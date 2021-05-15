@@ -1,9 +1,4 @@
-from nprint import nprint
-from copy import deepcopy
-from math import cos,sin,pi
-from madcad.mathutils import vec3
-from madcad.mesh import Mesh,Wire,Web, web
-from madcad import primitives
+from madcad import *
 from madcad.triangulation import *
 
 rectangle = Wire([vec3(0,0,0), vec3(2,0,0), vec3(2,3,0), vec3(0,3,0)])
@@ -34,14 +29,5 @@ for shapename in ['rectangle', 'scomplex', 'scircle', 'sharicot']:
 # display a specific case
 shape = scomplex
 mesh = triangulation_outline(shape, vec3(0,0,1))
-mesh.options.update({'debug_display':True, 'debug_points':True})
 
-from madcad import view
-import sys
-from PyQt5.QtWidgets import QApplication
-app = QApplication(sys.argv)
-main = scn3D = view.Scene()
-scn3D.add(shape)
-scn3D.add(mesh)
-main.show()
-sys.exit(app.exec())
+show([shape, mesh], options={'display_wire':True})
