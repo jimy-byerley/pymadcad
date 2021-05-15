@@ -616,19 +616,17 @@ def gearexterior(
 	else:
 		if helix_angle: # helical teeth case
 			# Edges of teeth
-			# step = 50
 			square_radius = max(length2(v) for v in profile.points)
 			R = sqrt(square_radius)
 			step = curve_resolution(depth / cos(helix_angle), depth * tan(helix_angle) / R)
-			step = step if step else 1
 			Z = vec3(0, 0, 1)
-			angle = helix_angle / step
-			h = depth / step
+			angle = depth * tan(helix_angle) / R / (step + 1)
+			h = depth / (step + 1)
 			bottom_gear_edge = profile.transform(vec3(0, 0, -half_depth))
-			transformations = (transform((vec3(0, 0, i * h), angleAxis(angle * i, Z))) for i in range(step + 1))
-			links = ((i, i + 1, 0) if i - step else (i, 0, 0) for i in range(step + 1))
+			transformations = (transform((vec3(0, 0, i * h), angleAxis(angle * i, Z))) for i in range(step + 2))
+			links = ((i, i + 1, 0) for i in range(step + 1))
 			gear_surface = extrans(bottom_gear_edge, transformations, links)
-			t = transform((vec3(0, 0, depth), angleAxis(helix_angle, Z)))
+			t = transform((vec3(0, 0, depth), angleAxis(depth * tan(helix_angle) / R, Z)))
 			top_gear_edge = bottom_gear_edge.transform(t)
 		else: # straight teeth case
 			# Edges of teeth
@@ -755,6 +753,7 @@ def geargather(exterior: Mesh, structure: Mesh, hub: Mesh) -> Mesh:
 
 	mesh = exterior + j1 + structure + j2 + hub
 	mesh.mergeclose()
+	# print(mesh.isenvelope())
 	return mesh
 
 def gear(
