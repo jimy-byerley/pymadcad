@@ -35,6 +35,7 @@ for variant in variants(connection=range(4)):
 	f.mergeclose()
 	try:
 		f.check()
+		assert f.issurface()
 	except:
 		print(w.edges)
 		show([w, f], options={'display_wire':True})
@@ -68,6 +69,7 @@ lines = web(out).flip() + web(inside)
 lines.mergeclose()
 face = triangulation(lines)
 face.check()
+assert face.issurface()
 
 # circles test
 print('case circles')
@@ -84,6 +86,7 @@ lines = web([
 lines.mergeclose()
 face = triangulation(lines)
 face.check()
+assert face.issurface()
 
 # final display
 show([face], options={'display_wire':True})
