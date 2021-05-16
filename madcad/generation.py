@@ -236,7 +236,8 @@ def inflate(surf, distance, method='face') -> 'Mesh':
 
 		:method:       determines if the distance is from the old to the new faces, edges or points
 	'''
-	return Mesh([p+d   for p,d in zip(surf.points, inflateoffsets(surf, distance, method))],
+	return Mesh(
+				typedlist((p+d   for p,d in zip(surf.points, inflateoffsets(surf, distance, method))), dtype=vec3),
 				surf.faces,
 				surf.tracks,
 				surf.groups)
@@ -252,9 +253,17 @@ def thicken(surf, thickness, alignment=0, method='face') -> 'Mesh':
 	
 	a = alignment
 	b = alignment-1
-	m = (	Mesh([p+d*a  for p,d in zip(surf.points,displts)], surf.faces[:], surf.tracks[:], surf.groups)
-		+	Mesh([p+d*b  for p,d in zip(surf.points,displts)], surf.faces, surf.tracks, surf.groups[:])
-			.flip() 
+	m = (	Mesh(
+				typedlist((p+d*a  for p,d in zip(surf.points,displts)), dtype=vec3), 
+				surf.faces[:], 
+				surf.tracks[:], 
+				surf.groups)
+		+	Mesh(
+				typedlist((p+d*b  for p,d in zip(surf.points,displts)), dtype=vec3), 
+				surf.faces, 
+				surf.tracks, 
+				surf.groups[:]
+				) .flip() 
 		)
 	t = len(m.groups)
 	l = len(surf.points)
