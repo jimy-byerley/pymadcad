@@ -209,7 +209,7 @@ class Mesh(Container):
 	def __init__(self, points=None, faces=None, tracks=None, groups=None, options=None):
 		self.points = points or typedlist(dtype=vec3)
 		self.faces = faces or typedlist(dtype=uvec3)
-		self.tracks = typedlist.full(uint32(0), len(self.faces))
+		self.tracks = tracks or typedlist.full(uint32(0), len(self.faces))
 		self.groups = groups or [None] * (max(self.tracks, default=-1)+1)
 		self.options = options or {}
 	
@@ -528,7 +528,8 @@ class Mesh(Container):
 		couples = OrderedDict()
 		belong = {}
 		for i,face in enumerate(self.faces):
-			if groups and self.tracks[i] not in groups:	continue
+			if groups and self.tracks[i] not in groups:	
+				continue
 			for edge in ((face[0],face[1]),(face[1],face[2]),(face[2],face[0])):
 				e = edgekey(*edge)
 				if e in belong:
@@ -843,11 +844,11 @@ class Mesh(Container):
 			return displays.Display()
 		
 		return displays.SolidDisplay(scene, 
-				m.points, 
-				normals, 
-				m.faces, 
-				edges,
-				idents,
+				m.points .convert('3f4'), 
+				normals .convert('3f4'), 
+				m.faces .convert('3u4'),
+				edges .convert('2u4'),
+				idents .convert('u4'),
 				color = self.options.get('color'),
 				)
 	
@@ -1179,7 +1180,7 @@ def glmarray(array, dtype='f4'):
 	buff = np.empty((len(array), len(array[0])), dtype=dtype)
 	for i,e in enumerate(array):
 		buff[i][:] = e
-	return buff
+	return buff 
 
 def web(*arg):
 	''' Build a web object from supported objects:

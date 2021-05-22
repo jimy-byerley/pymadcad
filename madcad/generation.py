@@ -399,7 +399,7 @@ def brick(*args, **kwargs) -> 'Mesh':
 	else:							
 		box = Box(*args, **kwargs)
 	mesh = Mesh(
-		[
+		typedlist([
 			vec3(1, 0, 0),
 			vec3(1, 0, 1),
 			vec3(0, 0, 1),
@@ -407,21 +407,21 @@ def brick(*args, **kwargs) -> 'Mesh':
 			vec3(1, 1, 0),
 			vec3(1, 1, 1),
 			vec3(0, 1, 1),
-			vec3(0, 1, 0)],
-		[
-			(0, 1, 2),
-			(0, 2, 3),
-			(4, 7, 6),
-			(4, 6, 5),
-			(0, 4, 5),
-			(0, 5, 1),
-			(1, 5, 6),
-			(1, 6, 2),
-			(2, 6, 7),
-			(2, 7, 3),
-			(4, 0, 3),
-			(4, 3, 7)],
-		[	0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5	],
+			vec3(0, 1, 0)]),
+		typedlist([
+			uvec3(0, 1, 2),
+			uvec3(0, 2, 3),
+			uvec3(4, 7, 6),
+			uvec3(4, 6, 5),
+			uvec3(0, 4, 5),
+			uvec3(0, 5, 1),
+			uvec3(1, 5, 6),
+			uvec3(1, 6, 2),
+			uvec3(2, 6, 7),
+			uvec3(2, 7, 3),
+			uvec3(4, 0, 3),
+			uvec3(4, 3, 7)]),
+		typedlist([	0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5	], dtype=uint32),
 		[None] * 6,
 		)
 	for i in range(len(mesh.points)):
@@ -442,26 +442,27 @@ def square(axis, width:float) -> 'Mesh':
 def icosahedron(center, radius) -> 'Mesh':
 	''' a simple icosahedron (see https://en.wikipedia.org/wiki/Icosahedron) '''
 	phi = (1+ sqrt(5)) /2	# golden ratio
-	m = Mesh([
-		vec3(0, 1, phi),
-		vec3(1, phi, 0),
-		vec3(phi, 0, 1),
-		vec3(0, -1, phi),
-		vec3(-1, phi, 0),
-		vec3(phi, 0, -1),
-		vec3(0, 1, -phi),
-		vec3(1, -phi, 0),
-		vec3(-phi, 0, 1),
-		vec3(0, -1, -phi),
-		vec3(-1, -phi, 0),
-		vec3(-phi, 0, -1),
-		],
-		[
-		(0,1,4), (0,2,1), (0,3,2), (0,8,3), (0,4,8),
-		(2,5,1), (1,6,4), (4,11,8), (8,10,3), (3,7,2),
-		(3,10,7), (2,7,5), (1,5,6), (4,6,11), (8,11,10),
-		(7,9,5), (5,9,6), (6,9,11), (11,9,10), (10,9,7),
-		],
+	m = Mesh(
+		typedlist([
+			vec3(0, 1, phi),
+			vec3(1, phi, 0),
+			vec3(phi, 0, 1),
+			vec3(0, -1, phi),
+			vec3(-1, phi, 0),
+			vec3(phi, 0, -1),
+			vec3(0, 1, -phi),
+			vec3(1, -phi, 0),
+			vec3(-phi, 0, 1),
+			vec3(0, -1, -phi),
+			vec3(-1, -phi, 0),
+			vec3(-phi, 0, -1),
+		]),
+		typedlist([
+			uvec3(0,1,4), uvec3(0,2,1), uvec3(0,3,2), uvec3(0,8,3), uvec3(0,4,8),
+			uvec3(2,5,1), uvec3(1,6,4), uvec3(4,11,8), uvec3(8,10,3), uvec3(3,7,2),
+			uvec3(3,10,7), uvec3(2,7,5), uvec3(1,5,6), uvec3(4,6,11), uvec3(8,11,10),
+			uvec3(7,9,5), uvec3(5,9,6), uvec3(6,9,11), uvec3(11,9,10), uvec3(10,9,7),
+		]),
 		)
 	f = radius/length(m.points[0])
 	for i,p in enumerate(m.points):

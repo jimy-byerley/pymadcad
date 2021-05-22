@@ -925,7 +925,7 @@ def wire_multicut(wire, points, cutter):
 		wire.indices[start:end] = [m,m+1]
 		wire.tracks[start:end-1] = [g]
 		
-		cuts.append((m,m+1))
+		cuts.append((m,m+1))  # point interval including start and excluding end
 	return cuts
 		
 @chamfer.register(Wire)
