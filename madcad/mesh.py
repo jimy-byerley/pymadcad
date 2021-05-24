@@ -483,8 +483,9 @@ class Mesh(Container):
 		return Web(self.points, list(self.outlines_oriented()))
 		
 	def groupoutlines(self):
-		''' return a dict of ORIENTED edges indexing groups 
-			On a frontier between 2 groups, there is 2 opposite edges indexing the different groups
+		''' return a dict of ORIENTED edges indexing groups.
+			
+			On a frontier between multiple groups, there is as many edges as groups, each associated to a group.
 		'''
 		edges = []	# outline
 		tracks = []	# groups for edges
@@ -504,7 +505,7 @@ class Mesh(Container):
 		return Web(self.points, edges, tracks, self.groups)
 		
 	def frontiers(self, *args):
-		''' return a Web of UNORIENTED edges between the given groups 
+		''' return a Web of UNORIENTED edges that split the given groups appart.
 		
 			if groups is None, then return the frontiers between any groups
 		'''
@@ -1022,6 +1023,8 @@ class Web(Container):
 	def groupextremities(self):
 		''' return the extremities of each group.
 			1D equivalent of Mesh.groupoutlines()
+			
+			On a frontier between multiple groups, there is as many points as groups, each associated to a group.
 		'''
 		indices = []
 		tracks = []
