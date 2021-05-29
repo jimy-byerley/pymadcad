@@ -33,6 +33,7 @@ submodules
 	rendering.rst
 	scheme.rst
 	standard.rst
+	gear.rst
 
 .. py:module:: madcad
 
