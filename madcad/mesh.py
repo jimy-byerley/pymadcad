@@ -58,7 +58,7 @@ class Container:
 		''' apply the transform to the points of the mesh, returning the new transformed mesh'''
 		trans = transformer(trans)
 		transformed = copy(self)
-		transformed.points = list(map(trans, self.points))
+		transformed.points = typedlist((trans(p) for p in self.points), dtype=vec3)
 		return transformed
 			
 	def mergeclose(self, limit=None, start=0):
@@ -350,6 +350,7 @@ class Mesh(Container):
 		''' normal for a face '''
 		if isinstance(f, int):	
 			f = self.faces[f]
+		print('face', f)
 		p0 = self.points[f[0]]
 		e1 = self.points[f[1]] - p0
 		e2 = self.points[f[2]] - p0
@@ -591,7 +592,7 @@ class Mesh(Container):
 			else:
 				idents[pt] = track
 				return pt
-		faces = [uvec3(repl(a,t), repl(b,t), repl(c,t))  for (a,b,c),t in zip(self.faces, self.tracks)]
+		faces = typedlist((uvec3(repl(a,t), repl(b,t), repl(c,t))  for (a,b,c),t in zip(self.faces, self.tracks)), dtype=uvec3)
 		
 		self.points = points
 		self.faces = faces
@@ -844,11 +845,11 @@ class Mesh(Container):
 			return displays.Display()
 		
 		return displays.SolidDisplay(scene, 
-				m.points .convert('3f4'), 
-				normals .convert('3f4'), 
-				m.faces .convert('3u4'),
-				edges .convert('2u4'),
-				idents .convert('u4'),
+				npcast(m.points) .astype('f4'), 
+				npcast(normals) .astype('f4'), 
+				npcast(m.faces),
+				npcast(edges),
+				npcast(idents),
 				color = self.options.get('color'),
 				)
 	
@@ -883,6 +884,20 @@ def striplist(list, used):
 	list[j:] = []
 	return reindex
 
+def npcast(storage, dtype=None):
+	if isinstance(storage, typedlist):
+		raw = np.array(storage, copy=False)
+		if raw.dtype.fields:
+			return np.stack([ raw[f] for f in raw.dtype.fields.keys() ], axis=-1)
+		else:
+			return raw
+	elif hasattr(storage[0], '__len__'):
+		buff = np.empty((len(storage), len(storage[0])), dtype=dtype)
+		for i,e in enumerate(storage):
+			buff[i][:] = e
+		return buff
+	else:
+		return np.array(storage, dtype=dtype)
 
 
 class Web(Container):
