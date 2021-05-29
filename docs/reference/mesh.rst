@@ -54,7 +54,6 @@ classes
 		.. automethod:: outlines_unoriented
 		.. automethod:: outlines
 		.. automethod:: groupoutlines
-		.. automethod:: groupoutlines_oriented
 		.. automethod:: frontiers
 		.. automethod:: tangents
 		.. automethod:: islands
