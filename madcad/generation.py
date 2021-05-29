@@ -344,7 +344,7 @@ def dividedtriangle(placement, div=1) -> 'Mesh':
 			s = c+j
 			mesh.faces.append((s, s+i-1, s+i))
 		c += i
-	mesh.tracks = [0] * len(mesh.faces)
+	mesh.tracks = typedlist([uint32(0)]) * len(mesh.faces)
 
 	return mesh
 
@@ -352,9 +352,9 @@ def dividedtriangle(placement, div=1) -> 'Mesh':
 def subdivide(mesh, div=1) -> 'Mesh':
 	''' subdivide all faces by the number of cuts '''
 	n = div+2
-	pts = []
-	faces = []
-	tracks = []
+	pts = typedlist(dtype=vec3)
+	faces = typedlist(dtype=uvec3)
+	tracks = typedlist(dtype=uint32)
 	c = 0
 	for f,t in enumerate(mesh.tracks):
 		# place the points
@@ -371,10 +371,10 @@ def subdivide(mesh, div=1) -> 'Mesh':
 		for i in reversed(range(1,n+1)):
 			for j in range(i-1):
 				s = c+j
-				faces.append((s, s+i, s+1))
+				faces.append(uvec3(s, s+i, s+1))
 			for j in range(1,i-1):
 				s = c+j
-				faces.append((s, s+i-1, s+i))
+				faces.append(uvec3(s, s+i-1, s+i))
 			c += i
 		tracks.extend([t] * (len(faces)-len(tracks)))
 	
@@ -434,8 +434,8 @@ def square(axis, width:float) -> 'Mesh':
 	'''
 	x,y,z = dirbase(axis[1])
 	return Mesh(
-		[axis[0]+0.6*width*p   for p in ((x+y), (y-x), (-y-x), (-y+x))],
-		[(0,1,2), (2,3,0)],
+		typedlist([axis[0]+0.6*width*p   for p in ((x+y), (y-x), (-y-x), (-y+x))]),
+		typedlist([uvec3(0,1,2), uvec3(2,3,0)]),
 		groups=['flat'],
 		)
 

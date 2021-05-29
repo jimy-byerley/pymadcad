@@ -443,7 +443,7 @@ class FacesDisplay:
 		self.shader = scene.ressource('shader_solid', load)
 		self.ident_shader = scene.ressource('shader_subident')
 		# allocate buffers
-		if faces and vertices.vb_positions:
+		if faces is not None and len(faces) and vertices.vb_positions:
 			vb_faces = scene.ctx.buffer(np.array(faces, 'u4', copy=False))
 			vb_normals = scene.ctx.buffer(np.array(normals, 'f4', copy=False))
 			self.va = scene.ctx.vertex_array(
@@ -504,7 +504,7 @@ class GhostDisplay:
 		self.shader = scene.ressource('shader_ghost', load)
 		self.ident_shader = scene.ressource('shader_subident')
 		# allocate buffers
-		if faces and vertices.vb_positions:
+		if faces is not None and len(faces) and vertices.vb_positions:
 			vb_faces = scene.ctx.buffer(np.array(faces, 'u4', copy=False))
 			vb_normals = scene.ctx.buffer(np.array(normals, 'f4', copy=False))
 			self.va = scene.ctx.vertex_array(
@@ -556,7 +556,7 @@ class LinesDisplay:
 		# load the line shader
 		self.shader = scene.ressource('shader_wire', shader_wire)
 		self.ident_shader = scene.ressource('shader_subident')
-		if lines and vertices.vb_positions:
+		if lines is not None and len(lines) and vertices.vb_positions:
 			# allocate buffers
 			vb_lines = scene.ctx.buffer(np.array(lines, dtype='u4', copy=False))
 			self.va = scene.ctx.vertex_array(

@@ -275,13 +275,13 @@ def triangulation_outline(outline: Wire, normal=None) -> Mesh:
 		return sc
 	scores = [score(i) for i in range(len(hole))]
 	
-	triangles = []
+	triangles = typedlist(dtype=uvec3)
 	while len(hole) > 2:
 		l = len(hole)
 		i = imax(scores)
 		if scores[i] == -inf:
 			raise TriangulationError("no more feasible triangles (algorithm failure or bad input outline)", [outline.indices[i] for i in hole])
-		triangles.append((
+		triangles.append(uvec3(
 			outline.indices[hole[(i-1)%l]], 
 			outline.indices[hole[i]], 
 			outline.indices[hole[(i+1)%l]],
@@ -301,7 +301,7 @@ def planeproject(pts, normal=None):
 	l = len(pts)
 	if dot(z, cross(pts[(i+1)%l]-pts[i], pts[(i-1)%l]-pts[i])) < 0:
 		y = -y
-	return [vec2(dot(p,x), dot(p,y))	for p in pts]
+	return typedlist(vec2(dot(p,x), dot(p,y))	for p in pts)
 
 def guessbase(pts, normal=None, thres=10*NUMPREC):
 	''' build a base in which the points will be in plane XY 
