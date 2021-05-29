@@ -142,7 +142,7 @@ def surfscrewgear(profile, m, z, b, radius, n=1, axis=(vec3(0,0,0), vec3(0,0,1))
 	
 def rackprofile(step, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=None) -> Wire:
 	if h is None:
-		h = default_h(step, alpha)
+		h = default_height(step, alpha)
 	e = h*e
 	
 	return Wire([
@@ -154,17 +154,19 @@ def rackprofile(step, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=None
 		], groups=['rack'])
 
 
-def gearprofile(step, z, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=None) -> Wire:
+def gearprofile(step, z, h=None, offset=0, alpha=radians(30), resolution=None) -> Wire:
 	if h is None:
-		h = default_h(step, alpha)
-	e = h*e
+		h = default_height(step, alpha)
 	p = step*z / (2*pi)	# primitive circle
 	c = p * cos(alpha)	# tangent circle to gliding axis
+	e = offset  # change name for convenience
+	#e = offset + 0.05*h  # the real offset is 5% (the 1*m, 1.25*m) when the standard says it is 0
+	x = 0.5 + 2*offset/p*tan(alpha)  # fraction of the tooth above the primitive circle
 	
 	o0 = angle(involute(c, 0, tan(alpha)))	# offset of contact curve
-	oi = atan((h+e)/p * tan(alpha))		# offset of interference curve
+	oi = atan((h-e)/p * tan(alpha))		# offset of interference curve
 	
-	l0 = involuteat(c, p+h-e)	# interval size of contact curve
+	l0 = involuteat(c, p+h+e)	# interval size of contact curve
 	
 	# if the tooth height is unreachable, find the intersection between the two contact curves
 	t0 = -step/(2*p)*x - o0
@@ -178,32 +180,32 @@ def gearprofile(step, z, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=N
 		l0 = t-t0
 	
 	# if there is an interference curve
-	interference = c > p-h-e
+	interference = c > p-h+e
 	if interference:
 		# Newton solver method 
 		# to compute the parameters (t1, t2) of the intersection between contact line and interference line
 		t0, ti = o0, oi
 		# initial state
 		t1 = t0 - tan(alpha)	# put contact line on primitive
-		t2 = ti + sqrt(c**2 - (p-h-e)**2) /p	# put interference point on base circle
+		t2 = ti + sqrt(c**2 - (p-h+e)**2) /p	# put interference point on base circle
 		for i in range(8):
 			ct1, ct2 = cos(t1), cos(t2)
 			st1, st2 = sin(t1), sin(t2)
 			# function value
 			f = (	c*vec2(ct1,st1) + c*(t0-t1)*vec2(-st1,ct1) 
-				+	(h+e-p)*vec2(ct2,st2) -p*(ti-t2)*vec2(-st2,ct2)	
+				+	(h-e-p)*vec2(ct2,st2) -p*(ti-t2)*vec2(-st2,ct2)	
 				)
 			# jacobian matrix (f partial derivatives)
 			J = mat2(
 				-c*(t0-t1)*vec2(ct1,st1), 
-				p*(ti-t2)*vec2(ct2,st2) + (h+e)*vec2(-st2,ct2),
+				p*(ti-t2)*vec2(ct2,st2) + (h-e)*vec2(-st2,ct2),
 				)
 			# iteration
 			t1, t2 = vec2(t1,t2) - inverse(J)*f
 		li = t2 - ti	# interval size of interference curve
 		s0 = t0 - t1	# generation start of contact curve
 	else:
-		s0 = involuteat(c, p-h-e)
+		s0 = involuteat(c, p-h+e)
 	
 	pts = []
 	n = 2 + settings.curve_resolution(h, step/p, resolution)	# number of points to place
@@ -221,7 +223,7 @@ def gearprofile(step, z, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=N
 	if interference:
 		for i in range(n+1):
 			t = interpol1(ti+li, ti, i/n)
-			v = involuteof(p, ti, -h-e, t)
+			v = involuteof(p, ti, -h+e, t)
 			pts.append(vec3(v,0))
 	
 	# parameters for second side
@@ -232,7 +234,7 @@ def gearprofile(step, z, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=N
 	if interference:
 		for i in range(n+1):
 			t = interpol1(ti, ti-li, i/n)
-			v = involuteof(p, ti, -h-e, t)
+			v = involuteof(p, ti, -h+e, t)
 			pts.append(vec3(v,0))
 	# contact line
 	for i in range(n+1):
@@ -244,19 +246,19 @@ def gearprofile(step, z, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=N
 	
 	return Wire(pts, groups=['gear'])
 	
-def gearcircles(step, z, h=None, e=-0.05, x=0.5, alpha=radians(30)):
+def gearcircles(step, z, h=None, offset=0, alpha=radians(30)):
 	''' return the convenient circles radius for a gear with the given parameters 
 		return is `(primitive, base, bottom, top)`
 	'''
 	if h is None:
-		h = default_h(step, alpha)
+		h = default_height(step, alpha)
 	e = h*e
 	p = step*z / (2*pi)	# primitive circle
 	c = p * cos(alpha)	# tangent circle to gliding axis
 	return p, c, p-h-e, p+h-e
 	
 	
-def default_h(step, alpha):
+def default_height(step, alpha):
 	return 0.5 * 2.25 * step/pi * cos(alpha)/cos(radians(20))
 
 def involute(c, t0, t):

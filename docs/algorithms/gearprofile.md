@@ -45,12 +45,12 @@ An involute is symetric over $t_0$:
 - $ z = $ number of tooths on the gear
 - $ alpha = $ pressure angle (angle of the rack tooths)
 - $ h = $ rack half height = $ text(total height) / 2 $
-- $ e = $ deport (fraction of h to shift the top and bottom of the rack). Useful to avoid the interference to be too big on the tooth.
-- $ x = $ fraction of the rack above the primitive (usually 0.5)
+- $ e = $ (offset) amount to shift up the top and bottom of the rack, it does not change the tooth sides.
+- $ x = $ fraction of the rack above the primitive (close to 0.5), usually $ 0.5 + 2 e/p  tan(alpha) $
 
 #### useful circles
 
-- $ p = $ primitive radius $ = s*z/(2*pi) $
+- $ p = $ primitive radius $ = (s z) / ( 2 pi ) $
 - $ c = $ base circle radius $ = p cos(alpha) $
 - $ p - h - e = $ bottom circle radius
 - $ p + h - e = $ top circle radius
