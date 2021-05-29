@@ -1,33 +1,134 @@
-from madcad.mathutils import *
+#!/usr/bin/python3
 from madcad.gear import *
-from madcad import show
-import numpy as np
-from matplotlib import pyplot as plt
-from time import time
+from madcad.mesh import edgekey, facekeyo
 
-m = 1
-z = 10
-b = 3
+# Colors
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
-start = time()
-linear = racktooth(radians(20), 0.4, 0.3)
-angular = geartooth(linear, 2*pi/z)
-print('computation time', time()-start)
 
-if True:
-	# display profile
-	plt.plot([p[0] for p in linear], [p[1] for p in linear], label='rack')
-	plt.plot([p[0] for p in angular], [p[1] for p in angular], '.-', label='gear')
-	plt.axes().set_aspect('equal')
-	plt.figlegend()
-	plt.show()
+def test_gear(name, *args, **kwargs):
+    print("{}: {}, {}".format(name, args, kwargs))
+    try:
+        mesh = gear(*args, **kwargs)
+        if mesh.isenvelope():
+            print(f"{bcolors.OKGREEN}Passed !\n{bcolors.ENDC}")
+        else:
+            print(f"{bcolors.FAIL}>>> Failed ! <<<\n{bcolors.ENDC}")
+    except Exception as e:
+        print(bcolors.WARNING + str(e) + bcolors.ENDC)
+        print(f"{bcolors.FAIL}>>> Failed ! <<<\n{bcolors.ENDC}")
 
-if True:
-	# display gear surfaces
-	res = surfgear(angular, m, z, b)
-	#res = surfgear(angular, m, z, b, spin=radians(30))
-	#res = surfscrewgear(angular, m, z, b, 0.6*b, 3)
-	res.check()
-	assert res.issurface()
-	
-	show([res])
+def testing(function):
+    def wrapper(name, *args, **kwargs):
+        print("{}: {}, {}".format(name, args, kwargs))
+        try:
+            function(name, *args, **kwargs)
+            print(f"{bcolors.OKGREEN}Passed !\n{bcolors.ENDC}")
+        except Exception as e:
+            print(bcolors.WARNING + str(e) + bcolors.ENDC)
+            print(f"{bcolors.FAIL}>>> Failed ! <<<\n{bcolors.ENDC}")
+    return wrapper
+
+@testing
+def test_full(name, *args, **kwargs):
+    full_pattern(*args, **kwargs)
+
+@testing
+def test_circle(name, *args, **kwargs):
+    circle_pattern(*args, **kwargs)
+
+@testing
+def test_rect(name, *args, **kwargs):
+    rect_pattern(*args, **kwargs)
+
+@testing
+def test_rounded(name, *args, **kwargs):
+    rounded_pattern(*args, **kwargs)
+
+# Automatic part
+
+test_gear("full test", 10, 30, 10)
+test_gear("helical test", 10, 30, 10, helix_angle = radians(20))
+test_gear("chamfer test", 10, 30, 10, chamfer = pi / 3)
+test_gear("circle test", 10, 30, 10, pattern = "circle")
+test_gear("rect test", 10, 30, 10, pattern = "rect")
+test_gear("rounded test", 10, 30, 10, pattern = "rounded")
+test_gear("hub test", 10, 30, 10, bore_radius = 5)
+
+# Custom part
+
+test_gear("only bore test", 10, 30, 10, bore_radius = 5, hub_height = 0)
+test_gear("height hub test", 10, 30, 10, bore_radius = 5, hub_height = 10)
+test_gear("circle spec height test", 10, 30, 10, pattern = "circle", int_height = 2.5)
+test_gear("rect spec height test", 10, 30, 10, pattern = "rect", int_height = 2.5)
+test_gear("rounded spec height test", 10, 30, 10, pattern = "rounded", int_height = 2.5)
+
+# Different values
+
+test_gear("gearprofile values test", 10, 20, 15)
+test_gear("gearprofile values test", 15, 25, 15)
+test_gear("gearprofile values test", 1.2, 5, 2)
+test_gear("gearprofile values test", 2, 10, 2)
+
+test_gear("gearexterior values test", 10, 20, 15, chamfer = pi/4)
+test_gear("gearexterior values test", 10, 20, 15, helix_angle = radians(20))
+test_gear("gearexterior values test", 15, 25, 15, chamfer = pi/5)
+test_gear("gearexterior values test", 15, 25, 15, helix_angle = radians(22))
+test_gear("gearexterior values test", 1.2, 5, 2, chamfer = pi/6)
+test_gear("gearexterior values test", 1.2, 5, 2, helix_angle = radians(20))
+test_gear("gearexterior values test", 2, 10, 2, chamfer = pi/8)
+test_gear("gearexterior values test", 2, 10, 2, helix_angle = radians(30))
+
+# full pattern tests
+test_full("test full pattern", 10, 5, 5, int_height = 2)
+test_full("test full pattern", 20, 5, 15, int_height = 5)
+test_full("test full pattern", 60.5, 52, 1, int_height = 0)
+test_full("test full pattern", 15, 5, 15, int_height = 0)
+
+# circle pattern tests
+test_circle("test circle pattern", 10, 5, 5, int_height = 2)
+test_circle("test circle pattern", 20, 5, 15, int_height = 5, ratio = 1.5)
+test_circle("test circle pattern", 60.5, 52, 1, int_height = 0, ratio = 0.5)
+test_circle("test circle pattern", 15, 5, 15, int_height = 0)
+test_circle("test circle pattern", 30, 2, 15, int_height = 0, r_int = 5, r_ext = 15)
+test_circle("test circle pattern", 60, 5, 15, int_height = 0, r_int = 5, r_ext = 25.5)
+test_circle("test circle pattern", 5, 0.2, 15, int_height = 0, r_int = 0.2, r_ext = 3)
+test_circle("test circle pattern", 15, 5, 15, int_height = 5, n_circles = 6)
+test_circle("test circle pattern", 15, 5, 15, int_height = 5, n_circles = 4)
+test_circle("test circle pattern", 15, 5, 15, int_height = 5, n_circles = 3)
+test_circle("test circle pattern", 15, 5, 15, int_height = 5, n_circles = 2)
+
+# rect pattern tests
+test_rect("test rect pattern", 10, 5, 5, int_height = 2)
+test_rect("test rect pattern", 20, 5, 15, int_height = 5, ratio = 0.8)
+test_rect("test rect pattern", 60.5, 52, 1, int_height = 0, ratio = 1.5)
+test_rect("test rect pattern", 15, 5, 15, int_height = 0) # ...
+test_rect("test rect pattern", 30, 2, 15, int_height = 0, r_int = 5, r_ext = 15)
+test_rect("test rect pattern", 60, 5, 15, int_height = 0, r_int = 10, r_ext = 25.5)
+test_rect("test rect pattern", 5, 0.2, 15, int_height = 0, r_int = 1, r_ext = 3) # ...
+test_rect("test rect pattern", 15, 5, 15, int_height = 5, n_patterns = 6)
+test_rect("test rect pattern", 15, 5, 15, int_height = 5, n_patterns = 4) # ...
+test_rect("test rect pattern", 15, 5, 15, int_height = 5, n_patterns = 3) # ...
+test_rect("test rect pattern", 15, 5, 15, int_height = 5, n_patterns = 2)
+
+# rounded pattern tests
+test_rounded("test rounded pattern", 10, 5, 5, int_height = 2)
+test_rounded("test rounded pattern", 20, 5, 15, int_height = 5, ratio = 0.8)
+test_rounded("test rounded pattern", 60.5, 52, 1, int_height = 0, ratio = 1.5)
+test_rounded("test rounded pattern", 15, 5, 15, int_height = 0) # ...
+test_rounded("test rounded pattern", 30, 2, 15, int_height = 0, r_int = 5, r_ext = 15)
+test_rounded("test rounded pattern", 60, 5, 15, int_height = 0, r_int = 10, r_ext = 25.5)
+test_rounded("test rounded pattern", 5, 0.2, 15, int_height = 0, r_int = 1, r_ext = 3) # ...
+test_rounded("test rounded pattern", 15, 5, 15, int_height = 5, n_patterns = 6)
+test_rounded("test rounded pattern", 15, 5, 15, int_height = 5, n_patterns = 4) # ...
+test_rounded("test rounded pattern", 15, 5, 15, int_height = 5, n_patterns = 3) # ...
+test_rounded("test rounded pattern", 15, 5, 15, int_height = 5, n_patterns = 2)
