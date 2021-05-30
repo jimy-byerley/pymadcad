@@ -232,7 +232,7 @@ def triangulation_outline(outline: Wire, normal=None, prec=None) -> Mesh:
 	'''
 	# get a normal in the right direction for loop winding
 	if not normal:		normal = outline.normal()
-	if prec is None:	prec = outline.precision()
+	if prec is None:	prec = outline.precision() **2
 	# project all points in the plane
 	try:				proj = planeproject(outline, normal)
 	except ValueError:	return Mesh()
@@ -243,7 +243,7 @@ def triangulation_outline(outline: Wire, normal=None, prec=None) -> Mesh:
 	l = len(outline.indices)
 	nonconvex = { i
 					for i in hole
-					if perpdot(proj[i]-proj[i-1], proj[(i+1)%l]-proj[i]) <= NUMPREC
+					if perpdot(proj[i]-proj[i-1], proj[(i+1)%l]-proj[i]) <= prec
 					}
 	
 	def priority(u,v):
@@ -269,7 +269,7 @@ def triangulation_outline(outline: Wire, normal=None, prec=None) -> Mesh:
 				if j not in triangle:
 					for k in range(3):
 						o = proj[triangle[k]]
-						if perpdot(o-proj[triangle[k-1]], proj[j]-o) <= prec**2:
+						if perpdot(o-proj[triangle[k-1]], proj[j]-o) <= prec:
 							break
 					else:
 						return -inf
