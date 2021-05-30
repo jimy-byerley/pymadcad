@@ -224,7 +224,7 @@ def triangulation_outline(outline: Wire, normal=None) -> Mesh:
 	return Mesh(outline.points, triangles)
 
 
-def triangulation_outline(outline: Wire, normal=None) -> Mesh:
+def triangulation_outline(outline: Wire, normal=None, prec=None) -> Mesh:
 	''' return a mesh with the triangles formed in the outline
 		the returned mesh uses the same buffer of points than the input
 		
@@ -232,12 +232,13 @@ def triangulation_outline(outline: Wire, normal=None) -> Mesh:
 	'''
 	# get a normal in the right direction for loop winding
 	if not normal:		normal = outline.normal()
+	if prec is None:	prec = outline.precision()
 	# project all points in the plane
 	try:				proj = planeproject(outline, normal)
 	except ValueError:	return Mesh()
 	# reducing contour, indexing proj and outlines.indices
 	hole = list(range(len(outline.indices)))
-	if length2(outline[-1]-outline[0]) < 4*NUMPREC**2:		hole.pop()
+	if length2(outline[-1]-outline[0]) < prec:		hole.pop()
 	# set of remaining non-convexity points, indexing proj
 	l = len(outline.indices)
 	nonconvex = { i
@@ -262,17 +263,17 @@ def triangulation_outline(outline: Wire, normal=None) -> Mesh:
 		# check for badly oriented triangle
 		if perpdot(u,v) < -NUMPREC:		return -inf
 		# check for intersection with the rest
-		sc = priority(u,v)
 		if perpdot(u,v) > NUMPREC:
 			# check that there is not point of the outline inside the triangle
-			decomp = inverse(dmat2(u,v))
 			for j in nonconvex:
 				if j not in triangle:
-					uc,vc = decomp * dvec2(proj[j] - o)
-					if 0 <= uc and 0 <= vc and uc+vc <= 1:
-						sc = -inf
-						break
-		return sc
+					for k in range(3):
+						o = proj[triangle[k]]
+						if perpdot(o-proj[triangle[k-1]], proj[j]-o) <= prec**2:
+							break
+					else:
+						return -inf
+		return priority(u,v)
 	scores = [score(i) for i in range(len(hole))]
 	
 	triangles = []
