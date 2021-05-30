@@ -1,9 +1,9 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 '''
 	This module provide functions to generate racks and gears with many different shapes.
-	
+
 	The mainstream gears are involute gears (using involute of circles as contact curves). This is due to the standard shape of racks. And involute gears are the best choice for most designs, which is why the current implementation focusses on them.
-	
+
 	However the tools here are modular, which means you can combine them with your own functions to create customized gears.
 '''
 
@@ -24,21 +24,15 @@ from operator import add
 from copy import copy
 
 
-<<<<<<< HEAD
-def rackprofile(step, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=None) -> Wire:
-	if h is None:
-		h = default_h(step, alpha)
-	e = h*e
 
-=======
 def rackprofile(step, h=None, offset=0, alpha=radians(30), resolution=None) -> Wire:
 	''' Generate a 1-period tooth profile for a rack
-	
+
 		Parameters:
 			:step:		period length over the primitive line
-			:h:			tooth half height 
+			:h:			tooth half height
 			:offset:	rack reference line offset with the primitive line
-			
+
 						- the primitive line is the adherence line with gears
 						- the reference line is the line half the tooth is above and half below
 			:alpha:		angle of the tooth sides
@@ -47,8 +41,7 @@ def rackprofile(step, h=None, offset=0, alpha=radians(30), resolution=None) -> W
 		h = default_height(step, alpha)
 	e = offset  # change name for convenience
 	x = 0.5 + 2*offset/p*tan(alpha)  # fraction of the tooth above the primitive circle
-	
->>>>>>> e7cf008fc49709c5e0b4c28eb29347e8e1e58658
+
 	return Wire([
 		vec3(step*x/2 - tan(alpha) * ( h-e),   h-e,  0),
 		vec3(step*x/2 - tan(alpha) * (-h-e),  -h-e,  0),
@@ -58,12 +51,10 @@ def rackprofile(step, h=None, offset=0, alpha=radians(30), resolution=None) -> W
 		], groups=['rack'])
 
 
-<<<<<<< HEAD
-def gearprofile(step, z, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=None, **kwargs) -> Wire:
-=======
-def gearprofile(step, z, h=None, offset=0, alpha=radians(30), resolution=None) -> Wire:
+
+def gearprofile(step, z, h=None, offset=0, alpha=radians(30), resolution=None, **kwargs) -> Wire:
 	''' Generate a 1-period tooth profile for a straight gear
-	
+
 		Parameters:
 			:step:		period length over the primitive circle
 			:z:			number of tooth on the gear this profile is meant for
@@ -71,29 +62,20 @@ def gearprofile(step, z, h=None, offset=0, alpha=radians(30), resolution=None) -
 			:offset:	offset of the matching rack profile (see above)
 			:alpha:		pressure angle in the contact
 	'''
->>>>>>> e7cf008fc49709c5e0b4c28eb29347e8e1e58658
 	if h is None:
 		h = default_height(step, alpha)
 	p = step*z / (2*pi)	# primitive circle
 	c = p * cos(alpha)	# tangent circle to gliding axis
-<<<<<<< HEAD
 
-	o0 = angle(involute(c, 0, tan(alpha)))	# offset of contact curve
-	oi = atan((h+e)/p * tan(alpha))		# offset of interference curve
-
-	l0 = involuteat(c, p+h-e)	# interval size of contact curve
-
-=======
 	e = offset  # change name for convenience
 	#e = offset + 0.05*h  # the real offset is 5% (the 1*m, 1.25*m) when the standard says it is 0
 	x = 0.5 + 2*offset/p*tan(alpha)  # fraction of the tooth above the primitive circle
-	
+
 	o0 = angle(involute(c, 0, tan(alpha)))	# offset of contact curve
 	oi = atan((h-e)/p * tan(alpha))		# offset of interference curve
-	
+
 	l0 = involuteat(c, p+h+e)	# interval size of contact curve
-	
->>>>>>> e7cf008fc49709c5e0b4c28eb29347e8e1e58658
+
 	# if the tooth height is unreachable, find the intersection between the two contact curves
 	t0 = -step/(2*p)*x - o0
 	t = t0+l0
@@ -118,36 +100,22 @@ def gearprofile(step, z, h=None, offset=0, alpha=radians(30), resolution=None) -
 			ct1, ct2 = cos(t1), cos(t2)
 			st1, st2 = sin(t1), sin(t2)
 			# function value
-<<<<<<< HEAD
+
 			f = (	c*vec2(ct1,st1) + c*(t0-t1)*vec2(-st1,ct1)
-				+	(h+e-p)*vec2(ct2,st2) -p*(ti-t2)*vec2(-st2,ct2)
+				+	(h-e-p)*vec2(ct2,st2) -p*(ti-t2)*vec2(-st2,ct2)
 				)
 			# jacobian matrix (f partial derivatives)
 			J = mat2(
 				-c*(t0-t1)*vec2(ct1,st1),
-				p*(ti-t2)*vec2(ct2,st2) + (h+e)*vec2(-st2,ct2),
-=======
-			f = (	c*vec2(ct1,st1) + c*(t0-t1)*vec2(-st1,ct1) 
-				+	(h-e-p)*vec2(ct2,st2) -p*(ti-t2)*vec2(-st2,ct2)	
-				)
-			# jacobian matrix (f partial derivatives)
-			J = mat2(
-				-c*(t0-t1)*vec2(ct1,st1), 
 				p*(ti-t2)*vec2(ct2,st2) + (h-e)*vec2(-st2,ct2),
->>>>>>> e7cf008fc49709c5e0b4c28eb29347e8e1e58658
 				)
 			# iteration
 			t1, t2 = vec2(t1,t2) - inverse(J)*f
 		li = t2 - ti	# interval size of interference curve
 		s0 = t0 - t1	# generation start of contact curve
 	else:
-<<<<<<< HEAD
-		s0 = involuteat(c, p-h-e)
-
-=======
 		s0 = involuteat(c, p-h+e)
-	
->>>>>>> e7cf008fc49709c5e0b4c28eb29347e8e1e58658
+
 	pts = []
 	n = 2 + settings.curve_resolution(h, step/p, resolution)	# number of points to place
 
@@ -186,15 +154,10 @@ def gearprofile(step, z, h=None, offset=0, alpha=radians(30), resolution=None) -
 	pts.append(angleAxis(step/p, vec3(0,0,1)) * pts[0])
 
 	return Wire(pts, groups=['gear'])
-<<<<<<< HEAD
 
-def gearcircles(step, z, h=None, e=-0.05, x=0.5, alpha=radians(30)):
-	''' return the convenient circles radius for a gear with the given parameters
-=======
-	
+
 def gearcircles(step, z, h=None, offset=0, alpha=radians(30)):
-	''' return the convenient circles radius for a gear with the given parameters 
->>>>>>> e7cf008fc49709c5e0b4c28eb29347e8e1e58658
+	''' return the convenient circles radius for a gear with the given parameters
 		return is `(primitive, base, bottom, top)`
 	'''
 	if h is None:
@@ -203,15 +166,9 @@ def gearcircles(step, z, h=None, offset=0, alpha=radians(30)):
 	p = step*z / (2*pi)	# primitive circle
 	c = p * cos(alpha)	# tangent circle to gliding axis
 	return p, c, p-h-e, p+h-e
-<<<<<<< HEAD
 
 
-def default_h(step, alpha):
-=======
-	
-	
 def default_height(step, alpha):
->>>>>>> e7cf008fc49709c5e0b4c28eb29347e8e1e58658
 	return 0.5 * 2.25 * step/pi * cos(alpha)/cos(radians(20))
 
 def involute(c, t0, t):

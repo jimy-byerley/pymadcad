@@ -97,7 +97,7 @@ test_full("test full pattern", 15, 5, 15, int_height = 0)
 # circle pattern tests
 test_circle("test circle pattern", 10, 5, 5, int_height = 2)
 test_circle("test circle pattern", 20, 5, 15, int_height = 5, ratio = 1.5)
-test_circle("test circle pattern", 60.5, 52, 1, int_height = 0, ratio = 0.5)
+test_circle("test circle pattern", 60.5, 52, 1, int_height = 0, ratio = 0.6)
 test_circle("test circle pattern", 15, 5, 15, int_height = 0)
 test_circle("test circle pattern", 30, 2, 15, int_height = 0, r_int = 5, r_ext = 15)
 test_circle("test circle pattern", 60, 5, 15, int_height = 0, r_int = 5, r_ext = 25.5)
