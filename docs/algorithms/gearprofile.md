@@ -4,6 +4,9 @@
 		asciimath: {delimiters: [['$', '$'], ['\\(', '\\)']]},
 	}
 </script>
+<script type="text/javascript" id="MathJax-script" async
+  src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/startup.js">
+</script>
 
 
 involute gears
@@ -45,15 +48,15 @@ An involute is symetric over $t_0$:
 - $ z = $ number of tooths on the gear
 - $ alpha = $ pressure angle (angle of the rack tooths)
 - $ h = $ rack half height = $ text(total height) / 2 $
-- $ e = $ deport (fraction of h to shift the top and bottom of the rack). Useful to avoid the interference to be too big on the tooth.
-- $ x = $ fraction of the rack above the primitive (usually 0.5)
+- $ e = $ (offset) amount to shift up the top and bottom of the rack, it does not change the tooth sides.
+- $ x = $ fraction of the rack above the primitive (close to 0.5), usually $ = 0.5 + 2 e/p  tan(alpha) $
 
 #### useful circles
 
-- $ p = $ primitive radius $ = s*z/(2*pi) $
+- $ p = $ primitive radius $ = (s z) / ( 2 pi ) $
 - $ c = $ base circle radius $ = p cos(alpha) $
-- $ p - h - e = $ bottom circle radius
-- $ p + h - e = $ top circle radius
+- $ p - h + e = $ bottom circle radius
+- $ p + h + e = $ top circle radius
 
 ### curves
 
@@ -104,7 +107,7 @@ $ theta_i $ starts at the very moment the tooth offset is radial:
 
 ![gear offset radial](/schemes/gear-offset-radial.png)
 
-$ t_i - t_s = arctan((s+e)/p * tan(alpha)) $
+$ t_i - t_s = arctan((h-e)/p * tan(alpha)) $
 
 
 #### intersection between $ theta_0 $ and $ theta_i $
@@ -121,7 +124,7 @@ The equation becomes quite complicated, so we can use the [Newton's method](http
 $ f(t_1, t_2) = theta_0(t_1) - theta_i(t_2) 
 =	c ((cos(t_1)), (sin(t_1))) + c (t_0-t_1) ((-sin(t_1)), (cos(t_1)))  
 	- p ((cos(t_2)), (sin(t_2))) + p (t_i-t_2) ((-sin(t_2)), (cos(t_2))) 
-	- (h+e) ((cos(t_2)), (sin(t_2))) 
+	- (h-e) ((cos(t_2)), (sin(t_2))) 
 $
 
 - Its [jacobian matrix](https://en.wikipedia.org/wiki/Jacobian_matrix_and_determinant):
@@ -130,7 +133,7 @@ $
 	  = [[ 
 		-c*(t_0 - t_1) ((cos(t_1)), (sin(t_1))) ,     
 		|,
-		 p*(t_i - t_2) ((cos(t_2)), (sin(t_2))) + (s+e) ((-sin(t2)), (cos(t_2))) ,
+		 p*(t_i - t_2) ((cos(t_2)), (sin(t_2))) + (h-e) ((-sin(t2)), (cos(t_2))) ,
 		]] $
 
 - The newton method consist of just iteratively doing	 (until the necessary precision is reached)
@@ -141,7 +144,7 @@ $
 To make sure it will converge to the desired solution, we need to take an initial state in the convex zone of the solution:
 
 - $t_1$ on the primitive circle: 	$ t_{1,text(initial)} = t_0 - tan(alpha)$
-- $t_2$ on the base circle: 	$ t_{2,text(initial)} = t_i + sqrt( c^2 - (p-h-e)^2 )/p  $
+- $t_2$ on the base circle: 	$ t_{2,text(initial)} = t_i + sqrt( c^2 - (p-h+e)^2 )/p  $
 
 It ends with the parameters $ t_1, t_2 $ of $ theta_0, theta_i $ at the intersection.
 
@@ -153,7 +156,7 @@ It ends with the parameters $ t_1, t_2 $ of $ theta_0, theta_i $ at the intersec
 
 - in case $ theta_0 $ hits the top circle
 
-	$ t_3 - t_0 = sqrt( (p+h-e)^2 - c^2 ) / c $
+	$ t_3 - t_0 = sqrt( (p+h+e)^2 - c^2 ) / c $
 
 - in case $ theta_0 $ hits the involute of the next period
 
