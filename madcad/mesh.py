@@ -197,11 +197,11 @@ class Mesh(Container):
 		As volumes are represented by their exterior surface, there is no difference between representation of volumes and faces, juste the way we interpret it.
 		
 		Attributes:
-			:points:     list of vec3 for points
-			:faces:		list of triplets for faces, the triplet is (a,b,c) such that  cross(b-a, c-a) is the normal oriented to the exterior.
-			:tracks:	    integer giving the group each face belong to
-			:groups:     custom information for each group
-			:options:	custom informations for the entire mesh
+			points:     list of vec3 for points
+			faces:		list of triplets for faces, the triplet is (a,b,c) such that  cross(b-a, c-a) is the normal oriented to the exterior.
+			tracks:	    integer giving the group each face belong to
+			groups:     custom information for each group
+			options:	custom informations for the entire mesh
 	'''
 	
 	# --- standard point container methods ---
@@ -886,11 +886,11 @@ class Web(Container):
 		this definition is very close to the definition of Mesh, but with edges instead of triangles
 		
 		Attributes:
-			:points:	list of vec3 for points
-			:edges:		list of couples for edges, the couple is oriented (meanings of this depends on the usage)
-			:tracks:	integer giving the group each line belong to
-			:groups:	custom information for each group
-			:options:	custom informations for the entire web
+			points:	list of vec3 for points
+			edges:		list of couples for edges, the couple is oriented (meanings of this depends on the usage)
+			tracks:	integer giving the group each line belong to
+			groups:	custom information for each group
+			options:	custom informations for the entire web
 	'''
 
 	# --- standard point container methods ---
@@ -1216,11 +1216,11 @@ class Wire(Container):
 		Used to borrow reference of points from a mesh by keeping their original indices
 
 		Attributes:
-			:points:	points buffer
-			:indices:	indices of the line's points in the buffer
-			:tracks:	group index for each point in indices
+			points:	points buffer
+			indices:	indices of the line's points in the buffer
+			tracks:	group index for each point in indices
 						it can be used to associate groups to points or to edges (if to edges, then take care to still have as many track as indices)
-			:groups:	data associated to each point (or edge)
+			groups:	data associated to each point (or edge)
 	'''
 	__slots__ = 'points', 'indices', 'tracks', 'groups'
 	
@@ -1660,9 +1660,9 @@ def suites(lines, oriented=True, cut=True, loop=False):
 	''' return a list of the suites that can be formed with lines.
 		lines is an iterable of edges
 		
-		parameters:
-			:oriented:      specifies that (a,b) and (c,b) will not be assembled
-			:cut:           cut suites when they are crossing each others
+		Parameters:
+			oriented:      specifies that (a,b) and (c,b) will not be assembled
+			cut:           cut suites when they are crossing each others
 		
 		return a list of the sequences that can be formed
 	'''
