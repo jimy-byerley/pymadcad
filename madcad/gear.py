@@ -503,7 +503,7 @@ def gearexterior(
 	half_depth = depth / 2
 	# Internal circles
 	axis = (vec3(0, 0, 0), vec3(0, 0, 1))
-	circle_ref = Circle(axis, min_radius, resolution=("div", z)).mesh()
+	circle_ref = Circle(axis, min_radius, resolution=("div", 3*z)).mesh()
 	top_circle = circle_ref.transform(vec3(0, 0, half_depth))
 	bottom_circle = circle_ref.transform(vec3(0, 0, -half_depth))
 
@@ -527,7 +527,7 @@ def gearexterior(
 		bottom_truncated = truncated.transform(vec3(0, 0, -half_depth))
 
 		# Surfaces
-		bp = partial(junction, tangents="straight")
+		bp = partial(junction, tangents="straight", resolution = ("div", 0))
 		top_surface = bp(top_truncated.flip(), top_circle)
 		bottom_surface = bp(bottom_truncated, bottom_circle.flip())
 		top_bevel = bp(top_truncated, top_profile.flip())
@@ -666,6 +666,11 @@ def geargather(exterior: Mesh, structure: Mesh, hub: Mesh) -> Mesh:
 	ext_radius = box.max.x
 	int_radius = 0
 
+	box = hub.box()
+	height_h_top = box.max.z
+	height_h_bot = box.min.z
+	ext_h_radius = box.max.x
+
 	# Select borderlines
 	# int = internal / ext = external
 	# e = exterior / s = structure / h = hub
@@ -676,16 +681,16 @@ def geargather(exterior: Mesh, structure: Mesh, hub: Mesh) -> Mesh:
 	circle_ext_s_bot = select(structure, vec3(ext_radius, 0, height_bot))
 	circle_int_s_top = select(structure, vec3(int_radius, 0, height_top))
 	circle_int_s_bot = select(structure, vec3(int_radius, 0, height_bot))
-	circle_ext_h_top = select(hub, vec3(ext_radius, 0, height_top))
-	circle_ext_h_bot = select(hub, vec3(ext_radius, 0, height_bot))
+	circle_ext_h_top = select(hub, vec3(ext_h_radius, 0, height_h_top))
+	circle_ext_h_bot = select(hub, vec3(ext_h_radius, 0, height_h_bot))
 
 	# Join all borderlines
 	# j1 is the junction between `exterior` and `structure`
 	# j2 is the junction between `structure` and `hub`
-	j1_top = junction(circle_ext_s_top, circle_int_e_top, tangents="straight")
-	j1_bot = junction(circle_ext_s_bot, circle_int_e_bot, tangents="straight")
-	j2_top = junction(circle_ext_h_top, circle_int_s_top, tangents="straight")
-	j2_bot = junction(circle_ext_h_bot, circle_int_s_bot, tangents="straight")
+	j1_top = junction(circle_ext_s_top, circle_int_e_top, tangents="straight", resolution = ("div", 0))
+	j1_bot = junction(circle_ext_s_bot, circle_int_e_bot, tangents="straight", resolution = ("div", 0))
+	j2_top = junction(circle_ext_h_top, circle_int_s_top, tangents="straight", resolution = ("div", 0))
+	j2_bot = junction(circle_ext_h_bot, circle_int_s_bot, tangents="straight", resolution = ("div", 0))
 	j1 = j1_top + j1_bot
 	j2 = j2_top + j2_bot
 
