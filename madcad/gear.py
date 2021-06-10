@@ -27,21 +27,20 @@ from copy import copy
 
 def rackprofile(step, h=None, offset=0, alpha=radians(30), resolution=None) -> Wire:
 	''' Generate a 1-period tooth profile for a rack
-
+	
 		Parameters:
 			:step:		period length over the primitive line
-			:h:			tooth half height
-			:offset:	rack reference line offset with the primitive line
-
-						- the primitive line is the adherence line with gears
-						- the reference line is the line half the tooth is above and half below
+			:h:		    tooth half height 
+			:offset:  rack reference line offset with the primitive line
+					      - the primitive line is the adherence line with gears
+			          - the reference line is the line half the tooth is above and half below
 			:alpha:		angle of the tooth sides
 	'''
 	if h is None:
 		h = default_height(step, alpha)
 	e = offset  # change name for convenience
 	x = 0.5 + 2*offset/p*tan(alpha)  # fraction of the tooth above the primitive circle
-
+  
 	return Wire([
 		vec3(step*x/2 - tan(alpha) * ( h-e),   h-e,  0),
 		vec3(step*x/2 - tan(alpha) * (-h-e),  -h-e,  0),
@@ -51,9 +50,9 @@ def rackprofile(step, h=None, offset=0, alpha=radians(30), resolution=None) -> W
 		], groups=['rack'])
 
 
-
 def gearprofile(step, z, h=None, offset=0, alpha=radians(30), resolution=None, **kwargs) -> Wire:
 	''' Generate a 1-period tooth profile for a straight gear
+
 
 		Parameters:
 			:step:		period length over the primitive circle
@@ -100,7 +99,6 @@ def gearprofile(step, z, h=None, offset=0, alpha=radians(30), resolution=None, *
 			ct1, ct2 = cos(t1), cos(t2)
 			st1, st2 = sin(t1), sin(t2)
 			# function value
-
 			f = (	c*vec2(ct1,st1) + c*(t0-t1)*vec2(-st1,ct1)
 				+	(h-e-p)*vec2(ct2,st2) -p*(ti-t2)*vec2(-st2,ct2)
 				)
@@ -155,10 +153,9 @@ def gearprofile(step, z, h=None, offset=0, alpha=radians(30), resolution=None, *
 
 	return Wire(pts, groups=['gear'])
 
-
 def gearcircles(step, z, h=None, offset=0, alpha=radians(30)):
 	''' return the convenient circles radius for a gear with the given parameters
-		return is `(primitive, base, bottom, top)`
+		  return is `(primitive, base, bottom, top)`
 	'''
 	if h is None:
 		h = default_height(step, alpha)
@@ -166,7 +163,6 @@ def gearcircles(step, z, h=None, offset=0, alpha=radians(30)):
 	p = step*z / (2*pi)	# primitive circle
 	c = p * cos(alpha)	# tangent circle to gliding axis
 	return p, c, p-h-e, p+h-e
-
 
 def default_height(step, alpha):
 	return 0.5 * 2.25 * step/pi * cos(alpha)/cos(radians(20))
