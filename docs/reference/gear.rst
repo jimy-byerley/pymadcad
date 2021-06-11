@@ -19,9 +19,9 @@ gear generation
 
 .. autofunction:: gear
 .. autofunction:: geargather
+.. autofunction:: gearexterior
 .. autofunction:: gearstructure
 .. autofunction:: gearhub
-.. autofunction:: gearexterior
 
 
 helper tools
@@ -31,3 +31,11 @@ helper tools
 .. autofunction:: involute
 .. autofunction:: involuteat
 .. autofunction:: involuteof
+
+structure patterns
+------------------
+	
+.. autofunction:: pattern_circle
+.. autofunction:: pattern_full
+.. autofunction:: pattern_rect
+.. autofunction:: pattern_rounded
