@@ -14,6 +14,15 @@ The following functions are focussing on involute gears. If you want more detail
 .. autofunction:: rackprofile
 .. autofunction:: gearprofile
 
+gear generation
+---------------
+
+.. autofunction:: gear
+.. autofunction:: geargather
+.. autofunction:: gearstructure
+.. autofunction:: gearhub
+.. autofunction:: gearexterior
+
 
 helper tools
 ------------
