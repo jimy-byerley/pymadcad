@@ -47,13 +47,13 @@ def screw(d, length, filet_length=None, head='SH', drive=None, detail=False):
 	''' create a standard screw using the given drive and head shapes
 	
 	Parameters:
-		:d:             nominal diameter of the screw
-		:length:        length from the screw head to the tip of the screw
-		:filet_length:  length of the filet on the screw (from the tip), defaults to `length`
+		d:             nominal diameter of the screw
+		length:        length from the screw head to the tip of the screw
+		filet_length:  length of the filet on the screw (from the tip), defaults to `length`
 		
-		:head:          name of the screw head shape
-		:drive:			name of the screw drive shape
-		:detail:   if True, the thread surface will be generated, else it will only be a cylinder
+		head:          name of the screw head shape
+		drive:			name of the screw drive shape
+		detail:   if True, the thread surface will be generated, else it will only be a cylinder
 		
 	It's also possible to specify head and drive at once, using their codenames:
 	
@@ -278,10 +278,10 @@ def screw_spec(head, drive=None):
 def nut(d, type='hex', detail=False) -> Mesh:
 	''' create a standard nut model using the given shape type 
 	
-		Parameters
-			:d:        nominal diameter of the matching screw
-			:type:     the nut shape
-			:detail:   if True, the thread surface will be generated, else it will only be a cylinder
+		Parameters:
+			d:        nominal diameter of the matching screw
+			type:     the nut shape
+			detail:   if True, the thread surface will be generated, else it will only be a cylinder
 	
 		If `d` alone is given, the other parameters default to the ISO specs: https://www.engineersedge.com/iso_flat_washer.htm
 		
@@ -365,11 +365,11 @@ def washer(d, e=None, h=None) -> Mesh:
 	''' create a standard washer.
 		Washers are useful to offset screws and avoid them to scratch the mount part
 		
-		Parameters
-			:d:        the nominal interior diameter (screw or anything else),
+		Parameters:
+			d:        the nominal interior diameter (screw or anything else),
 			           the exact washer interior is slightly bigger
-			:e:        exterior diameter
-			:h:        height/thickness
+			e:        exterior diameter
+			h:        height/thickness
 			
 		If `d` alone is given, the other parameters default to the ISO specs: https://www.engineersedge.com/iso_flat_washer.htm
 	'''
@@ -439,11 +439,11 @@ standard_washers	= [
 def coilspring_compression(length, d=None, thickness=None, solid=True):
 	''' return a Mesh model of a croilspring meant for use in compression
 	
-		Parameters
-			:length:     the distance between its two ends
-			:d:          the exterior diameter (the coilspring can fit in a cylinder of that diameter)
-			:thickness:  the wire diameter of the spring (useless if solid is disabled)
-			:solid:      disable it to get only the tube path of the coil, and have a `Wire` as return value
+		Parameters:
+			length:     the distance between its two ends
+			d:          the exterior diameter (the coilspring can fit in a cylinder of that diameter)
+			thickness:  the wire diameter of the spring (useless if solid is disabled)
+			solid:      disable it to get only the tube path of the coil, and have a `Wire` as return value
 	'''
 	if not d:			d = length*0.2
 	if not thickness:	thickness = d*0.1
@@ -487,11 +487,11 @@ def coilspring_compression(length, d=None, thickness=None, solid=True):
 def coilspring_tension(length, d=None, thickness=None, solid=True):
 	''' return a Mesh model of a croilspring meant for use in tension 
 	
-		Parameters
-			:length:     the distance between its two hooks
-			:d:          the exterior diameter (the coilspring can fit in a cylinder of that diameter)
-			:thickness:  the wire diameter of the spring (useless if solid is disabled)
-			:solid:      disable it to get only the tube path of the coil, and have a `Wire` as return value
+		Parameters:
+			length:     the distance between its two hooks
+			d:          the exterior diameter (the coilspring can fit in a cylinder of that diameter)
+			thickness:  the wire diameter of the spring (useless if solid is disabled)
+			solid:      disable it to get only the tube path of the coil, and have a `Wire` as return value
 	'''
 	if not d:			d = length*0.2
 	if not thickness:	thickness = d*0.1
@@ -534,13 +534,13 @@ def coilspring_tension(length, d=None, thickness=None, solid=True):
 def coilspring_torsion(arm, angle=radians(45), d=None, length=None, thickness=None, hook=None, solid=True):
 	''' return a Mesh model of a croilspring meant for use in torsion
 	
-		Parameters
-			:arm:        the arms length from the coil axis
-			:length:     the coil length (and distance between its hooks)
-			:d:          the exterior diameter (the coilspring can fit in a cylinder of that diameter)
-			:thickness:  the wire diameter of the spring (useless if solid is disabled)
-			:hook:       the length of arm hooks (negative for hooks toward the interior)
-			:solid:      disable it to get only the tube path of the coil, and have a `Wire` as return value
+		Parameters:
+			arm:        the arms length from the coil axis
+			length:     the coil length (and distance between its hooks)
+			d:          the exterior diameter (the coilspring can fit in a cylinder of that diameter)
+			thickness:  the wire diameter of the spring (useless if solid is disabled)
+			hook:       the length of arm hooks (negative for hooks toward the interior)
+			solid:      disable it to get only the tube path of the coil, and have a `Wire` as return value
 	'''
 	if not length:		length = arm*0.5
 	if not d:			d = arm
@@ -605,22 +605,23 @@ def bearing(dint, dext=None, h=None, circulating='ball', contact=0, hint=None, h
 		
 		see bearing specs at https://koyo.jtekt.co.jp/en/support/bearing-knowledge/
 		
-		Parameters
+		Parameters:
 
-			:dint:	interior bore diameter
-			:dext:  exterior ring diameter
-			:h:     total height of the bearing
+			dint:	interior bore diameter
+			dext:  exterior ring diameter
+			h:     total height of the bearing
 			
-			:hint:  height of the interior ring. Only for angled roller bearings
-			:hext:  height of the exterior ring. Only for angled roller bearings
+			hint:  height of the interior ring. Only for angled roller bearings
+			hext:  height of the exterior ring. Only for angled roller bearings
 		
-			:circulating:
+			circulating:
 			
-				The type of circulating element in the bearing:
-					- ball
-					- roller
+				The type of circulating element in the bearing
 				
-			:contact:
+				- ball
+				- roller
+				
+			contact:
 			
 				Contact angle (aka pressure angle).
 				It decided what directions of force the bearing can sustain.
@@ -629,9 +630,9 @@ def bearing(dint, dext=None, h=None, circulating='ball', contact=0, hint=None, h
 					- `pi/2`  for thrust (axial) bearings
 					- `0 < contact < pi/2` for conic bearings
 					
-			:sealing:  True if the bearing has a sealing side. Only for balls bearings with `contact = 0`
+			sealing:  True if the bearing has a sealing side. Only for balls bearings with `contact = 0`
 					
-			:detail:   If True, the returned model will have the circulating elements and cage, if False the returned element is just a bounding representation
+			detail:   If True, the returned model will have the circulating elements and cage, if False the returned element is just a bounding representation
 	'''
 	if isinstance(dint, str):
 		dint, dext, h = bearing_spec(dint)
@@ -957,12 +958,12 @@ def slidebearing(dint, h=None, thickness=None, shoulder=None, opened=False):
 		Slide bearings rely on gliding parts to ensure a good pivot. It's much cheaper than circulating bearings and much more compact. But needs lubricant and has a shorter life than circulating bearings.
 		Its friction depends on the rotation speed and on the load.
 	
-		Parameters
-			:dint:       interior diameter
-			:h:          exterior height (under shoulder if there is)
-			:thickness:  shell thickness, can be automatically determined
-			:shoulder:   distance from bore to shoulder tip, put 0 to disable
-			:opened:     enable to have a slight breach that allows a better fitting to the placement hole 
+		Parameters:
+			dint:       interior diameter
+			h:          exterior height (under shoulder if there is)
+			thickness:  shell thickness, can be automatically determined
+			shoulder:   distance from bore to shoulder tip, put 0 to disable
+			opened:     enable to have a slight breach that allows a better fitting to the placement hole 
 	'''
 	if h is None:			h = 1.2*dint
 	if thickness is None:	thickness = 0.05*dint

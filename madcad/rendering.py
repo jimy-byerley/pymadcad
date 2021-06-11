@@ -93,8 +93,8 @@ class Display:
 		
 		Attributes:
 		
-			:world(fmat4):  matrix from local space to parent space
-			:box(Box):      boudingbox of the display in local space
+			world(fmat4):  matrix from local space to parent space
+			box(Box):      boudingbox of the display in local space
 			
 			These attributes are variable members by default but can be overriden as properties if needed.
 	'''
@@ -144,9 +144,10 @@ class Display:
 		''' handle input events occuring on the area of this display (or of one of its subdisplay).
 			for subdisplay events, the parents control functions are called first, and the sub display controls are called only if the event is not accepted by parents
 			
-			:key:    the key path for the current display
-			:sub:    the key path for the subdisplay
-			:evt:    the Qt event (see Qt doc)
+			Parameters:
+				key:    the key path for the current display
+				sub:    the key path for the subdisplay
+				evt:    the Qt event (see Qt doc)
 		'''
 		pass
 
@@ -327,7 +328,7 @@ class Scene:
 		
 		This class is gui-agnostic, it only relys on opengl, and the context has to be created by te user.
 		
-		Attributes:
+		Attributes defined here:
 		
 		- scene stuff
 			
@@ -339,7 +340,7 @@ class Scene:
 			
 			:displays:      dictionnary of items in the scheme `{'name': Display}`
 			:stacks:        lists of callables to render each target `{'target': [(key, priority, callable(view))]}`
-			:setup():         callable for setup of each rendering target
+			:setup:         callable for setup of each rendering target
 			
 			:touched:       flag set to True if the stack must be recomputed at the next render time (there is a change in a Display or in one of its children)
 			
@@ -619,17 +620,17 @@ class View(QOpenGLWidget):
 	''' Qt widget to render and interact with displayable objects 
 		it holds a scene as renderpipeline
 		
-		Attributes:
+		Attributes definied here:
 		
-			:scene:        the `Scene` object displayed
-			:projection:   `Perspective` or `Orthographic`
-			:navigation:   `Orbit` or `Turntable`
-			:tool:         list of callables in priority order to receive events
-		
-		* render stuff
-		
-			:targets:     render targets matching those in `scene.stacks`
-			:uniforms:    parameters for rendering, used in shaders
+				:scene:        the `Scene` object displayed
+				:projection:   `Perspective` or `Orthographic`
+				:navigation:   `Orbit` or `Turntable`
+				:tool:         list of callables in priority order to receive events
+			
+			* render stuff
+			
+				:targets:     render targets matching those in `scene.stacks`
+				:uniforms:    parameters for rendering, used in shaders
 	'''
 	def __init__(self, scene, projection=None, navigation=None, parent=None):
 		# super init
