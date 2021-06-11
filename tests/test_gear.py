@@ -1,4 +1,3 @@
-#!/usr/bin/python3
 from madcad.gear import *
 from madcad.mesh import edgekey, facekeyo
 
@@ -40,19 +39,19 @@ def testing(function):
 
 @testing
 def test_full(name, *args, **kwargs):
-    full_pattern(*args, **kwargs)
+    pattern_full(*args, **kwargs)
 
 @testing
 def test_circle(name, *args, **kwargs):
-    circle_pattern(*args, **kwargs)
+    pattern_circle(*args, **kwargs)
 
 @testing
 def test_rect(name, *args, **kwargs):
-    rect_pattern(*args, **kwargs)
+    pattern_rect(*args, **kwargs)
 
 @testing
 def test_rounded(name, *args, **kwargs):
-    rounded_pattern(*args, **kwargs)
+    pattern_rounded(*args, **kwargs)
 
 # Automatic part
 

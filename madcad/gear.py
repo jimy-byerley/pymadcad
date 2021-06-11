@@ -9,15 +9,15 @@
 
 from .mathutils import *
 from .mesh import Web, Wire, Mesh, web
-from . import settings
 from .blending import junction, blendpair
 from .generation import extrusion, revolution, repeat, extrans
 from .primitives import Circle, ArcCentered, Segment
 from .triangulation import triangulation
 from .selection import *
 from .rendering import show
-from .settings import curve_resolution
 from .cut import bevel
+from . import settings
+
 from math import cos, sin, asin, tan
 from functools import reduce, partial
 from operator import add
@@ -30,12 +30,12 @@ def rackprofile(step, h=None, offset=0, alpha=radians(30), resolution=None) -> W
 	
 		Parameters:
 		
-			:step:		period length over the primitive line
-			:h:		    tooth half height 
-			:offset:  rack reference line offset with the primitive line
+			step:		period length over the primitive line
+			h:		    tooth half height 
+			offset:  rack reference line offset with the primitive line
 					      - the primitive line is the adherence line with gears
 			          - the reference line is the line half the tooth is above and half below
-			:alpha:		angle of the tooth sides
+			alpha:		angle of the tooth sides
 	'''
 	if h is None:
 		h = default_height(step, alpha)
@@ -57,11 +57,11 @@ def gearprofile(step, z, h=None, offset=0, alpha=radians(30), resolution=None, *
 
 		Parameters:
 		
-			:step:		period length over the primitive circle
-			:z:			number of tooth on the gear this profile is meant for
-			:h:			tooth half height
-			:offset:	offset of the matching rack profile (see above)
-			:alpha:		pressure angle in the contact
+			step:		period length over the primitive circle
+			z:			number of tooth on the gear this profile is meant for
+			h:			tooth half height
+			offset:	offset of the matching rack profile (see above)
+			alpha:		pressure angle in the contact
 	'''
 	if h is None:
 		h = default_height(step, alpha)
@@ -196,7 +196,7 @@ def angle(p):
 	return atan2(p[1], p[0])
 
 
-def z_multiple(gear_profile: Wire, z: int) -> Web:
+def repeat_circular(gear_profile: Wire, z: int) -> Web:
 	"""
 	Repeat z times `gear_profile` by revolution
 
@@ -215,7 +215,7 @@ def z_multiple(gear_profile: Wire, z: int) -> Web:
 	return profile
 
 
-def full_pattern(ext_radius, int_radius, depth, int_height=0, **kwargs) -> Mesh:
+def pattern_full(ext_radius, int_radius, depth, int_height=0, **kwargs) -> Mesh:
 	"""
 	Generate two full parts of the structure (the top and the bottom).
 
@@ -243,7 +243,7 @@ def full_pattern(ext_radius, int_radius, depth, int_height=0, **kwargs) -> Mesh:
 	return mesh
 
 
-def circle_pattern(
+def pattern_circle(
 	ext_radius,
 	int_radius,
 	depth,
@@ -313,7 +313,7 @@ def circle_pattern(
 	return mesh
 
 
-def create_rect_pattern(
+def create_pattern_rect(
 	ext_radius,
 	int_radius,
 	depth,
@@ -326,8 +326,8 @@ def create_rect_pattern(
 	**kwargs,
 ) -> Mesh:
 	"""
-	Function used for `rect_pattern` when `pattern` = "rect"
-	and `rounded_pattern` when `pattern` = "rounded"
+	Function used for `pattern_rect` when `pattern` = "rect"
+	and `pattern_rounded` when `pattern` = "rounded"
 
 	Parameters:
 	
@@ -401,90 +401,90 @@ def create_rect_pattern(
 	return mesh
 
 
-def rect_pattern(
-	ext_radius: float,
-	int_radius: float,
-	depth: float,
-	int_height: float = 0,
-	ratio: float = 1,
-	n_patterns: int = 5,
-	r_int: float = None,
-	r_ext: float = None,
+def pattern_rect(
+	ext_radius,
+	int_radius,
+	depth,
+	int_height = 0,
+	ratio = 1,
+	n_patterns = 5,
+	r_int = None,
+	r_ext = None,
 	**kwargs,
 ) -> Mesh:
 	"""
 	Generate two parts of the structure (the top and the bottom) with `n_patterns` distributed on the whole structure.
-	All corners are straight. Check the function `rounded_pattern` to get rounded corners.
+	All corners are straight. Check the function `pattern_rounded` to get rounded corners.
 
 	Return a tuple (Web, Web, Mesh) where the first `Web` is the top of the structure,
 	the second `Web` is the bottom of the structure and the last element `Mesh` is all side surfaces.
 
-	Parameters
+	Parameters:
 	
-		:ext_radius: float (radius of the external border of the structure)
-		:int_radius: float (radius of the internal border of the structure)
-		:depth: float (face width)
-		:int_height: float (if you want a pinion with a structure thinner than the value of `depth`,
+		ext_radius: float (radius of the external border of the structure)
+		int_radius: float (radius of the internal border of the structure)
+		depth: float (face width)
+		int_height: float (if you want a pinion with a structure thinner than the value of `depth`,
 							the total height will be `total_height = depth - 2 * int_height`)
-		:ratio: float (it is a number which is the proportional factor for an homothety of patterns)
-		:n_patterns: int (number of patterns inside the structure)
-		:r_int: float (internal radius of the pattern)
-		:r_ext: float (external radius of the pattern)
+		ratio: float (it is a number which is the proportional factor for an homothety of patterns)
+		n_patterns: int (number of patterns inside the structure)
+		r_int: float (internal radius of the pattern)
+		r_ext: float (external radius of the pattern)
 
 	Note:
 	
 		- for instance, if `ratio` is 1.5, the area of the pattern will be divided by 1.5.
 		- if `r_int` and `r_ext` are chosen, `ratio` won't impact these parameters
 	"""
-	return create_rect_pattern(ext_radius, int_radius, depth, int_height, ratio, n_patterns, r_int, r_ext, False)
+	return create_pattern_rect(ext_radius, int_radius, depth, int_height, ratio, n_patterns, r_int, r_ext, False)
 
 
-def rounded_pattern(
-	ext_radius: float,
-	int_radius: float,
-	depth: float,
-	int_height: float = 0,
-	ratio: float = 1,
+def pattern_rounded(
+	ext_radius,
+	int_radius,
+	depth,
+	int_height = 0,
+	ratio = 1,
 	n_patterns: int = 5,
-	r_int: float = None,
-	r_ext: float = None,
+	r_int = None,
+	r_ext = None,
 	**kwargs,
 ) -> Mesh:
 	"""
 	Generate two parts of the structure (the top and the bottom) with `n_patterns` distributed on the whole structure.
-	All corners are rounded. Check the function `rect_pattern` to get straight corners.
+	All corners are rounded. Check the function `pattern_rect` to get straight corners.
 
 	Return a tuple (Web, Web, Mesh) where the first `Web` is the top of the structure,
 	the second `Web` is the bottom of the structure and the last element `Mesh` is all side surfaces.
 
-	Parameters
+	Parameters:
 	
-		:ext_radius: float (radius of the external border of the structure)
-		:int_radius: float (radius of the internal border of the structure)
-		:depth: float (face width)
-		:int_height: float (if you want a pinion with a structure thinner than the value of `depth`,
+		ext_radius: float (radius of the external border of the structure)
+		int_radius: float (radius of the internal border of the structure)
+		depth: float (face width)
+		int_height: float (if you want a pinion with a structure thinner than the value of `depth`,
 							the total height will be `total_height = depth - 2 * int_height`)
-		:ratio: float (it is a number which is the proportional factor for an homothety of patterns)
-		:n_patterns: int (number of patterns inside the structure)
-		:r_int: float (internal radius of the pattern)
-		:r_ext: float (external radius of the pattern)
+		ratio: float (it is a number which is the proportional factor for an homothety of patterns)
+		n_patterns: int (number of patterns inside the structure)
+		r_int: float (internal radius of the pattern)
+		r_ext: float (external radius of the pattern)
 
 	Note:
 	
 		- for instance, if `ratio` is 1.5, the area of the pattern will be divided by 1.5.
 		- if `r_int` and `r_ext` are chosen, `ratio` won't impact these parameters
 	"""
-	return create_rect_pattern(ext_radius, int_radius, depth, int_height, ratio, n_patterns, r_int, r_ext, True)
+	return create_pattern_rect(ext_radius, int_radius, depth, int_height, ratio, n_patterns, r_int, r_ext, True)
 
 
 def gearexterior(
 	profile: Web,
-	min_radius: float,
-	step: float,
+	min_radius,
+	step,
 	z: int,
-	depth: float,
-	helix_angle: float = 0,
-	chamfer: float = 0,
+	depth,
+	helix_angle = 0,
+	chamfer = 0,
 	**kwargs,
 ) -> Mesh:
 	"""
@@ -497,7 +497,7 @@ def gearexterior(
 		step (float): step of chordal pitch
 		z (int): number of teeth
 		depth (float): face width
-		helix_angle: helix angle for helical gears - only without bevel; `bevel` = False - it must be a radian angle
+		helix_angle (float): helix angle for helical gears - only without bevel; `bevel` = False - it must be a radian angle
 		chamfer (float): chamfer angle - only for straight pinion
 	"""
 	# TODO: helical + chamfer
@@ -545,7 +545,7 @@ def gearexterior(
 			square_radius = max(length2(v) for v in profile.points)
 			R = sqrt(square_radius) # the largest radius of profile
 			# step to generate a helical transformation
-			step = curve_resolution(depth / cos(helix_angle), depth * tan(helix_angle) / R)
+			step = settings.curve_resolution(depth / cos(helix_angle), depth * tan(helix_angle) / R)
 			Z = vec3(0, 0, 1)
 			angle = depth * tan(helix_angle) / R / (step + 1)
 			h = depth / (step + 1)
@@ -588,7 +588,7 @@ def gearstructure(
 	
 		ext_radius (float): 
 		
-				given by the attribut `_radius` of the result of `z_multiple` -
+				given by the attribut `_radius` of the result of `repeat_circular` -
 				to avoid interference, it must be smaller than `_radius` (for instance 0.95 * `_radius`))
 		
 		int_radius (float): it is the same radius of the largest radius of the hub part
@@ -601,7 +601,7 @@ def gearstructure(
 	"""
 	# int_radius must not be 0
 	int_radius = int_radius if int_radius else 0.1 * ext_radius
-	pattern_function = globals()[pattern + "_pattern"]
+	pattern_function = globals()['pattern_' + pattern]
 	return pattern_function(ext_radius, int_radius, depth, int_height, ratio=ratio, **kwargs)
 
 
@@ -759,7 +759,7 @@ def gear(
 		- `int_height` impacts the height of the hub.
 		- if `hub_height` is null, there will be no hub.
 	"""
-	profile = z_multiple(gearprofile(step, z, **kwargs), z)
+	profile = repeat_circular(gearprofile(step, z, **kwargs), z)
 
 	square_radius = min(length2(v) for v in profile.points)
 	min_radius = sqrt(square_radius) * 0.95
