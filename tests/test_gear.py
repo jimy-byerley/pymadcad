@@ -98,36 +98,36 @@ test_circle("test circle pattern", 10, 5, 5, int_height = 2)
 test_circle("test circle pattern", 20, 5, 15, int_height = 5, ratio = 1.5)
 test_circle("test circle pattern", 60.5, 52, 1, int_height = 0, ratio = 0.6)
 test_circle("test circle pattern", 15, 5, 15, int_height = 0)
-test_circle("test circle pattern", 30, 2, 15, int_height = 0, r_int = 5, r_ext = 15)
-test_circle("test circle pattern", 60, 5, 15, int_height = 0, r_int = 5, r_ext = 25.5)
-test_circle("test circle pattern", 5, 0.2, 15, int_height = 0, r_int = 0.2, r_ext = 3)
-test_circle("test circle pattern", 15, 5, 15, int_height = 5, n_circles = 6)
-test_circle("test circle pattern", 15, 5, 15, int_height = 5, n_circles = 4)
-test_circle("test circle pattern", 15, 5, 15, int_height = 5, n_circles = 3)
-test_circle("test circle pattern", 15, 5, 15, int_height = 5, n_circles = 2)
+test_circle("test circle pattern", 30, 2, 15, int_height = 0, circles_radius = 5, circle_place = 15)
+test_circle("test circle pattern", 60, 5, 15, int_height = 0, circles_radius = 5, circle_place = 25.5)
+test_circle("test circle pattern", 5, 0.2, 15, int_height = 0, circles_radius = 0.2, circle_place = 3)
+test_circle("test circle pattern", 15, 5, 15, int_height = 5, patterns = 6)
+test_circle("test circle pattern", 15, 5, 15, int_height = 5, patterns = 4)
+test_circle("test circle pattern", 15, 5, 15, int_height = 5, patterns = 3)
+test_circle("test circle pattern", 15, 5, 15, int_height = 5, patterns = 2)
 
 # rect pattern tests
 test_rect("test rect pattern", 10, 5, 5, int_height = 2)
 test_rect("test rect pattern", 20, 5, 15, int_height = 5, ratio = 0.8)
 test_rect("test rect pattern", 60.5, 52, 1, int_height = 0, ratio = 1.5)
 test_rect("test rect pattern", 15, 5, 15, int_height = 0) # ...
-test_rect("test rect pattern", 30, 2, 15, int_height = 0, r_int = 5, r_ext = 15)
-test_rect("test rect pattern", 60, 5, 15, int_height = 0, r_int = 10, r_ext = 25.5)
-test_rect("test rect pattern", 5, 0.2, 15, int_height = 0, r_int = 1, r_ext = 3) # ...
-test_rect("test rect pattern", 15, 5, 15, int_height = 5, n_patterns = 6)
-test_rect("test rect pattern", 15, 5, 15, int_height = 5, n_patterns = 4) # ...
-test_rect("test rect pattern", 15, 5, 15, int_height = 5, n_patterns = 3) # ...
-test_rect("test rect pattern", 15, 5, 15, int_height = 5, n_patterns = 2)
+test_rect("test rect pattern", 30, 2, 15, int_height = 0, int_thickness = 3, ext_thickness = 0)
+test_rect("test rect pattern", 60, 5, 15, int_height = 0, int_thickness = 5, ext_thickness = 4.5)
+test_rect("test rect pattern", 5, 0.2, 15, int_height = 0, int_thickness = 0.8, ext_thickness = 2) # ...
+test_rect("test rect pattern", 15, 5, 15, int_height = 5, patterns = 6)
+test_rect("test rect pattern", 15, 5, 15, int_height = 5, patterns = 4) # ...
+test_rect("test rect pattern", 15, 5, 15, int_height = 5, patterns = 3) # ...
+test_rect("test rect pattern", 15, 5, 15, int_height = 5, patterns = 2)
 
 # rounded pattern tests
 test_rounded("test rounded pattern", 10, 5, 5, int_height = 2)
 test_rounded("test rounded pattern", 20, 5, 15, int_height = 5, ratio = 0.8)
 test_rounded("test rounded pattern", 60.5, 52, 1, int_height = 0, ratio = 1.5)
 test_rounded("test rounded pattern", 15, 5, 15, int_height = 0) # ...
-test_rounded("test rounded pattern", 30, 2, 15, int_height = 0, r_int = 5, r_ext = 15)
-test_rounded("test rounded pattern", 60, 5, 15, int_height = 0, r_int = 10, r_ext = 25.5)
-test_rounded("test rounded pattern", 5, 0.2, 15, int_height = 0, r_int = 1, r_ext = 3) # ...
-test_rounded("test rounded pattern", 15, 5, 15, int_height = 5, n_patterns = 6)
-test_rounded("test rounded pattern", 15, 5, 15, int_height = 5, n_patterns = 4) # ...
-test_rounded("test rounded pattern", 15, 5, 15, int_height = 5, n_patterns = 3) # ...
-test_rounded("test rounded pattern", 15, 5, 15, int_height = 5, n_patterns = 2)
+test_rounded("test rounded pattern", 30, 2, 15, int_height = 0, int_thickness = 3, ext_thickness = 0)
+test_rounded("test rounded pattern", 60, 5, 15, int_height = 0, int_thickness = 5, ext_thickness = 4.5)
+test_rounded("test rounded pattern", 5, 0.2, 15, int_height = 0, int_thickness = 0.8, ext_thickness = 2) # ...
+test_rounded("test rounded pattern", 15, 5, 15, int_height = 5, patterns = 6)
+test_rounded("test rounded pattern", 15, 5, 15, int_height = 5, patterns = 4) # ...
+test_rounded("test rounded pattern", 15, 5, 15, int_height = 5, patterns = 3) # ...
+test_rounded("test rounded pattern", 15, 5, 15, int_height = 5, patterns = 2)
