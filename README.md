@@ -24,6 +24,8 @@ Simple yet powerful CAD (Computer Aided Design) library, written with Python.
 - implicit geometry definition through the constraint/solver system
 - objects display with high-quality graphics
 
+![example-bearing](examples/bearing.png)
+
 ## Sample usage
 
 ```python
