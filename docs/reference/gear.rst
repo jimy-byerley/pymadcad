@@ -14,13 +14,36 @@ The following functions are focussing on involute gears. If you want more detail
 .. autofunction:: rackprofile
 .. autofunction:: gearprofile
 
+	The result is the following curve (the white one):
+	
+	.. image:: /screenshots/gearprofile.png
+
 gear generation
 ---------------
 
 .. autofunction:: gear
+
+	a simple use:
+	
+		>>> gear(3, 12, 4, bore_radius=1.5)
+	
+	.. image:: /screenshots/gear-minimal.png
+	
+	a more advanced use:
+	
+		>>> gear(3, 30, 4, bore_radius=2, pattern='rounded', patterns=6, int_height=1, chamfer=radians(20))
+		
+	.. image:: /screenshots/gear-advanced.png
+
 .. autofunction:: geargather
 .. autofunction:: gearexterior
+
+	.. image:: /screenshots/gearexterior.png
+
 .. autofunction:: gearstructure
+
+	.. image:: /screenshots/gearstructure.png
+
 .. autofunction:: gearhub
 
 
@@ -34,6 +57,8 @@ helper tools
 
 structure patterns
 ------------------
+
+Those are the functions generating usual structures ready to used in `geargather`.
 	
 .. autofunction:: pattern_circle
 .. autofunction:: pattern_full

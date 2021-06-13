@@ -13,14 +13,16 @@
 	If you do not specify optional arguments, the function will provide good defaults for it.
 		
 		>>> # fully featured gear
-		>>> gear(step=2.3, z=12, b=2, bore_radius=1)
+		>>> gear(step=3, z=12, depth=4, bore_radius=1.5)
 	
 	You may want to generate a more bizarre gear, with a a different hub for instance. You will then need to assemble a gear from its 3 components:  exterior (tooths), structure (between hub and exterior), and hub (what holds the gear on an axis)
 	
 		>>> # this assemble a gear specifying each independant sub-parts
+		>>> ext_radius = (3*12)/(2*pi) - 3
+		>>> int_radius = 4
 		>>> geargather(
-		...		gearexterior(gearprofile(1.2, 12), depth=12),
-		...		gearstructure('rounded', 3, 2, patterns=8),
+		...		gearexterior(repeat_circular(gearprofile(3, 30), 30), ext_radius, 3, 30, depth=4),
+		...		gearstructure('rounded', ext_radius, int_radius, 2, patterns=6),
 		...		my_hub_mesh,
 		...		)
 	
@@ -55,7 +57,7 @@ def rackprofile(step, h=None, offset=0, alpha=radians(20), resolution=None) -> W
 		
 			step:		period length over the primitive line
 			h:		    tooth half height 
-			offset:     rack reference line offset with the primitive line
+			offset:     rack reference line offset with the primitive line (as a distance)
 			              - the primitive line is the adherence line with gears
 			              - the reference line is the line half the tooth is above and half below
 			alpha:		angle of the tooth sides, a.k.a  pressure angle of the contact
@@ -83,7 +85,7 @@ def gearprofile(step, z, h=None, offset=0, alpha=radians(20), resolution=None, *
 			step:		period length over the primitive circle
 			z:			number of tooth on the gear this profile is meant for
 			h:			tooth half height
-			offset:		offset of the matching rack profile (see above)
+			offset:		offset distance of the matching rack profile (see above)
 			alpha:		pressure angle in the contact
 	'''
 	if h is None:
@@ -501,6 +503,16 @@ def pattern_rounded(
 	"""
 	return create_pattern_rect(ext_radius, int_radius, depth, int_height, ratio, patterns, ext_thickness, int_thickness, True)
 
+	
+def minmax_radius(points):
+	min, max = 0, -inf
+	for p in points:
+		r = length2(p)
+		if r > max:		max = r
+		elif r < min:	min = r
+	return sqrt(min), sqrt(max)
+		
+		
 
 def gearexterior(
 	profile: Web,
@@ -533,16 +545,20 @@ def gearexterior(
 	circle_ref = Circle(axis, min_radius, resolution=("div", 3*z)).mesh()
 	top_circle = circle_ref.transform(vec3(0, 0, half_depth))
 	bottom_circle = circle_ref.transform(vec3(0, 0, -half_depth))
+	
+	assert not (chamfer and helix_angle),  "chamfer is not (yet) supported with a non-null helix_angle"
 
 	if chamfer:  # chamfer case
+		# create a truncated profile (the top profile of the chamfer)
 		pr = step * z / (2 * pi)  # primitive radius
 		square_pr = pr ** 2
 		Z = vec3(0, 0, 1)
 		k = tan(chamfer)
 		truncated = deepcopy(profile) # profile which will be truncated
 		for i, point in enumerate(profile.points):
+			# truncate points that overlap the primitive
 			r = length2(point)
-			if r > square_pr:
+			if r > square_pr:  
 				r = sqrt(r)
 				profile.points[i] = point - vec3(0, 0, (r - pr) * k)
 				truncated.points[i] = point * pr / r
@@ -567,8 +583,7 @@ def gearexterior(
 	else:
 		if helix_angle:  # helical teeth case
 			# Edges of teeth
-			square_radius = max(length2(v) for v in profile.points)
-			R = sqrt(square_radius) # the largest radius of profile
+			R = sqrt(max(length2(v) for v in profile.points)) # the largest radius of profile
 			# step to generate a helical transformation
 			step = settings.curve_resolution(depth / cos(helix_angle), depth * tan(helix_angle) / R)
 			Z = vec3(0, 0, 1)
@@ -740,7 +755,7 @@ def geargather(exterior, structure, hub) -> Mesh:
 def gear(
 	step,
 	z: int,
-	b,
+	depth,
 	bore_radius = 0,
 	int_height = 0,
 	pattern = 'full',
@@ -759,7 +774,7 @@ def gear(
 			the primitive perimeter is `step * z` and radius is `step * z / 2*pi`
 		
 		z (int):         number of teeth
-		b (float):       extrusion eight - width of the gear along its axis
+		depth (float):       extrusion eight - width of the gear along its axis
 		bore_radius (float):   radius of the main bore
 		int_height (float):    if you want a pinion with a structure thinner than the value of `depth`,
 						       the total height will be `total_height = depth - 2 * int_height`
@@ -769,7 +784,7 @@ def gear(
 
 	* Extra parameters for `gearprofile`
 	
-		x (float):        offset of tooth
+		offset (float):   offset of tooth (as a distance)
 		alpha (float):    pressure angle in radian
 	
 	* Extra parameters for `gearexterior`
@@ -795,12 +810,13 @@ def gear(
 	profile = repeat_circular(gearprofile(step, z, **kwargs), z)
 
 	min_radius = 0.95 * sqrt(min(length2(v) for v in profile.points))
-	coeff = 1 - int_height / min_radius if int_height else 0.95
+	#coeff = 1 - int_height / min_radius if int_height else 0.95
+	coeff = 0.95
 
 	# Parts
-	exterior = gearexterior(profile, min_radius, step, z, b, **kwargs)
-	hub = gearhub(bore_radius, b, int_height, **kwargs)
-	structure = gearstructure(pattern, coeff * min_radius, hub.box().width.x/2, b, int_height, **kwargs)
+	exterior = gearexterior(profile, min_radius, step, z, depth, **kwargs)
+	hub = gearhub(bore_radius, depth, int_height, **kwargs)
+	structure = gearstructure(pattern, coeff * min_radius, hub.box().width.x/2, depth, int_height, **kwargs)
 	return geargather(exterior, structure, hub)
 
 

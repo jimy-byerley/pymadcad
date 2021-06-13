@@ -8,7 +8,7 @@ submodules
 ~~~~~~~~~~
 
 .. tip::
-	Most of the submodule functions and classes are present in the madcad module, so unless you write a library you won't need to import it explicitly.
+	Most of the submodule functions and classes are present in the madcad root module, so unless you write a library you won't need to import them explicitly.
 
 .. toctree::
 	:maxdepth: 1
@@ -74,4 +74,4 @@ standard parts
 ~~~~~~~~~~~~~~
 
 pyadcad contains a collection of functions to generate some of the most standard parts.
-checkout module :ref:`standard module<standard>`
+checkout module :ref:`module standard<standard>` and :ref:`module gear<gear>`
