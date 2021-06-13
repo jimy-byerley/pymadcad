@@ -29,7 +29,7 @@
 	For reuse in your custom functions, the functions used to generate the gears are exposed:
 	
 		>>> # this is the raw profile of a tooth
-		>>> gearprofile(1.2, 12)
+		>>> gearprofile(step=3, z=12)
 '''
 
 from .mathutils import *
