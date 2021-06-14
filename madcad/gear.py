@@ -549,6 +549,7 @@ def gearexterior(
 	assert not (chamfer and helix_angle),  "chamfer is not (yet) supported with a non-null helix_angle"
 
 	if chamfer:  # chamfer case
+		assert chamfer > 0, "`chamfer` must be positive"
 		# create a truncated profile (the top profile of the chamfer)
 		pr = step * z / (2 * pi)  # primitive radius
 		square_pr = pr ** 2
@@ -585,7 +586,7 @@ def gearexterior(
 			# Edges of teeth
 			R = sqrt(max(length2(v) for v in profile.points)) # the largest radius of profile
 			# step to generate a helical transformation
-			step = settings.curve_resolution(depth / cos(helix_angle), depth * tan(helix_angle) / R)
+			step = settings.curve_resolution(depth / cos(abs(helix_angle)), depth * tan(abs(helix_angle)) / R)
 			Z = vec3(0, 0, 1)
 			angle = depth * tan(helix_angle) / R / (step + 1)
 			h = depth / (step + 1)
