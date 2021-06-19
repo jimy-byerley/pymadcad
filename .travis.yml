@@ -1,0 +1,40 @@
+os: linux
+dist: focal
+language: python
+python:
+  - 3.7
+  - 3.8
+  - 3.9
+
+jobs:
+  include:
+    # perform a linux build
+    - services: docker
+    # and a mac build
+    - os: osx
+      language: shell
+    # and a windows build
+    - os: windows
+      language: shell
+      before_install:
+        - choco upgrade python -y --version 3.9
+        - export PATH="/c/Python39:/c/Python39/Scripts:$PATH"
+        # make sure it's on PATH as 'python3'
+        - ln -s /c/Python39/python.exe /c/Python39/python3.exe
+
+install:
+  - python3 -m pip install cibuildwheel==1.11.1.post1
+
+script:
+  # build the wheels, put them into './wheelhouse'
+  - python3 -m cibuildwheel --output-dir wheelhouse
+
+
+deploy:
+  on:
+    tags: true
+  skip_cleanup: true
+  provider: pypi
+  username: "__token__"
+  password:   
+    secure: "a4JQ+D9ndTllhZ8u0k0cuBwlneVW44W58CPbscFRzHS644CUCq37UKvRX4kDA+VsYXI5Nl4Crc1It38Rfadrdem2DDXlT0qGdfFiDcxzvei75Z5G4kV9nwv0f4PEOHs5QPB5dF0MSxr1GgSF9z43Z27bItk7ScQMfEqI+kgvFeiFu85Yg2AabfxLflSBYKXQes/8YINN4zY7N5Vgfc7HVkiEs+9PVxVS7aujB6hvuTVIFMny3XqSz1G5WWM8TIdmsdh3of2haCxrW0enRdPIhdRZJO/7fLR6wv8kFmFOHVbKIjOMKO6ywPF3F8udM6sXT6Lz4AF3Hl1dguUKEvyPXUKsWRd9eo1qqUluC1iPBhVitv+UMRmxaVeUzvpn8WtxOWW4smNGxQU8G1ISa8wgi/U/0oesWZLFMArlWjP0cW+rmqNFcPbbED1isGgIsmHKZTpMfnpDMqcxhndK1p4tqAqhNjSx6ZGtlH+qI3ElUc9qIvU5qn0Y9+612wjbvV9e9fAr8Lg4GzkoYSgtFguKArTc2lgTWjZtygWSxnrvjqdqLbr8B6m669BBOwdFXtSRYKWUV0x+RFKTID8kgtHF/AENp5YiUX8dkaJUSErJQCe1ZjhSSdwvlK8CRLs2A5y8w4wutLw7ZThts6a8E50J4JtVlAyZq1kINaacJHCu6W8="
