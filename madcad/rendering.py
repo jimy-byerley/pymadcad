@@ -63,12 +63,18 @@ def show(objs, options=None, interest=None):
 	''' shortcut to create a QApplication showing only one view with the given objects inside.
 		the functions returns when the window has been closed and all GUI destroyed
 	'''
+	global global_context
+		
 	if isinstance(objs, list):	objs = dict(enumerate(objs))
 	
-	import sys
-	
-	QApplication.setAttribute(Qt.AA_ShareOpenGLContexts, True)
-	app = QApplication.instance() or QApplication(sys.argv)
+	app = QApplication.instance()
+	created = False
+	if not app:
+		import sys
+		QApplication.setAttribute(Qt.AA_ShareOpenGLContexts, True)
+		app = QApplication(sys.argv)
+		global_context = None
+		created = True
 	
 	# use the Qt color scheme if specified
 	if settings.display['system_theme']: 
@@ -83,8 +89,9 @@ def show(objs, options=None, interest=None):
 	view.center()
 	view.adjust()
 	
-	err = app.exec()
-	if err != 0:	print('error: Qt exited with code', err)
+	if created:
+		err = app.exec()
+		if err != 0:	print('error: Qt exited with code', err)
 
 
 class Display:
