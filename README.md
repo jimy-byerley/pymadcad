@@ -15,6 +15,7 @@ Simple yet powerful CAD (Computer Aided Design) library, written with Python.
 [![PyPI version shields.io](https://img.shields.io/pypi/v/pymadcad.svg)](https://pypi.org/project/pymadcad/)
 [![Documentation Status](https://readthedocs.org/projects/pymadcad/badge/?version=latest)](https://pymadcad.readthedocs.io/en/latest/?badge=latest)
 
+
 ## Features
 
 - surface generation (3D sketch primitives, extrusion, revolution, ...)
@@ -25,6 +26,9 @@ Simple yet powerful CAD (Computer Aided Design) library, written with Python.
 - objects display with high-quality graphics
 
 ![example-bearing](examples/bearing.png)
+
+Checkout some [complete examples](examples)
+
 
 ## Sample usage
 
@@ -60,6 +64,7 @@ show([part])
 
 The result will be this window
 ![example-window](docs/screenshots/readme-example.png)
+
 
 ## About
 
