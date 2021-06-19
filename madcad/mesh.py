@@ -1061,13 +1061,13 @@ class Web(Container):
 			if groups and track not in groups:	continue
 			for p in edge:
 				if p in belong:
-					if belong[e] != track:
-						g = edgekey(belong[e],track)
+					if belong[p] != track:
+						g = edgekey(belong[p],track)
 						indices.append(p)
 						tracks.append(couples.setdefault(g, len(couples)))
-					del belong[e]
+					del belong[p]
 				else:
-					belong[e] = track
+					belong[p] = track
 		return Wire(self.points, indices, tracks, list(couples))
 		
 		
