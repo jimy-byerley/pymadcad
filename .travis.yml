@@ -16,8 +16,8 @@ jobs:
     - stage: deploy
       name: Deploy source distribution
       install: skip
-      script: python3 setup.py sdist --formats=gztar
-      after_success: |
+      script: |
+        python3 setup.py sdist --formats=gztar
         python3 -m pip install twine
         python3 -m twine upload --skip-existing dist/*.tar.gz
       
@@ -25,9 +25,9 @@ jobs:
     - stage: deploy
       name: Build and deploy Linux wheels
       services: docker
-      install: python3 -m pip install cibuildwheel==2.0.0a2
-      script: python3 -m cibuildwheel --output-dir wheelhouse
-      after_success: |
+      install: python3 -m pip install cibuildwheel
+      script: |
+        python3 -m cibuildwheel --output-dir wheelhouse
         python3 -m pip install twine
         python3 -m twine upload --skip-existing wheelhouse/*.whl
     
@@ -36,9 +36,9 @@ jobs:
       name: Build and deploy Windows wheels
       os: windows
       language: shell
-      install: python3 -m pip install cibuildwheel==2.0.0a2
-      script: python3 -m cibuildwheel --output-dir wheelhouse
-      after_success: |
+      install: python3 -m pip install cibuildwheel
+      script: |
+        python3 -m cibuildwheel --output-dir wheelhouse
         python3 -m pip install twine
         python3 -m twine upload --skip-existing wheelhouse/*.whl
 
@@ -62,15 +62,13 @@ script:
 
 
 deploy:
+  provider: releases
   skip_cleanup: true
-  file: wheelhouse/*
   file_glob: true
-  skip_existing: true
-  provider: pypi
-  username: __token__
-  password:
-    secure: RuXIVqrRY03itAuvIbWKq6VOAqAGKXUYn3dYTIUE8iI+TNAF9qjK1H+8ZXGMyQEiuSRExu9cd7cUA6LXr5iVJBcnRoxfI5gBe3ttE+QpA4T6yXItQuT1Fq1EWy6e+X62jcXYpYmVE2DLKiexAfJTB93ISf+dxf2T8q0sHmDMSevQCBExweo+fgiD6JDIPT4pdNYKpY0v0LOdopohpPxTixlH9vLGoqctA40ddWdUjAP0Ozu2pvCmuwlXpPfmomZt5gjHipwcNJHfPn95BA1frVesleiUkSq0uRtOvi+JaRwb0r3zgEwqleVAoXuzydNxmDh5HaDXkwPbwnmtgZAxO6kH3FKu+810Vt2Vf2W32m/IdwZMIQI8R3OK28KlQ2et4crssqTq25UuCkxxNAqI8C95jg9jHhD4lTu4yp2srsx6Yb/mrDJaWAbimRAyK2sx3dKMPLOX6RtgMtedXKNucSOz1w+uOdI1RAkS4J50jjCJvLIAJ73JDCkhiCamdDqYLmNq+2s9IJiHKliU7adqjUq5pCIwpJ1tIopdeulxSlWmC23t1pPVS5OIN1n3fameXJwc3ZGB1FWd/5X2z1fX+oFXSpROuVHI64o+EPlyCx5SxaBv1b+ztZjnmx0BfyAIh5kINMRtoaiLUtBpNrPR2EEN6gfsjaWWslBQ5zqQEQw=
 
 env:
   global:
+    - CIBW_BUILD=cp39-*
     - TWINE_USERNAME=__token__
+    # TWINE_PASSWORD
+    - secure: gI7OeZLn0Xd8Z7Wd9wGoPwwzKVb+AoKD5LA0cCh/DGcWQU3bo79EB8B+gx9I2B+lxXUviQS9K5EhUfs0jof4Mjh7fGuYLFrznbtAqLl9g3lBmHGpFeFqqHzcCSYPcxbPRnuIrgUhQ07RHcZSPWKwFqdpCXajPC3W+i52NZ0DKT9G2c0u9QUigLfjhVC9IJbd7CZaGlFBnNWuRC0FhbDXvJYhNZctEXKXgtBjpAkOQfqfl/l1e51qVTcl1KDK8fLERCOpO9TGwpmfdzkwD7T49z+1Dwev1EfPvu9FLezWTWir9G7HP+LobUZpgnFS87HCbKGFzVvtcLiboyQgRd7iYDYfXImrwiyuLduGsvXFYXI7Dj3QMY8aJ/ochyCQPHnUu55ThasCr4TKHTm8sKDgrsnppiqLlObT/jNi0qhcEoLCxI7nb9tDBKu3NWqRmUOOPy3wUA73dJ/E8vAYlfMJKewzZemSdfddir3Mv+G4ZowZZXtBxRnByrrJUavdEUwmxObq6d1VPMfXcnZ5QxIotIZSzuEHToKy+DhyHxX6ET2jnlrgMBO0nHN11I2v/h4b6Mv6RIzfIVvBhB9JzBdlNFFHFbkvHUXlDkqWRacmpPRxtiHKVXDH7YHGGc1R8EjXn/l/fhTgPMhEXPViE3wnBO5JQyyxULSL47Y5wkEUiaE=
