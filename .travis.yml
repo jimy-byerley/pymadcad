@@ -16,9 +16,10 @@ jobs:
   - os: windows
     language: shell
     before_install:
-    - python_alias=$(realpath $(dirname $(which python))/python3.exe)
-    - echo $python_alias
-    - ln -s $(which python) $python_alias
+        - choco upgrade python -y --version 3.9
+        # make sure it's on PATH as 'python3'
+        - export PATH="/c/Python39:/c/Python39/Scripts:$PATH"
+        - ln -s /c/Python38/python.exe /c/Python38/python3.exe
 
 install:
 - python3 -m pip install cibuildwheel==1.11.1.post1
