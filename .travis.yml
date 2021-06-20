@@ -54,21 +54,19 @@ before_install:
     fi
 
 install:
-  - python3 -m pip install cython
+  - echo "nothing"
+  #- python3 -m pip install cython
 
 script:
-  - python3 setup.py install
+  - echo "nothing"
+  #- python3 setup.py install
   # TODO add automated tests
 
-
-deploy:
-  provider: releases
-  skip_cleanup: true
-  file_glob: true
 
 env:
   global:
     - CIBW_BUILD=cp39-*
     - TWINE_USERNAME=__token__
     # TWINE_PASSWORD
-    - secure: gI7OeZLn0Xd8Z7Wd9wGoPwwzKVb+AoKD5LA0cCh/DGcWQU3bo79EB8B+gx9I2B+lxXUviQS9K5EhUfs0jof4Mjh7fGuYLFrznbtAqLl9g3lBmHGpFeFqqHzcCSYPcxbPRnuIrgUhQ07RHcZSPWKwFqdpCXajPC3W+i52NZ0DKT9G2c0u9QUigLfjhVC9IJbd7CZaGlFBnNWuRC0FhbDXvJYhNZctEXKXgtBjpAkOQfqfl/l1e51qVTcl1KDK8fLERCOpO9TGwpmfdzkwD7T49z+1Dwev1EfPvu9FLezWTWir9G7HP+LobUZpgnFS87HCbKGFzVvtcLiboyQgRd7iYDYfXImrwiyuLduGsvXFYXI7Dj3QMY8aJ/ochyCQPHnUu55ThasCr4TKHTm8sKDgrsnppiqLlObT/jNi0qhcEoLCxI7nb9tDBKu3NWqRmUOOPy3wUA73dJ/E8vAYlfMJKewzZemSdfddir3Mv+G4ZowZZXtBxRnByrrJUavdEUwmxObq6d1VPMfXcnZ5QxIotIZSzuEHToKy+DhyHxX6ET2jnlrgMBO0nHN11I2v/h4b6Mv6RIzfIVvBhB9JzBdlNFFHFbkvHUXlDkqWRacmpPRxtiHKVXDH7YHGGc1R8EjXn/l/fhTgPMhEXPViE3wnBO5JQyyxULSL47Y5wkEUiaE=
+    secure: "0h95pbqnCTGC+0LH7qWlZ3Ea3fle18hG0dQlumMNwYvHPo86qFNK1TAcfaR4Vj42nA853c8LLmYDx8g1y1rhuRl3BJsQUghy8Lvj6mjIbreJpDKHIN+lrb6q5cwIf0HaXwMcjfky+jbfsWAkC9yIIym2IDTa123ntyUaZaiEoUUhxshYoYROIUe6U1/uazkIPCFd+Xl5j+8A/4hYhS3b4hCy4g8kZz7dhgBOsjP1Fk+CzHA+T/HDNU/uEyd0eWOcPa/smfdM/O5PP9Ic6xSKObCuP9aDaCVY1A4JKsmp3IK8hFXwcTjjiVFgaLnn98GdNz/tM5Spr7+x7DrH5LJ7OJjHfwnyP6E09LpuVAOTGgxKneXxxSXNi7APTmsEt9ffQglA3uZF5BpIm9COc+gAOEEkLpoZDNSt19pTNC8sESWEn+2qB+mGBzKBld2XSb+1f+l03VWP5DtCx83kLYJreah2lMe5spVR2uhpUSaFaJdbVgpvMRlkuOqbquvMJUxmi9nRLul9EQP60TpmfNy9hyscfj7YP36M67W19dPnqrUjWGC1643N2g5qZ4XwOYsQoBW3MGHS7/WlASD+SP4pDVw+As0hORXs7J0JFOkhykZos7/V9qmhP7v7VMGk8HNQWLG5yJHFPEN49Rqqnw0kWpDvdFqrgJNH6So/m2SN5gM="
+  
