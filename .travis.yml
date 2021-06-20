@@ -22,10 +22,10 @@ jobs:
         - ln -s /c/Python39/python.exe /c/Python39/python3.exe
 
 install:
-- python3 -m pip install cibuildwheel==1.11.1.post1
+  - python3 -m pip install cibuildwheel==2.0.0a2
 
 script:
-- python3 -m cibuildwheel --output-dir wheelhouse
+  - python3 -m cibuildwheel --output-dir wheelhouse
 
 deploy:
   skip_cleanup: true

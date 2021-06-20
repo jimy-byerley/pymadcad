@@ -12,18 +12,9 @@ else:
 setup(
 	# package declaration
 	name='pymadcad',
-	version='0.8',
+	version='0.8.1',
 	python_requires='>=3.6',
-	install_requires=[
-		'pyglm>=1.2', 
-		'moderngl>=5.6', 
-		'numpy>=1.1', 
-		'scipy>=1.3', 
-		'PyQt5>=5', 
-		'Pillow>=5.4', 
-		'cython>=0.29',
-		'pyyaml>=5',
-		],
+	install_requires=open('requirements.txt').readlines(),
 	extras_require={
 		'PLY': ['plyfile>=0.7'],
 		'STL': ['numpy-stl>=2'],
