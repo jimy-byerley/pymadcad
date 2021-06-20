@@ -1,39 +1,34 @@
 os: linux
 dist: focal
 language: python
-python:
-  - 3.7
-  - 3.8
-  - 3.9
 
 jobs:
   include:
-    # perform a linux build
-    - services: docker
-    # and a mac build
-    - os: osx
-      language: shell
-    # and a windows build
-    - os: windows
-      language: shell
-      before_install:
-        - python_alias=$(abspath $(which python)/../python3.exe)
-        - echo $python_alias
-        - ln -s $(which python) $python_alias
+  
+  # linux build
+  - services: docker
+  
+  # ios build
+  - os: osx
+    language: shell
+    
+  # windows build
+  - os: windows
+    language: shell
+    before_install:
+    - python_alias=$(realpath $(which python)/../python3.exe)
+    - echo $python_alias
+    - ln -s $(which python) $python_alias
 
 install:
-  - python3 -m pip install cibuildwheel==1.11.1.post1
+- python3 -m pip install cibuildwheel==1.11.1.post1
 
 script:
-  # build the wheels, put them into './wheelhouse'
-  - python3 -m cibuildwheel --output-dir wheelhouse
-
+- python3 -m cibuildwheel --output-dir wheelhouse
 
 deploy:
-  #on:
-    #tags: true
   skip_cleanup: true
   provider: pypi
-  username: "__token__"
-  password:   
-    secure: "a4JQ+D9ndTllhZ8u0k0cuBwlneVW44W58CPbscFRzHS644CUCq37UKvRX4kDA+VsYXI5Nl4Crc1It38Rfadrdem2DDXlT0qGdfFiDcxzvei75Z5G4kV9nwv0f4PEOHs5QPB5dF0MSxr1GgSF9z43Z27bItk7ScQMfEqI+kgvFeiFu85Yg2AabfxLflSBYKXQes/8YINN4zY7N5Vgfc7HVkiEs+9PVxVS7aujB6hvuTVIFMny3XqSz1G5WWM8TIdmsdh3of2haCxrW0enRdPIhdRZJO/7fLR6wv8kFmFOHVbKIjOMKO6ywPF3F8udM6sXT6Lz4AF3Hl1dguUKEvyPXUKsWRd9eo1qqUluC1iPBhVitv+UMRmxaVeUzvpn8WtxOWW4smNGxQU8G1ISa8wgi/U/0oesWZLFMArlWjP0cW+rmqNFcPbbED1isGgIsmHKZTpMfnpDMqcxhndK1p4tqAqhNjSx6ZGtlH+qI3ElUc9qIvU5qn0Y9+612wjbvV9e9fAr8Lg4GzkoYSgtFguKArTc2lgTWjZtygWSxnrvjqdqLbr8B6m669BBOwdFXtSRYKWUV0x+RFKTID8kgtHF/AENp5YiUX8dkaJUSErJQCe1ZjhSSdwvlK8CRLs2A5y8w4wutLw7ZThts6a8E50J4JtVlAyZq1kINaacJHCu6W8="
+  username: __token__
+  password:
+    secure: RuXIVqrRY03itAuvIbWKq6VOAqAGKXUYn3dYTIUE8iI+TNAF9qjK1H+8ZXGMyQEiuSRExu9cd7cUA6LXr5iVJBcnRoxfI5gBe3ttE+QpA4T6yXItQuT1Fq1EWy6e+X62jcXYpYmVE2DLKiexAfJTB93ISf+dxf2T8q0sHmDMSevQCBExweo+fgiD6JDIPT4pdNYKpY0v0LOdopohpPxTixlH9vLGoqctA40ddWdUjAP0Ozu2pvCmuwlXpPfmomZt5gjHipwcNJHfPn95BA1frVesleiUkSq0uRtOvi+JaRwb0r3zgEwqleVAoXuzydNxmDh5HaDXkwPbwnmtgZAxO6kH3FKu+810Vt2Vf2W32m/IdwZMIQI8R3OK28KlQ2et4crssqTq25UuCkxxNAqI8C95jg9jHhD4lTu4yp2srsx6Yb/mrDJaWAbimRAyK2sx3dKMPLOX6RtgMtedXKNucSOz1w+uOdI1RAkS4J50jjCJvLIAJ73JDCkhiCamdDqYLmNq+2s9IJiHKliU7adqjUq5pCIwpJ1tIopdeulxSlWmC23t1pPVS5OIN1n3fameXJwc3ZGB1FWd/5X2z1fX+oFXSpROuVHI64o+EPlyCx5SxaBv1b+ztZjnmx0BfyAIh5kINMRtoaiLUtBpNrPR2EEN6gfsjaWWslBQ5zqQEQw=
