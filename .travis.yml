@@ -16,7 +16,7 @@ jobs:
   - os: windows
     language: shell
     before_install:
-    - python_alias=$(realpath $(which python)/../python3.exe)
+    - python_alias=$(realpath $(dirname $(which python))/python3.exe)
     - echo $python_alias
     - ln -s $(which python) $python_alias
 
