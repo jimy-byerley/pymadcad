@@ -2,34 +2,64 @@ os: linux
 dist: focal
 language: python
 
+stages:
+  - test
+  - name: deploy
+    # to only build tags
+    #   if: tag IS PRESENT AND repo = pypa/cibuildwheel
+    # To only build tags that look like vX.Y.Z:
+    #   if: tag =~ ^v\d+\.\d+\.\d+$ AND repo = pypa/cibuildwheel
+
 jobs:
   include:
-  
-  # linux build
-  - services: docker
-  
-  # linux build
-  - services: docker
-    arch: arm
-  
-  # ios build
-  - os: osx
-    language: shell
+    # Deploy source distribution
+    - stage: deploy
+      name: Deploy source distribution
+      install: skip
+      script: python3 setup.py sdist --formats=gztar
+      after_success: |
+        python3 -m pip install twine
+        python3 -m twine upload --skip-existing dist/*.tar.gz
+      
+    # Deploy on linux
+    - stage: deploy
+      name: Build and deploy Linux wheels
+      services: docker
+      install: python3 -m pip install cibuildwheel==2.0.0a2
+      script: python3 -m cibuildwheel --output-dir wheelhouse
+      after_success: |
+        python3 -m pip install twine
+        python3 -m twine upload --skip-existing wheelhouse/*.whl
     
-  # windows build
-  - os: windows
-    language: shell
-    before_install:
-        - choco upgrade python -y --version 3.9
+    # Deploy on windows
+    - stage: deploy
+      name: Build and deploy Windows wheels
+      os: windows
+      language: shell
+      install: python3 -m pip install cibuildwheel==2.0.0a2
+      script: python3 -m cibuildwheel --output-dir wheelhouse
+      after_success: |
+        python3 -m pip install twine
+        python3 -m twine upload --skip-existing wheelhouse/*.whl
+
+        
+
+before_install:
+  - |
+    if [[ "$TRAVIS_OS_NAME" = windows ]]; then
+        choco upgrade python -y --version 3.8
+        export PATH="/c/Python38:/c/Python38/Scripts:$PATH"
         # make sure it's on PATH as 'python3'
-        - export PATH="/c/Python39:/c/Python39/Scripts:$PATH"
-        - ln -s /c/Python39/python.exe /c/Python39/python3.exe
+        ln -s /c/Python38/python.exe /c/Python38/python3.exe
+    fi
 
 install:
-  - python3 -m pip install cibuildwheel
+  - python3 -m pip install cython
 
 script:
-  - python3 -m cibuildwheel --output-dir wheelhouse
+  - python3 setup.py install
+  # TODO add automated tests
+
 
 deploy:
   skip_cleanup: true
@@ -43,8 +73,4 @@ deploy:
 
 env:
   global:
-  - CIBW_SKIP=cp34-*
-  - CIBW_BUILD=cp3?-*
-  - CIBW_MANYLINUX_X86_64_IMAGE=manylinux1
-  - CIBW_MANYLINUX_I686_IMAGE=manylinux1
-  - TWINE_USERNAME=__token__
+    - TWINE_USERNAME=__token__
