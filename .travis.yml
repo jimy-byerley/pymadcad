@@ -26,7 +26,7 @@ jobs:
         - ln -s /c/Python39/python.exe /c/Python39/python3.exe
 
 install:
-  - python3 -m pip install cibuildwheel==2.0.0a2
+  - python3 -m pip install cibuildwheel
 
 script:
   - python3 -m cibuildwheel --output-dir wheelhouse
@@ -39,3 +39,11 @@ deploy:
   username: __token__
   password:
     secure: RuXIVqrRY03itAuvIbWKq6VOAqAGKXUYn3dYTIUE8iI+TNAF9qjK1H+8ZXGMyQEiuSRExu9cd7cUA6LXr5iVJBcnRoxfI5gBe3ttE+QpA4T6yXItQuT1Fq1EWy6e+X62jcXYpYmVE2DLKiexAfJTB93ISf+dxf2T8q0sHmDMSevQCBExweo+fgiD6JDIPT4pdNYKpY0v0LOdopohpPxTixlH9vLGoqctA40ddWdUjAP0Ozu2pvCmuwlXpPfmomZt5gjHipwcNJHfPn95BA1frVesleiUkSq0uRtOvi+JaRwb0r3zgEwqleVAoXuzydNxmDh5HaDXkwPbwnmtgZAxO6kH3FKu+810Vt2Vf2W32m/IdwZMIQI8R3OK28KlQ2et4crssqTq25UuCkxxNAqI8C95jg9jHhD4lTu4yp2srsx6Yb/mrDJaWAbimRAyK2sx3dKMPLOX6RtgMtedXKNucSOz1w+uOdI1RAkS4J50jjCJvLIAJ73JDCkhiCamdDqYLmNq+2s9IJiHKliU7adqjUq5pCIwpJ1tIopdeulxSlWmC23t1pPVS5OIN1n3fameXJwc3ZGB1FWd/5X2z1fX+oFXSpROuVHI64o+EPlyCx5SxaBv1b+ztZjnmx0BfyAIh5kINMRtoaiLUtBpNrPR2EEN6gfsjaWWslBQ5zqQEQw=
+
+env:
+  global:
+  - CIBW_SKIP=cp34-*
+  - CIBW_BUILD=cp3?-*
+  - CIBW_MANYLINUX_X86_64_IMAGE=manylinux1
+  - CIBW_MANYLINUX_I686_IMAGE=manylinux1
+  - TWINE_USERNAME=__token__
