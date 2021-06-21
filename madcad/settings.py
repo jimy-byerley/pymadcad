@@ -9,7 +9,7 @@ dictionnaries:
 
 from math import pi, ceil, floor, sqrt
 from glm import fvec3, fvec4
-import os, yaml
+import sys, os, yaml
 from os.path import dirname, exists
 
 
