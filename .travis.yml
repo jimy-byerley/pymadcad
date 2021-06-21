@@ -6,7 +6,7 @@ stages:
   - test
   - name: deploy
     # to only build tags
-      if: tag IS PRESENT AND repo = jimy-byerley/pymadcad
+    if: tag IS PRESENT  AND repo = jimy-byerley/pymadcad
     # To only build tags that look like vX.Y.Z:
     #   if: tag =~ ^v\d+\.\d+\.\d+$ AND repo = jimy-byerley/pymadcad
 
