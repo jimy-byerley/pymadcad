@@ -65,7 +65,7 @@ def rackprofile(step, h=None, offset=0, alpha=radians(20), resolution=None) -> W
 	if h is None:
 		h = default_height(step, alpha)
 	e = offset  # change name for convenience
-	x = 0.5 + 2*offset/p*tan(alpha)  # fraction of the tooth above the primitive circle
+	x = 0.5 + 2*e/step*tan(alpha)  # fraction of the tooth above the primitive circle
   
 	return Wire([
 		vec3(step*x/2 - tan(alpha) * ( h-e),   h-e,  0),
@@ -95,7 +95,7 @@ def gearprofile(step, z, h=None, offset=0, alpha=radians(20), resolution=None, *
 
 	e = offset  # change name for convenience
 	#e = offset + 0.05*h  # the real offset is 5% (the 1*m, 1.25*m) when the standard says it is 0
-	x = 0.5 + 2*offset/p*tan(alpha)  # fraction of the tooth above the primitive circle
+	x = 0.5 + 2*offset/step*tan(alpha)  # fraction of the tooth above the primitive circle
 
 	o0 = angle(involute(c, 0, tan(alpha)))	# offset of contact curve
 	oi = atan((h-e)/p * tan(alpha))		# offset of interference curve
