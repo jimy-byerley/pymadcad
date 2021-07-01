@@ -99,6 +99,8 @@ classes
 	
 		.. automethod:: extremities
 		.. automethod:: groupextremities
+		.. automethod:: frontiers
+		.. automethod:: group
 		.. automethod:: arcs
 		.. automethod:: box
 		.. automethod:: precision

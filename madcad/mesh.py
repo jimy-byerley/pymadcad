@@ -197,11 +197,11 @@ class Mesh(Container):
 		As volumes are represented by their exterior surface, there is no difference between representation of volumes and faces, juste the way we interpret it.
 		
 		Attributes:
-			:points:     list of vec3 for points
-			:faces:		list of triplets for faces, the triplet is (a,b,c) such that  cross(b-a, c-a) is the normal oriented to the exterior.
-			:tracks:	    integer giving the group each face belong to
-			:groups:     custom information for each group
-			:options:	custom informations for the entire mesh
+			points:     list of vec3 for points
+			faces:		list of triplets for faces, the triplet is (a,b,c) such that  cross(b-a, c-a) is the normal oriented to the exterior.
+			tracks:	    integer giving the group each face belong to
+			groups:     custom information for each group
+			options:	custom informations for the entire mesh
 	'''
 	
 	# --- standard point container methods ---
@@ -483,37 +483,29 @@ class Mesh(Container):
 		return Web(self.points, list(self.outlines_oriented()))
 		
 	def groupoutlines(self):
-		''' return a Web of UNORIENTED edges delimiting all the mesh groups '''
+		''' return a dict of ORIENTED edges indexing groups.
+			
+			On a frontier between multiple groups, there is as many edges as groups, each associated to a group.
+		'''
 		edges = []	# outline
+		tracks = []	# groups for edges
 		tmp = {}	# faces adjacent to edges
-		# insert edges adjacent to two different groups
 		for i,face in enumerate(self.faces):
-			for edge in ((face[0],face[1]),(face[1],face[2]),(face[2],face[0])):
-				e = edgekey(*edge)
+			for e in ((face[1],face[0]),(face[2],face[1]),(face[0],face[2])):
+				track = self.tracks[i]
 				if e in tmp:
-					if self.tracks[tmp[e]] != self.tracks[i]:
+					if tmp[e] != track:
 						edges.append(e)
+						tracks.append(track)
 					del tmp[e]
 				else:
-					tmp[e] = i
-		# insert edges that border only one face
+					tmp[(e[1],e[0])] = track
 		edges.extend(tmp.keys())
-		return Web(self.points, edges)
-		
-	def groupoutlines_oriented(self):
-		''' return a dict of ORIENTED edges indexing groups '''
-		edges = {}	# group for edges
-		for i,face in enumerate(self.faces):
-			for edge in ((face[1],face[0]),(face[2],face[1]),(face[0],face[2])):
-				track = self.tracks[i]
-				if e in edges and edges[e] == track:
-					del edges[e]
-				else:
-					edges[(e[1],e[0])] = track
-		return edges
+		tracks.extend(tmp.values())
+		return Web(self.points, edges, tracks, self.groups)
 		
 	def frontiers(self, *args):
-		''' return a Web of UNORIENTED edges between the given groups 
+		''' return a Web of UNORIENTED edges that split the given groups appart.
 		
 			if groups is None, then return the frontiers between any groups
 		'''
@@ -565,7 +557,7 @@ class Mesh(Container):
 			
 			return a list of tracks for points
 		'''
-		if edges is None:	edges = self.groupoutlines().edges
+		if edges is None:	edges = self.frontiers().edges
 		# mark points on the frontier
 		frontier = [False]*len(self.points)
 		for a,b in edges:
@@ -833,7 +825,7 @@ class Mesh(Container):
 	def display(self, scene):
 		m = copy(self)
 		idents = m.splitgroups()
-		edges = m.groupoutlines().edges
+		edges = m.outlines().edges
 		normals = m.vertexnormals()
 		
 		if not m.points or not m.faces:	
@@ -886,11 +878,11 @@ class Web(Container):
 		this definition is very close to the definition of Mesh, but with edges instead of triangles
 		
 		Attributes:
-			:points:	list of vec3 for points
-			:edges:		list of couples for edges, the couple is oriented (meanings of this depends on the usage)
-			:tracks:	integer giving the group each line belong to
-			:groups:	custom information for each group
-			:options:	custom informations for the entire web
+			points:	list of vec3 for points
+			edges:		list of couples for edges, the couple is oriented (meanings of this depends on the usage)
+			tracks:	integer giving the group each line belong to
+			groups:	custom information for each group
+			options:	custom informations for the entire web
 	'''
 
 	# --- standard point container methods ---
@@ -1029,22 +1021,55 @@ class Web(Container):
 		return extr
 	
 	def groupextremities(self):
-		''' return the points that split groups appart.
+		''' return the extremities of each group.
 			1D equivalent of Mesh.groupoutlines()
+			
+			On a frontier between multiple groups, there is as many points as groups, each associated to a group.
 		'''
 		indices = []
+		tracks = []
 		tmp = {}
 		# insert points belonging to different groups
 		for i,edge in enumerate(self.edges):
+			track = self.tracks[i]
 			for p in edge:
 				if p in tmp:
-					if self.tracks[tmp[p]] != self.tracks[i]:
+					if tmp[p] != track:
 						indices.append(p)
+						tracks.append(track)
 					del tmp[p]
 				else:
-					tmp[p] = i
+					tmp[p] = track
 		indices.extend(tmp.keys())
-		return Wire(self.points, indices)
+		tracks.extend(tmp.values())
+		return Wire(self.points, indices, tracks, self.groups)
+		
+	def frontiers(self, *args):
+		''' return a Wire of points that split the given groups appart.
+		
+			if groups is None, then return the frontiers between any groups
+		'''
+		if len(args) == 1 and hasattr(args[0], '__iter__'):
+			args = args[0]
+		groups = set(args)
+		indices = []
+		tracks = []
+		couples = OrderedDict()
+		belong = {}
+		for i,edge in enumerate(self.edges):
+			track = self.tracks[i]
+			if groups and track not in groups:	continue
+			for p in edge:
+				if p in belong:
+					if belong[p] != track:
+						g = edgekey(belong[p],track)
+						indices.append(p)
+						tracks.append(couples.setdefault(g, len(couples)))
+					del belong[p]
+				else:
+					belong[p] = track
+		return Wire(self.points, indices, tracks, list(couples))
+		
 		
 	def group(self, groups):
 		''' return a new mesh linked with this one, containing only the faces belonging to the given groups '''
@@ -1216,11 +1241,11 @@ class Wire(Container):
 		Used to borrow reference of points from a mesh by keeping their original indices
 
 		Attributes:
-			:points:	points buffer
-			:indices:	indices of the line's points in the buffer
-			:tracks:	group index for each point in indices
+			points:	points buffer
+			indices:	indices of the line's points in the buffer
+			tracks:	group index for each point in indices
 						it can be used to associate groups to points or to edges (if to edges, then take care to still have as many track as indices)
-			:groups:	data associated to each point (or edge)
+			groups:	data associated to each point (or edge)
 	'''
 	__slots__ = 'points', 'indices', 'tracks', 'groups'
 	
@@ -1660,9 +1685,9 @@ def suites(lines, oriented=True, cut=True, loop=False):
 	''' return a list of the suites that can be formed with lines.
 		lines is an iterable of edges
 		
-		parameters:
-			:oriented:      specifies that (a,b) and (c,b) will not be assembled
-			:cut:           cut suites when they are crossing each others
+		Parameters:
+			oriented:      specifies that (a,b) and (c,b) will not be assembled
+			cut:           cut suites when they are crossing each others
 		
 		return a list of the sequences that can be formed
 	'''

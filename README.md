@@ -14,6 +14,8 @@ Simple yet powerful CAD (Computer Aided Design) library, written with Python.
 [![support-version](https://img.shields.io/pypi/pyversions/pymadcad.svg)](https://img.shields.io/pypi/pyversions/pymadcad)
 [![PyPI version shields.io](https://img.shields.io/pypi/v/pymadcad.svg)](https://pypi.org/project/pymadcad/)
 [![Documentation Status](https://readthedocs.org/projects/pymadcad/badge/?version=latest)](https://pymadcad.readthedocs.io/en/latest/?badge=latest)
+[![Build status](https://api.travis-ci.com/jimy-byerley/pymadcad.svg)](https://travis-ci.com/github/jimy-byerley/pymadcad)
+
 
 ## Features
 
@@ -23,6 +25,11 @@ Simple yet powerful CAD (Computer Aided Design) library, written with Python.
 - kinematic manipulation
 - implicit geometry definition through the constraint/solver system
 - objects display with high-quality graphics
+
+![example-bearing](examples/bearing.png)
+
+Checkout some [complete examples](examples)
+
 
 ## Sample usage
 
@@ -58,6 +65,7 @@ show([part])
 
 The result will be this window
 ![example-window](docs/screenshots/readme-example.png)
+
 
 ## About
 

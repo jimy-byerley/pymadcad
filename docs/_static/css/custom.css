@@ -81,15 +81,15 @@
 
 .wy-nav-side {
 	color: #cecccc;
-	background: #152428;
+	background: #161c20;
 }
 
 .wy-side-nav-search {
-	background: #152428;
+	background: #161c20;
 }
 
 .wy-menu-vertical a {
-	color: #d9d9d9;
+	color: #afd7e3;
 }
 .wy-menu-vertical a:hover {
 	background:#274348
@@ -106,11 +106,11 @@
 .wy-menu-vertical li.toctree-l8 a, 
 .wy-menu-vertical li.toctree-l9 a, 
 .wy-menu-vertical li.toctree-l10 a {
-    color: #77caca;
+    color: #77b3ca;
 }
 
 .wy-menu-vertical li.current a {
-    color: #77caca;
+    color: #77b3ca;
 	background: #141a1c;
     border-left: 1px solid #4dcce187;
 	border-right: none;
@@ -130,17 +130,17 @@
 }
 .wy-menu-vertical li.toctree-l2.current > a, 
 .wy-menu-vertical li.toctree-l2.current li.toctree-l3 > a {
-    background: #1a2424;
+    background: #0f1417;
 }
 
 .wy-menu-vertical li.toctree-l2.current > a, 
 .wy-menu-vertical li.toctree-l2.current li.toctree-l3 > a {
-    background: #1a2424;
+    background: #0f1417;
 }
 
 .wy-menu-vertical li.toctree-l3.current > a, 
 .wy-menu-vertical li.toctree-l3.current li.toctree-l4 > a {
-    background: #2b3c3a;
+    background: #212f35;
 }
 
 /* search bar */
@@ -158,8 +158,8 @@ a:visited { /* links visited */
     color: #479da2;
 }
 
-.wy-nav-content-wrap { /* zone rezied to screen */
-	background: #121f22;
+.wy-body-for-nav { /* zone rezied to screen */
+	background: #0e1215;
 }
 
 .wy-nav-content {
@@ -340,7 +340,7 @@ a:visited { /* links visited */
 code {
     color: #fff;
     background: #000;
-    border: 1px solid #77cdea3d;
+    border: 1px solid #77cdea30;
     font-family: SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,Courier,monospace;
 }
 .rst-content code.literal, 
@@ -348,7 +348,7 @@ code {
     color: #88bedf;
 }
 .rst-content div[class^="highlight"], .rst-content pre.literal-block {
-    border: 1px solid #284751;
+    border: 1px solid #1c343c;
 }
 
 /* buttons */
@@ -364,8 +364,8 @@ code {
 	border: 1px solid #20484a !important;
 }
 .rst-content table.docutils th {
-	border: 1px solid #20484a !important;
-    border-bottom: 1px solid #e1e4e5 !important;
+	border: 1px solid #173233 !important;
+    border-bottom: 1px solid #5b8891 !important;
 }
 .rst-content table.docutils thead, 
 .rst-content table.field-list thead, 
@@ -373,7 +373,7 @@ code {
     color: inherit;
 }
 .rst-content table.docutils:not(.field-list) tr:nth-child(2n-1) td {
-    background-color: #243435 !important;
+    background-color: #141c1e !important;
 }
 
 /* markdown stuff */
@@ -383,5 +383,15 @@ h1, h2, h3 {
 }
 h2 {
 	margin-top: 15%;
+}
+
+
+/* ugly stuff to correct other colors from readthedocs */
+
+html.writer-html4 .rst-content dl:not(.docutils) dl:not(.field-list) > dt, html.writer-html5 .rst-content dl[class]:not(.option-list):not(.field-list):not(.footnote):not(.glossary):not(.simple) dl:not(.field-list) > dt {
+  /* border-left: 3px solid #ccc; */
+  /* background: #f0f0f0; */
+  border-left: 3px solid #ffffff38;
+  background: #ffffff0a;
 }
 

@@ -1,161 +1,72 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
+'''
+	This module provide functions to generate racks and gears with many different shapes.
+
+	The mainstream gears are involute gears (using involute of circles as contact curves). This is due to the standard shape of racks. And involute gears are the best choice for most designs, which is why the current implementation focusses on them.
+
+	However the tools here are modular, which means you can combine them with your own functions to create customized gears.
+	
+	Examples
+	--------
+	
+	As a first use, you may want to generate a fully finished spur gear
+	If you do not specify optional arguments, the function will provide good defaults for it.
+		
+		>>> # fully featured gear
+		>>> gear(step=3, z=12, depth=4, bore_radius=1.5)
+	
+	You may want to generate a more bizarre gear, with a a different hub for instance. You will then need to assemble a gear from its 3 components:  exterior (tooths), structure (between hub and exterior), and hub (what holds the gear on an axis)
+	
+		>>> # this assemble a gear specifying each independant sub-parts
+		>>> ext_radius = (3*12)/(2*pi) - 3
+		>>> int_radius = 4
+		>>> geargather(
+		...		gearexterior(repeat_circular(gearprofile(3, 30), 30), depth=4),
+		...		gearstructure('rounded', ext_radius, int_radius, 2, patterns=6),
+		...		my_hub_mesh,
+		...		)
+	
+	For reuse in your custom functions, the functions used to generate the gears are exposed:
+	
+		>>> # this is the raw profile of a tooth
+		>>> gearprofile(step=3, z=12)
+'''
 
 from .mathutils import *
-from .mesh import Web, Wire, Mesh, web
-from . import settings
+from .mesh import Web, Wire, Mesh, web, wire
 from .blending import junction, blendpair
 from .generation import extrusion, revolution, repeat, extrans
 from .primitives import Circle, ArcCentered, Segment
-from .triangulation import triangulation, triangulation_closest
+from .triangulation import triangulation
 from .selection import *
 from .rendering import show
-from .settings import curve_resolution
 from .cut import bevel
-from math import cos, sin, asin, tan
+from . import settings
+
+from math import *
 from functools import reduce, partial
 from operator import add
 from copy import copy
 
-# TODO: augmenter la surface disponible des dents en permettant un profil skysomorphique (utiliser des operations presques booleenes
 
 
-def geartooth(profile, sector, m=1, resolution=None):
-	''' correct a profile to allow it to be used on a gear where the tooth holds the given angular sector
-		the module m can be provided to adjust curve resolution if it depends on the scale
+def rackprofile(step, h=None, offset=0, alpha=radians(20), resolution=None) -> Wire:
+	''' Generate a 1-period tooth profile for a rack
+	
+		Parameters:
+		
+			step:		period length over the primitive line
+			h:		    tooth half height 
+			offset:     rack reference line offset with the primitive line (as a distance)
+			              - the primitive line is the adherence line with gears
+			              - the reference line is the line half the tooth is above and half below
+			alpha:		angle of the tooth sides, a.k.a  pressure angle of the contact
 	'''
-	# perimeter of the profile
-	total = 0
-	for i in range(1,len(profile)):
-		total += distance(profile[i-1],profile[i])
-	# circular discrete profile
-	res = settings.curve_resolution(m, pi, resolution)
-	tooth = [vec2(profile[0])]
-	for i in range(1,len(profile)):
-		a = profile[i-1]
-		b = profile[i]
-		div = int(res * distance(a,b)/total)
-		tooth += [interpol1(a,b, j/(div+1))		for j in range(1,div+2)]
-
-	# correct the circular profile by removing intersections with the linear profile
-	r = 1/sector
-	rmin = min((y for x,y in profile))
-	rmax = max((y for x,y in profile))
-	# x is advancement of the gear (and rotation therefore)
-	xlim = sqrt(1 - ((r+rmin)/(r+rmax))**2) * (r+rmax)
-	x = 0
-	i = 0
-	while x >= -xlim:
-		dx =  tooth[(i+1) % len(tooth)][0] - tooth[i % len(tooth)][0]
-		if dx < 0:	dx += 1
-		x -= dx
-	while x <= xlim:
-		dx =  tooth[(i+1) % len(tooth)][0] - tooth[i % len(tooth)][0]
-		if dx < 0:	dx += 1
-
-		# search intersections
-		for k in range(len(tooth)):
-			t = (tooth[k][0] - x)/r
-			radial = vec2(sin(t), -cos(t))
-			center = vec2(x, r)
-			p = center + radial * tooth[k][1]
-			for j in range(len(profile)-1):
-				a, b = profile[j] * vec2(1,-1), profile[j+1] * vec2(1,-1)
-				# compute intersection of radial vector with segment
-				u,v = inverse(mat2(radial, b-a)) * (b-center)
-				if 0 <= v and v <= 1:
-					d = u - r
-					if tooth[k][1] > d:
-						tooth[k][1] = d
-				#dir = a-b
-				#dir = -normalize(vec2(dir[1], -dir[0]))
-				##dir = normalize(radial*10 + vec2(0,-1))
-				##dir = radial
-				#u,v = inverse(mat2(dir, b-a)) * (b-p)
-				#if 0 <= v and v <= 1 and u > 0:
-					#drad = p+u*dir - center
-					##drad = v*a + (1-v)*b - center
-					#d = length(drad) - r
-					#print(tooth[k], (r*atan2(drad[0], -drad[1]) + x, d))
-					#tooth[k] = vec2(r*atan2(drad[0], -drad[1]) + x, d)
-		x += dx
-		i += 1
-		#if i > 0:	break
-	return tooth
-
-from .mathutils import atan2, length, normalize
-
-def racktooth(inclin, h1, h2=None):
-	''' profile for iso normed gear
-		inclin	  the contact angle
-		h1		  the exterior height/module of the tooth
-		h2		  the interior height/module of the tooth
-	'''
-	if h2 is None:	h2 = h1
-	inclin = tan(inclin)
-	profile = [vec2(0, h1), vec2(1/4-h1*inclin, h1), vec2(1/4+h2*inclin, -h2)]
-	return profile + [vec2(1-x, y)  for x,y in reversed(profile)]
-
-def gearprofile(profile, m, z, axis=(vec3(0,0,0), vec3(0,0,1)), align=vec3(1,0,0)):
-	''' generate a circular gear profile using the tooth profile given
-		m		the module
-		z		the number of tooth on the profile (int)
-	'''
-	web = Web(groups=['gear'])
-	sector = 2*pi/z
-	r = z*m / (2*pi)
-	o = axis[0]
-	x,y,_ = dirbase(axis[1], align)
-	last = None
-	for i in range(z):
-		for a,p in profile:
-			t = (i+a) * sector
-			if t == last:	continue
-			last = t
-			d = r+p*m
-			web.points.append(d*cos(t)*x + d*sin(t)*y + o)
-	for i in range(len(web.points)-1):
-		web.edges.append((i,i+1))
-		web.tracks.append(0)
-	web.edges[-1] = (i,0)
-	return web
-
-
-def surfgear(profile, m, z, b, spin=0, axis=(vec3(0,0,0), vec3(0,0,1)), align=vec3(1,0,0), resolution=None):
-	line = gearprofile(profile, m, z, axis, align)
-	spin = b * tan(spin) * 2*pi/ (z*m)
-	div = settings.curve_resolution(b, spin, resolution) + 2
-	def trans():
-		for i in range(div):
-			x = i/(div-1)
-			yield transform((x-0.5)*b*axis[1]) * transform(angleAxis(x*spin, axis[1]))
-
-	return generation.extrans(line, trans(), ((i,i+1) for i in range(div-1)))
-
-def surfscrewgear(profile, m, z, b, radius, n=1, axis=(vec3(0,0,0), vec3(0,0,1)), align=vec3(1,0,0), resolution=None):
-	line = gearprofile(profile, m, z, axis, align)
-	#r = z*m / (2*pi)		# gear primitive radius
-	spin = n*b/(z*radius)	# spin angle for the extrusion
-	angle = 2*asin(b/(2*radius))	# angular sector of the screw contact
-	div = max(
-			settings.curve_resolution(b, spin, resolution),
-			settings.curve_resolution(angle*radius, angle, resolution),
-			)+ 2
-	def trans():
-		for i in range(div):
-			x = i/(div-1)
-			t = (x-0.5)*angle
-			s = 1 + radius*(1-cos(t)) * 2*pi/(z*m)
-			h = radius*sin(t)
-			yield transform(h*axis[1]) * transform(angleAxis(x*spin, axis[1])) * transform(s*scaledir(axis[1], 1/s))
-
-	return generation.extrans(line, trans(), ((i,i+1) for i in range(div-1)))
-
-
-def rackprofile(step, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=None) -> Wire:
 	if h is None:
-		h = default_h(step, alpha)
-	e = h*e
-
+		h = default_height(step, alpha)
+	e = offset  # change name for convenience
+	x = 0.5 + 2*e/step*tan(alpha)  # fraction of the tooth above the primitive circle
+  
 	return Wire([
 		vec3(step*x/2 - tan(alpha) * ( h-e),   h-e,  0),
 		vec3(step*x/2 - tan(alpha) * (-h-e),  -h-e,  0),
@@ -165,17 +76,31 @@ def rackprofile(step, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=None
 		], groups=['rack'])
 
 
-def gearprofile(step, z, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=None, **kwargs) -> Wire:
+def gearprofile(step, z, h=None, offset=0, alpha=radians(20), resolution=None, **kwargs) -> Wire:
+	''' Generate a 1-period tooth profile for a straight gear
+
+
+		Parameters:
+		
+			step:		period length over the primitive circle
+			z:			number of tooth on the gear this profile is meant for
+			h:			tooth half height
+			offset:		offset distance of the matching rack profile (see above)
+			alpha:		pressure angle in the contact
+	'''
 	if h is None:
-		h = default_h(step, alpha)
-	e = h*e
+		h = default_height(step, alpha)
 	p = step*z / (2*pi)	# primitive circle
 	c = p * cos(alpha)	# tangent circle to gliding axis
 
-	o0 = angle(involute(c, 0, tan(alpha)))	# offset of contact curve
-	oi = atan((h+e)/p * tan(alpha))		# offset of interference curve
+	e = offset  # change name for convenience
+	#e = offset + 0.05*h  # the real offset is 5% (the 1*m, 1.25*m) when the standard says it is 0
+	x = 0.5 + 2*offset/step*tan(alpha)  # fraction of the tooth above the primitive circle
 
-	l0 = involuteat(c, p+h-e)	# interval size of contact curve
+	o0 = angle(involute(c, 0, tan(alpha)))	# offset of contact curve
+	oi = atan((h-e)/p * tan(alpha))		# offset of interference curve
+
+	l0 = involuteat(c, p+h+e)	# interval size of contact curve
 
 	# if the tooth height is unreachable, find the intersection between the two contact curves
 	t0 = -step/(2*p)*x - o0
@@ -189,32 +114,32 @@ def gearprofile(step, z, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=N
 		l0 = t-t0
 
 	# if there is an interference curve
-	interference = c > p-h-e
+	interference = c > p-h+e
 	if interference:
 		# Newton solver method
 		# to compute the parameters (t1, t2) of the intersection between contact line and interference line
 		t0, ti = o0, oi
 		# initial state
 		t1 = t0 - tan(alpha)	# put contact line on primitive
-		t2 = ti + sqrt(c**2 - (p-h-e)**2) /p	# put interference point on base circle
+		t2 = ti + sqrt(c**2 - (p-h+e)**2) /p	# put interference point on base circle
 		for i in range(8):
 			ct1, ct2 = cos(t1), cos(t2)
 			st1, st2 = sin(t1), sin(t2)
 			# function value
 			f = (	c*vec2(ct1,st1) + c*(t0-t1)*vec2(-st1,ct1)
-				+	(h+e-p)*vec2(ct2,st2) -p*(ti-t2)*vec2(-st2,ct2)
+				+	(h-e-p)*vec2(ct2,st2) -p*(ti-t2)*vec2(-st2,ct2)
 				)
 			# jacobian matrix (f partial derivatives)
 			J = mat2(
 				-c*(t0-t1)*vec2(ct1,st1),
-				p*(ti-t2)*vec2(ct2,st2) + (h+e)*vec2(-st2,ct2),
+				p*(ti-t2)*vec2(ct2,st2) + (h-e)*vec2(-st2,ct2),
 				)
 			# iteration
 			t1, t2 = vec2(t1,t2) - inverse(J)*f
 		li = t2 - ti	# interval size of interference curve
 		s0 = t0 - t1	# generation start of contact curve
 	else:
-		s0 = involuteat(c, p-h-e)
+		s0 = involuteat(c, p-h+e)
 
 	pts = []
 	n = 2 + settings.curve_resolution(h, step/p, resolution)	# number of points to place
@@ -232,7 +157,7 @@ def gearprofile(step, z, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=N
 	if interference:
 		for i in range(n+1):
 			t = interpol1(ti+li, ti, i/n)
-			v = involuteof(p, ti, -h-e, t)
+			v = involuteof(p, ti, -h+e, t)
 			pts.append(vec3(v,0))
 
 	# parameters for second side
@@ -243,7 +168,7 @@ def gearprofile(step, z, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=N
 	if interference:
 		for i in range(n+1):
 			t = interpol1(ti, ti-li, i/n)
-			v = involuteof(p, ti, -h-e, t)
+			v = involuteof(p, ti, -h+e, t)
 			pts.append(vec3(v,0))
 	# contact line
 	for i in range(n+1):
@@ -255,19 +180,18 @@ def gearprofile(step, z, h=None, e=-0.05, x=0.5, alpha=radians(30), resolution=N
 
 	return Wire(pts, groups=['gear'])
 
-def gearcircles(step, z, h=None, e=-0.05, x=0.5, alpha=radians(30)):
+def gearcircles(step, z, h=None, offset=0, alpha=radians(30)):
 	''' return the convenient circles radius for a gear with the given parameters
-		return is `(primitive, base, bottom, top)`
+		  return is `(primitive, base, bottom, top)`
 	'''
 	if h is None:
-		h = default_h(step, alpha)
+		h = default_height(step, alpha)
 	e = h*e
 	p = step*z / (2*pi)	# primitive circle
 	c = p * cos(alpha)	# tangent circle to gliding axis
 	return p, c, p-h-e, p+h-e
 
-
-def default_h(step, alpha):
+def default_height(step, alpha):
 	return 0.5 * 2.25 * step/pi * cos(alpha)/cos(radians(20))
 
 def involute(c, t0, t):
@@ -297,116 +221,101 @@ def angle(p):
 	return atan2(p[1], p[0])
 
 
-def z_multiple(gear_profile: Wire, z: int) -> Web:
-	"""
-	Repeat z times `gear_profile` by revolution
-
-	Parameters
-	----------
-	:gear_profile: Wire (profile of the pinion generated by the function `gearprofile`)
-	:z: int (number of teeth)
-	"""
-	# Parameters
-	x, y = gear_profile[0], gear_profile[-1]
-	angle = anglebt(x, y)
-	axis = (vec3(0, 0, 0), vec3(0, 0, 1))
-
-	profile = repeat(gear_profile, z, rotatearound(angle, axis))
-	profile.mergeclose()
-	return profile
+def repeat_circular(profile, n: int) -> Wire:
+	''' Repeat n times the given Wire by rotation around (O,Z) '''
+	result = repeat(profile, n, rotatearound(
+		anglebt(profile[0], profile[-1]), 
+		(vec3(0,0,0), vec3(0,0,1)),
+		))
+	result.mergeclose()
+	return result
 
 
-def full_pattern(
-	ext_radius: float, int_radius: float, depth: float, int_height: float = 0, **kwargs,
-) -> (Web, Web, None):
+def pattern_full(ext_radius, int_radius, depth, int_height=0, **kwargs) -> Mesh:
 	"""
 	Generate two full parts of the structure (the top and the bottom).
 
 	Return a tuple (Web, Web, None) where the first `Web` is the top of the structure and
 	the second `Web` is the bottom of the structure.
 
-	Parameters
-	----------
-	:ext_radius: float (radius of the external border of the pattern)
-	:int_radius: float (radius of the internal border of the pattern)
-	:depth: float (face width)
-	:int_height: float (if you want a pinion with a structure thinner than the value of `depth`,
-			     		the total height will be `total_height = depth - 2 * int_height`)
+	Parameters:
+	
+		ext_radius (float): float (radius of the external border of the pattern
+		int_radius (float): radius of the internal border of the pattern
+		depth (float): face width
+		int_height (float): 
+		
+			if you want a pinion with a structure thinner than the value of `depth`,
+			the total height will be `total_height = depth - 2 * int_height`
 	"""
 	half_depth = depth / 2
-	axis = (vec3(0, 0, 0), vec3(0, 0, 1))
-	ext_circle = web(Circle(axis, ext_radius))
-	int_circle = web(Circle(axis, int_radius)).flip()
-
-	if int_height:
-		assert half_depth > int_height, "`int_height` must be smaller than `depth / 2`"
-		circles_ref = ext_circle + int_circle
-		top_profile = circles_ref.transform(vec3(0, 0, half_depth - int_height))
-		bottom_profile = circles_ref.transform(vec3(0, 0, -half_depth + int_height)).flip()
-		surfaces = extrusion(vec3(0, 0, int_height), top_profile.flip())
-		surfaces += extrusion(vec3(0, 0, -int_height), bottom_profile.flip())
-		mesh = triangulation(top_profile) + triangulation(bottom_profile) + surfaces
-	else:
-		circles_ref = ext_circle + int_circle
-		top_profile = circles_ref.transform(vec3(0, 0, half_depth))
-		bottom_profile = circles_ref.transform(vec3(0, 0, -half_depth)).flip()
-		mesh = triangulation(top_profile) + triangulation(bottom_profile)
-		mesh.mergeclose()
+	assert half_depth > int_height, "`int_height` must be smaller than `depth / 2`"
+	
+	axis = (O, Z)
+	circles_ref = web(Circle(axis, ext_radius)) + web(Circle(axis, int_radius)).flip()
+	top_profile = circles_ref.transform(vec3(0, 0, half_depth - int_height))
+	bottom_profile = circles_ref.transform(vec3(0, 0, -half_depth + int_height)).flip()
+	mesh = triangulation(top_profile) + triangulation(bottom_profile)
+	mesh.mergeclose()
 	return mesh
 
-def circle_pattern(
-	ext_radius: float,
-	int_radius: float,
-	depth: float,
-	int_height: float = 0,
-	ratio: float = 1,
-	n_circles: int = 5,
-	r_int: float = None,
-	r_ext: float = None,
+
+def pattern_circle(
+	ext_radius,
+	int_radius,
+	depth,
+	int_height = 0,
+	ratio = 1,
+	patterns: int = 5,
+	circles_radius = None,
+	circles_place = None,
 	**kwargs,
-) -> (Web, Web, Mesh):
+) -> Mesh:
 	"""
-	Generate two parts of the structure (the top and the bottom) with `n_circles` distributed on the whole structure.
+	Generate two parts of the structure (the top and the bottom) with `patterns` distributed on the whole structure.
 
 	Return a tuple (Web, Web, Mesh) where the first `Web` is the top of the structure,
 	the second `Web` is the bottom of the structure and the last element `Mesh` is all side surfaces.
 
-	Parameters
-	----------
-	:ext_radius: float (radius of the external border of the structure)
-	:int_radius: float (radius of the internal border of the structure)
-	:depth: float (face width)
-	:int_height: flaot (if you want a pinion with a structure thinner than the value of `depth`,
- 				     	the total height will be `total_height = depth - 2 * int_height`)
-	:ratio: float (it is a number that allows to change proportionally the radius of circles)
-	:n_circles: int (number of circles of the structure)
-	:r_int: float (radius of circles)
-	:r_ext: float (radius where the origins of circles are placed)
+	Parameters:
+	
+		ext_radius (float): radius of the external border of the structure
+		int_radius (float): radius of the internal border of the structure
+		depth (float): face width
+		int_height (float): if you want a pinion with a structure thinner than the value of `depth`,
+							the total height will be `total_height = depth - 2 * int_height`
+		ratio (float): number that allows to change proportionally the radius of circles
+		patterns (int): number of circles of the structure
+		circles_radius (float): radius of circles
+		circles_place (float): radius where the origins of circles are placed
 
-	Notes:
-	- for instance, with a ratio of 1.5, the radius of circles `r_int` will be multiply by 1.5
-	- if `r_int` is chosen, `ratio` won't impact the radius of circles `r_int`
+	Note:
+	
+		- for instance, with a ratio of 1.5, the radius of circles `circles_radius` will be divided by 1.5
+		- if `circles_radius` is chosen, `ratio` won't impact the radius of circles `circles_radius`
 	"""
 	# Parameters
 	half_depth = depth / 2
-	if not(r_int) and not(r_ext):
-		assert 0 < ratio < 2, "`ratio` must be in the interval ]0;2["
-	r_ext = (ext_radius + int_radius) / 2 if not (r_ext) else r_ext
-	r_int = (ext_radius - int_radius) * ratio / 4 if not (r_int) else r_int
-	error_msg = "There are some circles who put themselves on top of each other. `n_circles` is too large or the value of `ratio` is too large if the value of `r` was defined by default."
-	assert r_int / r_ext <= sin(pi / n_circles), error_msg
-	assert r_int < r_ext, "`r_int` must be smaller than `r_ext` if they were chosen. Else you should reduce the value of `ratio`"
-	Z = vec3(0, 0, 1)
-	axis = (vec3(0, 0, 0), Z)
+	if not (circles_radius) and not (circles_place):
+		assert 0.5 < ratio, "`ratio` must be in the interval ]0.5; +inf["
+	if not circles_place:
+		circles_place = (ext_radius + int_radius) / 2
+	if not circles_radius:
+		circles_radius = (ext_radius - int_radius) / (4 * ratio)
+	
+	assert circles_radius / circles_place < sin(pi / patterns), "too many circles for the specified size. Change either 'ratio', 'circle_radius' or 'patterns'"
+	
+	Z = vec3(0,0,1)
+	axis = (vec3(0,0,0), Z)
 
 	# Borders
 	ext_circle = web(Circle(axis, ext_radius))
 	int_circle = web(Circle(axis, int_radius)).flip()
 
 	# Pattern
-	circle_ref = web(Circle((vec3(r_ext, 0, 0), Z), r_int))
-	angle = 2 * pi / n_circles
-	pattern_profile = repeat(circle_ref.flip(), n_circles, rotatearound(angle, axis))
+	circle_ref = web(Circle((vec3(circles_place, 0, 0), Z), circles_radius))
+	angle = 2 * pi / patterns
+	pattern_profile = repeat(circle_ref.flip(), patterns, rotatearound(angle, axis))
 
 	# Profiles and surfaces
 	webs_ref = (pattern_profile, ext_circle, int_circle)
@@ -416,59 +325,57 @@ def circle_pattern(
 	top_profile = reduce(add, top_webs)
 	bottom_profile = reduce(add, bottom_webs)
 	surfaces = extrusion(vec3(0, 0, depth - 2 * int_height), bottom_webs[0].flip())
-	if int_height:
-		surfaces += extrusion(vec3(0, 0, int_height), top_webs[1].flip())
-		surfaces += extrusion(vec3(0, 0, int_height), top_webs[2].flip())
-		surfaces += extrusion(vec3(0, 0, -int_height), bottom_webs[1].flip())
-		surfaces += extrusion(vec3(0, 0, -int_height), bottom_webs[2].flip())
 
 	mesh = triangulation(top_profile) + triangulation(bottom_profile) + surfaces
 	mesh.mergeclose()
 	return mesh
 
-def create_rect_pattern(
-	ext_radius: float,
-	int_radius: int,
-	depth: float,
-	int_height: float = 0,
-	ratio: float = 1,
-	n_patterns: int = 5,
-	r_int: float = None,
-	r_ext: float = None,
+
+def create_pattern_rect(
+	ext_radius,
+	int_radius,
+	depth,
+	int_height = 0,
+	ratio = 1,
+	patterns: int = 5,
+	ext_thickness = None,
+	int_thickness = None,
 	rounded: bool = False,
 	**kwargs,
-):
+) -> Mesh:
 	"""
-	Function used for `rect_pattern` when `pattern` = "rect"
-	and `rounded_pattern` when `pattern` = "rounded"
+	Function used for `pattern_rect` when `pattern` = "rect"
+	and `pattern_rounded` when `pattern` = "rounded"
 
-	Parameters
-	----------
-	:ext_radius: float (radius of the external border of the structure)
-	:int_radius: float (radius of the internal border of the structure)
-	:depth: float (face width)
-	:int_height: float (if you want a pinion with a structure thinner than the value of `depth`,
- 				     	the total height will be `total_height = depth - 2 * int_height`)
-	:ratio: float (it is a number which is the proportional factor for an homothety of patterns)
-	:n_patterns: int (number of patterns inside the structure)
-	:r_int: float (internal radius of the pattern)
-	:r_ext: float (external radius of the pattern)
-	:rounded: bool (if it is True, the pattern will be rounded)
+	Parameters:
+	
+		ext_radius (float): radius of the external border of the structure
+		int_radius (float):  radius of the internal border of the structure
+		depth (float): face width
+		int_height (float): if you want a pinion with a structure thinner than the value of `depth`,
+							the total height will be `total_height = depth - 2 * int_height`
+		ratio (float): it is a number which is the proportional factor for an homothety of patterns
+		patterns (int): number of patterns inside the structure
+		ext_thickness (float): internal radius of the pattern
+		int_thickness (float): external radius of the pattern
+		rounded (bool): if it is True, the pattern will be rounded
 
-	Notes:
-	- for instance, with a ratio of 1.5, the pattern will be 1.5 bigger.
-	- Choose a ratio equal to 1 if `r_int` and `r_ext` are chosen to not impact the pattern
+	Note:
+	
+		- for instance, if `ratio` is 1.5, the area of the pattern will be divided by 1.5.
+		- if `r_int` and `r_ext` are chosen, `ratio` won't impact these parameters
 	"""
 	# Parameters
 	half_depth = depth / 2
-	r_ext = 0.9 * ext_radius if not (r_ext) else r_ext  # external radius
-	r_int = int_radius + 0.1 * ext_radius if not (r_int) else r_int  # internal radius
-	thickness = r_ext / 10  # thickness of "arms"
+	offset = ratio * 0.05 * (ext_radius - int_radius)
+	r_ext = ext_radius - (ext_thickness or offset)
+	r_int = int_radius + (int_thickness or offset)
+	thickness = ratio * 0.15 * r_ext  # thickness of "arms"
 	# angle between the bottom edge of an arm and the middle of it
 	theta_1 = asin(thickness / (2 * r_int))
 	# angle between the top edge of an arm and the middle of it
 	theta_2 = asin(thickness / (2 * r_ext))
-	angle_step = 2 * pi / n_patterns
+	angle_step = 2 * pi / patterns
 	O = vec3(0)
 	Z = vec3(0, 0, 1)
 	axis = (O, Z)
@@ -477,31 +384,34 @@ def create_rect_pattern(
 	ext_circle = web(Circle(axis, ext_radius))
 	int_circle = web(Circle(axis, int_radius)).flip()
 
-	# Pattern of reference
-	R_m = (r_int + r_ext) / 2
-	t_m = 0.5 * angle_step
-
-	rt = ratio
-	border = ext_radius / ((r_ext - R_m) + R_m)
-	assert (rt * (r_ext - R_m) + R_m) < ext_radius, f"`ratio` must be in the interval ]0,{border}["
+	#function to convert cylindrical coordinates to cartesian coordinates
 	cyl2cart = lambda r, theta: vec3(r * cos(theta), r * sin(theta), 0)
-	get_coords = lambda r, theta: (rt * (r - R_m) + R_m, rt * (theta - t_m) + t_m)
-	A1 = cyl2cart(*get_coords(r_int, theta_1))
-	A2 = cyl2cart(*get_coords(r_ext, theta_2))
-	B1 = cyl2cart(*get_coords(r_int, angle_step - theta_1))
-	B2 = cyl2cart(*get_coords(r_ext, angle_step - theta_2))
-	arc_A1_B1 = ArcCentered((O, -Z), B1, A1)
-	arc_A2_B2 = ArcCentered((O, Z), A2, B2)
-	segmentA1_A2 = Segment(A1, A2)
-	segmentB1_B2 = Segment(B2, B1)
-	pattern_ref = web([segmentA1_A2, arc_A1_B1, segmentB1_B2, arc_A2_B2])
+	# Vertex points of the pattern
+	A1 = cyl2cart(r_int, theta_1)
+	A2 = cyl2cart(r_ext, theta_2)
+	B1 = cyl2cart(r_int, angle_step - theta_1)
+	B2 = cyl2cart(r_ext, angle_step - theta_2)
+
+	# Primitives
+	pattern_ref = web([
+					Segment(B2, B1), 
+					ArcCentered((O, -Z), B1, A1), 
+					Segment(A1, A2), 
+					ArcCentered((O, Z), A2, B2),
+					])
 
 	# Multiply the pattern of reference
-	if rounded: # rounded case
-		groups = pattern_ref.groupextremities()
-		bevel(pattern_ref, groups, ("radius", 0.1 * (r_ext - r_int)))
+	if rounded:  # rounded case
+		bevel(	pattern_ref, 
+				pattern_ref.frontiers(0,1,2), 
+				('radius', min(0.3*(r_ext - r_int), r_int*(angle_step/2-theta_1))),
+				)
+		bevel(	pattern_ref, 
+				pattern_ref.frontiers(2,3,0), 
+				('radius', min(0.3*(r_ext - r_int), r_ext*(angle_step/2-theta_2))),
+				)
 		pattern_ref.mergeclose()
-	pattern_profile = repeat(pattern_ref, n_patterns, rotatearound(angle_step, axis))
+	pattern_profile = repeat(web(pattern_ref), patterns, rotatearound(angle_step, axis))
 
 	# Profiles and surfaces
 	webs_ref = (pattern_profile.flip(), ext_circle, int_circle)
@@ -511,145 +421,154 @@ def create_rect_pattern(
 	top_profile = reduce(add, top_webs)
 	bottom_profile = reduce(add, bottom_webs)
 	surfaces = extrusion(vec3(0, 0, depth - 2 * int_height), bottom_webs[0].flip())
-	if int_height:
-		surfaces += extrusion(vec3(0, 0, int_height), top_webs[1].flip())
-		surfaces += extrusion(vec3(0, 0, int_height), top_webs[2].flip())
-		surfaces += extrusion(vec3(0, 0, -int_height), bottom_webs[1].flip())
-		surfaces += extrusion(vec3(0, 0, -int_height), bottom_webs[2].flip())
-	try:
-		mesh = triangulation(top_profile) + triangulation(bottom_profile) + surfaces
-		mesh.mergeclose()
-	except:
-		show([top_profile, bottom_profile])
-		mesh = Mesh()
+	
+	mesh = triangulation(top_profile) + triangulation(bottom_profile) + surfaces
+	mesh.mergeclose()
 	return mesh
 
-def rect_pattern(
-	ext_radius: float,
-	int_radius: int,
-	depth: float,
-	int_height: float = 0,
-	ratio: float = 1,
-	n_patterns: int = 5,
-	r_int: float = None,
-	r_ext: float = None,
+
+def pattern_rect(
+	ext_radius,
+	int_radius,
+	depth,
+	int_height = 0,
+	ratio = 1,
+	patterns = 5,
+	ext_thickness = None,
+	int_thickness = None,
 	**kwargs,
-) -> (Web, Web, Mesh):
+) -> Mesh:
 	"""
-	Generate two parts of the structure (the top and the bottom) with `n_patterns` distributed on the whole structure.
-	All corners are straight. Check the function `rounded_pattern` to get rounded corners.
+	Generate two parts of the structure (the top and the bottom) with `patterns` distributed on the whole structure.
+	All corners are straight. Check the function `pattern_rounded` to get rounded corners.
 
 	Return a tuple (Web, Web, Mesh) where the first `Web` is the top of the structure,
 	the second `Web` is the bottom of the structure and the last element `Mesh` is all side surfaces.
 
-	Parameters
-	----------
-	:ext_radius: float (radius of the external border of the structure)
-	:int_radius: float (radius of the internal border of the structure)
-	:depth: float (face width)
-	:int_height: float (if you want a pinion with a structure thinner than the value of `depth`,
- 				     	the total height will be `total_height = depth - 2 * int_height`)
-	:ratio: float (it is a number which is the proportional factor for an homothety of patterns)
-	:n_patterns: int (number of patterns inside the structure)
-	:r_int: float (internal radius of the pattern)
-	:r_ext: float (external radius of the pattern)
+	Parameters:
+	
+		ext_radius: float (radius of the external border of the structure)
+		int_radius: float (radius of the internal border of the structure)
+		depth: float (face width)
+		int_height: float (if you want a pinion with a structure thinner than the value of `depth`,
+							the total height will be `total_height = depth - 2 * int_height`)
+		ratio: float (it is a number which is the proportional factor for an homothety of patterns)
+		patterns: int (number of patterns inside the structure)
+		ext_thickness (float): internal radius of the pattern
+		int_thickness (float): external radius of the pattern
 
-	Notes:
-	- for instance, with a ratio of 1.5, the pattern will be 1.5 bigger.
-	- Choose a ratio equal to 1 if `r_int` and `r_ext` are chosen to not impact the pattern
+	Note:
+	
+		- for instance, if `ratio` is 1.5, the area of the pattern will be divided by 1.5.
+		- if `r_int` and `r_ext` are chosen, `ratio` won't impact these parameters
 	"""
-	return create_rect_pattern(ext_radius, int_radius, depth, int_height, ratio, n_patterns, r_int, r_ext, False)
+	return create_pattern_rect(ext_radius, int_radius, depth, int_height, ratio, patterns, ext_thickness, int_thickness, False)
 
-def rounded_pattern(
-	ext_radius: float,
-	int_radius: int,
-	depth: float,
-	int_height: float = 0,
-	ratio: float = 1,
-	n_patterns: int = 5,
-	r_int: float = None,
-	r_ext: float = None,
+
+def pattern_rounded(
+	ext_radius,
+	int_radius,
+	depth,
+	int_height = 0,
+	ratio = 1,
+	patterns: int = 5,
+	ext_thickness = None,
+	int_thickness = None,
 	**kwargs,
-) -> (Web, Web, Mesh):
+) -> Mesh:
 	"""
-	Generate two parts of the structure (the top and the bottom) with `n_patterns` distributed on the whole structure.
-	All corners are rounded. Check the function `rect_pattern` to get straight corners.
+	Generate two parts of the structure (the top and the bottom) with `patterns` distributed on the whole structure.
+	All corners are rounded. Check the function `pattern_rect` to get straight corners.
 
 	Return a tuple (Web, Web, Mesh) where the first `Web` is the top of the structure,
 	the second `Web` is the bottom of the structure and the last element `Mesh` is all side surfaces.
 
-	Parameters
-	----------
-	:ext_radius: float (radius of the external border of the structure)
-	:int_radius: float (radius of the internal border of the structure)
-	:depth: float (face width)
-	:int_height: float (if you want a pinion with a structure thinner than the value of `depth`,
-				     	the total height will be `total_height = depth - 2 * int_height`)
-	:ratio: float (it is a number which is the proportional factor for an homothety of patterns)
-	:n_patterns: int (number of patterns inside the structure)
-	:r_int: float (internal radius of the pattern)
-	:r_ext: float (external radius of the pattern)
+	Parameters:
+	
+		ext_radius: float (radius of the external border of the structure)
+		int_radius: float (radius of the internal border of the structure)
+		depth: float (face width)
+		int_height: float (if you want a pinion with a structure thinner than the value of `depth`,
+							the total height will be `total_height = depth - 2 * int_height`)
+		ratio: float (it is a number which is the proportional factor for an homothety of patterns)
+		patterns: int (number of patterns inside the structure)
+		ext_thickness (float): internal radius of the pattern
+		int_thickness (float): external radius of the pattern
 
-	Notes:
-	- for instance, with a ratio of 1.5, the pattern will be 1.5 bigger.
-	- Choose a ratio equal to 1 if `r_int` and `r_ext` are chosen to not impact the pattern
+	Note:
+	
+		- for instance, if `ratio` is 1.5, the area of the pattern will be divided by 1.5.
+		- if `r_int` and `r_ext` are chosen, `ratio` won't impact these parameters
 	"""
-	return create_rect_pattern(ext_radius, int_radius, depth, int_height, ratio, n_patterns, r_int, r_ext, True)
+	return create_pattern_rect(ext_radius, int_radius, depth, int_height, ratio, patterns, ext_thickness, int_thickness, True)
 
+	
+def minmax_radius(points):
+	min, max = inf, 0
+	for p in points:
+		r = length2(vec2(p))
+		if r > max:		max = r
+		elif r < min:	min = r
+	return sqrt(min), sqrt(max)
+		
+		
 
 def gearexterior(
-	profile: Web,
-	min_radius: float,
-	step: float,
-	z: int,
-	depth: float,
-	helix_angle: float = 0,
-	chamfer: bool = False,
+	profile: Wire,
+	depth,
+	step = None,
+	helix_angle = 0,
+	chamfer = 0,
 	**kwargs,
 ) -> Mesh:
 	"""
 	Generate the external part of the pinion
 
-	Parameters
-	----------
-	:profile: Web (profile of the pinion generated by `gearprofile`)
-	:min_radius: float (internal radius of the external part)
-	:step: float (step of chordal pitch)
-	:z: int (number of teeth)
-	:depth: float (face width)
-	:helix_angle: float (helix angle for helical gears - only without bevel; `bevel` = False - it must be a radian angle)
-	:chamfer: bool (boolean to get a chamfer angle - only for straight pinion)
+	Parameters:
+	
+		profile (Web):         profile of the pinion generated by `gearprofile`
+		depth (float):         extrusion eight - width of the gear along its axis
+		step (float):          step of chordal pitch, must be specified for non-null helix_angle, unused otherwise
+		helix_angle (float):   helix angle for helical gears - only without bevel; `bevel` = False - it must be a radian angle
+		chamfer (float):       chamfer angle - only for straight pinion
 	"""
-	half_depth = depth / 2
+	# TODO: helical + chamfer
 
+	half_depth = depth / 2
+	
+	# resolution
+	footer, header = minmax_radius(profile.points)
+	
 	# Internal circles
-	axis = (vec3(0, 0, 0), vec3(0, 0, 1))
-	circle_ref = Circle(axis, min_radius, resolution=("div", z)).mesh()
+	circle_ref = wire(Circle((O,Z), footer - 0.3*(header-footer)))
 	top_circle = circle_ref.transform(vec3(0, 0, half_depth))
 	bottom_circle = circle_ref.transform(vec3(0, 0, -half_depth))
+	
+	assert not (chamfer and helix_angle),  "chamfer is not (yet) supported with a non-null helix_angle"
 
-	if chamfer: #chamfer case
-		pr = step * z / (2 * pi)  # primitive radius
-		square_pr = pr ** 2
-		Z = vec3(0, 0, 1)
-		k = tan(pi / 4)
-		cp = deepcopy(profile)
-		truncated = deepcopy(profile)
+	if chamfer:  # chamfer case
+		# create a truncated profile (the top profile of the chamfer)
+		start = mix(footer, header, 0.6)  # primitive radius
+		k = tan(chamfer)
+		truncated = deepcopy(profile) # profile which will be truncated
 		for i, point in enumerate(profile.points):
+			# truncate points that overlap the primitive
 			r = length2(point)
-			if r > square_pr:
+			if r > start**2:  
 				r = sqrt(r)
-				profile.points[i] = point - vec3(0, 0, (r - pr) * k)
-				truncated.points[i] = point * pr / r
+				profile.points[i] = point - vec3(0, 0, (r - start) * k)
+				truncated.points[i] = point * start / r
 
+		# Profiles
 		top_profile = profile.transform(vec3(0, 0, half_depth))
-		bottom_profile = top_profile.transform(scaledir(vec3(0, 0, 1), -1))
+		bottom_profile = top_profile.transform(scaledir(Z, -1))
 		top_truncated = truncated.transform(vec3(0, 0, half_depth))
 		bottom_truncated = truncated.transform(vec3(0, 0, -half_depth))
 
-		bp = partial(junction, tangents = "straight")
-		top_surface = bp(top_truncated.flip(), top_circle)
-		bottom_surface = bp(bottom_truncated, bottom_circle.flip())
+		# Surfaces
+		bp = partial(junction, tangents="straight", resolution = ("div", 0))
+		top_surface = triangulation(web([top_truncated, top_circle.flip()]))
+		bottom_surface = triangulation(web([bottom_truncated.flip(), bottom_circle]))
 		top_bevel = bp(top_truncated, top_profile.flip())
 		bottom_bevel = bp(bottom_truncated.flip(), bottom_profile)
 		gear_surface = bp(top_profile, bottom_profile.flip())
@@ -658,85 +577,108 @@ def gearexterior(
 		mesh = reduce(add, surfaces)
 		mesh.mergeclose()
 	else:
-		if helix_angle: # helical teeth case
+		if helix_angle:  # helical teeth case
 			# Edges of teeth
-			square_radius = max(length2(v) for v in profile.points)
-			R = sqrt(square_radius)
-			step = curve_resolution(depth / cos(helix_angle), depth * tan(helix_angle) / R)
-			Z = vec3(0, 0, 1)
+			R = header # the largest radius of profile
+			# step to generate a helical transformation
+			step = settings.curve_resolution(depth / cos(helix_angle), depth * tan(helix_angle) / R)
 			angle = depth * tan(helix_angle) / R / (step + 1)
 			h = depth / (step + 1)
 			bottom_gear_edge = profile.transform(vec3(0, 0, -half_depth))
-			transformations = (transform((vec3(0, 0, i * h), angleAxis(angle * i, Z))) for i in range(step + 2))
+			transformations = (
+				transform((vec3(0, 0, i * h), angleAxis(angle * i, Z)))
+				for i in range(step + 2)
+			)
 			links = ((i, i + 1, 0) for i in range(step + 1))
 			gear_surface = extrans(bottom_gear_edge, transformations, links)
 			t = transform((vec3(0, 0, depth), angleAxis(depth * tan(helix_angle) / R, Z)))
 			top_gear_edge = bottom_gear_edge.transform(t)
-		else: # straight teeth case
+		else:  # straight teeth case
 			# Edges of teeth
 			bottom_gear_edge = profile.transform(vec3(0, 0, -half_depth))
 			top_gear_edge = profile.transform(vec3(0, 0, half_depth))
 			gear_surface = extrusion(vec3(0, 0, depth), bottom_gear_edge)
 
 		# Surfaces
-		top_surface = junction(top_gear_edge.flip(), top_circle, tangents="straight")
-		bottom_surface = junction(bottom_gear_edge, bottom_circle.flip(), tangents="straight")
+		top_surface = triangulation(web([top_gear_edge, top_circle.flip()]))
+		bottom_surface = triangulation(web([bottom_gear_edge.flip(), bottom_circle]))
 		mesh = gear_surface + top_surface + bottom_surface
 		mesh.mergeclose()
+	
 	return mesh
 
+
 def gearstructure(
-	pattern: str,
-	ext_radius: float,
-	int_radius: float,
-	depth: float,
-	ratio: float = 1,
-	int_height: float = 0,
+	pattern,
+	ext_radius,
+	int_radius,
+	depth,
+	int_height = 0,
+	ratio = 1,
 	**kwargs,
 ) -> Mesh:
 	"""
 	Generate the internal part of the pinion
-	:ext_radius: float (it is given by the attribut `_radius` of the result of `z_multiple` -
-	| to avoid interference, it must be smaller than `_radius` (for instance 0.95 * `_radius`))
-	:int_radius: float (it is the same radius of the largest radius of the hub part)
-	:depth: float (face width)
-	:pattern: str (values: 'full', 'circle', 'rect', 'rounded')
+	
+	Parameters:
+	
+		ext_radius (float): 
+		
+				given by the attribut `_radius` of the result of `repeat_circular` -
+				to avoid interference, it must be smaller than `_radius` (for instance 0.95 * `_radius`))
+		
+		int_radius (float):    it is the same radius of the largest radius of the hub part
+		depth (float):         face width
+		pattern:               any of 'full', 'circle', 'rect', 'rounded'
+		int_height (float): 
+		
+				if you want a pinion with a structure thinner than the value of `depth`,
+				the total height will be `total_height = depth - 2 * int_height`
 	"""
 	# int_radius must not be 0
-	int_radius = int_radius if int_radius else 0.1 * ext_radius
-	pattern_function = globals()[pattern + "_pattern"]
-	return pattern_function(ext_radius, int_radius, depth, int_height, ratio = ratio, **kwargs)
+	int_radius = int_radius or 0.1 * ext_radius
+	pattern_function = globals()['pattern_' + pattern]
+	return pattern_function(ext_radius, int_radius, depth, int_height, ratio=ratio, **kwargs)
+
 
 def gearhub(
-	bore_radius: float, depth: float, hub_height: float = None, hub_radius: float = None, **kwargs
+	bore_radius,
+	depth,
+	int_height = 0,
+	hub_height = None,
+	hub_radius = None,
+	**kwargs,
 ) -> Web:
 	"""
 	Generate a hub for a pinion part
 
-	Parameters
-	----------
-	:bore_radius: float (radius of the central bore)
-	:depth: float (face width; same parameter for `gearexterior` and `gearstructure`)
-	:hub_height: float (height of the hub)
-	:hub_radius: float (external radius of the hub)
+	Parameters:
+	
+		bore_radius (float):     radius of the central bore
+		depth (float):           face width; same parameter for `gearexterior` and `gearstructure`
+		int_height (float):      only useful for no hub case, checkout the function `gearstructure` for more information
+		hub_height (float):      height of the hub
+		hub_radius (float):      external radius of the hub
 
-	Notes:
-	- if `bore_radius` is null, the function will return a top circle and a bottom circle used for `geargather` function
-	- if `hub_height` is null, the function will return a structure with a bore and without a hub
+	Note:
+	
+		- if `bore_radius` is null, the function will return a top circle and a bottom circle used for `geargather` function
+		- if `hub_height` is null, the function will return a structure with a bore and without a hub
 	"""
 	if not (bore_radius):  # No hub case
 		half_depth = depth / 2
-		circle_ref = web(Circle((vec3(0, 0, 0), vec3(0, 0, 1)), depth * 0.1))
+		circle_ref = web(Circle((O,Z), depth * 0.1))
 		circle_ref = triangulation(circle_ref)
-		top_surface = circle_ref.transform(vec3(0, 0, half_depth))
-		bottom_surface = circle_ref.transform(vec3(0, 0, -half_depth)).flip()
+		top_surface = circle_ref.transform(vec3(0, 0, half_depth - int_height))
+		bottom_surface = circle_ref.transform(vec3(0, 0, -half_depth + int_height)).flip()
 		return top_surface + bottom_surface
 
 	if hub_height is None:
 		hub_height = bore_radius
 	if not (hub_radius):
-		hub_radius = 2.5 * bore_radius
-	axis = (vec3(0, 0, hub_height + depth / 2), vec3(0, 0, 1))
+		hub_radius = 2 * bore_radius
+	height = hub_height + depth / 2 if hub_height else depth / 2 - int_height
+	axis = (vec3(0, 0, height), vec3(0, 0, 1))
 	bore_circle = Circle(axis, bore_radius)
 	hub_circle = Circle(axis, hub_radius)
 
@@ -745,8 +687,6 @@ def gearhub(
 
 	# Lateral surfaces
 	lateral_surfaces = extrusion(vec3(0, 0, -hub_height - depth), web(bore_circle))
-	if hub_height:  # Hub case
-		lateral_surfaces += extrusion(vec3(0, 0, -hub_height), web(hub_circle).flip())
 
 	# Bottom part
 	axis = (vec3(0, 0, -depth / 2), vec3(0, 0, 1))
@@ -757,9 +697,12 @@ def gearhub(
 
 	return top_surface + bottom_surface + lateral_surfaces
 
-def geargather(exterior: Mesh, structure: Mesh, hub: Mesh) -> Mesh:
+
+def geargather(exterior, structure, hub) -> Mesh:
 	"""
-	Gather all parts (`exterior`, `structure` and `hub` parts)
+	Gather all parts: exterior, structure, and hub
+	
+	You can obtain them via the provided functions, or generate them yourself.
 	"""
 	exterior.mergeclose()
 	structure.mergeclose()
@@ -772,39 +715,31 @@ def geargather(exterior: Mesh, structure: Mesh, hub: Mesh) -> Mesh:
 	ext_radius = box.max.x
 	int_radius = 0
 
-	# show([structure, hub])
+	box = hub.box()
+	height_h_top = box.max.z
+	height_h_bot = box.min.z
+	ext_h_radius = box.max.x
 
 	# Select borderlines
+	# int = internal / ext = external
+	# e = exterior / s = structure / h = hub
+	# top = top / bot = bottom
 	circle_int_e_top = select(exterior, vec3(0, 0, height_top))
 	circle_int_e_bot = select(exterior, vec3(0, 0, height_bot))
 	circle_ext_s_top = select(structure, vec3(ext_radius, 0, height_top))
 	circle_ext_s_bot = select(structure, vec3(ext_radius, 0, height_bot))
 	circle_int_s_top = select(structure, vec3(int_radius, 0, height_top))
 	circle_int_s_bot = select(structure, vec3(int_radius, 0, height_bot))
-	circle_ext_h_top = select(hub, vec3(ext_radius, 0, height_top))
-	circle_ext_h_bot = select(hub, vec3(ext_radius, 0, height_bot))
-
-
-	# def flip_left(circle):
-	# 	edge = circle.edges[3]
-	# 	return circle.flip() if edge[0] < edge[1] else circle
-	# def flip_right(circle):
-	# 	edge = circle.edges[3]
-	# 	return circle.flip() if edge[0] > edge[1] else circle
-	#
-	# circle_ext_s_top = flip_right(circle_ext_s_top)
-	# circle_ext_s_bot = flip_left(circle_ext_s_bot)
-	# circle_int_s_top = flip_left(circle_int_s_top)
-	# circle_int_s_bot = flip_right(circle_int_s_bot)
-	# circle_ext_h_top = flip_right(circle_ext_h_top)
-	# circle_ext_h_bot = flip_left(circle_ext_h_bot)
+	circle_ext_h_top = select(hub, vec3(ext_h_radius, 0, height_h_top))
+	circle_ext_h_bot = select(hub, vec3(ext_h_radius, 0, height_h_bot))
 
 	# Join all borderlines
-	j1_top = junction(circle_ext_s_top, circle_int_e_top, tangents="straight")
-	j1_bot = junction(circle_ext_s_bot.flip(), circle_int_e_bot, tangents="straight")
-	j2_top = junction(circle_ext_h_top.flip(), circle_int_s_top, tangents="straight")
-	j2_bot = junction(circle_ext_h_bot.flip(), circle_int_s_bot, tangents="straight")
-
+	# j1 is the junction between `exterior` and `structure`
+	# j2 is the junction between `structure` and `hub`
+	j1_top = junction(circle_ext_s_top, circle_int_e_top, tangents="straight", resolution = ("div", 0))
+	j1_bot = junction(circle_ext_s_bot, circle_int_e_bot, tangents="straight", resolution = ("div", 0))
+	j2_top = junction(circle_ext_h_top, circle_int_s_top, tangents="straight", resolution = ("div", 0))
+	j2_bot = junction(circle_ext_h_bot, circle_int_s_bot, tangents="straight", resolution = ("div", 0))
 	j1 = j1_top + j1_bot
 	j2 = j2_top + j2_bot
 
@@ -814,50 +749,73 @@ def geargather(exterior: Mesh, structure: Mesh, hub: Mesh) -> Mesh:
 
 
 def gear(
-	step: float, z: int, b: float, bore_radius: float = 0, pattern: str = "full", ratio: float = 1, **kwargs
+	step,
+	z: int,
+	depth,
+	bore_radius = 0,
+	int_height = 0,
+	pattern = 'full',
+	**kwargs,
 ) -> Mesh:
 	"""
-	Generate a pinion
+	Generate a pinion.
+	
+	Any extra argument will go to functions `gearprofile`, `gearstructure`, or `gearhub`
 
-	Parameters
-	----------
-	:step: float (step of chordal pitch)
-	:z: int (number of teeth)
-	:b: float (face width)
-	:main_bore_radius: float (radius of the main bore)
-	:pattern: str (determine the structure of pinion)
-	:ratio: float (influence the proportion of dimensions of the structure)
+	Parameters:
+	
+		step (float):    
+		
+			tooth step over the primitive curve, same as the matching rack step
+			the primitive perimeter is `step * z` and radius is `step * z / 2*pi`
+		
+		z (int):         number of teeth
+		depth (float):       extrusion eight - width of the gear along its axis
+		bore_radius (float):   radius of the main bore
+		int_height (float):    if you want a pinion with a structure thinner than the value of `depth`,
+						       the total height will be `total_height = depth - 2 * int_height`
+		pattern: 
+			determine the structure between exterior (tooth) and hub
+			This argument specifies the use a a function named `'pattern_'+pattern` in this module.
 
-	| Extra parameters for `gearprofile`
-	| ----------------------------------
-	| :x: float (offset of tooth)
-	| :alpha: float (pressure angle in radian)
-	|
-	| Extra parameters for `gearexterior`
-	| -----------------------------------
-	| :helix_angle: float (helix angle to get a helical pinion in radian)
-	| :chamfer: bool (if it's `True`, the pinion is imperatively straight with chamfer teeth)
-	|
-	| Extra parameters for `gearstructure`
-	| ------------------------------------
-	| int_height: float (if you want a pinion with a structure thinner than the value of `depth`,
-	| 				     the total height will be `total_height = depth - 2 * int_height`)
-	|
-	| Extra parameters for `gearhub`
-	| ------------------------------
-	| :hub_height: float (height of the hub shoulder)
+	* Extra parameters for `gearprofile`
+	
+		offset (float):   offset of tooth (as a distance)
+		alpha (float):    pressure angle in radian
+	
+	* Extra parameters for `gearexterior`
+	
+		helix_angle (float):   helix angle to get a helical pinion in radian
+		chamfer (float):       chamfer angle - only for straight pinion
+	
+	* Extra parameters for `gearstructure`
+	
+		ratio (float):       influence the proportion of dimensions of the structure
+		
+		Note: `int_height` impacts the thickness of the structure unless specified
+	
+	* Extra parameters for `gearhub`
+	
+		hub_height (float):   height of the hub shoulder
+	
+	Note:
+	
+		- `int_height` impacts the height of the hub unless specified.
+		- if `hub_height` is null, there will be no hub.
 	"""
-	profile = z_multiple(gearprofile(step, z, **kwargs), z)
-
-	square_radius = min(length2(v) for v in profile.points)
-	min_radius = sqrt(square_radius) * 0.95
+	profile = repeat_circular(gearprofile(step, z, **kwargs), z)
 
 	# Parts
-	exterior = gearexterior(profile, min_radius, step, z, b, **kwargs)
-	structure = gearstructure(pattern, 0.95 * min_radius, 2.5 * bore_radius, b, ratio, **kwargs)
-	hub = gearhub(bore_radius, b, **kwargs)
+	exterior = gearexterior(profile, depth, step, **kwargs)
+	hub = gearhub(bore_radius, depth, int_height, **kwargs)
+	ext_int = minmax_radius(exterior.points)[0]
+	structure = gearstructure(
+					pattern, 
+					ext_int * 0.95, 
+					max(minmax_radius(hub.points)[1], 0.2*ext_int), 
+					depth, 
+					int_height, 
+					**kwargs)
 	return geargather(exterior, structure, hub)
 
 
-def gear_(radius, torque, step=None) -> Mesh:
-	pass

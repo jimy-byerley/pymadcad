@@ -8,10 +8,8 @@ kinematic   - Kinematic solver/constraint system
 
 .. autoclass:: Screw
 	:members: locate, transform
-		
-	**methods:**
 	
-	Of course, as any vector variables, Screw implements ``+ -`` with other ``Torsor``, and ``* /`` with ``float``
+	Of course, as any vector variables, ``Screw`` implements ``+ -`` with other ``Torsor``, and ``* /`` with ``float``
 
 .. autoclass:: Solid
 	:members: pose, transform

@@ -58,6 +58,12 @@ class Screw(object):
 			  Screw(linear movement quantity, rotational movement quantity, pos)
 			
 		  all these torsors makes it possible to represent all these values independently from expression location
+		  
+		  
+		Attributes:
+			resulting (vec3): 
+			momentum (vec3):
+			position (vec3):
 	'''
 	__slots__ = ('resulting', 'momentum', 'position')
 	def __init__(self, resulting=None, momentum=None, position=None):
@@ -110,10 +116,10 @@ class Solid:
 	''' Solid for kinematic definition, used as variable by the kinematic solver
 	
 	Attributes:
-		:orientation (quat):  rotation from local to world space
-		:position (vec3):     displacement from local to world
-		:visuals (list):      of objects to display using the solid's pose
-		:name (str):          optional name to display on the scheme
+		orientation (quat):  rotation from local to world space
+		position (vec3):     displacement from local to world
+		visuals (list):      of objects to display using the solid's pose
+		name (str):          optional name to display on the scheme
 	'''
 	def __init__(self, pose=None, **objs):
 		if pose:
@@ -343,10 +349,10 @@ class Kinematic:
 		The solid objects used are considered as variables and are modified inplace by methods, and can be modified at any time by outer functions
 		The joints are not modified in any case (and must not be modified while a Kinematic is using it)
 		
-		Attributes defined here:
-			* joints	the joints constraints
-			* solids	all the solids the joint applys on, and eventually more
-			* fixed		the root solids that is considered to be fixed to the ground
+		Attributes:
+			joints:		the joints constraints
+			solids:		all the solids the joint applys on, and eventually more
+			fixed:		the root solids that is considered to be fixed to the ground
 	'''
 	def __init__(self, joints, fixed=(), solids=None):
 		self.joints = joints
