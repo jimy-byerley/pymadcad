@@ -63,6 +63,7 @@ Common vector operations
 .. autofunction:: cross
 
 .. autofunction:: mix
+.. autofunction:: clamp
 
 .. autofunction:: length
 .. autofunction:: distance
@@ -127,8 +128,10 @@ Transformations
 Scalar functions
 ~~~~~~~~~~~~~~~~
 
-.. autofunction:: interpol1
+.. autofunction:: step
+.. autofunction:: smoothstep
 
+.. autofunction:: interpol1
 .. autofunction:: interpol2
 
 .. autofunction:: intri_smooth
