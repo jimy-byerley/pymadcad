@@ -777,12 +777,12 @@ def web_multicut(web, points, cutter, conn=None, prec=None, removal=None):
 	intersections = {}
 	
 	for pi in points:
-		#print('neigh', list(conn[pi]))
-		#dirs = [ normalize(pts[pi]-pts[ni])   for ni in conn[pi] ]
 		dirs = []
 		for ni in conn[pi]:
 			e = web.edges[ni]
 			dirs.append(normalize( pts[pi] - pts[e[e[0] == pi]] ))
+		if not dirs:  # the cut has removed everything connected
+			continue
 		normal = normalize(sum(dirs))
 		c = sum(dot(normal,d) for d in dirs) / len(dirs)
 		s = sqrt(max(0, 1-c**2))
