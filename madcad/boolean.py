@@ -24,7 +24,7 @@ __all__ = ['intersect', 'pierce', 'boolean', 'intersection', 'union', 'differenc
 		
 
 
-def intersect(m1, m2) -> '(Web, Web)':
+def intersect(m1, m2, prec=None) -> '(Web, Web)':
 	''' cut the faces of m1 and m2 at their intersections '''
 	if not prec:	prec = max(m1.precision(), m2.precision())
 	m3 = copy(m1)

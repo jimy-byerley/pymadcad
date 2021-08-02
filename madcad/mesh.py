@@ -28,6 +28,7 @@ from random import random
 import numpy as np
 from array import array
 from collections import OrderedDict
+from numbers import Integral, Real
 import math
 from .mathutils import *
 from . import displays
@@ -348,9 +349,8 @@ class Mesh(Container):
 		
 	def facenormal(self, f):
 		''' normal for a face '''
-		if isinstance(f, int):	
+		if isinstance(f, Integral):	
 			f = self.faces[f]
-		print('face', f)
 		p0 = self.points[f[0]]
 		e1 = self.points[f[1]] - p0
 		e2 = self.points[f[2]] - p0
@@ -428,7 +428,7 @@ class Mesh(Container):
 	
 	def facepoints(self, f):
 		''' shorthand to get the points of a face (index is an int or a triplet) '''
-		if isinstance(f, int):
+		if isinstance(f, Integral):
 			f = self.faces[f]
 		return self.points[f[0]], self.points[f[1]], self.points[f[2]]
 	
@@ -1161,11 +1161,11 @@ class Web(Container):
 		return [Wire(self.points, typedlist(loop, dtype=uvec2))		for loop in suites(self.edges, oriented=False)]
 		
 	def edgepoints(self, e):
-		if isinstance(e, int):	e = self.edges[e]
+		if isinstance(e, Integral):	e = self.edges[e]
 		return self.points[e[0]], self.points[e[1]]
 	
 	def edgedirection(self, e):
-		if isinstance(e, int):	e = self.edges[e]
+		if isinstance(e, Integral):	e = self.edges[e]
 		return normalize(self.points[e[1]] - self.points[e[0]])
 	
 	def __repr__(self):
@@ -1286,7 +1286,7 @@ class Wire(Container):
 		
 			equivalent to `self.points[self.indices[i]]` 
 		'''
-		if isinstance(i, int):		return self.points[self.indices[i]]
+		if isinstance(i, Integral):		return self.points[self.indices[i]]
 		elif isinstance(i, slice):	return typedlist((self.points[j] for j in self.indices[i]), dtype=vec3)
 		else:						raise TypeError('item index must be int or slice')
 		
@@ -1559,7 +1559,7 @@ class mono(object):
 	def __init__(self, value):
 		self.value = value
 	def __getitem__(self, index):
-		if isinstance(index, int):	
+		if isinstance(index, Integral):	
 			return self.value
 		elif isinstance(index, slice):
 			return [self.value] * ( (index.stop-index.start) // (index.step or 1) )
@@ -1581,7 +1581,7 @@ class jitmap(object):
 		if not hasattr(source, '__getitem__'):	raise TypeError('source has no __getitem__')
 		
 	def __getitem__(self, index):
-		if isinstance(index, int):
+		if isinstance(index, Integral):
 			return self.func(self.source[index])
 		elif isinstance(index, slice):
 			return [func(o)	for o in self.source[index]]
@@ -1591,7 +1591,7 @@ class jitmap(object):
 	def __setitem__(self, index, value):
 		if not self.inverse:
 			raise TypeError('inverse function not defined for this jitmap')
-		if isinstance(index, int):
+		if isinstance(index, Integral):
 			self.source[index] = self.inverse(value)
 		elif isinstance(index, slice):
 			self.source[index] = (self.inverse(o)	for o in value)

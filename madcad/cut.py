@@ -15,6 +15,7 @@ from . import settings
 from .triangulation import triangulation_outline
 from .blending import blenditer, match_length
 
+from numbers import Number
 from functools import singledispatch
 
 __all__ = [	'chamfer', 'bevel', 'multicut',
@@ -132,7 +133,7 @@ def mesh_cut(mesh, start, cutplane, stops, conn, prec, removal, cutghost=True):
 	# prepare propagation
 	if isinstance(start, tuple):
 		front = [start, (start[1],start[0])]
-	elif isinstance(start, int):
+	elif isinstance(start, Number):
 		front = [e	for e in conn if start in e]
 	else:
 		raise TypeError('wrong start: {}, cut can only start from a point or an edge'.format(start))
@@ -548,7 +549,7 @@ def mesh_chamfer(mesh, edges, cutter):
 	for e,s in segments.items():
 		if not s:	continue
 		# corner cuts
-		if isinstance(e,int):
+		if isinstance(e, Number):
 			if e not in corners:	corners[e] = []
 			corners[e].extend(s)
 		# edge cuts
@@ -612,7 +613,7 @@ def mesh_bevel(mesh, edges, cutter, resolution=None):
 	for e,s in segments.items():
 		if not s:	continue
 		# corner cuts
-		if isinstance(e, int):	
+		if isinstance(e, Number):	
 			if e not in corners:	corners[e] = []
 			corners[e].extend(s)
 		# edge cuts
@@ -886,7 +887,7 @@ def wire_multicut(wire, points, cutter):
 		# get point location in the wire
 		if origin == wire.indices[0] or origin == wire.indices[-1]:
 			raise MeshError('a chamfer cannot have only one side')
-		index = wire.indices.index(origin)
+		index = next(i for i,p in enumerate(wire.indices)  if p == origin)
 		
 		# compute cut plane
 		t0, t1 = normalize(wire[index] - wire[index-1]),  normalize(wire[index+1] - wire[index])
