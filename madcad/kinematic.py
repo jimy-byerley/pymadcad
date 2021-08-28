@@ -121,14 +121,14 @@ class Solid:
 		visuals (list):      of objects to display using the solid's pose
 		name (str):          optional name to display on the scheme
 	'''
-	def __init__(self, pose=None, **objs):
+	def __init__(self, pose=None, **content):
 		if pose:
 			self.position = pose[0]
 			self.orientation = quat(pose[1])
 		else:
 			self.position = vec3(0)
 			self.orientation = quat()
-		self.visuals = objs
+		self.content = content
 	
 	# solver variable definition
 	slvvars = 'position', 'orientation',
@@ -160,17 +160,27 @@ class Solid:
 		
 	# convenient content access
 	def __getitem__(self, key):
-		return self.visuals[key]
+		return self.content[key]
+		
 	def __setitem__(self, key, value):
-		self.visuals[key] = value
+		self.content[key] = value
+	
 	def add(self, value):
-		key = next(i 	for i in range(len(self.visuals)+1)	
-						if i not in self.visuals	)
-		self.visuals[key] = value
+		''' add an item in self.content, a key is automatically created for it and is returned '''
+		key = next(i 	for i in range(len(self.content)+1)	
+						if i not in self.content	)
+		self.content[key] = value
 		return key
 	def set(self, **objs):
-		self.visuals.update(objs)
+		''' contenient method to set many elements in one call.
+			equivalent to `self.content.update(objs)`
+		'''
+		self.content.update(objs)
 		return self
+		
+	def place(self, *args):
+		self.pose = placement(*args)
+	
 	
 	class display(rendering.Group):
 		def __init__(self, scene, solid):
@@ -211,8 +221,124 @@ class Solid:
 		def apply_pose(self):
 			self.pose = fmat4(self.solid.pose)
 			
-		
 			
+
+def placement(*pairs, precision=1e-4):
+	''' return a transformation matrix that solved the placement constraints given by the surface pairs
+	
+		Parameters:
+		
+			pairs:	a list of surface pairs to convert to kinematic joints using `guessjoint`
+		
+		each pair define a joint between the two assumed solids (a solid for the left members of the pairs, and a solid for the right members of the pairs). placement will return the pose of the first relatively to the second, satisfying the constraints.
+	'''
+	a, b = Solid(), Solid()
+	solvekin([guessjoint(a, b, *pair)   for pair in pairs], precision=precision)
+	return affineInverse(a.pose) @ b.pose
+	
+def guessjoint(solid1, solid2, surface1, surface2):
+	from .joints import Planar, Gliding, Punctiform, Ball
+	
+	joints = {
+		('plane', 'plane'): Planar,
+		#('cylinder', 'plane'): Rolling,,
+		('cylinder', 'cylinder'): Gliding,
+		#('cylinder', 'sphere'): Anular,
+		('plane', 'sphere'): Punctiform,
+		('sphere', 'sphere'): Ball,
+		}
+	t1, p1 = guesssurface(surface1)
+	t2, p2 = guesssurface(surface2)
+	return joints[sorted([t1, t2])](solid1, solid2, p1, p2)
+	
+def guesssurface(surface):	
+	if not isinstance(surface, Mesh):
+		return surface
+	
+	center = surface.barycenter()
+	precision = surface.maxnum() * 1e-5
+	scores = []
+	# plane regression
+	def evaluate(x):
+		score = (length2(vec3(x[3:])) - 1)**2
+		origin, normal = vec3(x[:3]), normalize(vec3(x[3:]))
+		for f in surface.faces:
+			fp = surface.facepoints(f)
+			p = (fp[0]+fp[1]+fp[2]) / 3
+			score += dot(p-origin, normal)**2
+		return score / len(surface.faces)
+	res = minimize(evaluate, [*center, 1,1,1], tol=precision, method='CG')
+	print('plane', res.nfev, res.x, res.fun)
+	scores.append((
+			res.fun,
+			(vec3(res.x[:3]), vec3(res.x[3:])),
+			))
+	
+	# sphere regression
+	def evaluate(x):
+		score = 0
+		origin = vec3(x[:3])
+		radius = x[3]
+		for f in surface.faces:
+			fp = surface.facepoints(f)
+			p = (fp[0]+fp[1]+fp[2]) / 3
+			score += (distance(p, origin) - radius) **2
+		return score / len(surface.faces)
+	res = minimize(evaluate, [*center, 1], tol=precision, method='CG')
+	print('sphere', res.nfev, res.x, res.fun)
+	scores.append((
+			res.fun,
+			vec3(res.x[:3]),
+			))
+		
+	# cylinder regression
+	def evaluate(x):
+		score = (length(vec3(x[3:6])) - 1) **2
+		origin, direction = vec3(x[:3]), vec3(x[3:6])
+		radius = x[6]
+		for f in surface.faces:
+			fp = surface.facepoints(f)
+			p = (fp[0]+fp[1]+fp[2]) / 3
+			score += (length(noproject(p-origin, direction)) - radius) **2
+		return score / len(surface.faces)
+	res = minimize(evaluate, [*center, 1,1,1, 1], tol=precision, method='CG')
+	print('cylinder', res.nfev, res.x, res.fun)
+	scores.append((
+			res.fun,
+			(vec3(res.x[:3]), vec3(res.x[3:])),
+			))
+		
+	best = imax(-score[0] for score in scores)
+	return (
+			['plane', 'sphere', 'cylinder'][best], 
+			scores[best][1],
+			)
+
+from scipy.optimize import minimize
+
+def segmentation(mesh, limits=[0.1], union=False) -> Mesh:
+	''' labels the given mesh's faces in different groups depending on the smoothness regularity '''
+	conn = connef(mesh.faces)
+	field = mesh.facenormals()
+	for limit in limits:
+	
+		# compute the derivative (curvature in case of order 1) on each edge
+		derivative = {}
+		for i,face in enumerate(mesh.faces):
+			for edge in ((face[0], face[1]), (face[1], face[2]), (face[2],face[0])):
+				e = edgekey(*edge)
+				diff = field[i] - derivative.get(e,0)
+				derivative[e] = diff if e[0] == edge[0] else -diff
+		
+		# split groups where the derivative exceeds the given limit
+		reached = [False]*len(mesh.faces)
+		while True:
+			# propagation until excess (or group change if no union)
+			indev
+			
+	return Mesh(mesh.points, mesh.faces, tracks, groups)
+
+	
 
 
 def solvekin(joints, fixed=(), precision=1e-4, maxiter=None, damping=1):
