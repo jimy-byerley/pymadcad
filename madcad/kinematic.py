@@ -235,109 +235,13 @@ def placement(*pairs, precision=1e-4):
 	a, b = Solid(), Solid()
 	solvekin([guessjoint(a, b, *pair)   for pair in pairs], precision=precision)
 	return affineInverse(a.pose) @ b.pose
-	
-def guessjoint(solid1, solid2, surface1, surface2):
-	from .joints import Planar, Gliding, Punctiform, Ball
-	
-	joints = {
-		('plane', 'plane'): Planar,
-		#('cylinder', 'plane'): Rolling,,
-		('cylinder', 'cylinder'): Gliding,
-		#('cylinder', 'sphere'): Anular,
-		('plane', 'sphere'): Punctiform,
-		('sphere', 'sphere'): Ball,
-		}
-	t1, p1 = guesssurface(surface1)
-	t2, p2 = guesssurface(surface2)
-	return joints[sorted([t1, t2])](solid1, solid2, p1, p2)
-	
-def guesssurface(surface):	
-	if not isinstance(surface, Mesh):
-		return surface
-	
-	center = surface.barycenter()
-	precision = surface.maxnum() * 1e-5
-	scores = []
-	# plane regression
-	def evaluate(x):
-		score = (length2(vec3(x[3:])) - 1)**2
-		origin, normal = vec3(x[:3]), normalize(vec3(x[3:]))
-		for f in surface.faces:
-			fp = surface.facepoints(f)
-			p = (fp[0]+fp[1]+fp[2]) / 3
-			score += dot(p-origin, normal)**2
-		return score / len(surface.faces)
-	res = minimize(evaluate, [*center, 1,1,1], tol=precision, method='CG')
-	print('plane', res.nfev, res.x, res.fun)
-	scores.append((
-			res.fun,
-			(vec3(res.x[:3]), vec3(res.x[3:])),
-			))
-	
-	# sphere regression
-	def evaluate(x):
-		score = 0
-		origin = vec3(x[:3])
-		radius = x[3]
-		for f in surface.faces:
-			fp = surface.facepoints(f)
-			p = (fp[0]+fp[1]+fp[2]) / 3
-			score += (distance(p, origin) - radius) **2
-		return score / len(surface.faces)
-	res = minimize(evaluate, [*center, 1], tol=precision, method='CG')
-	print('sphere', res.nfev, res.x, res.fun)
-	scores.append((
-			res.fun,
-			vec3(res.x[:3]),
-			))
-		
-	# cylinder regression
-	def evaluate(x):
-		score = (length(vec3(x[3:6])) - 1) **2
-		origin, direction = vec3(x[:3]), vec3(x[3:6])
-		radius = x[6]
-		for f in surface.faces:
-			fp = surface.facepoints(f)
-			p = (fp[0]+fp[1]+fp[2]) / 3
-			score += (length(noproject(p-origin, direction)) - radius) **2
-		return score / len(surface.faces)
-	res = minimize(evaluate, [*center, 1,1,1, 1], tol=precision, method='CG')
-	print('cylinder', res.nfev, res.x, res.fun)
-	scores.append((
-			res.fun,
-			(vec3(res.x[:3]), vec3(res.x[3:])),
-			))
-		
-	best = imax(-score[0] for score in scores)
-	return (
-			['plane', 'sphere', 'cylinder'][best], 
-			scores[best][1],
-			)
 
-from scipy.optimize import minimize
-
-def segmentation(mesh, limits=[0.1], union=False) -> Mesh:
-	''' labels the given mesh's faces in different groups depending on the smoothness regularity '''
-	conn = connef(mesh.faces)
-	field = mesh.facenormals()
-	for limit in limits:
 	
-		# compute the derivative (curvature in case of order 1) on each edge
-		derivative = {}
-		for i,face in enumerate(mesh.faces):
-			for edge in ((face[0], face[1]), (face[1], face[2]), (face[2],face[0])):
-				e = edgekey(*edge)
-				diff = field[i] - derivative.get(e,0)
-				derivative[e] = diff if e[0] == edge[0] else -diff
-		
-		# split groups where the derivative exceeds the given limit
-		reached = [False]*len(mesh.faces)
-		while True:
-			# propagation until excess (or group change if no union)
-			indev
-			
-	return Mesh(mesh.points, mesh.faces, tracks, groups)
 
+def explode(solids, factor=1.5):
+	# build a graph of connected things
+	# move each solid
+	indev
 	
 
 
