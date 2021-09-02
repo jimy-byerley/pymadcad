@@ -64,10 +64,16 @@ primitives types
 .. autoclass:: Axis
 
 	.. automethod:: __getitem__
+	
+	.. image:: /screenshots/primitives-axis.png
+	
+.. autofunction:: isaxis
 
 .. autoclass:: Segment
 
 	.. autoproperty:: direction
+	
+	.. image:: /screenshots/primitives-segment.png
 
 .. autoclass:: ArcCentered
 
@@ -75,6 +81,8 @@ primitives types
 	.. autoproperty:: radius
 	.. autoproperty:: axis
 	.. automethod:: tangent
+	
+	.. image:: /screenshots/primitives-arccentered.png
 
 .. autoclass:: ArcThrough
 
@@ -83,12 +91,16 @@ primitives types
 	.. autoproperty:: axis
 	.. automethod:: tangent
 	
+	.. image:: /screenshots/primitives-arcthrough.png
+	
 .. autoclass:: Circle
 
 	.. autoproperty:: center
 	.. autoproperty:: radius
 	.. autoproperty:: axis
 	.. automethod:: tangent
+	
+	.. image:: /screenshots/primitives-circle.png
 
 .. autoclass:: ArcTangent
 
@@ -97,11 +109,15 @@ primitives types
 	.. autoproperty:: axis
 	.. automethod:: tangent
 	
+	.. image:: /screenshots/primitives-arctangent.png
+	
 .. autoclass:: TangentEllipsis
 
 	.. autoproperty:: center
 	.. autoproperty:: axis
 	.. automethod:: tangent
+	
+	.. image:: /screenshots/primitives-tangentellipsis.png
 	
 .. autoclass:: Interpolated
 

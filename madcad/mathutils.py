@@ -202,7 +202,7 @@ def interpol2(a, b, x):
 			+	(1-x)**2   * (a[0] + x*a[1])	# tangent
 			)
 
-spline = interpol2
+hermite = spline = interpol2
 
 def intri_flat(pts, a,b):
 	A,B,C = pts

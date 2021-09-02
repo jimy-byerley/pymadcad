@@ -292,6 +292,9 @@ class Mesh(Container):
 		return Mesh(self.points, [(f[0],f[2],f[1]) for f in self.faces], self.tracks, self.groups)
 		
 	def issurface(self):
+		''' return True if the mesh is a well defined surface (an edge has 2 connected triangles at maximum, with coherent normals)
+			such meshes are usually called 'manifold'
+		''' 
 		reached = set()
 		for face in self.faces:
 			for e in ((face[0], face[1]), (face[1], face[2]), (face[2],face[0])):
@@ -299,7 +302,8 @@ class Mesh(Container):
 				else:				reached.add(e)
 		return True
 	def isenvelope(self):
-		''' return true if the surfaces are a closed envelope '''
+		''' return True if the surfaces are a closed envelope (the outline is empty)
+		'''
 		return len(self.outlines_oriented()) == 0
 	
 	def check(self):
@@ -584,6 +588,8 @@ class Mesh(Container):
 		self.points = points
 		self.faces = faces
 		return idents
+		
+	# NOTE: splitfaces(self) ?
 		
 	def islands(self, conn=None) -> '[Mesh]':
 		''' return the unconnected parts of the mesh as several meshes '''
@@ -1728,7 +1734,7 @@ def suites(lines, oriented=True, cut=True, loop=False):
 	
 
 def distance2_pm(point, mesh) -> '(d, prim)':
-	''' distance from a point to a mesh
+	''' squared distance from a point to a mesh
 	'''
 	if isinstance(mesh, Mesh):
 		def analyse():

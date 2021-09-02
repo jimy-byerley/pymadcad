@@ -75,6 +75,9 @@ class Axis(object):
 		return displays.AxisDisplay(scene, (self.origin, self.direction), self.interval)
 			
 def isaxis(obj):
+	''' return True if the given object is considered to be an axis.
+		An axis can be an instance of `Axis` or a tuple `(vec3, vec3)`
+	'''
 	return isinstance(obj, Axis) or isinstance(obj, tuple) and len(obj)==2 and isinstance(obj[0],vec3) and isinstance(obj[1],vec3)
 
 
