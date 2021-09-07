@@ -784,7 +784,15 @@ class VoxelDisplay(Display):
 				value=(0, 1), 
 				color=(fvec4(0,0,1,1), fvec4(0,1,0,1))):
 		
-		self.voxel = scene.ctx.texture3d(voxel.shape, 1, voxel.astype('f2'), dtype='f2')
+		self.voxel = scene.ctx.texture3d(
+			voxel.shape, 
+			1, 
+			voxel.transpose(2,1,0).copy().astype('f2'),  # axis permutation for opengl
+			dtype='f2',
+			)
+		self.voxel.repeat_x = False
+		self.voxel.repeat_y = False
+		self.voxel.repeat_z = False
 		self.space = space
 		self.value_range = value
 		self.color_range = color
