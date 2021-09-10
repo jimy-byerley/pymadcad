@@ -22,7 +22,7 @@ def segmentation(mesh, tolerance=8, sharp=0.2, numprec=3e-6) -> Mesh:
 		
 			tolerance (float):	maximum difference factor between curvatures of a same group  (1 means +100% curvature is allowed)
 			sharp (float):	minimum angle for a sharp edge (radians)
-			prec (floart):	precision factor for the operation, the constant NUMPREC is not used because segmentation often works on imported geometries which precision can be significantly lower than madcad's float64 precision
+			numprec (floart):	precision factor for the operation, the constant NUMPREC is not used because segmentation often works on imported geometries which precision can be significantly lower than madcad's float64 precision
 			
 		NOTE:
 			
