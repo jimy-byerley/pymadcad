@@ -1,11 +1,16 @@
 from .mathutils import *
-from .mesh import connef, edgekey
+from .mesh import Mesh, connef, edgekey
 
 from scipy.optimize import minimize
 
+__all__ = [	'segmentation',
+			'guessjoint', 'guesssurface',
+			]
 
+from . import text
+debug = []
 
-def segmentation(mesh, tolerance=5, sharp=0.1) -> Mesh:
+def segmentation(mesh, tolerance=8, sharp=0.2, numprec=3e-6) -> Mesh:
 	''' surface segmentation based on curvature.
 		This functions splits faces into groups based on curvature proximity.
 		Ideally each resulting group is a set of faces with the same curvature. In practice such is not possible due to the mesh resolution introducing bias in curvature estimation. Thus a `tolerance` is used to decide what is a sufficiently close curvature to belong to the same group.
@@ -17,6 +22,7 @@ def segmentation(mesh, tolerance=5, sharp=0.1) -> Mesh:
 		
 			tolerance (float):	maximum difference factor between curvatures of a same group  (1 means +100% curvature is allowed)
 			sharp (float):	minimum angle for a sharp edge (radians)
+			prec (floart):	precision factor for the operation, the constant NUMPREC is not used because segmentation often works on imported geometries which precision can be significantly lower than madcad's float64 precision
 			
 		NOTE:
 			
@@ -36,6 +42,7 @@ def segmentation(mesh, tolerance=5, sharp=0.1) -> Mesh:
 	conn = connef(mesh.faces)
 	facenormals = mesh.facenormals()
 	vertexnormals = mesh.vertexnormals()
+	prec = mesh.maxnum() * numprec * tolerance
 	
 	# this is what this functions is working to create: new groups and tracks to assign it to faces
 	tracks = [-1] * len(mesh.faces)
@@ -63,10 +70,12 @@ def segmentation(mesh, tolerance=5, sharp=0.1) -> Mesh:
 	
 	# divide contributions to face curvatures
 	for i,f in enumerate(mesh.faces):
-		facecurve[i] /= length(cross(pts[f[1]]-pts[f[0]], pts[f[2]]-pts[f[0]])) * weight[i]
+		area = length(cross(pts[f[1]]-pts[f[0]], pts[f[2]]-pts[f[0]])) * weight[i]
+		if area:	facecurve[i] /= area
+		else:		facecurve[i] = 0
 		#debug.append(text.Text(
 							#(pts[f[0]] + pts[f[1]] + pts[f[2]]) /3,
-							#'{:.2f}'.format(facecurve[i]),
+							#'{:.2g}'.format(facecurve[i]),
 							#size=8,
 							#align=('left', 'center'),
 							#))
@@ -101,7 +110,7 @@ def segmentation(mesh, tolerance=5, sharp=0.1) -> Mesh:
 			# split groups at maximum curvature
 			if edgecurve[edgekey(*e)] >= sharp:	continue
 			# split groups when curvature is too far from average curvature
-			if abs(facecurve[j]-estimate) / (estimate+NUMPREC) >= tolerance:	continue
+			if (abs(facecurve[j]-estimate)) / (estimate+prec) > tolerance:	continue
 			
 			# improve estimation of average curvature
 			tracks[j] = len(groups)
@@ -199,9 +208,6 @@ def guesssurface(surface):
 			)
 
 
-# associe des groupes aux faces, en fonction des régularités topologiques
-def guess(mesh):
-	pass
 
 # replace et lisse les points des groupes (contours puis surfaces)
 def homogenize(mesh):
