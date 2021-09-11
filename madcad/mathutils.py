@@ -349,12 +349,19 @@ class Box:
 			t(c[i&1][0], c[(i>>1)&1][1], c[(i>>2)&1][2])
 			for i in range(8)
 			]
+			
+	def volume(self):
+		''' volume inside '''
+		v = 1
+		for edge in self.width:
+			v *= edge
+		return v
 	
 	def isvalid(self):
 		''' return True if the box defines a valid space (min coordinates <= max coordinates) '''
 		return any(self.min <= self.max)
 	def isempty(self):
-		''' return True if the box contains a non null circumference '''
+		''' return True if the box contains a non null volume '''
 		return not any(self.min < self.max)
 	
 	def __add__(self, other):
@@ -379,8 +386,8 @@ class Box:
 	
 	def __or__(self, other):	return deepcopy(self).union(other)
 	def __and__(self, other):	return deepcopy(self).intersection(other)
-	def union(self, other):
-		''' extend the area of the box to bound the given point or box '''
+	def union_update(self, other):
+		''' extend the volume of the current box to bound the given point or box '''
 		if isinstance(other, (dvec3, fvec3)):
 			self.min = glm.min(self.min, other)
 			self.max = glm.max(self.max, other)
@@ -390,11 +397,30 @@ class Box:
 		else:
 			raise TypeError('unable to integrate {}'.format(type(other)))
 		return self
-	def intersection(self, other):
-		''' intersection area between the 2 boxes '''
+	def intersection_update(self, other):
+		''' reduce the volume of the current box to the intersection between the 2 boxes '''
 		if isinstance(other, Box):
 			self.min = glm.max(self.min, other.min)
 			self.max = glm.min(self.max, other.max)
+		else:
+			raise TypeError('expected a Box'.format(type(other)))
+		return self
+	def union(self, other):
+		''' return a box containing the current and the given box (or point) '''
+		if isinstance(other, (dvec3, fvec3)):
+			return Box(	glm.min(self.min, other),
+						glm.max(self.max, other))
+		elif isinstance(other, Box):
+			return Box(	glm.min(self.min, other.min),
+						glm.max(self.max, other.max))
+		else:
+			raise TypeError('unable to integrate {}'.format(type(other)))
+		return self
+	def intersection(self, other):
+		''' return a box for the volume common to the current and the given box '''
+		if isinstance(other, Box):
+			return Box(	glm.max(self.min, other.min),
+						glm.min(self.max, other.max))
 		else:
 			raise TypeError('expected a Box'.format(type(other)))
 		return self

@@ -539,7 +539,7 @@ class Mesh(Container):
 		s = 0
 		for f in self.faces:
 			a,b,c = self.facepoints(f)
-			s += length(cross(a-b, a,c))/2
+			s += length2(cross(a-b, a,c))/2
 		return s
 	
 	def barycenter(self):
@@ -549,7 +549,7 @@ class Mesh(Container):
 		tot = 0
 		for f in self.faces:
 			a,b,c = self.facepoints(f)
-			weight = length(cross(b-a, c-a))
+			weight = length2(cross(b-a, c-a))
 			tot += weight
 			acc += weight*(a+b+c)
 		return acc / (3*tot)
@@ -1773,6 +1773,52 @@ def distance2_pm(point, mesh) -> '(d, prim)':
 	else:
 		raise TypeError('cannot evaluate distance from vec3 to {}'.format(type(mesh)))
 	return min(analyse(), key=lambda t:t[0])
+	
+	
+def distance2_pm(point, mesh) -> '(d, prim)':
+	''' squared distance from a point to a mesh
+	'''
+	score = inf
+	best = None
+	if isinstance(mesh, Mesh):
+		for face in mesh.faces:
+			f = mesh.facepoints(face)
+			n = cross(f[1]-f[0], f[2]-f[0])
+			if not n:	continue
+			# check if closer to the triangle's edges than to the triangle plane
+			plane = True
+			for i in range(3):
+				d = f[i-1]-f[i-2]
+				if dot(cross(n, d), point-f[i-2]) < 0:
+					x = dot(point-f[i-2], d) / length2(d)
+					# check if closer to the edge points than to the edge axis
+					if x < 0:	dist, candidate = distance2(point, f[i-2]), face[i-2]
+					elif x > 1:	dist, candidate = distance2(point, f[i-1]), face[i-1]
+					else:		dist, candidate = length2(noproject(point - f[i-2], d)), (face[i-2], face[i-1])
+					plane = False
+					break
+			if plane:
+				dist, candidate = dot(point-f[0], n) **2 / length2(n), face
+			if dist < score:
+				best, score = candidate, dist
+	elif isinstance(mesh, (Web,Wire)):
+		if isinstance(mesh, Web):	edges = mesh.edges
+		else:						edges = mesh.edges()
+		for edge in edges:
+			e = mesh.edgepoints(edge)
+			d = e[1]-e[0]
+			x = dot(point - e[0], d) / length2(d)
+			# check if closer to the edge points than to the edge axis
+			if x < 0:	dist, candidate = distance2(point, e[0]), e[0]
+			elif x > 1:	dist, candidate = distance2(point, e[1]), e[1]
+			else:		dist, candidate = length2(noproject(point - e[0], d)), e
+			if dist < score:
+				best, score = candidate, dist
+	elif isinstance(mesh, vec3):
+		return distance2(point, mesh), 0
+	else:
+		raise TypeError('cannot evaluate distance from vec3 to {}'.format(type(mesh)))
+	return score, best
 
 def mesh_distance(m0, m1) -> '(d, prim0, prim1)':
 	''' minimal distance between elements of meshes 
