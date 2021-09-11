@@ -206,9 +206,6 @@ Localy defined data types
 
 .. autoclass:: Box
 
-	.. py:data:: min
-	.. py:data:: max
-	
 	.. autoproperty:: center
 	.. autoproperty:: width
 	.. automethod:: corners
@@ -216,6 +213,9 @@ Localy defined data types
 	
 	.. automethod:: isvalid
 	.. automethod:: isempty
+	
+	.. automethod:: contain
+	.. automethod:: inside
 	
 	.. automethod:: intersection
 	.. automethod:: union
