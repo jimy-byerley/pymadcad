@@ -24,7 +24,7 @@ from PyQt5.QtCore import Qt, QEvent
 
 from .common import ressourcedir
 from .mathutils import *
-from .mesh import Mesh
+from .mesh import Mesh, Web, Wire, glmarray
 from . import settings
 from . import constraints
 from . import text
@@ -118,7 +118,7 @@ class Solid:
 	Attributes:
 		orientation (quat):  rotation from local to world space
 		position (vec3):     displacement from local to world
-		visuals (list):      of objects to display using the solid's pose
+		content (dict/list):      objects to display using the solid's pose
 		name (str):          optional name to display on the scheme
 	'''
 	def __init__(self, pose=None, **content):
@@ -184,13 +184,13 @@ class Solid:
 	
 	class display(rendering.Group):
 		def __init__(self, scene, solid):
-			super().__init__(scene, solid.visuals)
+			super().__init__(scene, solid.content)
 			self.solid = solid
 			self.apply_pose()
 		
 		def update(self, scene, solid):
 			if not isinstance(solid, Solid):	return
-			super().update(scene, solid.visuals)
+			super().update(scene, solid.content)
 			self.solid = solid
 			self.apply_pose()
 			return True
@@ -232,16 +232,174 @@ def placement(*pairs, precision=1e-4):
 		
 		each pair define a joint between the two assumed solids (a solid for the left members of the pairs, and a solid for the right members of the pairs). placement will return the pose of the first relatively to the second, satisfying the constraints.
 	'''
+	from .reverse import guessjoint
+	
 	a, b = Solid(), Solid()
 	solvekin([guessjoint(a, b, *pair)   for pair in pairs], precision=precision)
 	return affineInverse(a.pose) @ b.pose
 
 	
+def convexhull(pts):
+	import scipy.spatial
+	if len(pts) == 3:
+		return Mesh(pts, [(0,1,2),(0,2,1)])
+	elif len(pts) > 3:
+		hull = scipy.spatial.ConvexHull(glmarray(pts))
+		return Mesh(pts, hull.simplices.tolist())
+	else:
+		return Mesh(pts)
+			
+from .mesh import striplist, distance2_pm
+			
+def extract_used(obj):
+	if isinstance(obj, Mesh):	links = obj.faces
+	elif isinstance(obj, Web):	links = obj.edges
+	elif isinstance(obj, Wire):	links = [obj.indices]
+	else:
+		raise TypeError('obj must be a mesh of any kind')
+		
+	used = [False] * len(obj.points)
+	for link in links:
+		for p in link:
+			used[p] = True
+	
+	buff = obj.points[:]
+	striplist(buff, used)
+	return buff
 
+from random import randint
+	
+def explode_offsets(solids):
+	''' build a graph of connected objects, ready to create an exploded view or any assembly animation '''
+	import scipy.spatial.qhull
+	# build convex hulls
+	print('build hulls ...')
+	points = [[] for s in solids]
+	# recursively search for meshes in solids
+	def process(i, solid):
+		if hasattr(solid.content, 'values'):	it = solid.content.values()
+		else:									it = solid.content
+		for obj in solid.content.values():
+			if isinstance(obj, Solid):
+				process(i, obj)
+			elif isinstance(obj, (Mesh,Web,Wire)):
+				try:
+					points[i].extend(extract_used(convexhull(extract_used(obj))))
+				except scipy.spatial.qhull.QhullError:
+					continue
+			
+	for i,solid in enumerate(solids):
+		process(i,solid)
+		
+	# create convex hulls and prepare for parenting
+	hulls = [convexhull(pts).orient()  for pts in points]
+	
+	print('prepare ...')
+	boxes = [hull.box()  for hull in hulls]
+	normals = [hull.vertexnormals()  for hull in hulls]
+	
+	scores = [inf] * len(solids)
+	parents = [None] * len(solids)
+	offsets = [vec3(0)] * len(solids)
+	
+	print('search links ...')
+	# build a graph of connected things (distance from center to convex hulls)
+	for i in range(len(solids)):
+		center = hulls[i].barycenter()	
+		for j in range(len(solids)):
+			if i == j:
+				continue
+			
+			# case of non-connection, the link won't appear in the graph
+			if boxes[i].intersection(boxes[j]).isempty():
+				continue
+			
+			# the parent is always the biggest of the two, this also breaks any possible parenting cycle
+			if length2(boxes[i].width) > length2(boxes[j].width):
+				continue
+			
+			# select the shortest link
+			d, prim = distance2_pm(center, hulls[j])
+			
+			if d < scores[i]:
+				# take j as new parent for i
+				scores[i] = d
+				parents[i] = j
+				# get the associated displacement vector
+				#offsets[i] = (center - hulls[j].barycenter()) * length2(boxes[i].width) / length2(boxes[j].width)
+				
+				pts = hulls[j].points
+				if isinstance(prim, int):
+					normal = normals[j][prim]
+					offsets[i] = center - pts[prim]
+				elif len(prim) == 2:
+					normal = normals[j][prim[0]] + normals[j][prim[1]]
+					offsets[i] = noproject(center - pts[prim[0]],  
+										pts[prim[0]]-pts[prim[1]])
+				elif len(prim) == 3:
+					normal = cross(pts[prim[1]]-pts[prim[0]], pts[prim[2]]-pts[prim[0]])
+					offsets[i] = project(center - pts[prim[0]],  normal)
+				else:
+					raise AssertionError('prim should be an index for  point, face, triangle')
+				if dot(offsets[i], normal) < 0:
+					offsets[i] = -offsets[i]
+					
+	for box, hull, offset in zip(boxes, hulls, offsets):
+		if length2(offset) and not box.isempty():
+			#size = max(dot(p,offset)  for p in hull.points) - min(dot(p,offset)  for p in hull.points)
+			#offset *= 1 + size / length2(offset)
+			size = length(box.width) * length(offset)
+			offset *= 1 + size * 0.5 / length2(offset)
+								
+	print('resolve dependencies ...')
+	# resolve dependencies to output the offsets in the resolution order
+	order = []
+	reached = [False] * len(solids)
+	i = 0
+	while i < len(solids):
+		if not reached[i]:
+			j = i
+			chain = []
+			while not (j is None or reached[j]):
+				reached[j] = True
+				chain.append(j)
+				j = parents[j]
+			order.extend(reversed(chain))
+		i += 1
+		
+	# move more parents that have children on their way out
+	for i in reversed(range(len(solids))):
+		j = parents[i]
+		if j and length2(offsets[j]):
+			proj = - dot(offsets[i], offsets[j]) / length2(offsets[j])
+			if proj > 0.2:
+				offsets[j] *= 1 + proj
+		
+	graph = Web([hull.barycenter()  for hull in hulls], groups=[None])
+	for i, j in enumerate(parents):
+		if j:
+			graph.edges.append((i,j))
+			graph.tracks.append(0)
+								
+	return [(i, parents[i], offsets[i])  for i in order], graph
+			
+	
 def explode(solids, factor=1.5):
-	# build a graph of connected things
-	# move each solid
-	indev
+	''' move the given solids away from each other in the way of an exploded view.
+		makes easier to seen the details of an assembly 
+	'''
+	offsets, graph = explode_offsets(solids)
+	nprint('offsets', offsets)
+	
+	shifts = [	(solids[solid].position - solids[parent].position)
+				if parent else vec3(0)
+				for solid, parent, offset in offsets]
+	for solid, parent, offset in offsets:
+		if parent:
+			solids[solid].position = solids[parent].position + shifts[solid] + offset * factor
+			graph.points[solid] += solids[solid].position
+			
+	return graph
 	
 
 
@@ -596,7 +754,7 @@ class Kinemanip(rendering.Group):
 			self.locked.add(key)
 			box = Box(center=fvec3(0), width=fvec3(-inf))
 			for display in grp.displays.values():
-				box.union(display.box)
+				box.union_update(display.box)
 			grp.displays['solid-fixed'] = BoxDisplay(scene, box, color=fvec3(settings.display['schematics_color']))
 			self.apply_poses()
 		else:
