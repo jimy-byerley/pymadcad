@@ -24,6 +24,7 @@ kinematic   - Kinematic solver/constraint system
 .. autofunction:: makescheme
 
 .. autofunction:: placement
+
 .. autofunction:: explode
 
 	before operation

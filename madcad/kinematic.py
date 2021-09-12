@@ -282,7 +282,7 @@ def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)
 		
 		NOTE:
 			
-			Despite the hope that this function will be helpful, it's (for computational cost reasons) not a perfect algorithm for complex assemblies (the example below is at the limit of a simple one). The current algorithm will work fine for any simple enough assembly but may return unexpected results for more complexe ones.
+			Despite the hope that this function will be helpful, it's (for computational cost reasons) not a perfect algorithm for complex assemblies (the example above is at the limit of a simple one). The current algorithm will work fine for any simple enough assembly but may return unexpected results for more complexe ones.
 		
 	'''
 	import scipy.spatial.qhull
@@ -396,13 +396,12 @@ def explode(solids, factor=1, offsets=None) -> '(solids:list, graph:Mesh)':
 		
 		Example:
 		
-			>>> imported = read(folder+'/sim_cyc_nema17.stl')
+			>>> imported = read(folder+'/some_assembly.stl')
 			>>> imported.mergeclose()
 			>>> parts = []
 			>>> for part in imported.islands():
 			...     part.strippoints()
-			...     part = segmentation(part)
-			...     parts.append(Solid(part=part))
+			...     parts.append(Solid(part=segmentation(part)))
 			... 
 			>>> exploded = explode(parts)
 		
