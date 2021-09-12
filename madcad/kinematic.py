@@ -274,8 +274,17 @@ def extract_used(obj):
 	return buff
 
 	
-def explode_offsets(solids):
-	''' build a graph of connected objects, ready to create an exploded view or any assembly animation '''
+def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)]':
+	''' build a graph of connected objects, ready to create an exploded view or any assembly animation.
+		See `explode()` for an example
+	
+		Complexity is `O(m * n)` where m = total number of points in all meshes, n = number of solids
+		
+		NOTE:
+			
+			Despite the hope that this function will be helpful, it's (for computational cost reasons) not a perfect algorithm for complex assemblies (the example below is at the limit of a simple one). The current algorithm will work fine for any simple enough assembly but may return unexpected results for more complexe ones.
+		
+	'''
 	import scipy.spatial.qhull
 	# build convex hulls
 	points = [[] for s in solids]
@@ -375,15 +384,28 @@ def explode_offsets(solids):
 	return [(i, parents[i], offsets[i], barycenters[i])  for i in order]
 			
 	
-def explode(solids, factor=1, offsets=None):
+def explode(solids, factor=1, offsets=None) -> '(solids:list, graph:Mesh)':
 	''' move the given solids away from each other in the way of an exploded view.
-		makes easier to seen the details of an assembly 
+		makes easier to seen the details of an assembly . See `explode_offsets` for the algorithm
 		
 		Parameters:
 			
 			solids:		a list of solids (copies of each will be made before displacing)
 			factor:		displacement factor, 0 for no displacement, 1 for normal displacement
 			offsets:	if given, must be the result of `explode_offsets(solids)`
+		
+		Example:
+		
+			>>> imported = read(folder+'/sim_cyc_nema17.stl')
+			>>> imported.mergeclose()
+			>>> parts = []
+			>>> for part in imported.islands():
+			...     part.strippoints()
+			...     part = segmentation(part)
+			...     parts.append(Solid(part=part))
+			... 
+			>>> exploded = explode(parts)
+		
 	'''
 	solids = [copy(solid)  for solid in solids]
 	if not offsets:
