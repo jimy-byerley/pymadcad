@@ -28,18 +28,12 @@ float amin(vec3 a) {
 
 
 void main() {
-// 	vec3 voxel_width = 0.5*vec3(view[0]+view[1]+view[2]);		// voxel width in camera space
-// 	vec3 voxel_center = vec3(view[3]) + voxel_width;	// voxel center in camera space
-// 	vec3 view_direction = normalize(sight);	// direction from camera to point in camera space
-// 	// origin and direction of sampling in voxel space
-// 	vec3 origin = vec3(inverse(view) * vec4(((dot(voxel_center, view_direction) - length(voxel_width)) * view_direction), 1) );	// origin of the sampling axis in voxel space
-// 	vec3 direction = 2*length(voxel_width) * inverse(mat3(view)) * view_direction; // direction of the sampling axis in voxel space
-// 	
 	
 	vec3 voxel_center = vec3(view[3]) + voxel_width;	// voxel center in camera space
 	vec3 view_direction = normalize(sight);	// direction from camera to point in camera space
 	// origin and direction of sampling in voxel space
-	vec3 origin = vec3(inverse_view * vec4(((dot(voxel_center, view_direction) - voxel_radius) * view_direction), 1) );	// origin of the sampling axis in voxel space
+	float start = max(0, dot(voxel_center, view_direction) - voxel_radius);
+	vec3 origin = vec3(inverse_view * vec4(start * view_direction, 1) );	// origin of the sampling axis in voxel space
 	vec3 direction = 2*voxel_radius * mat3(inverse_view) * view_direction; // direction of the sampling axis in voxel space
 	
 	
