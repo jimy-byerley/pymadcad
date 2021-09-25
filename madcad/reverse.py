@@ -1,5 +1,6 @@
 from .mathutils import *
 from .mesh import Mesh, connef, edgekey
+from .constraints import SolveError
 from .nprint import nprint
 
 import numpy as np
@@ -162,7 +163,7 @@ def guesssurface(surface, precision=1e-5):
 	scores = []
 	
 	solverargs = dict(
-				ftol = precision**2, 
+				ftol = precision, 
 				max_nfev = int(sqrt(surface.maxnum()/precision)/2), 
 				method = 'lm')
 	
@@ -184,11 +185,11 @@ def guesssurface(surface, precision=1e-5):
 		return residual.ravel()
 	
 	res = least_squares(evaluate, [*center, 1,1,1], **solverargs)
-	#print('plane', res.nfev, np.mean(res.fun), '\t', list(res.x))
 	scores.append((
 			np.mean(res.fun),
 			(vec3(res.x[:3]), vec3(res.x[3:])),
 			))
+	#print('plane', res.nfev, np.mean(res.fun), '\t', list(res.x))
 	
 	# sphere regression
 	def evaluate(x):
@@ -206,11 +207,11 @@ def guesssurface(surface, precision=1e-5):
 		return residual.ravel()
 	
 	res = least_squares(evaluate, [*center, 1], **solverargs)
-	#print('sphere', res.nfev, np.mean(res.fun), '\t', list(res.x))
 	scores.append((
 			np.mean(res.fun),
 			vec3(res.x[:3]),
 			))
+	#print('sphere', res.nfev, np.mean(res.fun), '\t', list(res.x))
 		
 	# cylinder regression
 	def evaluate(x):
@@ -230,13 +231,17 @@ def guesssurface(surface, precision=1e-5):
 		return residual.ravel()
 	
 	res = least_squares(evaluate, [*center, 1,1,1, 1], **solverargs)
-	#print('cylinder', res.nfev, np.mean(res.fun), '\t', list(res.x))
 	scores.append((
 			np.mean(res.fun),
 			(vec3(res.x[:3]), vec3(res.x[3:])),
 			))
+	#print('cylinder', res.nfev, np.mean(res.fun), '\t', list(res.x))
 		
+	# pick best regression of all
 	best = imax(-score[0] for score in scores)
+	if scores[best][0] > precision:
+		raise SolveError('unable to find a suitable surface type')
+	
 	#print('---', ['plane', 'sphere', 'cylinder'][best])
 	return (
 			['plane', 'sphere', 'cylinder'][best], 

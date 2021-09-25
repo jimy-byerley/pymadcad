@@ -244,7 +244,6 @@ def placement(*pairs, precision=1e-3):
 	
 	a, b = Solid(), Solid()
 	joints = [guessjoint(a, b, *pair, precision*0.5)   for pair in pairs]  # a better precision is aked for the joint definition, so that solvekin is not disturbed by inconsistent data
-	nprint('joints', joints)
 	solvekin(joints, precision=precision, maxiter=1000)
 	return affineInverse(a.pose) @ b.pose
 
