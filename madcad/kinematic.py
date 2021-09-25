@@ -230,19 +230,22 @@ class Solid:
 			
 			
 
-def placement(*pairs, precision=1e-4):
+def placement(*pairs, precision=1e-3):
 	''' return a transformation matrix that solved the placement constraints given by the surface pairs
 	
 		Parameters:
 		
 			pairs:	a list of surface pairs to convert to kinematic joints using `guessjoint`
+			precision: surface guessing and kinematic solving precision (distance)
 		
 		each pair define a joint between the two assumed solids (a solid for the left members of the pairs, and a solid for the right members of the pairs). placement will return the pose of the first relatively to the second, satisfying the constraints.
 	'''
 	from .reverse import guessjoint
 	
 	a, b = Solid(), Solid()
-	solvekin([guessjoint(a, b, *pair)   for pair in pairs], precision=precision)
+	joints = [guessjoint(a, b, *pair, precision*0.5)   for pair in pairs]  # a better precision is aked for the joint definition, so that solvekin is not disturbed by inconsistent data
+	nprint('joints', joints)
+	solvekin(joints, precision=precision, maxiter=1000)
 	return affineInverse(a.pose) @ b.pose
 
 	

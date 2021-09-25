@@ -1,14 +1,16 @@
 from .mathutils import *
 from .mesh import Mesh, connef, edgekey
+from .nprint import nprint
 
-from scipy.optimize import minimize
+import numpy as np
+from scipy.optimize import minimize, least_squares
 
 __all__ = [	'segmentation',
 			'guessjoint', 'guesssurface',
 			]
 
-from . import text
-debug = []
+#from . import text
+#debug = []
 
 def segmentation(mesh, tolerance=8, sharp=0.2, numprec=3e-6) -> Mesh:
 	''' surface segmentation based on curvature.
@@ -129,79 +131,113 @@ def segmentation(mesh, tolerance=8, sharp=0.2, numprec=3e-6) -> Mesh:
 	
 # ---------   guess-stuff ----------
 
-def guessjoint(solid1, solid2, surface1, surface2):
+def guessjoint(solid1, solid2, surface1, surface2, precision=1e-5):
 	from .joints import Planar, Gliding, Punctiform, Ball
 	
 	joints = {
 		('plane', 'plane'): Planar,
-		#('cylinder', 'plane'): Rolling,,
+		#('cylinder', 'plane'): Rolling,
 		('cylinder', 'cylinder'): Gliding,
 		#('cylinder', 'sphere'): Anular,
 		('plane', 'sphere'): Punctiform,
 		('sphere', 'sphere'): Ball,
 		}
-	t1, p1 = guesssurface(surface1)
-	t2, p2 = guesssurface(surface2)
-	return joints[sorted([t1, t2])](solid1, solid2, p1, p2)
+	t1, p1 = guesssurface(surface1, precision)
+	t2, p2 = guesssurface(surface2, precision)
+	joint_type = joints.get(tuple(sorted([t1, t2])))
+	if not joint_type:
+		raise ValueError('not junction registered for {}-{}'.format(t1, t2))
+	return joint_type(solid1, solid2, p1, p2)
 	
-def guesssurface(surface):	
+	
+def guesssurface(surface, precision=1e-5):	
+	''' guess the surface kind, returns its parameters 
+		
+		`precision` is a distance
+	'''
 	if not isinstance(surface, Mesh):
 		return surface
 	
 	center = surface.barycenter()
-	precision = surface.maxnum() * 1e-5
 	scores = []
+	
+	solverargs = dict(
+				ftol = precision**2, 
+				max_nfev = int(sqrt(surface.maxnum()/precision)/2), 
+				method = 'lm')
+	
 	# plane regression
 	def evaluate(x):
-		score = (length2(vec3(x[3:])) - 1)**2
+		# retreive surface parameters
 		origin, normal = vec3(x[:3]), normalize(vec3(x[3:]))
-		for f in surface.faces:
+		# allocate residuals
+		residual = np.zeros((len(surface.faces)+2, 4), dtype='f8')
+		# compute residuals
+		residual[-1,0] = (length(vec3(x[3:])) - 1)**2
+		residual[-2,0] = length2(project(center-origin, normal))
+		for i,f in enumerate(surface.faces):
 			fp = surface.facepoints(f)
 			p = (fp[0]+fp[1]+fp[2]) / 3
-			score += dot(p-origin, normal)**2
-		return score / len(surface.faces)
-	res = minimize(evaluate, [*center, 1,1,1], tol=precision, method='CG')
-	print('plane', res.nfev, res.x, res.fun)
+			residual[i,0] = dot(p-origin, normal)**2  # distance to the face center
+			for j,p in enumerate(fp):
+				residual[i,j+1] = dot(p-origin, normal)**2  # distance to each point
+		return residual.ravel()
+	
+	res = least_squares(evaluate, [*center, 1,1,1], **solverargs)
+	#print('plane', res.nfev, np.mean(res.fun), '\t', list(res.x))
 	scores.append((
-			res.fun,
+			np.mean(res.fun),
 			(vec3(res.x[:3]), vec3(res.x[3:])),
 			))
 	
 	# sphere regression
 	def evaluate(x):
-		score = 0
-		origin = vec3(x[:3])
-		radius = x[3]
-		for f in surface.faces:
+		# retreive surface parameters
+		origin, radius = vec3(x[:3]), float(x[3])
+		# allocate residuals
+		residual = np.zeros((len(surface.faces), 4), dtype='f8')
+		# compute residuals
+		for i,f in enumerate(surface.faces):
 			fp = surface.facepoints(f)
 			p = (fp[0]+fp[1]+fp[2]) / 3
-			score += (distance(p, origin) - radius) **2
-		return score / len(surface.faces)
-	res = minimize(evaluate, [*center, 1], tol=precision, method='CG')
-	print('sphere', res.nfev, res.x, res.fun)
+			residual[i,0] = (distance(p, origin) - radius) **2
+			for j,p in enumerate(fp):
+				residual[i,j+1] = (distance(p, origin) - radius) **2
+		return residual.ravel()
+	
+	res = least_squares(evaluate, [*center, 1], **solverargs)
+	#print('sphere', res.nfev, np.mean(res.fun), '\t', list(res.x))
 	scores.append((
-			res.fun,
+			np.mean(res.fun),
 			vec3(res.x[:3]),
 			))
 		
 	# cylinder regression
 	def evaluate(x):
-		score = (length(vec3(x[3:6])) - 1) **2
-		origin, direction = vec3(x[:3]), vec3(x[3:6])
-		radius = x[6]
-		for f in surface.faces:
+		# retreive surface parameters
+		origin, direction, radius = vec3(x[:3]), vec3(x[3:6]), float(x[6])
+		# allocate residuals
+		residual = np.zeros((len(surface.faces)+2, 4), dtype='f8')
+		# compute residuals
+		residual[-1,0] = (length(vec3(x[3:6])) - 1) **2
+		residual[-2,0] = length2(project(center-origin, direction))
+		for i,f in enumerate(surface.faces):
 			fp = surface.facepoints(f)
 			p = (fp[0]+fp[1]+fp[2]) / 3
-			score += (length(noproject(p-origin, direction)) - radius) **2
-		return score / len(surface.faces)
-	res = minimize(evaluate, [*center, 1,1,1, 1], tol=precision, method='CG')
-	print('cylinder', res.nfev, res.x, res.fun)
+			residual[i,0] = (length(noproject(p-origin, direction)) - radius) **2
+			for j,p in enumerate(fp):
+				residual[i,j+1] = (length(noproject(p-origin, direction)) - radius) **2
+		return residual.ravel()
+	
+	res = least_squares(evaluate, [*center, 1,1,1, 1], **solverargs)
+	#print('cylinder', res.nfev, np.mean(res.fun), '\t', list(res.x))
 	scores.append((
-			res.fun,
+			np.mean(res.fun),
 			(vec3(res.x[:3]), vec3(res.x[3:])),
 			))
 		
 	best = imax(-score[0] for score in scores)
+	#print('---', ['plane', 'sphere', 'cylinder'][best])
 	return (
 			['plane', 'sphere', 'cylinder'][best], 
 			scores[best][1],
