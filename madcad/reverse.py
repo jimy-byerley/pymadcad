@@ -7,10 +7,8 @@ __all__ = [	'segmentation',
 			'guessjoint', 'guesssurface',
 			]
 
-from . import text
-debug = []
 
-def segmentation(mesh, tolerance=8, sharp=0.2, numprec=3e-6) -> Mesh:
+def segmentation(mesh, tolerance=8, sharp=0.2, numprec=1e-5) -> Mesh:
 	''' surface segmentation based on curvature.
 		This functions splits faces into groups based on curvature proximity.
 		Ideally each resulting group is a set of faces with the same curvature. In practice such is not possible due to the mesh resolution introducing bias in curvature estimation. Thus a `tolerance` is used to decide what is a sufficiently close curvature to belong to the same group.
@@ -111,6 +109,123 @@ def segmentation(mesh, tolerance=8, sharp=0.2, numprec=3e-6) -> Mesh:
 			if edgecurve[edgekey(*e)] >= sharp:	continue
 			# split groups when curvature is too far from average curvature
 			if (abs(facecurve[j]-estimate)) / (estimate+prec) > tolerance:	continue
+			
+			# improve estimation of average curvature
+			tracks[j] = len(groups)
+			estimate = (estimate*sample + facecurve[j]) / (sample+1)
+			sample += 1
+			
+			# propagate
+			f = mesh.faces[j]
+			front.extend((f[k-1], f[k-2])  for k in range(3))
+		
+		groups.append(estimate)
+		index += 1
+			
+	return Mesh(mesh.points, mesh.faces, tracks, groups)
+	
+	
+	
+def segmentation(mesh, tolerance=8, sharp=0.2, numprec=1e-5) -> Mesh:
+	''' surface segmentation based on curvature.
+		This functions splits faces into groups based on curvature proximity.
+		Ideally each resulting group is a set of faces with the same curvature. In practice such is not possible due to the mesh resolution introducing bias in curvature estimation. Thus a `tolerance` is used to decide what is a sufficiently close curvature to belong to the same group.
+		In order to avoid too sharp edges to be considered a very low resolution but smooth surface, `sharp` is the value of the limit edge angle that can be considered in smooth surface.
+		
+		This function is particularly usefull when importing geometries from a format that doesn't manage groups (such as STL).
+		
+		Parameters:
+		
+			tolerance (float):	maximum difference factor between curvatures of a same group  (1 means +100% curvature is allowed)
+			sharp (float):	minimum angle for a sharp edge (radians)
+			numprec (floart):	precision factor for the operation, the constant NUMPREC is not used because segmentation often works on imported geometries which precision can be significantly lower than madcad's float64 precision
+			
+		NOTE:
+			
+			This functions is not magic and despite the default parameters are usually fine for mechanical parts, you may get badly grouped faces in some cases, hence you will need to tune the parameters. 
+			
+			The success of this functions is highly dependent of the quality of the input mesh triangulation.
+			
+		Example:
+		
+			>>> part = read('myfile.stl')
+			>>> part.mergeclose()
+			>>> part = segmentation(part)
+	'''
+	# pick informations from the mesh
+	pts = mesh.points
+	assigned = [False] * len(mesh.faces)
+	conn = connef(mesh.faces)
+	facenormals = mesh.facenormals()
+	vertexnormals = mesh.vertexnormals()
+	prec = mesh.maxnum() * numprec * tolerance
+	
+	# this is what this functions is working to create: new groups and tracks to assign it to faces
+	tracks = [-1] * len(mesh.faces)
+	groups = []
+	
+	# evaluate curvature around every edge
+	edgecurve = {}
+	facecurve = [0] * len(mesh.faces)
+	weight = [0] * len(mesh.faces)
+	for e, fa in conn.items():
+		if edgekey(*e) in edgecurve:	continue
+		fb = conn.get((e[1],e[0]))
+		if not fb:	continue
+		
+		curve = dot(pts[e[0]] - pts[e[1]], cross(facenormals[fa], facenormals[fb]))
+		edgecurve[edgekey(*e)] = angle = anglebt(facenormals[fa], facenormals[fb])
+		
+		# report average curvature to neighboring faces
+		w = max(0, sharp-angle)   # weight computed in term of proximity to sharp
+		facecurve[fa] += curve * w  # multiply angle at edge by   (triangle height) ~= surface/(edge length)
+		facecurve[fb] += curve * w
+		weight[fa] += w
+		weight[fb] += w
+	
+	# divide contributions to face curvatures
+	for i,f in enumerate(mesh.faces):
+		area = length(cross(pts[f[1]]-pts[f[0]], pts[f[2]]-pts[f[0]])) * weight[i]
+		if area:	facecurve[i] /= area
+		else:		facecurve[i] = 0
+		#debug.append(text.Text(
+							#(pts[f[0]] + pts[f[1]] + pts[f[2]]) /3,
+							#'{:.2g}'.format(facecurve[i]),
+							#size=8,
+							#align=('left', 'center'),
+							#))
+		
+	# groupping gives priority to the less curved faces, so they can extend to the ambiguous limits if there is
+	sortedfaces = sorted(range(len(mesh.faces)), key=lambda i:  abs(facecurve[i]))
+	index = 0
+	
+	while True:
+		# pick a non assigned face
+		for index in range(index, len(sortedfaces)):
+			if tracks[sortedfaces[index]] == -1:	break
+		if index >= len(sortedfaces):	break
+		i = sortedfaces[index]
+		f = mesh.faces[i]
+		
+		# start propagation for this face
+		tracks[i] = len(groups)
+		estimate = facecurve[i]   # average curvature of the group
+		sample = 1   # samples used in the average curvature of the group
+		front = [(f[k-1], f[k-2])  for k in range(3)]   # propagation frontline
+		reached = {i}  # faces reached by propagation
+		
+		# propagation
+		while front:
+			e = front.pop()
+			j = conn.get(e)
+			# check if already processed
+			if j is None or tracks[j] != -1 or j in reached:	continue
+			reached.add(j)
+			# check criterions:
+			# split groups at maximum curvature
+			if edgecurve[edgekey(*e)] >= sharp:	continue
+			# split groups when curvature is too far from average curvature
+			if abs(facecurve[j]-estimate) / (abs(estimate) + prec) > tolerance:	continue
 			
 			# improve estimation of average curvature
 			tracks[j] = len(groups)
