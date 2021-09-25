@@ -539,7 +539,7 @@ class Mesh(Container):
 		s = 0
 		for f in self.faces:
 			a,b,c = self.facepoints(f)
-			s += length2(cross(a-b, a,c))/2
+			s += length(cross(a-b, a,c))/2
 		return s
 	
 	def barycenter(self):
@@ -549,7 +549,7 @@ class Mesh(Container):
 		tot = 0
 		for f in self.faces:
 			a,b,c = self.facepoints(f)
-			weight = length2(cross(b-a, c-a))
+			weight = length(cross(b-a, c-a))
 			tot += weight
 			acc += weight*(a+b+c)
 		return acc / (3*tot)
@@ -1201,9 +1201,9 @@ class Web(Container):
 
 def glmarray(array, dtype='f4'):
 	''' create a numpy array from a list of glm vec '''
-	buff = np.empty((len(array), len(array[0])), dtype=dtype)
-	for i,e in enumerate(array):
-		buff[i][:] = e
+	buff = np.array(glm.array(array), copy=False)
+	if buff.dtype == np.float64:	buff = buff.astype(np.float32)
+	elif buff.dtype == np.int64:	buff = buff.astype(np.int32)
 	return buff
 
 def web(*arg):
