@@ -1,5 +1,6 @@
 import moderngl as mgl
 import numpy.core as np
+import glm
 
 from .mathutils import *
 from .rendering import Display
@@ -170,7 +171,7 @@ class Scheme:
 			self.shaders, self.shader_ident = scene.ressource('scheme', self.load)
 			
 			# switch to array indexed spaces
-			self.spaces = np.empty((self.max_spaces, 4,4), 'f4')
+			self.spaces = glm.array.zeros(self.max_spaces, fmat4)
 			self.spacegens = list(sch.spaces)
 			if len(self.spacegens) > self.max_spaces:		
 				print('warning: the number of local spaces exceeds the arbitrary build-in limit of {}'.format(self.max_spaces))
@@ -251,7 +252,7 @@ class Scheme:
 			if self.components:
 				invview = affineInverse(view.uniforms['view'])
 				for space,disp in self.components:
-					disp.world = invview * fmat4(self.spaces[space])
+					disp.world = invview * self.spaces[space]
 		
 		def render(self, view):
 			''' render each va in self.vas '''

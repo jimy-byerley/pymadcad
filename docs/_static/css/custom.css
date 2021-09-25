@@ -2,9 +2,10 @@
 .highlight  { background: #000; }
 .highlight .c { color: #408080; font-style: italic } /* Comment */
 .highlight .err { border: 1px solid #FF0000 } /* Error */
-.highlight .k { color: #24a87d; font-weight: bold } /* Keyword */
+.highlight .k { color: #438270;font-weight: bold } /* Keyword */
 .highlight .o { color: #666666 } /* Operator */
-.highlight .p {color: #4fa886; } 
+.highlight .p { color: #738c9b }
+.highlight .s1 { color: #66D4FF; color: #98CAFF }  /* string literal */
 .highlight .ch { color: #408080; font-style: italic } /* Comment.Hashbang */
 .highlight .cm { color: #408080; font-style: italic } /* Comment.Multiline */
 .highlight .cp { color: #BC7A00 } /* Comment.Preproc */
@@ -41,7 +42,7 @@
 .highlight .nn { color: #0000FF; font-weight: bold } /* Name.Namespace */
 .highlight .nt { color: #008000; font-weight: bold } /* Name.Tag */
 .highlight .nv { color: #19177C } /* Name.Variable */
-.highlight .ow { color: #AA22FF; font-weight: bold } /* Operator.Word */
+.highlight .ow { color: #438270; font-weight: bold } /* Operator.Word */
 .highlight .w { color: #bbbbbb } /* Text.Whitespace */
 .highlight .mb { color: #666666 } /* Literal.Number.Bin */
 .highlight .mf { color: #5298f2; } /* Literal.Number.Float */

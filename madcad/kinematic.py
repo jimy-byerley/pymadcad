@@ -24,7 +24,7 @@ from PyQt5.QtCore import Qt, QEvent
 
 from .common import ressourcedir
 from .mathutils import *
-from .mesh import Mesh, Web, Wire, glmarray
+from .mesh import Mesh, Web, Wire, glmarray, striplist, distance2_pm
 from . import settings
 from . import constraints
 from . import text
@@ -144,6 +144,13 @@ class Solid:
 	def pose(self, mat):
 		self.position = vec3(mat[3])
 		self.orientation = quat_cast(mat3(mat))
+		
+	def __copy__(self):
+		s = Solid()
+		s.position = copy(self.position)
+		s.orientation = copy(self.orientation)
+		s.content = copy(self.content)
+		return s
 	
 	def transform(self, mat):
 		''' displace the solid by the transformation '''
@@ -223,19 +230,22 @@ class Solid:
 			
 			
 
-def placement(*pairs, precision=1e-4):
+def placement(*pairs, precision=1e-3):
 	''' return a transformation matrix that solved the placement constraints given by the surface pairs
 	
 		Parameters:
 		
 			pairs:	a list of surface pairs to convert to kinematic joints using `guessjoint`
+			precision: surface guessing and kinematic solving precision (distance)
 		
 		each pair define a joint between the two assumed solids (a solid for the left members of the pairs, and a solid for the right members of the pairs). placement will return the pose of the first relatively to the second, satisfying the constraints.
 	'''
 	from .reverse import guessjoint
 	
 	a, b = Solid(), Solid()
-	solvekin([guessjoint(a, b, *pair)   for pair in pairs], precision=precision)
+	joints = [guessjoint(a, b, *pair, precision*0.5)   for pair in pairs]  # a better precision is aked for the joint definition, so that solvekin is not disturbed by inconsistent data
+	nprint('joints', joints)
+	solvekin(joints, precision=precision, maxiter=1000)
 	return affineInverse(a.pose) @ b.pose
 
 	
@@ -248,8 +258,7 @@ def convexhull(pts):
 		return Mesh(pts, hull.simplices.tolist())
 	else:
 		return Mesh(pts)
-			
-from .mesh import striplist, distance2_pm
+
 			
 def extract_used(obj):
 	if isinstance(obj, Mesh):	links = obj.faces
@@ -267,13 +276,20 @@ def extract_used(obj):
 	striplist(buff, used)
 	return buff
 
-from random import randint
 	
-def explode_offsets(solids):
-	''' build a graph of connected objects, ready to create an exploded view or any assembly animation '''
+def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)]':
+	''' build a graph of connected objects, ready to create an exploded view or any assembly animation.
+		See `explode()` for an example
+	
+		Complexity is `O(m * n)` where m = total number of points in all meshes, n = number of solids
+		
+		NOTE:
+			
+			Despite the hope that this function will be helpful, it's (for computational cost reasons) not a perfect algorithm for complex assemblies (the example above is at the limit of a simple one). The current algorithm will work fine for any simple enough assembly but may return unexpected results for more complexe ones.
+		
+	'''
 	import scipy.spatial.qhull
 	# build convex hulls
-	print('build hulls ...')
 	points = [[] for s in solids]
 	# recursively search for meshes in solids
 	def process(i, solid):
@@ -284,7 +300,7 @@ def explode_offsets(solids):
 				process(i, obj)
 			elif isinstance(obj, (Mesh,Web,Wire)):
 				try:
-					points[i].extend(extract_used(convexhull(extract_used(obj))))
+					points[i].extend(extract_used(convexhull(extract_used(obj)).transform(solid.pose)))
 				except scipy.spatial.qhull.QhullError:
 					continue
 			
@@ -294,18 +310,17 @@ def explode_offsets(solids):
 	# create convex hulls and prepare for parenting
 	hulls = [convexhull(pts).orient()  for pts in points]
 	
-	print('prepare ...')
 	boxes = [hull.box()  for hull in hulls]
 	normals = [hull.vertexnormals()  for hull in hulls]
+	barycenters = [hull.barycenter()  for hull in hulls]
 	
 	scores = [inf] * len(solids)
 	parents = [None] * len(solids)
 	offsets = [vec3(0)] * len(solids)
 	
-	print('search links ...')
 	# build a graph of connected things (distance from center to convex hulls)
 	for i in range(len(solids)):
-		center = hulls[i].barycenter()	
+		center = barycenters[i]	
 		for j in range(len(solids)):
 			if i == j:
 				continue
@@ -325,9 +340,8 @@ def explode_offsets(solids):
 				# take j as new parent for i
 				scores[i] = d
 				parents[i] = j
-				# get the associated displacement vector
-				#offsets[i] = (center - hulls[j].barycenter()) * length2(boxes[i].width) / length2(boxes[j].width)
 				
+				# get the associated displacement vector
 				pts = hulls[j].points
 				if isinstance(prim, int):
 					normal = normals[j][prim]
@@ -343,15 +357,7 @@ def explode_offsets(solids):
 					raise AssertionError('prim should be an index for  point, face, triangle')
 				if dot(offsets[i], normal) < 0:
 					offsets[i] = -offsets[i]
-					
-	for box, hull, offset in zip(boxes, hulls, offsets):
-		if length2(offset) and not box.isempty():
-			#size = max(dot(p,offset)  for p in hull.points) - min(dot(p,offset)  for p in hull.points)
-			#offset *= 1 + size / length2(offset)
-			size = length(box.width) * length(offset)
-			offset *= 1 + size * 0.5 / length2(offset)
-								
-	print('resolve dependencies ...')
+	
 	# resolve dependencies to output the offsets in the resolution order
 	order = []
 	reached = [False] * len(solids)
@@ -367,39 +373,70 @@ def explode_offsets(solids):
 			order.extend(reversed(chain))
 		i += 1
 		
-	# move more parents that have children on their way out
+	# move more parents that have children on their way out				
+	blob = [deepcopy(box) 	for box in boxes]
 	for i in reversed(range(len(solids))):
 		j = parents[i]
-		if j and length2(offsets[j]):
-			proj = - dot(offsets[i], offsets[j]) / length2(offsets[j])
-			if proj > 0.2:
-				offsets[j] *= 1 + proj
-		
-	graph = Web([hull.barycenter()  for hull in hulls], groups=[None])
-	for i, j in enumerate(parents):
-		if j:
-			graph.edges.append((i,j))
-			graph.tracks.append(0)
+		if j and length2(offsets[i]):
+			offsets[i] *= (1 
+							+ 0.5* length(blob[i].width) / length(offsets[i]) 
+							- dot(blob[i].center - barycenters[i], offsets[i]) / length2(offsets[i])
+							)
+			blob[j].union_update(blob[i].transform(offsets[i]))
 								
-	return [(i, parents[i], offsets[i])  for i in order], graph
+	return [(i, parents[i], offsets[i], barycenters[i])  for i in order]
 			
 	
-def explode(solids, factor=1.5):
+def explode(solids, factor=1, offsets=None) -> '(solids:list, graph:Mesh)':
 	''' move the given solids away from each other in the way of an exploded view.
-		makes easier to seen the details of an assembly 
+		makes easier to seen the details of an assembly . See `explode_offsets` for the algorithm
+		
+		Parameters:
+			
+			solids:		a list of solids (copies of each will be made before displacing)
+			factor:		displacement factor, 0 for no displacement, 1 for normal displacement
+			offsets:	if given, must be the result of `explode_offsets(solids)`
+		
+		Example:
+		
+			>>> imported = read(folder+'/some_assembly.stl')
+			>>> imported.mergeclose()
+			>>> parts = []
+			>>> for part in imported.islands():
+			...     part.strippoints()
+			...     parts.append(Solid(part=segmentation(part)))
+			... 
+			>>> exploded = explode(parts)
+		
 	'''
-	offsets, graph = explode_offsets(solids)
-	nprint('offsets', offsets)
+	solids = [copy(solid)  for solid in solids]
+	if not offsets:
+		offsets = explode_offsets(solids)
 	
+	#graph = Web([o[3]  for o in offsets], groups=[None])
+	#for i, j in enumerate(parents):
+		#if j:
+			#graph.edges.append((i,j))
+			#graph.tracks.append(0)
+			
+	graph = Web(groups=[None])
 	shifts = [	(solids[solid].position - solids[parent].position)
 				if parent else vec3(0)
-				for solid, parent, offset in offsets]
-	for solid, parent, offset in offsets:
+				for solid, parent, offset, center in offsets]
+	for solid, parent, offset, center in offsets:
 		if parent:
 			solids[solid].position = solids[parent].position + shifts[solid] + offset * factor
-			graph.points[solid] += solids[solid].position
+			#graph.points[solid] += solids[solid].position
 			
-	return graph
+			graph.edges.append((len(graph.points), len(graph.points)+1))
+			graph.tracks.append(0)
+			graph.points.append(solids[parent].position + shifts[solid] + center)
+			graph.points.append(solids[solid].position + center)
+			
+	return [solids, graph]
+
+
+		
 	
 
 
