@@ -410,7 +410,7 @@ def mesh_placement(mesh) -> '(pos,normal)':
 		# group center normal
 		center = mesh.barycenter()
 		f = min(mesh.faces,
-				key=lambda f:  dot(center - sum(mesh.facepoints(f))/3, mesh.facenormal(f))
+				key=lambda f:  distance2(center, sum(mesh.facepoints(f))/3)
 				)
 		normal = mesh.facenormal(f)
 		pos = sum(mesh.facepoints(f)) / 3
@@ -418,7 +418,7 @@ def mesh_placement(mesh) -> '(pos,normal)':
 	elif isinstance(mesh, Web):
 		center = mesh.barycenter()
 		e = min(mesh.edges,
-				key=lambda e:  length2(center - (mesh.points[e[0]]+mesh.points[e[1]])/2)
+				key=lambda e:  distance2(center, (mesh.points[e[0]]+mesh.points[e[1]])/2)
 				)
 		normal = dirbase(normalize(mesh.points[e[0]]-mesh.points[e[1]]))[0]
 		pos = mix(mesh.points[e[0]], mesh.points[e[1]], 0.5)
