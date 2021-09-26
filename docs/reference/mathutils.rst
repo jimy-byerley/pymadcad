@@ -199,3 +199,29 @@ Constants
 .. py:data:: COMPREC
 
 	unit complement of NUMPREC for convenience: :code:`1 - NUMPREC`
+	
+	
+Localy defined data types
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: Box
+
+	.. autoproperty:: center
+	.. autoproperty:: width
+	.. automethod:: corners
+	.. automethod:: volume
+	
+	.. automethod:: isvalid
+	.. automethod:: isempty
+	
+	.. automethod:: contain
+	.. automethod:: inside
+	
+	.. automethod:: intersection
+	.. automethod:: union
+	
+	.. automethod:: intersection_update
+	.. automethod:: union_update
+	
+	.. automethod:: transform
+	
