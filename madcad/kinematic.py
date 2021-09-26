@@ -246,16 +246,16 @@ def placement(*pairs, precision=1e-3):
 		
 			>>> # get the transformation for the pose
 			>>> pose = placement(
-			...		(solid['part'].group(37), other['part'].group(48)),  # two cylinder surfaces: Gliding joint
-			...		(solid['part'].group(9), other['part'].group(6)),    # two planar surfaces: Planar joint
+			...		(screw['part'].group(0), other['part'].group(44)),  # two cylinder surfaces: Gliding joint
+			...		(screw['part'].group(4), other['part'].group(25)),    # two planar surfaces: Planar joint
 			...		)  # solve everything to get solid's pose
 			>>> # apply the transformation to the solid
-			>>> stepper.pose = pose
+			>>> screw.pose = pose
 			
 			>>> # or
-			>>> stepper.place(
-			...		(solid['part'].group(37), other['part'].group(48)),
-			...		(solid['part'].group(9), other['part'].group(6)),
+			>>> screw.place(
+			...		(screw['part'].group(0), other['part'].group(44)),
+			...		(screw['part'].group(4), other['part'].group(25)),
 			...		)
 	'''
 	from .reverse import guessjoint

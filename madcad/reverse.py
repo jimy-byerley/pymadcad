@@ -247,7 +247,7 @@ def segmentation(mesh, tolerance=8, sharp=0.2, numprec=1e-5) -> Mesh:
 	
 # ---------   guess-stuff ----------
 
-def guessjoint(solid1, solid2, surface1, surface2, guess=quat(), precision=1e-5):
+def guessjoint(solid1, solid2, surface1, surface2, guess=quat(), precision=1e-5) -> 'joint':
 	''' Create a kinematic joint based on the surfaces given. The function will use `guesssurface` to find the surface kind and then deduce the appropriate joint to make the surfaces coincide.
 	
 		Parameters:
@@ -388,7 +388,7 @@ def guesssurface(surface, precision=1e-5, attempt=False):
 		
 	# pick best regression of all
 	best = min(scores, key=itemgetter(0))
-	if attempty or best[0] > precision:
+	if attempt or best[0] > precision:
 		raise SolveError('unable to find a suitable surface type')
 	
 	#print('---', best[1])

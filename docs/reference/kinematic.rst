@@ -25,6 +25,14 @@ kinematic   - Kinematic solver/constraint system
 
 .. autofunction:: placement
 
+	suppose we have those parts to assemble and it's hard to guess the precise pose transform between them
+	
+	.. image:: /screenshots/placement-before.png
+	
+	placement gives the pose for the screw to make the selected surfaces coincide
+	
+	.. image:: /screenshots/placement-after.png
+
 .. autofunction:: explode
 
 	before operation
