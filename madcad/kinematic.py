@@ -163,7 +163,7 @@ class Solid:
 		else:
 			raise TypeError('Screw.transform() expect mat4, mat3 or vec3')
 		self.orientation = rot*self.orientation
-		self.position += trans
+		self.position = trans + rot*self.position
 		
 	# convenient content access
 	def __getitem__(self, key):
@@ -178,6 +178,7 @@ class Solid:
 						if i not in self.content	)
 		self.content[key] = value
 		return key
+	
 	def set(self, **objs):
 		''' contenient method to set many elements in one call.
 			equivalent to `self.content.update(objs)`
@@ -185,8 +186,9 @@ class Solid:
 		self.content.update(objs)
 		return self
 		
-	def place(self, *args):
-		self.pose = placement(*args)
+	def place(self, *args, **kwargs):
+		''' strictly equivalent to `self.pose = placement(...)` '''
+		self.pose = placement(*args, **kwargs)
 	
 	
 	class display(rendering.Group):
@@ -239,13 +241,29 @@ def placement(*pairs, precision=1e-3):
 			precision: surface guessing and kinematic solving precision (distance)
 		
 		each pair define a joint between the two assumed solids (a solid for the left members of the pairs, and a solid for the right members of the pairs). placement will return the pose of the first relatively to the second, satisfying the constraints.
+		
+		Example:
+		
+			>>> # get the transformation for the pose
+			>>> pose = placement(
+			...		(solid['part'].group(37), other['part'].group(48)),  # two cylinder surfaces: Gliding joint
+			...		(solid['part'].group(9), other['part'].group(6)),    # two planar surfaces: Planar joint
+			...		)  # solve everything to get solid's pose
+			>>> # apply the transformation to the solid
+			>>> stepper.pose = pose
+			
+			>>> # or
+			>>> stepper.place(
+			...		(solid['part'].group(37), other['part'].group(48)),
+			...		(solid['part'].group(9), other['part'].group(6)),
+			...		)
 	'''
 	from .reverse import guessjoint
 	
 	a, b = Solid(), Solid()
-	joints = [guessjoint(a, b, *pair, precision*0.5)   for pair in pairs]  # a better precision is aked for the joint definition, so that solvekin is not disturbed by inconsistent data
-	solvekin(joints, precision=precision, maxiter=1000)
-	return affineInverse(a.pose) @ b.pose
+	joints = [guessjoint(a, b, *pair, precision*0.25)   for pair in pairs]  # a better precision is aked for the joint definition, so that solvekin is not disturbed by inconsistent data
+	solvekin(joints, fixed=[b], precision=precision, maxiter=1000)
+	return a.pose
 
 	
 def convexhull(pts):
@@ -278,7 +296,7 @@ def extract_used(obj):
 	
 def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)]':
 	''' build a graph of connected objects, ready to create an exploded view or any assembly animation.
-		See `explode()` for an example
+		See `explode()` for an example. The exploded view is computed using the meshes contained in the given solids, so make sure there everything you want in their content.
 	
 		Complexity is `O(m * n)` where m = total number of points in all meshes, n = number of solids
 		
@@ -398,6 +416,7 @@ def explode(solids, factor=1, offsets=None) -> '(solids:list, graph:Mesh)':
 		
 		Example:
 		
+			>>> # pick some raw model and separate parts
 			>>> imported = read(folder+'/some_assembly.stl')
 			>>> imported.mergeclose()
 			>>> parts = []
@@ -405,6 +424,7 @@ def explode(solids, factor=1, offsets=None) -> '(solids:list, graph:Mesh)':
 			...     part.strippoints()
 			...     parts.append(Solid(part=segmentation(part)))
 			... 
+			>>> # explode the assembly to look into it
 			>>> exploded = explode(parts)
 		
 	'''
@@ -494,6 +514,8 @@ def solvekin(joints, fixed=(), precision=1e-4, maxiter=None, damping=1):
 			# rotation center is determined by the center of correction applications points
 			# displacement is the average of correction displacements
 			for c in corrections:
+				#c.momentum, c.resulting = c.resulting, c.momentum
+			
 				v += c.momentum
 				center += c.position
 			v /= l
@@ -528,11 +550,12 @@ def solvekin(joints, fixed=(), precision=1e-4, maxiter=None, damping=1):
 			v /= l*2
 			w /= l*2
 			
-			if length2(w) > 0.25:
-				w /= length(w)*2
+			if length2(w) > 0.25**2:
+				w /= length(w)*4
 			
 			solid.position += v*damping
-			solid.orientation = quat(w*damping) * solid.orientation
+			if length2(w):
+				solid.orientation = angleAxis(length(w)*damping, normalize(w)) * solid.orientation
 		
 		itercount += 1
 
