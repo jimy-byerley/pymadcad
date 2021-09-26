@@ -247,7 +247,16 @@ def segmentation(mesh, tolerance=8, sharp=0.2, numprec=1e-5) -> Mesh:
 	
 # ---------   guess-stuff ----------
 
-def guessjoint(solid1, solid2, surface1, surface2, precision=1e-5):
+def guessjoint(solid1, solid2, surface1, surface2, guess=quat(), precision=1e-5):
+	''' Create a kinematic joint based on the surfaces given. The function will use `guesssurface` to find the surface kind and then deduce the appropriate joint to make the surfaces coincide.
+	
+		Parameters:
+		
+			solid1, solid2:  	 solids the joint applies on
+			surface1, surface2:  the surface to retreive the joint definition from
+			guess(quat, mat3):   orientation tip to orient properly the joint axis, if there is
+			precision(float):    precision for `guesssurface`
+	'''
 	from .joints import Planar, Gliding, Punctiform, Ball
 	
 	joints = {
@@ -263,13 +272,24 @@ def guessjoint(solid1, solid2, surface1, surface2, precision=1e-5):
 	joint_type = joints.get(tuple(sorted([t1, t2])))
 	if not joint_type:
 		raise ValueError('not junction registered for {}-{}'.format(t1, t2))
-	return joint_type(solid1, solid2, p1, p2)
-	
-	
-def guesssurface(surface, precision=1e-5):	
-	''' guess the surface kind, returns its parameters 
 		
-		`precision` is a distance
+	if joint_type in (Gliding, Planar):
+		if dot(guess*p1[1], p2[1]) < 0:
+			p1 = p1[0], -p1[1]
+	return joint_type(solid1, solid2, p1, p2)
+
+from operator import itemgetter
+	
+def guesssurface(surface, precision=1e-5, attempt=False):	
+	''' guess the surface kind, returns its parameters.
+	
+		Return a tuple `('surface_type', parameters)`
+		
+		Parameters:
+		
+			surface(Mesh):      mesh from which to find the surface kind
+			precision(float):	typical distance error from mesh to ideal surface in the surface regression
+			attempt(bool):      if True, will not raise an error if the acheived error is too big
 	'''
 	if not isinstance(surface, Mesh):
 		return surface
@@ -279,7 +299,7 @@ def guesssurface(surface, precision=1e-5):
 	
 	solverargs = dict(
 				ftol = precision, 
-				max_nfev = int(sqrt(surface.maxnum()/precision)/2), 
+				max_nfev = 300, 
 				method = 'lm')
 	
 	# plane regression
@@ -290,7 +310,7 @@ def guesssurface(surface, precision=1e-5):
 		residual = np.zeros((len(surface.faces)+2, 4), dtype='f8')
 		# compute residuals
 		residual[-1,0] = (length(vec3(x[3:])) - 1)**2
-		residual[-2,0] = length2(project(center-origin, normal))
+		residual[-2,0] = length2(noproject(center-origin, normal))
 		for i,f in enumerate(surface.faces):
 			fp = surface.facepoints(f)
 			p = (fp[0]+fp[1]+fp[2]) / 3
@@ -302,6 +322,7 @@ def guesssurface(surface, precision=1e-5):
 	res = least_squares(evaluate, [*center, 1,1,1], **solverargs)
 	scores.append((
 			np.mean(res.fun),
+			'plane',
 			(vec3(res.x[:3]), vec3(res.x[3:])),
 			))
 	#print('plane', res.nfev, np.mean(res.fun), '\t', list(res.x))
@@ -324,6 +345,7 @@ def guesssurface(surface, precision=1e-5):
 	res = least_squares(evaluate, [*center, 1], **solverargs)
 	scores.append((
 			np.mean(res.fun),
+			'sphere',
 			vec3(res.x[:3]),
 			))
 	#print('sphere', res.nfev, np.mean(res.fun), '\t', list(res.x))
@@ -344,24 +366,33 @@ def guesssurface(surface, precision=1e-5):
 			for j,p in enumerate(fp):
 				residual[i,j+1] = (length(noproject(p-origin, direction)) - radius) **2
 		return residual.ravel()
-	
-	res = least_squares(evaluate, [*center, 1,1,1, 1], **solverargs)
-	scores.append((
-			np.mean(res.fun),
-			(vec3(res.x[:3]), vec3(res.x[3:])),
-			))
-	#print('cylinder', res.nfev, np.mean(res.fun), '\t', list(res.x))
+	# estimate a first axis to avoid the solver to fall into a local extremum
+	# sum contrbutions of curvature at edges
+	direction = vec3(0)
+	conn = connef(surface.faces)
+	for e in conn:
+		if (e[1], e[0]) in conn and e[0] < e[1]:
+			edge = cross(surface.facenormal(conn[e]), surface.facenormal(conn[(e[1],e[0])]))
+			direction += edge * (sign(dot(edge, direction)) or 1)
+	# if the initial direction is too weak, then we are sure it's not a cylinder
+	if length2(direction):
+		if -min(direction) > max(direction):	direction = -direction
+		# solve
+		res = least_squares(evaluate, [*center, *normalize(direction), 1], **solverargs)
+		scores.append((
+				np.mean(res.fun),
+				'cylinder',
+				(vec3(res.x[:3]), vec3(res.x[3:])),
+				))
+		#print('cylinder', res.nfev, np.mean(res.fun), '\t', list(res.x))
 		
 	# pick best regression of all
-	best = imax(-score[0] for score in scores)
-	if scores[best][0] > precision:
+	best = min(scores, key=itemgetter(0))
+	if attempty or best[0] > precision:
 		raise SolveError('unable to find a suitable surface type')
 	
-	#print('---', ['plane', 'sphere', 'cylinder'][best])
-	return (
-			['plane', 'sphere', 'cylinder'][best], 
-			scores[best][1],
-			)
+	#print('---', best[1])
+	return best[1], best[2]
 
 
 
