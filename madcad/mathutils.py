@@ -326,22 +326,31 @@ def imax(iterable, default=None):
 
 
 class Box:
-	''' box always orthogonal to the base axis, used as convex for area delimitations '''
+	''' This class describes a box always orthogonal to the base axis, used as convex for area delimitations 
+	
+		This class is independent from the dimension or number precision of the used vectors. You can for instance have a `Box` of `vec2` as well as a box of `vec3`. however boxes with different vector types cannot interperate.
+	
+		Attributes:
+			
+			min:	vector of minimum coordinates of the box (usually bottom left corner)
+			max:	vector of maximum coordinates of the box (usually top right corner)
+	
+	'''
 	__slots__ = ('min', 'max')
 	def __init__(self, min=None, max=None, center=vec3(0), width=vec3(-inf)):
 		if min and max:			self.min, self.max = min, max
 		else:					self.min, self.max = center-width/2, center+width/2
 	
 	@property
-	def center(self):
+	def center(self) -> vec3:
 		''' mid coordinates of the box '''
 		return (self.min + self.max) /2
 	@property
-	def width(self):
+	def width(self) -> vec3:
 		''' diagonal vector of the box '''
 		return self.max - self.min
 	
-	def corners(self):
+	def corners(self) -> '[vec3]':
 		''' create a list of the corners of the box '''
 		c = self.min, self.max
 		t = type(self.min)
@@ -349,12 +358,27 @@ class Box:
 			t(c[i&1][0], c[(i>>1)&1][1], c[(i>>2)&1][2])
 			for i in range(8)
 			]
+			
+	def volume(self) -> float:
+		''' volume inside '''
+		v = 1
+		for edge in self.width:
+			v *= edge
+		return v
+		
+	def contain(self, point):
+		''' return True if the given point is inside or on the surface of the box '''
+		return all(self.min <= point) and all(point <= self.max)
+		
+	def inside(self, point):
+		''' return True if the given point is strictly inside the box '''
+		return all(self.min < point) and all(point < self.max)
 	
 	def isvalid(self):
 		''' return True if the box defines a valid space (min coordinates <= max coordinates) '''
 		return any(self.min <= self.max)
 	def isempty(self):
-		''' return True if the box contains a non null circumference '''
+		''' return True if the box contains a non null volume '''
 		return not any(self.min < self.max)
 	
 	def __add__(self, other):
@@ -362,6 +386,7 @@ class Box:
 		elif isinstance(other, Box):	return Box(other.min, other.max)
 		else:
 			return NotImplemented
+			
 	def __iadd__(self, other):
 		if isinstance(other, vec3):		
 			self.min += other
@@ -371,6 +396,7 @@ class Box:
 			self.max += other.max
 		else:
 			return NotImplemented
+			
 	def __sub__(self, other):
 		if isinstance(other, vec3):		return Box(self.min - other, self.max - other)
 		elif isinstance(other, Box):	return Box(other.min, other.max)
@@ -379,8 +405,9 @@ class Box:
 	
 	def __or__(self, other):	return deepcopy(self).union(other)
 	def __and__(self, other):	return deepcopy(self).intersection(other)
-	def union(self, other):
-		''' extend the area of the box to bound the given point or box '''
+	
+	def union_update(self, other) -> 'self':
+		''' extend the volume of the current box to bound the given point or box '''
 		if isinstance(other, (dvec3, fvec3)):
 			self.min = glm.min(self.min, other)
 			self.max = glm.max(self.max, other)
@@ -390,24 +417,64 @@ class Box:
 		else:
 			raise TypeError('unable to integrate {}'.format(type(other)))
 		return self
-	def intersection(self, other):
-		''' intersection area between the 2 boxes '''
+	
+	def intersection_update(self, other) -> 'self':
+		''' reduce the volume of the current box to the intersection between the 2 boxes '''
 		if isinstance(other, Box):
 			self.min = glm.max(self.min, other.min)
 			self.max = glm.min(self.max, other.max)
 		else:
 			raise TypeError('expected a Box'.format(type(other)))
 		return self
-	def transform(self, trans):
+	
+	def union(self, other) -> 'Box':
+		''' return a box containing the current and the given box (or point) 
+		
+			Example:
+				
+				>>> Box(vec2(1,2), vec2(2,3)) .union(vec3(1,4))
+				Box(vec2(1,2), vec2(2,4))
+				
+				>>> Box(vec2(1,2), vec2(2,3)) .union(Box(vec3(1,-4), vec3(2,8)))
+				Box(vec2(1,-4), vec3(2,8))
+		
+		'''
+		if isinstance(other, (dvec3, fvec3)):
+			return Box(	glm.min(self.min, other),
+						glm.max(self.max, other))
+		elif isinstance(other, Box):
+			return Box(	glm.min(self.min, other.min),
+						glm.max(self.max, other.max))
+		else:
+			raise TypeError('unable to integrate {}'.format(type(other)))
+	
+	def intersection(self, other) -> 'Box':
+		''' return a box for the volume common to the current and the given box 
+		
+			Example:
+			
+				>>> Box(vec2(-1,2), vec2(2,3)) .intersection(Box(vec3(1,-4), vec3(2,8)))
+				Box(vec2(1,2), vec3(2,3))
+		
+		'''
+		if isinstance(other, Box):
+			return Box(	glm.max(self.min, other.min),
+						glm.min(self.max, other.max))
+		else:
+			raise TypeError('expected a Box'.format(type(other)))
+	
+	def transform(self, trans) -> 'Box':
 		''' box bounding the current one in a transformed space '''
 		if not self.isvalid():	return self
 		trans = transformer(trans)
 		return boundingbox((trans(p)  for p in self.corners()))
-	def cast(self, vec):
+	
+	def cast(self, vec) -> 'Box':
 		return Box(vec(self.min), vec(self.max))
 	
 	def __bool__(self):
 		return self.isvalid()
+	
 	def __repr__(self):
 		return '{}({}, {})'.format(self.__class__.__name__, repr(self.min), repr(self.max))
 
