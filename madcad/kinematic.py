@@ -176,7 +176,7 @@ class Solid:
 		return s
 		
 	def place(self, *args, **kwargs) -> 'Solid': 
-		''' strictly equivalent to `self.pose = placement(...)` '''
+		''' strictly equivalent to `.transform(placement(...))` '''
 		s = copy(self)
 		s.pose = placement(*args, **kwargs)
 		return s

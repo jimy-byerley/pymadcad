@@ -12,7 +12,15 @@ kinematic   - Kinematic solver/constraint system
 	Of course, as any vector variables, ``Screw`` implements ``+ -`` with other ``Torsor``, and ``* /`` with ``float``
 
 .. autoclass:: Solid
-	:members: pose, transform, place, add, set
+
+	.. autoproperty:: pose
+	
+	.. automethod:: set
+	.. automethod:: add
+	.. automethod:: __getitem__
+	
+	.. automethod:: transform
+	.. automethod:: place
 
 .. autoclass:: Kinematic
 	:members: solve, pose
