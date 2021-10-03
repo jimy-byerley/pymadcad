@@ -60,11 +60,12 @@ def segmentation(mesh, tolerance=5, sharp=0.2, numprec=1e-5) -> Mesh:
 		edgecurve[edgekey(*e)] = angle = anglebt(facenormals[fa], facenormals[fb])
 		
 		# report average curvature to neighboring faces
-		w = max(0, 0.5-angle)  # empirical weighting
-		facecurve[fa] += curve * w  # multiply angle at edge by   (triangle height) ~= surface/(edge length)
-		facecurve[fb] += curve * w
-		weight[fa] += w
-		weight[fb] += w
+		if sharp > angle:
+			w = max(0, 0.5-angle)  # empirical weighting
+			facecurve[fa] += curve * w  # multiply angle at edge by   (triangle height) ~= surface/(edge length)
+			facecurve[fb] += curve * w
+			weight[fa] += w
+			weight[fb] += w
 	
 	# divide contributions to face curvatures
 	for i,f in enumerate(mesh.faces):
