@@ -72,12 +72,12 @@ def segmentation(mesh, tolerance=5, sharp=0.2, numprec=1e-5) -> Mesh:
 		area = length(cross(pts[f[1]]-pts[f[0]], pts[f[2]]-pts[f[0]])) * weight[i]
 		if area:	facecurve[i] /= area
 		else:		facecurve[i] = 0
-		debug.append(text.Text(
-							(pts[f[0]] + pts[f[1]] + pts[f[2]]) /3,
-							'{:.2g}'.format(facecurve[i]),
-							size=8,
-							align=('left', 'center'),
-							))
+		#debug.append(text.Text(
+							#(pts[f[0]] + pts[f[1]] + pts[f[2]]) /3,
+							#'{:.2g}'.format(facecurve[i]),
+							#size=8,
+							#align=('left', 'center'),
+							#))
 		
 	# groupping gives priority to the less curved faces, so they can extend to the ambiguous limits if there is
 	sortedfaces = sorted(range(len(mesh.faces)), key=lambda i:  abs(facecurve[i]))

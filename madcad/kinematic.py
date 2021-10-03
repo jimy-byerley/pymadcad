@@ -78,6 +78,8 @@ class Screw(object):
 			rot, trans = mat3(mat), vec3(mat[3])
 		elif isinstance(mat, mat3):
 			rot, trans = mat, 0
+		elif isinstance(mat, quat):
+			rot, trans = mat, 0
 		elif isinstance(mat, vec3):
 			rot, trans = 1, mat
 		else:
@@ -149,22 +151,37 @@ class Solid:
 		s = Solid()
 		s.position = copy(self.position)
 		s.orientation = copy(self.orientation)
-		s.content = copy(self.content)
+		s.content = self.content
 		return s
 	
-	def transform(self, mat):
+	def itransform(self, trans):
 		''' displace the solid by the transformation '''
-		if isinstance(mat, mat4):
-			rot, trans = quat_cast(mat3(mat)), vec3(mat[3])
-		elif isinstance(mat, mat3):
-			rot, trans = quat_cast(mat), 0
-		elif isinstance(mat, vec3):
-			rot, trans = 1, mat
+		if isinstance(trans, mat4):
+			rot, trans = quat_cast(mat3(trans)), vec3(trans[3])
+		elif isinstance(trans, mat3):
+			rot, trans = quat_cast(trans), 0
+		elif isinstance(trans, quat):
+			rot, trans = trans, 0
+		elif isinstance(trans, vec3):
+			rot, trans = 1, trans
 		else:
 			raise TypeError('Screw.transform() expect mat4, mat3 or vec3')
 		self.orientation = rot*self.orientation
 		self.position = trans + rot*self.position
 		
+	def transform(self, trans) -> 'Solid':
+		''' create a new Solid moved by the given transformation, with the same content '''
+		s = copy(self)
+		s.itransform(trans)
+		return s
+		
+	def place(self, *args, **kwargs) -> 'Solid': 
+		''' strictly equivalent to `self.pose = placement(...)` '''
+		s = copy(self)
+		s.pose = placement(*args, **kwargs)
+		return s
+		
+
 	# convenient content access
 	def __getitem__(self, key):
 		return self.content[key]
@@ -185,10 +202,6 @@ class Solid:
 		'''
 		self.content.update(objs)
 		return self
-		
-	def place(self, *args, **kwargs):
-		''' strictly equivalent to `self.pose = placement(...)` '''
-		self.pose = placement(*args, **kwargs)
 	
 	
 	class display(rendering.Group):
