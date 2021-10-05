@@ -949,7 +949,7 @@ def spherical_rack_profile(m:float, k:float, pressure_angle:float=pi / 9, ka:flo
 	v = side1[0] + side2[0] # Temporarily used to calculation
 	return wire, v
 
-def spherical_involute_profile(z, m, gamma_p, pressure_angle=pi / 9, ka=1, kd=1.25):
+def spherical_involute_and_rack_profile(z, m, gamma_p, pressure_angle=pi / 9, ka=1, kd=1.25):
 	"""
 	First draft of all implemented functions to generate a bevel gear.
 	For the moment, it shows the spherical involute with the spherical rack profile.
@@ -1018,6 +1018,7 @@ def spherical_involute_profile(z, m, gamma_p, pressure_angle=pi / 9, ka=1, kd=1.
 	n1, n2 = rinvolute(t_max, 0) * vec3(1, 1, 0), rinvolute(-t_max, phase1) * vec3(1, 1, 0)
 	beta = 0.5 * anglebt(n1, n2) * length(n1) / sin_b
 
+	phase_empty = 2 * pi / z - phase_diff
 	rackp = [
 		interference(t, -0.5 * phase_empty + beta, alpha) for t in frange(-t_max, t_max, 100)
 	]
@@ -1055,3 +1056,87 @@ def spherical_involute_profile(z, m, gamma_p, pressure_angle=pi / 9, ka=1, kd=1.
 		.transform(angleAxis(-pi / 2 + gamma_p, -v)),
 		Circle((vec3(0, 0, 0), v), 1), # Vertical circle
 	]
+	# return [
+	# 	Wire(rackp).transform(angleAxis(angle, vec3(0, 0, 1))), # interference 1
+	# 	Wire(rackp2).transform(angleAxis(angle, vec3(0, 0, 1))), # interference 2
+	# 	repeat_circular(wire, z).transform(angleAxis(angle, vec3(0, 0, 1))), # Pinion / Wheel
+	# 	Circle((vec3(0,0,cos(gamma_b)), vec3(0,0,1)), sin(gamma_b)),
+	# 	Circle((vec3(0,0,cos(gamma_p)), vec3(0,0,1)), sin(gamma_p)),
+	# 	Circle((vec3(0,0,cos(gamma_f)), vec3(0,0,1)), sin(gamma_f)),
+	# 	Circle((vec3(0,0,cos(gamma_r)), vec3(0,0,1)), sin(gamma_r)),
+	# ]
+
+def spherical_involute_profile(z, m, gamma_p, pressure_angle=pi / 9, ka=1, kd=1.25):
+	gamma_b = asin(cos(pressure_angle) * sin(gamma_p))
+	cos_b, sin_b = cos(gamma_b), sin(gamma_b)
+	rp = 0.5 * m * z
+	rb = rp * cos(pressure_angle)
+	rho1 = rp / sin(gamma_p)
+	Fw = rho1 / 3
+	rho0 = rho1 - Fw
+	tooth_size = pi / z
+	length_tooth_size = tooth_size * rp
+
+	# The following number `k` is useful to simplify some calculations
+	# It's broadly speaking `1/z_rack` and `z_rack` is not an integer !
+	k = sin(gamma_p) / z
+
+
+	# REVIEW: Calculation to prove
+	# but it works !
+	phi_p = acos(tan(gamma_b) / tan(gamma_p))
+	theta_p = atan2(sin_b * tan(phi_p), 1) / sin_b - phi_p
+	phase_diff = tooth_size + 2 * theta_p
+	phase_empty = 2 * pi / z - phase_diff
+
+	# Spherical involute part
+	involute = spherical_involute(gamma_b)
+	gamma_f = gamma_p + 2 * ka * k
+	gamma_r = gamma_p - 2 * kd * k
+	t_min = 0
+	t_max = acos(cos(gamma_f) / cos_b) / sin_b
+	if gamma_r > gamma_b:
+		v = vec3(1, 1, 0)
+		t_min = acos(cos(gamma_r) / cos_b) / sin_b
+		phase_empty = 2 * pi / z - anglebt(
+			involute(t_min, 0) * v, involute(-t_min, phase_diff) * v
+		)
+
+	phase = 2 * pi / z - phase_diff # phase of space useful for interference phase
+	# name `phase` will be changed
+
+	_, t_max, phase1, _, rinvolute = spherical_rack(k, m, pressure_angle, ka, kd)
+	interference = spherical_interference(gamma_p)
+	alpha = 2 * ka * k
+	n1, n2 = rinvolute(t_max, 0) * vec3(1, 1, 0), rinvolute(-t_max, phase1) * vec3(1, 1, 0)
+	beta = 0.5 * anglebt(n1, n2) * length(n1) / sin_b
+	f = lambda t1, t2: spherical_involute(gamma_b)(t1, 0) - spherical_interference(gamma_p)(
+	    t2, -0.5 * phase + beta, alpha
+	)
+	J = jacobian_spherical_involute(gamma_b, gamma_p, 0, -0.5 * phase + beta, alpha)
+
+	gamma_f = gamma_p + 2 * k
+	t_max = acos(cos(gamma_f) / cos_b) / sin_b
+
+	t1, t2, _ = newton_method((0.5 * t_max, -0.5 * t_max), f, J)
+
+	interference1 = [interference(t, -0.5 * phase + beta, alpha) for t in frange(t2, 0)]
+	interference2 = [interference(-t, phase_diff + 0.5 * phase - beta, alpha) for t in frange(t2, 0)]
+	side1 = list(reversed(interference1)) + [involute(t, 0) for t in frange(t1, t_max)]
+	side2 = list(reversed(interference2)) + [involute(-t, phase_diff) for t in frange(t1, t_max)]
+
+	a = interference(0, -0.5 * phase + beta, alpha)
+	b = interference(0, phase_diff + 0.5 * phase - beta, alpha)
+	final_phase_empty = 2 * pi / z - anglebt(a*vec3(1,1,0),b*vec3(1,1,0))
+	top = Segment(side1[-1], side2[-1]).mesh()
+	bottom = Segment(angleAxis(-final_phase_empty, vec3(0,0,1)) * a, a).mesh()
+
+
+	wire = bottom + Wire(side1) + top + Wire(side2).flip()
+
+	return [repeat_circular(wire,z)]
+	# rackp = [
+	# 	interference(t, -0.5 * phase_empty + beta, alpha) for t in frange(-t_max, t_max, 100)
+	# ]
+
+	# return [wire,  Wire([vec3(0), involute(t1, 0)]), Wire([vec3(0), interference(t2, -0.5 * phase_empty + beta, alpha)]), Wire(rackp)]
