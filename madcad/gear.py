@@ -821,8 +821,8 @@ def gear(
 
 def frange(start:float, end:float, div:int=10):
 	"""Generate `div` numbers from `start` to `end`"""
-    k = (end - start) / (div - 1)
-    return (start + i * k for i in range(div))
+	k = (end - start) / (div - 1)
+	return (start + i * k for i in range(div))
 
 
 def get_gamma_p(z_pinion:int, z_wheel:int, shaft_angle:float=0.5 * pi):
@@ -830,7 +830,7 @@ def get_gamma_p(z_pinion:int, z_wheel:int, shaft_angle:float=0.5 * pi):
 	Return the pitch cone angle of the pinion called `gamma_p`.
 	The pitch cone angle of the wheel is equal to `shaft_angle - gamma_p`
 	"""
-    return atan2(sin(shaft_angle), ((z_wheel / z_pinion) + cos(shaft_angle)))
+	return atan2(sin(shaft_angle), ((z_wheel / z_pinion) + cos(shaft_angle)))
 
 
 def spherical_involute(gamma:float):
@@ -838,12 +838,12 @@ def spherical_involute(gamma:float):
 	Return spherical involute function according to `gamma` a cone angle
 	Note: unit radius
 	"""
-    cos_g, sin_g = cos(gamma), sin(gamma)
-    phi = lambda t, t0: (t - t0) * sin_g
-    x = lambda t, t0: sin_g * cos(phi(t, t0)) * cos(t) + sin(phi(t, t0)) * sin(t)
-    y = lambda t, t0: sin_g * cos(phi(t, t0)) * sin(t) - sin(phi(t, t0)) * cos(t)
-    z = lambda t, t0: cos_g * cos(phi(t, t0))
-    return lambda t, t0: vec3(x(t + t0, t0), y(t + t0, t0), z(t + t0, t0))
+	cos_g, sin_g = cos(gamma), sin(gamma)
+	phi = lambda t, t0: (t - t0) * sin_g
+	x = lambda t, t0: sin_g * cos(phi(t, t0)) * cos(t) + sin(phi(t, t0)) * sin(t)
+	y = lambda t, t0: sin_g * cos(phi(t, t0)) * sin(t) - sin(phi(t, t0)) * cos(t)
+	z = lambda t, t0: cos_g * cos(phi(t, t0))
+	return lambda t, t0: vec3(x(t + t0, t0), y(t + t0, t0), z(t + t0, t0))
 
 
 def spherical_interference(gamma_p:float):
@@ -852,10 +852,10 @@ def spherical_interference(gamma_p:float):
 	according to `gamma_p` the pitch cone angle
 	Note: unit radius
 	"""
-    cos_p, sin_p = cos(gamma_p), sin(gamma_p)
-    involute = spherical_involute(gamma_p)
-    vec = lambda t: vec3(-cos_p * cos(t), -cos_p * sin(t), sin_p)
-    return lambda t, t0, alpha: cos(alpha) * involute(t, t0) + sin(alpha) * vec(t + t0)
+	cos_p, sin_p = cos(gamma_p), sin(gamma_p)
+	involute = spherical_involute(gamma_p)
+	vec = lambda t: vec3(-cos_p * cos(t), -cos_p * sin(t), sin_p)
+	return lambda t, t0, alpha: cos(alpha) * involute(t, t0) + sin(alpha) * vec(t + t0)
 
 
 def newton_method(init:tuple, f:callable, J:callable):
@@ -863,11 +863,11 @@ def newton_method(init:tuple, f:callable, J:callable):
 	Newton method to calculate the intersection between
 	the spherical involute and the spherical interference.
 	"""
-    t1, t2 = init
-    t3 = 0
-    for i in range(8):
-        t1, t2, t3 = vec3(t1, t2, t3) - inverse(J(t1, t2)) * f(t1, t2)
-    return t1, t2, t3
+	t1, t2 = init
+	t3 = 0
+	for i in range(8):
+		t1, t2, t3 = vec3(t1, t2, t3) - inverse(J(t1, t2)) * f(t1, t2)
+	return t1, t2, t3
 
 
 def derived_spherical_involute(gamma:float, t0:float):
@@ -875,12 +875,12 @@ def derived_spherical_involute(gamma:float, t0:float):
 	Return the function of the derived spherical involute function
 	according to `gamma` a cone angle and `t0` the phase.
 	"""
-    cos_g, sin_g = cos(gamma), sin(gamma)
-    phi = lambda t, t0: (t - t0) * sin_g
-    x = lambda t, t0: cos_g ** 2 * sin(phi(t, t0)) * cos(t)
-    y = lambda t, t0: cos_g ** 2 * sin(phi(t, t0)) * sin(t)
-    z = lambda t, t0: -cos_b * sin_b * sin(phi(t, t0))
-    return lambda t: vec3(x(t + t0, t0), y(t + t0, t0), z(t + t0, t0))
+	cos_g, sin_g = cos(gamma), sin(gamma)
+	phi = lambda t, t0: (t - t0) * sin_g
+	x = lambda t, t0: cos_g ** 2 * sin(phi(t, t0)) * cos(t)
+	y = lambda t, t0: cos_g ** 2 * sin(phi(t, t0)) * sin(t)
+	z = lambda t, t0: -cos_g * sin_g * sin(phi(t, t0))
+	return lambda t: vec3(x(t + t0, t0), y(t + t0, t0), z(t + t0, t0))
 
 
 def jacobian_spherical_involute(gamma_b, gamma_p, t01, t02, alpha):
@@ -892,13 +892,13 @@ def jacobian_spherical_involute(gamma_b, gamma_p, t01, t02, alpha):
 	- `t02` the phase of the spherical interference function
 	- `alpha` is the height angle offset
 	"""
-    derived_involute = derived_spherical_involute(gamma_b, t01)
-    cos_p = cos(gamma_p)
-    vec = lambda t: vec3(cos_p * sin(t), -cos_p * cos(t), 0)
-    derived_interference = lambda t: (
-        derived_spherical_involute(gamma_p, t02)(t) * cos(alpha) + sin(alpha) * vec(t + t02)
-    )
-    return lambda t1, t2: mat3(derived_involute(t1), -derived_interference(t2), vec3(0, 0, 1))
+	derived_involute = derived_spherical_involute(gamma_b, t01)
+	cos_p = cos(gamma_p)
+	vec = lambda t: vec3(cos_p * sin(t), -cos_p * cos(t), 0)
+	derived_interference = lambda t: (
+		derived_spherical_involute(gamma_p, t02)(t) * cos(alpha) + sin(alpha) * vec(t + t02)
+	)
+	return lambda t1, t2: mat3(derived_involute(t1), -derived_interference(t2), vec3(0, 0, 1))
 
 
 def spherical_rack(k, m, pressure_angle=pi / 9, ka=1, kd=1.25):
@@ -911,24 +911,24 @@ def spherical_rack(k, m, pressure_angle=pi / 9, ka=1, kd=1.25):
 	4) the phase of space
 	5) the function to generate a tooth
 	"""
-    gamma_p = 0.5 * pi
-    gamma_b = asin(cos(pressure_angle))
-    cos_b, sin_b = cos(gamma_b), sin(gamma_b)
-    gamma_f = gamma_p + 2 * ka * k
-    gamma_r = gamma_p - 2 * kd * k
+	gamma_p = 0.5 * pi
+	gamma_b = asin(cos(pressure_angle))
+	cos_b, sin_b = cos(gamma_b), sin(gamma_b)
+	gamma_f = gamma_p + 2 * ka * k
+	gamma_r = gamma_p - 2 * kd * k
 
-    phi_p = acos(tan(gamma_b) / tan(gamma_p))
-    theta_p = atan2(sin_b * tan(phi_p), 1) / sin_b - phi_p
-    phase_diff = k * pi + 2 * theta_p
+	phi_p = acos(tan(gamma_b) / tan(gamma_p))
+	theta_p = atan2(sin_b * tan(phi_p), 1) / sin_b - phi_p
+	phase_diff = k * pi + 2 * theta_p
 
-    t_min = acos(cos(gamma_r) / cos_b) / sin_b
-    t_max = acos(cos(gamma_f) / cos_b) / sin_b
+	t_min = acos(cos(gamma_r) / cos_b) / sin_b
+	t_max = acos(cos(gamma_f) / cos_b) / sin_b
 
-    involute = spherical_involute(gamma_b)
-    v = vec3(1, 1, 0)
-    phase_empty = 2 * pi * k - anglebt(involute(t_min, 0) * v, involute(-t_min, phase_diff) * v)
+	involute = spherical_involute(gamma_b)
+	v = vec3(1, 1, 0)
+	phase_empty = 2 * pi * k - anglebt(involute(t_min, 0) * v, involute(-t_min, phase_diff) * v)
 
-    return [t_min, t_max, phase_diff, phase_empty, involute]
+	return [t_min, t_max, phase_diff, phase_empty, involute]
 
 
 def spherical_rack_profile(m:float, k:float, pressure_angle:float=pi / 9, ka:float=1, kd:float=1.25):
@@ -940,11 +940,118 @@ def spherical_rack_profile(m:float, k:float, pressure_angle:float=pi / 9, ka:flo
 	- `ka` is the addendum coefficient
 	- `kd` is the dedendum coefficient
 	"""
-    t_min, t_max, phase1, phase2, involute = spherical_rack(m, k, pressure_angle, ka, kd)
-    side1 = [involute(t, 0) for t in frange(t_min, t_max)]
-    side2 = [involute(-t, phase1) for t in frange(t_min, t_max)]
-    segment = Segment(involute(t_min, -phase2), side1[0]).mesh()
-    segment2 = Segment(side1[-1], side2[-1]).mesh()
-    wire = segment + Wire(side1) + segment2 + Wire(side2).flip()
-    v = side1[0] + side2[0] # Temporarily used to calculation
-    return wire, v
+	t_min, t_max, phase1, phase2, involute = spherical_rack(m, k, pressure_angle, ka, kd)
+	side1 = [involute(t, 0) for t in frange(t_min, t_max)]
+	side2 = [involute(-t, phase1) for t in frange(t_min, t_max)]
+	segment = Segment(involute(t_min, -phase2), side1[0]).mesh()
+	segment2 = Segment(side1[-1], side2[-1]).mesh()
+	wire = segment + Wire(side1) + segment2 + Wire(side2).flip()
+	v = side1[0] + side2[0] # Temporarily used to calculation
+	return wire, v
+
+def spherical_involute_profile(z, m, gamma_p, pressure_angle=pi / 9, ka=1, kd=1.25):
+	"""
+	First draft of all implemented functions to generate a bevel gear.
+	For the moment, it shows the spherical involute with the spherical rack profile.
+
+	Parameters
+	----------
+	| `z` is the number of tooth
+	| `m` is the module
+	| `gamma_p` it the pitch angle cone
+	| `pressure_angle` is the pressure angle of the gear
+	| `ka` is the addendum coefficient
+	| `kd` is the dedendum coefficient
+	"""
+	# Parameters
+	gamma_b = asin(cos(pressure_angle) * sin(gamma_p))
+	cos_b, sin_b = cos(gamma_b), sin(gamma_b)
+	rp = 0.5 * m * z
+	rb = rp * cos(pressure_angle)
+	rho1 = rp / sin(gamma_p)
+	Fw = rho1 / 3
+	rho0 = rho1 - Fw
+	tooth_size = pi / z
+	length_tooth_size = tooth_size * rp
+
+	# The following number `k` is useful to simplify some calculations
+	# It's broadly speaking `1/z_rack` and `z_rack` is not an integer !
+	k = sin(gamma_p) / z
+
+
+	# REVIEW: Calculation to prove
+	# but it works !
+	phi_p = acos(tan(gamma_b) / tan(gamma_p))
+	theta_p = atan2(sin_b * tan(phi_p), 1) / sin_b - phi_p
+	phase_diff = tooth_size + 2 * theta_p
+	phase_empty = 2 * pi / z - phase_diff
+
+	# Spherical involute part
+	involute = spherical_involute(gamma_b)
+	gamma_f = gamma_p + 2 * ka * k
+	gamma_r = gamma_p - 2 * kd * k
+	t_min = 0
+	t_max = acos(cos(gamma_f) / cos_b) / sin_b
+	if gamma_r > gamma_b:
+		v = vec3(1, 1, 0)
+		t_min = acos(cos(gamma_r) / cos_b) / sin_b
+		phase_empty = 2 * pi / z - anglebt(
+			involute(t_min, 0) * v, involute(-t_min, phase_diff) * v
+		)
+
+	side1 = [involute(t, 0) for t in frange(t_min, t_max)]
+	side2 = [involute(-t, phase_diff) for t in frange(t_min, t_max)]
+	segment = Segment(involute(t_min, -phase_empty), side1[0]).mesh()
+	segment2 = Segment(side1[-1], side2[-1]).mesh()
+
+	v1 = side1[0] + side2[0]
+	wire = segment + Wire(side1) + segment2 + Wire(side2).flip()
+
+	# Rack part
+	wire2, v2 = spherical_rack_profile(k, m, pressure_angle, ka, kd)
+
+	# Interference part
+	_, t_max, phase1, _, rinvolute = spherical_rack(k, m, pressure_angle, ka, kd)
+
+	interference = spherical_interference(gamma_p)
+	alpha = 2 * ka * k
+	n1, n2 = rinvolute(t_max, 0) * vec3(1, 1, 0), rinvolute(-t_max, phase1) * vec3(1, 1, 0)
+	beta = 0.5 * anglebt(n1, n2) * length(n1) / sin_b
+
+	rackp = [
+		interference(t, -0.5 * phase_empty + beta, alpha) for t in frange(-t_max, t_max, 100)
+	]
+	rackp2 = [
+		interference(t, -0.5 * phase_empty - beta, alpha) for t in frange(-t_max, t_max, 100)
+	]
+
+	# Some variables useful to adjust the angular position
+	# and the spatial position of the rack and the pinion / wheel
+	a = interference(0, -0.5 * phase_empty + beta, alpha)
+	b = interference(0, -0.5 * phase_empty - beta, alpha)
+
+	angle = anglebt(v1 * vec3(1, 1, 0), v2 * vec3(1, 1, 0)) + pi / z
+	v = cross(v2, vec3(0, 0, 1))
+	v = v / length(v)
+
+	return [
+		Wire(rackp).transform(angleAxis(angle, vec3(0, 0, 1))), # interference 1
+		Wire(rackp2).transform(angleAxis(angle, vec3(0, 0, 1))), # interference 2
+		repeat_circular(wire, z).transform(angleAxis(angle, vec3(0, 0, 1))), # Pinion / Wheel
+		repeat_circular(wire2, int(1 / k)) # Rack
+		.transform(scaledir(vec3(0, 0, 1), -1))
+		.transform(angleAxis(-pi / 2 + gamma_p, -v)),
+		Circle(
+			(vec3(0, 0, cos(gamma_p)), vec3(0, 0, 1)),
+			sin(gamma_p),
+			resolution=("div", 200),
+		), # Pitch circle (pinion / wheel)
+		Circle(
+			(vec3(0, 0, cos(gamma_r)), vec3(0, 0, 1)),
+			sin(gamma_r),
+		), # Foot circle (pinion / wheel)
+		Circle((vec3(0, 0, 0), vec3(0, 0, 1)), 1) # Pitch rack circle
+		.mesh()
+		.transform(angleAxis(-pi / 2 + gamma_p, -v)),
+		Circle((vec3(0, 0, 0), v), 1), # Vertical circle
+	]
