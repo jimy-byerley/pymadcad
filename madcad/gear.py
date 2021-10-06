@@ -1120,23 +1120,20 @@ def spherical_involute_profile(z, m, gamma_p, pressure_angle=pi / 9, ka=1, kd=1.
 
 	t1, t2, _ = newton_method((0.5 * t_max, -0.5 * t_max), f, J)
 
-	interference1 = [interference(t, -0.5 * phase + beta, alpha) for t in frange(t2, 0)]
-	interference2 = [interference(-t, phase_diff + 0.5 * phase - beta, alpha) for t in frange(t2, 0)]
-	side1 = list(reversed(interference1)) + [involute(t, 0) for t in frange(t1, t_max)]
-	side2 = list(reversed(interference2)) + [involute(-t, phase_diff) for t in frange(t1, t_max)]
+	interference1 = [interference(t, -0.5 * phase + beta, alpha) for t in frange(0, t2)]
+	interference2 = [interference(-t, phase_diff + 0.5 * phase - beta, alpha) for t in frange(0, t2)]
+	side1 = interference1[:-1] + [involute(t, 0) for t in frange(t1, t_max)]
+	side2 = interference2[:-1] + [involute(-t, phase_diff) for t in frange(t1, t_max)]
 
 	a = interference(0, -0.5 * phase + beta, alpha)
 	b = interference(0, phase_diff + 0.5 * phase - beta, alpha)
-	final_phase_empty = 2 * pi / z - anglebt(a*vec3(1,1,0),b*vec3(1,1,0))
-	top = Segment(side1[-1], side2[-1]).mesh()
+	final_phase_empty = 2 * pi / z - anglebt(a * vec3(1,1,0), b * vec3(1,1,0))
+	top = Segment(involute(t_max, 0), involute(-t_max, phase_diff)).mesh()
 	bottom = Segment(angleAxis(-final_phase_empty, vec3(0,0,1)) * a, a).mesh()
 
-
 	wire = bottom + Wire(side1) + top + Wire(side2).flip()
+	return repeat_circular(wire,z)
 
-	return [repeat_circular(wire,z)]
-	# rackp = [
-	# 	interference(t, -0.5 * phase_empty + beta, alpha) for t in frange(-t_max, t_max, 100)
-	# ]
-
-	# return [wire,  Wire([vec3(0), involute(t1, 0)]), Wire([vec3(0), interference(t2, -0.5 * phase_empty + beta, alpha)]), Wire(rackp)]
+def cone_projection(profile, gamma_p):
+	ref = lambda t: vec3(sin(gamma_p) * cos(t), sin(gamma_p) * sin(t), cos(gamma_p))
+	return Wire([1 / dot(ref(atan2(point.y, point.x)), point) * point for point in profile.points], indices=profile.indices)
