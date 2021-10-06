@@ -1069,13 +1069,8 @@ def spherical_involute_and_rack_profile(z, m, gamma_p, pressure_angle=pi / 9, ka
 def spherical_involute_profile(z, m, gamma_p, pressure_angle=pi / 9, ka=1, kd=1.25):
 	gamma_b = asin(cos(pressure_angle) * sin(gamma_p))
 	cos_b, sin_b = cos(gamma_b), sin(gamma_b)
-	rp = 0.5 * m * z
-	rb = rp * cos(pressure_angle)
-	rho1 = rp / sin(gamma_p)
-	Fw = rho1 / 3
-	rho0 = rho1 - Fw
 	tooth_size = pi / z
-	length_tooth_size = tooth_size * rp
+
 
 	# The following number `k` is useful to simplify some calculations
 	# It's broadly speaking `1/z_rack` and `z_rack` is not an integer !
@@ -1136,4 +1131,44 @@ def spherical_involute_profile(z, m, gamma_p, pressure_angle=pi / 9, ka=1, kd=1.
 
 def cone_projection(profile, gamma_p):
 	ref = lambda t: vec3(sin(gamma_p) * cos(t), sin(gamma_p) * sin(t), cos(gamma_p))
-	return Wire([1 / dot(ref(atan2(point.y, point.x)), point) * point for point in profile.points], indices=profile.indices)
+	new_points = [1 / dot(ref(atan2(point.y, point.x)), point) * point for point in profile.points]
+	return Wire(new_points, indices=profile.indices)
+
+def bevel_gear(z, m, gamma_p, pressure_angle=pi/9, ka=1, kd=1.25, bore_radius=None):
+	rp = 0.5 * m * z
+	rb = rp * cos(pressure_angle)
+	rho1 = rp / sin(gamma_p)
+	rho0 = 2 * rho1 / 3
+	spherical_profile = spherical_involute_profile(z, m, gamma_p, pressure_angle, ka, kd)
+	cone_profile = cone_projection(spherical_profile, gamma_p)
+	outside_profile = cone_profile.transform(rho1)
+	inside_profile = cone_profile.transform(rho0)
+	k = sin(gamma_p) / z
+	gamma_r = gamma_p - 2 * kd * k
+	outside_limit = Circle((vec3(0, 0, rho1 * cos(gamma_r)), vec3(0, 0, 1)), rho1 * sin(gamma_r), resolution=("div",z)).mesh()
+	inside_limit = Circle((vec3(0, 0, rho0 * cos(gamma_r)), vec3(0, 0, 1)), rho0 * sin(gamma_r), resolution=("div",z)).mesh()
+	teeth_border = junction(outside_profile, inside_profile.flip(), tangents="straight")
+	top_border = junction(outside_profile, outside_limit.flip(), tangents="straight")
+	bottom_border = junction(inside_profile.flip(), inside_limit, tangents="straight")
+	surfaces = [top_border, teeth_border, bottom_border]
+	if bore_radius is None:
+		bore_radius = 0.5 * rho0 * sin(gamma_r)
+		height = 0.4 * rho1 * cos(gamma_r)
+	if bore_radius:
+		top_circle = Circle((vec3(0, 0, rho1 * cos(gamma_r)), vec3(0, 0, 1)), 1.5 * bore_radius).mesh()
+		bottom_circle = Circle((vec3(0, 0, rho0 * cos(gamma_r)), vec3(0, 0, 1)), bore_radius).mesh()
+		top = junction(outside_limit.flip(), top_circle, tangents="straight")
+		bottom = junction(inside_limit, bottom_circle.flip(), tangents="straight")
+		inside_hole = extrusion(vec3(0, 0, height +  (rho1 - rho0) * cos(gamma_r)), bottom_circle.flip())
+		outside_hole = extrusion(vec3(0, 0, height), top_circle)
+		top_hole = junction(
+			bottom_circle.transform(vec3(0, 0, height +  (rho1 - rho0) * cos(gamma_r))).flip(),
+			top_circle.transform(vec3(0, 0, height)),
+			tangents="straight",
+		)
+		surfaces.extend([top, bottom, inside_hole, outside_hole, top_hole])
+	else:
+		top = triangulation(outside_limit)
+		bottom = triangulation(inside_limit.flip())
+		surfaces.extend([top, bottom])
+	return reduce(add, surfaces)
