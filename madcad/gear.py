@@ -949,123 +949,6 @@ def spherical_rack_profile(m:float, k:float, pressure_angle:float=pi / 9, ka:flo
 	v = side1[0] + side2[0] # Temporarily used to calculation
 	return wire, v
 
-def spherical_involute_and_rack_profile(z, m, gamma_p, pressure_angle=pi / 9, ka=1, kd=1.25):
-	"""
-	First draft of all implemented functions to generate a bevel gear.
-	For the moment, it shows the spherical involute with the spherical rack profile.
-
-	Parameters
-	----------
-	| `z` is the number of tooth
-	| `m` is the module
-	| `gamma_p` it the pitch angle cone
-	| `pressure_angle` is the pressure angle of the gear
-	| `ka` is the addendum coefficient
-	| `kd` is the dedendum coefficient
-	"""
-	# Parameters
-	gamma_b = asin(cos(pressure_angle) * sin(gamma_p))
-	cos_b, sin_b = cos(gamma_b), sin(gamma_b)
-	rp = 0.5 * m * z
-	rb = rp * cos(pressure_angle)
-	rho1 = rp / sin(gamma_p)
-	Fw = rho1 / 3
-	rho0 = rho1 - Fw
-	tooth_size = pi / z
-	length_tooth_size = tooth_size * rp
-
-	# The following number `k` is useful to simplify some calculations
-	# It's broadly speaking `1/z_rack` and `z_rack` is not an integer !
-	k = sin(gamma_p) / z
-
-
-	# REVIEW: Calculation to prove
-	# but it works !
-	phi_p = acos(tan(gamma_b) / tan(gamma_p))
-	theta_p = atan2(sin_b * tan(phi_p), 1) / sin_b - phi_p
-	phase_diff = tooth_size + 2 * theta_p
-	phase_empty = 2 * pi / z - phase_diff
-
-	# Spherical involute part
-	involute = spherical_involute(gamma_b)
-	gamma_f = gamma_p + 2 * ka * k
-	gamma_r = gamma_p - 2 * kd * k
-	t_min = 0
-	t_max = acos(cos(gamma_f) / cos_b) / sin_b
-	if gamma_r > gamma_b:
-		v = vec3(1, 1, 0)
-		t_min = acos(cos(gamma_r) / cos_b) / sin_b
-		phase_empty = 2 * pi / z - anglebt(
-			involute(t_min, 0) * v, involute(-t_min, phase_diff) * v
-		)
-
-	side1 = [involute(t, 0) for t in frange(t_min, t_max)]
-	side2 = [involute(-t, phase_diff) for t in frange(t_min, t_max)]
-	segment = Segment(involute(t_min, -phase_empty), side1[0]).mesh()
-	segment2 = Segment(side1[-1], side2[-1]).mesh()
-
-	v1 = side1[0] + side2[0]
-	wire = segment + Wire(side1) + segment2 + Wire(side2).flip()
-
-	# Rack part
-	wire2, v2 = spherical_rack_profile(k, m, pressure_angle, ka, kd)
-
-	# Interference part
-	_, t_max, phase1, _, rinvolute = spherical_rack(k, m, pressure_angle, ka, kd)
-
-	interference = spherical_interference(gamma_p)
-	alpha = 2 * ka * k
-	n1, n2 = rinvolute(t_max, 0) * vec3(1, 1, 0), rinvolute(-t_max, phase1) * vec3(1, 1, 0)
-	beta = 0.5 * anglebt(n1, n2) * length(n1) / sin_b
-
-	phase_empty = 2 * pi / z - phase_diff
-	rackp = [
-		interference(t, -0.5 * phase_empty + beta, alpha) for t in frange(-t_max, t_max, 100)
-	]
-	rackp2 = [
-		interference(t, -0.5 * phase_empty - beta, alpha) for t in frange(-t_max, t_max, 100)
-	]
-
-	# Some variables useful to adjust the angular position
-	# and the spatial position of the rack and the pinion / wheel
-	a = interference(0, -0.5 * phase_empty + beta, alpha)
-	b = interference(0, -0.5 * phase_empty - beta, alpha)
-
-	angle = anglebt(v1 * vec3(1, 1, 0), v2 * vec3(1, 1, 0)) + pi / z
-	v = cross(v2, vec3(0, 0, 1))
-	v = v / length(v)
-
-	return [
-		Wire(rackp).transform(angleAxis(angle, vec3(0, 0, 1))), # interference 1
-		Wire(rackp2).transform(angleAxis(angle, vec3(0, 0, 1))), # interference 2
-		repeat_circular(wire, z).transform(angleAxis(angle, vec3(0, 0, 1))), # Pinion / Wheel
-		repeat_circular(wire2, int(1 / k)) # Rack
-		.transform(scaledir(vec3(0, 0, 1), -1))
-		.transform(angleAxis(-pi / 2 + gamma_p, -v)),
-		Circle(
-			(vec3(0, 0, cos(gamma_p)), vec3(0, 0, 1)),
-			sin(gamma_p),
-			resolution=("div", 200),
-		), # Pitch circle (pinion / wheel)
-		Circle(
-			(vec3(0, 0, cos(gamma_r)), vec3(0, 0, 1)),
-			sin(gamma_r),
-		), # Foot circle (pinion / wheel)
-		Circle((vec3(0, 0, 0), vec3(0, 0, 1)), 1) # Pitch rack circle
-		.mesh()
-		.transform(angleAxis(-pi / 2 + gamma_p, -v)),
-		Circle((vec3(0, 0, 0), v), 1), # Vertical circle
-	]
-	# return [
-	# 	Wire(rackp).transform(angleAxis(angle, vec3(0, 0, 1))), # interference 1
-	# 	Wire(rackp2).transform(angleAxis(angle, vec3(0, 0, 1))), # interference 2
-	# 	repeat_circular(wire, z).transform(angleAxis(angle, vec3(0, 0, 1))), # Pinion / Wheel
-	# 	Circle((vec3(0,0,cos(gamma_b)), vec3(0,0,1)), sin(gamma_b)),
-	# 	Circle((vec3(0,0,cos(gamma_p)), vec3(0,0,1)), sin(gamma_p)),
-	# 	Circle((vec3(0,0,cos(gamma_f)), vec3(0,0,1)), sin(gamma_f)),
-	# 	Circle((vec3(0,0,cos(gamma_r)), vec3(0,0,1)), sin(gamma_r)),
-	# ]
-
 def spherical_involute_profile(z, m, gamma_p, pressure_angle=pi / 9, ka=1, kd=1.25):
 	gamma_b = asin(cos(pressure_angle) * sin(gamma_p))
 	cos_b, sin_b = cos(gamma_b), sin(gamma_b)
@@ -1081,6 +964,10 @@ def spherical_involute_profile(z, m, gamma_p, pressure_angle=pi / 9, ka=1, kd=1.
 	# but it works !
 	phi_p = acos(tan(gamma_b) / tan(gamma_p))
 	theta_p = atan2(sin_b * tan(phi_p), 1) / sin_b - phi_p
+	epsilon_p = acos(cos(gamma_p) / cos_b) / sin_b
+	# print(theta_p)
+	# print(epsilon_p - phi_p)
+	
 	phase_diff = tooth_size + 2 * theta_p
 	phase_empty = 2 * pi / z - phase_diff
 
@@ -1122,9 +1009,9 @@ def spherical_involute_profile(z, m, gamma_p, pressure_angle=pi / 9, ka=1, kd=1.
 
 	a = interference(0, -0.5 * phase + beta, alpha)
 	b = interference(0, phase_diff + 0.5 * phase - beta, alpha)
-	final_phase_empty = 2 * pi / z - anglebt(a * vec3(1,1,0), b * vec3(1,1,0))
+	final_phase_empty = 2 * pi / z - anglebt(a * vec3(1, 1, 0), b * vec3(1, 1, 0))
 	top = Segment(involute(t_max, 0), involute(-t_max, phase_diff)).mesh()
-	bottom = Segment(angleAxis(-final_phase_empty, vec3(0,0,1)) * a, a).mesh()
+	bottom = Segment(angleAxis(-final_phase_empty, vec3(0, 0, 1)) * a, a).mesh()
 
 	wire = bottom + Wire(side1) + top + Wire(side2).flip()
 	return repeat_circular(wire,z)
@@ -1134,7 +1021,9 @@ def cone_projection(profile, gamma_p):
 	new_points = [1 / dot(ref(atan2(point.y, point.x)), point) * point for point in profile.points]
 	return Wire(new_points, indices=profile.indices)
 
-def bevel_gear(z, m, gamma_p, pressure_angle=pi/9, ka=1, kd=1.25, bore_radius=None):
+def bevel_gear(z, m, gamma_p, pressure_angle=pi/9, ka=1, kd=1.25, bore_radius=None, bore_height=None):
+	gamma_b = asin(cos(pressure_angle) * sin(gamma_p))
+	sin_b = cos(pressure_angle) * sin(gamma_p)
 	rp = 0.5 * m * z
 	rb = rp * cos(pressure_angle)
 	rho1 = rp / sin(gamma_p)
@@ -1145,27 +1034,41 @@ def bevel_gear(z, m, gamma_p, pressure_angle=pi/9, ka=1, kd=1.25, bore_radius=No
 	inside_profile = cone_profile.transform(rho0)
 	k = sin(gamma_p) / z
 	gamma_r = gamma_p - 2 * kd * k
-	outside_limit = Circle((vec3(0, 0, rho1 * cos(gamma_r)), vec3(0, 0, 1)), rho1 * sin(gamma_r), resolution=("div",z)).mesh()
-	inside_limit = Circle((vec3(0, 0, rho0 * cos(gamma_r)), vec3(0, 0, 1)), rho0 * sin(gamma_r), resolution=("div",z)).mesh()
+
+	phi_p = acos(tan(gamma_b) / tan(gamma_p))
+	theta_p = atan2(sin_b * tan(phi_p), 1) / sin_b - phi_p
+	phase_diff = pi / z + 2 * theta_p
+	alignment = vec3(cos(0.5*phase_diff), sin(0.5*phase_diff), 0)
+	outside_limit = Circle((vec3(0, 0, rho1 * cos(gamma_r)), vec3(0, 0, 1)), rho1 * sin(gamma_r), alignment=alignment, resolution=("div",3*z)).mesh()
+	inside_limit = Circle((vec3(0, 0, rho0 * cos(gamma_r)), vec3(0, 0, 1)), rho0 * sin(gamma_r), alignment=alignment, resolution=("div",3*z)).mesh()
 	teeth_border = junction(outside_profile, inside_profile.flip(), tangents="straight")
 	top_border = junction(outside_profile, outside_limit.flip(), tangents="straight")
 	bottom_border = junction(inside_profile.flip(), inside_limit, tangents="straight")
 	surfaces = [top_border, teeth_border, bottom_border]
 	if bore_radius is None:
 		bore_radius = 0.5 * rho0 * sin(gamma_r)
-		height = 0.4 * rho1 * cos(gamma_r)
+	if bore_height is None:
+		bore_height = 0.4 * rho1 * cos(gamma_r)
 	if bore_radius:
 		top_circle = Circle((vec3(0, 0, rho1 * cos(gamma_r)), vec3(0, 0, 1)), 1.5 * bore_radius).mesh()
 		bottom_circle = Circle((vec3(0, 0, rho0 * cos(gamma_r)), vec3(0, 0, 1)), bore_radius).mesh()
 		top = junction(outside_limit.flip(), top_circle, tangents="straight")
 		bottom = junction(inside_limit, bottom_circle.flip(), tangents="straight")
-		inside_hole = extrusion(vec3(0, 0, height +  (rho1 - rho0) * cos(gamma_r)), bottom_circle.flip())
-		outside_hole = extrusion(vec3(0, 0, height), top_circle)
-		top_hole = junction(
-			bottom_circle.transform(vec3(0, 0, height +  (rho1 - rho0) * cos(gamma_r))).flip(),
-			top_circle.transform(vec3(0, 0, height)),
-			tangents="straight",
-		)
+		if bore_height:
+			inside_hole = extrusion(vec3(0, 0, bore_height +  (rho1 - rho0) * cos(gamma_r)), bottom_circle.flip())
+			outside_hole = extrusion(vec3(0, 0, bore_height), top_circle)
+			top_hole = junction(
+				bottom_circle.transform(vec3(0, 0, bore_height +  (rho1 - rho0) * cos(gamma_r))).flip(),
+				top_circle.transform(vec3(0, 0, bore_height)),
+				tangents="straight",
+			)
+		else:
+			inside_hole = extrusion(vec3(0, 0, (rho1 - rho0) * cos(gamma_r)), bottom_circle.flip())
+			top_hole = junction(
+				bottom_circle.transform(vec3(0, 0, (rho1 - rho0) * cos(gamma_r))).flip(),
+				top_circle,
+				tangents="straight",
+			)
 		surfaces.extend([top, bottom, inside_hole, outside_hole, top_hole])
 	else:
 		top = triangulation(outside_limit)
