@@ -481,7 +481,7 @@ class Scene:
 		''' computes the boundingbox of the scene, with the current object poses '''
 		box = Box(center=fvec3(0), width=fvec3(-inf))
 		for display in self.displays.values():
-			box.union(display.box.transform(display.world))
+			box.union_update(display.box.transform(display.world))
 		return box
 	
 	def ressource(self, name, func=None):
@@ -612,7 +612,7 @@ class Group(Display):
 		''' computes the boundingbox of the scene, with the current object poses '''
 		box = Box(center=fvec3(0), width=fvec3(-inf))
 		for display in self.displays.values():
-			box.union(display.box)
+			box.union_update(display.box)
 		return box.transform(self._pose)
 
 

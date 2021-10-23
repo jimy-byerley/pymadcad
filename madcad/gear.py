@@ -224,8 +224,8 @@ def angle(p):
 def repeat_circular(profile, n: int) -> Wire:
 	''' Repeat n times the given Wire by rotation around (O,Z) '''
 	result = repeat(profile, n, rotatearound(
-		anglebt(profile[0], profile[-1]), 
-		(vec3(0,0,0), vec3(0,0,1)),
+		anglebt(noproject(profile[0],Z), noproject(profile[-1],Z)), 
+		(O,Z),
 		))
 	result.mergeclose()
 	return result

@@ -12,7 +12,7 @@ else:
 setup(
 	# package declaration
 	name='pymadcad',
-	version='0.8.4',
+	version='0.9.0',
 	python_requires='>=3.6',
 	install_requires=open('requirements.txt').readlines(),
 	extras_require={

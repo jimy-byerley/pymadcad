@@ -1069,7 +1069,7 @@ def linrange(start, stop=None, step=None, div=0, end=True):
 	if step is None:	step = (stop-start)/(div+1)
 	elif step * (stop-start) < 0:	step = -step
 	if not end:			stop -= step
-	stop += NUMPREC
+	stop += NUMPREC*stop
 	
 	t = start
 	while t <= stop:

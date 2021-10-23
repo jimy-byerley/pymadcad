@@ -1,5 +1,6 @@
 import moderngl as mgl
 import numpy.core as np
+import glm
 
 from .mathutils import *
 from .rendering import Display
@@ -170,7 +171,7 @@ class Scheme:
 			self.shaders, self.shader_ident = scene.ressource('scheme', self.load)
 			
 			# switch to array indexed spaces
-			self.spaces = np.empty((self.max_spaces, 4,4), 'f4')
+			self.spaces = glm.array.zeros(self.max_spaces, fmat4)
 			self.spacegens = list(sch.spaces)
 			if len(self.spacegens) > self.max_spaces:		
 				print('warning: the number of local spaces exceeds the arbitrary build-in limit of {}'.format(self.max_spaces))
@@ -251,7 +252,7 @@ class Scheme:
 			if self.components:
 				invview = affineInverse(view.uniforms['view'])
 				for space,disp in self.components:
-					disp.world = invview * fmat4(self.spaces[space])
+					disp.world = invview * self.spaces[space]
 		
 		def render(self, view):
 			''' render each va in self.vas '''
@@ -409,7 +410,7 @@ def mesh_placement(mesh) -> '(pos,normal)':
 		# group center normal
 		center = mesh.barycenter()
 		f = min(mesh.faces,
-				key=lambda f:  dot(center - sum(mesh.facepoints(f))/3, mesh.facenormal(f))
+				key=lambda f:  distance2(center, sum(mesh.facepoints(f))/3)
 				)
 		normal = mesh.facenormal(f)
 		pos = sum(mesh.facepoints(f)) / 3
@@ -417,7 +418,7 @@ def mesh_placement(mesh) -> '(pos,normal)':
 	elif isinstance(mesh, Web):
 		center = mesh.barycenter()
 		e = min(mesh.edges,
-				key=lambda e:  length2(center - (mesh.points[e[0]]+mesh.points[e[1]])/2)
+				key=lambda e:  distance2(center, (mesh.points[e[0]]+mesh.points[e[1]])/2)
 				)
 		normal = dirbase(normalize(mesh.points[e[0]]-mesh.points[e[1]]))[0]
 		pos = mix(mesh.points[e[0]], mesh.points[e[1]], 0.5)

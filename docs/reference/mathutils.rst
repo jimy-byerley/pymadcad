@@ -48,35 +48,62 @@ all glm types exists with several element types and in several precision:
 	* - **b**
 	  - bit aka boolean
 
-precision specification is put as prefix: :code:`dvec3, fvec3, imat4`. Notation without prefix refers to the madcad implementation precision: **float64** (prefix 'd').
+- precision specification is put as prefix: :code:`dvec3, fvec3, imat4`. Notation without prefix refers to the madcad implementation precision: **float64** (prefix 'd').
+- object dimension is put as suffix.
 
 In this documentation, when we refer to a 'vector' without explicit type, we obviously mean a :code:`vec3` aka. :code:`dvec3`.
 
 .. note::
-	The default glm_ precision type is **float32** (prefix 'f'). For convenience, these are overriden in madcad to use a better precision.
+	The default glm_ precision type is **float32** (prefix 'f'). For convenience, these are overriden in madcad to use **float64** for a better precision.
 
 Common vector operations
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. autofunction:: dot
 
+	.. image:: /schemes/mathutils-dot.svg
+
 .. autofunction:: cross
 
-.. autofunction:: mix
-.. autofunction:: clamp
+	.. image:: /schemes/mathutils-cross.svg
 
 .. autofunction:: length
+	
+	.. image:: /schemes/mathutils-length.svg
+	
 .. autofunction:: distance
-.. autofunction:: normalize
+
+	.. image:: /schemes/mathutils-distance.svg
+	
+.. function:: normalize(x) -> vecN
+
+	Returns `x` normalized. ie. `x / length(x)`
+	
+	The new vector has the same direction than `x` but with length `1`. 
 
 .. autofunction:: anglebt
+
+	.. image:: /schemes/mathutils-anglebt.svg
+	
 .. autofunction:: arclength
 
+
 .. autofunction:: project
+
+	.. image:: /schemes/mathutils-project.svg
+
 .. autofunction:: noproject
+
+	.. image:: /schemes/mathutils-noproject.svg
+
 .. autofunction:: unproject
 
+	.. image:: /schemes/mathutils-unproject.svg
+
+
 .. autofunction:: perp
+
+	.. image:: /schemes/mathutils-perp.svg
 
 .. function:: norm1(x) -> float
 
@@ -124,15 +151,31 @@ Transformations
 
 .. autofunction:: lerp
 
+.. autofunction:: slerp
+
 
 Scalar functions
 ~~~~~~~~~~~~~~~~
 
+.. autofunction:: mix
+
+	.. image:: /schemes/mathutils-mix.svg
+
+.. autofunction:: hermite
+
+	.. image:: /schemes/mathutils-hermite.svg
+
 .. autofunction:: step
+
+	.. image:: /schemes/mathutils-step.svg
+	
 .. autofunction:: smoothstep
 
-.. autofunction:: interpol1
-.. autofunction:: interpol2
+	.. image:: /schemes/mathutils-smoothstep.svg
+	
+.. autofunction:: clamp
+
+	.. image:: /schemes/mathutils-clamp.svg
 
 .. autofunction:: intri_smooth
 .. autofunction:: intri_sphere
@@ -156,3 +199,29 @@ Constants
 .. py:data:: COMPREC
 
 	unit complement of NUMPREC for convenience: :code:`1 - NUMPREC`
+	
+	
+Localy defined data types
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: Box
+
+	.. autoproperty:: center
+	.. autoproperty:: width
+	.. automethod:: corners
+	.. automethod:: volume
+	
+	.. automethod:: isvalid
+	.. automethod:: isempty
+	
+	.. automethod:: contain
+	.. automethod:: inside
+	
+	.. automethod:: intersection
+	.. automethod:: union
+	
+	.. automethod:: intersection_update
+	.. automethod:: union_update
+	
+	.. automethod:: transform
+	

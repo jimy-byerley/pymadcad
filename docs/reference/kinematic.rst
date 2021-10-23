@@ -12,7 +12,15 @@ kinematic   - Kinematic solver/constraint system
 	Of course, as any vector variables, ``Screw`` implements ``+ -`` with other ``Torsor``, and ``* /`` with ``float``
 
 .. autoclass:: Solid
-	:members: pose, transform
+
+	.. autoproperty:: pose
+	
+	.. automethod:: set
+	.. automethod:: add
+	.. automethod:: __getitem__
+	
+	.. automethod:: transform
+	.. automethod:: place
 
 .. autoclass:: Kinematic
 	:members: solve, pose
@@ -23,3 +31,24 @@ kinematic   - Kinematic solver/constraint system
 
 .. autofunction:: makescheme
 
+.. autofunction:: placement
+
+	suppose we have those parts to assemble and it's hard to guess the precise pose transform between them
+	
+	.. image:: /screenshots/placement-before.png
+	
+	placement gives the pose for the screw to make the selected surfaces coincide
+	
+	.. image:: /screenshots/placement-after.png
+
+.. autofunction:: explode
+
+	before operation
+	
+	.. image:: /screenshots/explode-before.png
+	
+	after operation
+	
+	.. image:: /screenshots/explode-after.png
+
+.. autofunction:: explode_offsets

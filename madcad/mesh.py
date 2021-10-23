@@ -296,6 +296,9 @@ class Mesh(Container):
 					self.groups)
 		
 	def issurface(self):
+		''' return True if the mesh is a well defined surface (an edge has 2 connected triangles at maximum, with coherent normals)
+			such meshes are usually called 'manifold'
+		''' 
 		reached = set()
 		for face in self.faces:
 			for e in ((face[0], face[1]), (face[1], face[2]), (face[2],face[0])):
@@ -303,7 +306,8 @@ class Mesh(Container):
 				else:				reached.add(e)
 		return True
 	def isenvelope(self):
-		''' return true if the surfaces are a closed envelope '''
+		''' return True if the surfaces are a closed envelope (the outline is empty)
+		'''
 		return len(self.outlines_oriented()) == 0
 	
 	def check(self):
@@ -590,6 +594,8 @@ class Mesh(Container):
 		self.points = points
 		self.faces = faces
 		return idents
+		
+	# NOTE: splitfaces(self) ?
 		
 	def islands(self, conn=None) -> '[Mesh]':
 		''' return the unconnected parts of the mesh as several meshes '''
@@ -1218,10 +1224,10 @@ class Web(Container):
 
 def glmarray(array, dtype='f4'):
 	''' create a numpy array from a list of glm vec '''
-	buff = np.empty((len(array), len(array[0])), dtype=dtype)
-	for i,e in enumerate(array):
-		buff[i][:] = e
-	return buff 
+	buff = np.array(glm.array(array), copy=False)
+	if buff.dtype == np.float64:	buff = buff.astype(np.float32)
+	elif buff.dtype == np.int64:	buff = buff.astype(np.int32)
+	return buff
 
 def web(*arg):
 	''' Build a web object from supported objects:
@@ -1750,7 +1756,7 @@ def suites(lines, oriented=True, cut=True, loop=False):
 	
 
 def distance2_pm(point, mesh) -> '(d, prim)':
-	''' distance from a point to a mesh
+	''' squared distance from a point to a mesh
 	'''
 	if isinstance(mesh, Mesh):
 		def analyse():
@@ -1789,6 +1795,52 @@ def distance2_pm(point, mesh) -> '(d, prim)':
 	else:
 		raise TypeError('cannot evaluate distance from vec3 to {}'.format(type(mesh)))
 	return min(analyse(), key=lambda t:t[0])
+	
+	
+def distance2_pm(point, mesh) -> '(d, prim)':
+	''' squared distance from a point to a mesh
+	'''
+	score = inf
+	best = None
+	if isinstance(mesh, Mesh):
+		for face in mesh.faces:
+			f = mesh.facepoints(face)
+			n = cross(f[1]-f[0], f[2]-f[0])
+			if not n:	continue
+			# check if closer to the triangle's edges than to the triangle plane
+			plane = True
+			for i in range(3):
+				d = f[i-1]-f[i-2]
+				if dot(cross(n, d), point-f[i-2]) < 0:
+					x = dot(point-f[i-2], d) / length2(d)
+					# check if closer to the edge points than to the edge axis
+					if x < 0:	dist, candidate = distance2(point, f[i-2]), face[i-2]
+					elif x > 1:	dist, candidate = distance2(point, f[i-1]), face[i-1]
+					else:		dist, candidate = length2(noproject(point - f[i-2], d)), (face[i-2], face[i-1])
+					plane = False
+					break
+			if plane:
+				dist, candidate = dot(point-f[0], n) **2 / length2(n), face
+			if dist < score:
+				best, score = candidate, dist
+	elif isinstance(mesh, (Web,Wire)):
+		if isinstance(mesh, Web):	edges = mesh.edges
+		else:						edges = mesh.edges()
+		for edge in edges:
+			e = mesh.edgepoints(edge)
+			d = e[1]-e[0]
+			x = dot(point - e[0], d) / length2(d)
+			# check if closer to the edge points than to the edge axis
+			if x < 0:	dist, candidate = distance2(point, e[0]), e[0]
+			elif x > 1:	dist, candidate = distance2(point, e[1]), e[1]
+			else:		dist, candidate = length2(noproject(point - e[0], d)), e
+			if dist < score:
+				best, score = candidate, dist
+	elif isinstance(mesh, vec3):
+		return distance2(point, mesh), 0
+	else:
+		raise TypeError('cannot evaluate distance from vec3 to {}'.format(type(mesh)))
+	return score, best
 
 def mesh_distance(m0, m1) -> '(d, prim0, prim1)':
 	''' minimal distance between elements of meshes 

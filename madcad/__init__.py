@@ -125,7 +125,7 @@ That's it ! The primitive list can now be converted to Wire or Web with the good
 	(vec3(...), vec3(...), vec3(...))
 
 '''
-version = '0.7'
+version = '0.8.0'
 
 import os
 from .nprint import nprint
@@ -156,6 +156,7 @@ from .primitives import isprimitive, Point, Axis, Segment, ArcThrough, ArcCenter
 from .constraints import isconstraint, SolveError, Tangent, Distance, Angle, Parallel, Radius, PointOn, OnPlane, solve
 from .kinematic import Screw, comomentum, Pressure, Solid, solvekin, Kinematic, isjoint
 from .joints import Pivot, Planar, Track, Gliding, Ball, Punctiform, Gear, Helicoid
+from .reverse import segmentation
 from .selection import select
 from .io import read, write, cache, cachefunc
 from .triangulation import TriangulationError

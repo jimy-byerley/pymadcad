@@ -19,7 +19,7 @@ project = 'pymadcad'
 copyright = '2019-2021, jimy byerley'
 author = 'jimy byerley'
 
-version = '0.8'			# The short X.Y version
+version = '0.9'			# The short X.Y version
 release = 'v'+version	# The full version, including alpha/beta/rc tags
 
 
