@@ -14,6 +14,7 @@ diff = difference(
 	cylinder((vec3(0),z), 2, 2),
 	cylinder((vec3(2,0,1),z), 1, 4),
 	)
+print(repr(diff))
 
 # weired geometry for the next test
 C0 = wire(Interpolated([
@@ -32,7 +33,10 @@ C1 = wire(Softened([
 m = tube(C1, C0)
 
 boolean.intersectwith(diff, m)	# mark first intersections
+print(repr(diff))
 boolean.intersectwith(diff, m)	# remark the same intersections
+print(repr(diff))
+
 res = difference(diff, m)		# boolean on top of already marked intersections
 
 res.check()

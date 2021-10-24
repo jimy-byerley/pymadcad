@@ -5,7 +5,7 @@
 	The complexity and therefore the cost of those operations are most of the time close to the hashmap complexity O(1). It means data is found in time independently of the actual size of the mesh or whatever storage it is.
 '''
 
-from .mathutils import vec3, i64vec3, noproject, norminf, normalize, dot, glm, cross, length, NUMPREC
+from .mathutils import *
 from . import core
 from . import mesh
 from functools import reduce
@@ -249,7 +249,7 @@ class PointSet:
 			for i in reversed(range(len(self.points))):
 				self.dict[self.keyfor(self.points[i])] = i
 		else:
-			self.points = []
+			self.points = typedlist(dtype=vec3)
 			if iterable:	self.update(iterable)
 	
 	def keyfor(self, pt):

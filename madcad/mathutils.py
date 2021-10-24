@@ -13,10 +13,8 @@ any = __builtins__['any']
 all = __builtins__['all']
 round = __builtins__['round']
 
-from numpy import uint32
 from arrex import typedlist
 import arrex.glm
-import arrex.numpy
 
 # alias definitions
 vec2 = dvec2

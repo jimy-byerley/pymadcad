@@ -14,7 +14,7 @@
 	
 	- storages (points, groups, faces, edges, ...) are used as shared ressources
 	
-		python objects are ref-counted, allowing multiple Mesh instance to have the same point buffer. The user is responsible to ensure that there will be non conflict.
+		python objects are ref-counted, allowing multiple Mesh instance to have the same point buffer. The user is responsible to ensure that there will be no conflict in making one mesh modifying the buffer in a way that makes it invalid for an other mesh referencing it.
 		
 		To avoid conflicts, operations that are changing each point (or the most of them) reallocate a new list. Then operations like `mergeclose` or `stripgroups` won't affect other Meshes that shared the same buffers initially.
 		
@@ -97,7 +97,7 @@ class Container:
 		'''
 		if merges is None:	
 			self.groups = [defs]
-			self.tracks = typedlist.full(int32(0), len(self.tracks))
+			self.tracks = typedlist.full(0, len(self.tracks), 'I')
 		else:
 			l = len(self.groups)
 			self.groups.extend(defs)
@@ -198,9 +198,9 @@ class Mesh(Container):
 		As volumes are represented by their exterior surface, there is no difference between representation of volumes and faces, juste the way we interpret it.
 		
 		Attributes:
-			points:     list of vec3 for points
-			faces:		list of triplets for faces, the triplet is (a,b,c) such that  cross(b-a, c-a) is the normal oriented to the exterior.
-			tracks:	    integer giving the group each face belong to
+			points:     typedlist of vec3 for points
+			faces:		typedlist of uvec3 for faces, the triplet is (a,b,c) such that  cross(b-a, c-a) is the normal oriented to the exterior.
+			tracks:	    typedlist of integers giving the group each face belong to
 			groups:     custom information for each group
 			options:	custom informations for the entire mesh
 	'''
@@ -208,9 +208,9 @@ class Mesh(Container):
 	# --- standard point container methods ---
 	
 	def __init__(self, points=None, faces=None, tracks=None, groups=None, options=None):
-		self.points = points or typedlist(dtype=vec3)
-		self.faces = faces or typedlist(dtype=uvec3)
-		self.tracks = tracks or typedlist.full(uint32(0), len(self.faces))
+		self.points = ensure_typedlist(points, vec3)
+		self.faces = ensure_typedlist(faces, uvec3)
+		self.tracks = ensure_typedlist(tracks or typedlist.full(0, len(self.faces), 'I'), 'I')
 		self.groups = groups or [None] * (max(self.tracks, default=-1)+1)
 		self.options = options or {}
 	
@@ -237,15 +237,13 @@ class Mesh(Container):
 			else:
 				lp = len(self.points)
 				self.points.extend(other.points)
-				for a,b,c in other.faces:
-					self.faces.append((a+lp, b+lp, c+lp))
+				self.faces.extend(f+lp  for f in other.faces)
 			if self.groups is other.groups:
 				self.tracks.extend(other.tracks)
 			else:
 				lt = len(self.groups)
 				self.groups.extend(other.groups)
-				for track in other.tracks:
-					self.tracks.append(track+lt)
+				self.tracks.extend(track+lt  for track in other.tracks)
 			return self
 		else:
 			return NotImplemented
@@ -281,11 +279,11 @@ class Mesh(Container):
 			for face in self.faces:
 				for p in face:
 					used[p] = True
-		self.points = copy(self.points)
-		self.faces = copy(self.faces)
+		self.points = deepcopy(self.points)
+		self.faces = deepcopy(self.faces)
 		reindex = striplist(self.points, used)
 		for i,f in enumerate(self.faces):
-			self.faces[i] = (reindex[f[0]], reindex[f[1]], reindex[f[2]])
+			self.faces[i] = uvec3(reindex[f[0]], reindex[f[1]], reindex[f[2]])
 		return reindex
 	
 	def flip(self):
@@ -312,11 +310,13 @@ class Mesh(Container):
 	
 	def check(self):
 		''' raise if the internal data is inconsistent '''
+		if not (isinstance(self.points, typedlist) and self.points.dtype == vec3):	raise MeshError("points must be a typedlist(dtype=vec3)")
+		if not (isinstance(self.faces, typedlist) and self.faces.dtype == uvec3): 	raise MeshError("faces must be a typedlist(dtype=uvec3)")
+		if not (isinstance(self.tracks, typedlist) and self.tracks.dtype == 'I'): 	raise MeshError("tracks must be a typedlist(dtype='I')")
 		l = len(self.points)
 		for face in self.faces:
 			for p in face:
 				if p >= l:	raise MeshError("some point indices are greater than the number of points", face, l)
-				if p < 0:	raise MeshError("point indices must be positive", face)
 			if face[0] == face[1] or face[1] == face[2] or face[2] == face[0]:	raise MeshError("some faces use the same point multiple times", face)
 		if len(self.faces) != len(self.tracks):	raise MeshError("tracks list doesn't match faces list length")
 		if max(self.tracks, default=-1) >= len(self.groups): raise MeshError("some face group indices are greater than the number of groups", max(self.tracks, default=-1), len(self.groups))
@@ -458,7 +458,7 @@ class Mesh(Container):
 		elif hasattr(groups, '__iter__'):	groups = set(groups)
 		else:								groups = (groups,)
 		faces = typedlist(dtype=uvec3)
-		tracks = typedlist(dtype=uint32)
+		tracks = typedlist(dtype='I')
 		for f,t in zip(self.faces, self.tracks):
 			if t in groups:
 				faces.append(f)
@@ -496,7 +496,7 @@ class Mesh(Container):
 			On a frontier between multiple groups, there is as many edges as groups, each associated to a group.
 		'''
 		edges = typedlist(dtype=uvec2)		# outline
-		tracks = typedlist(dtype=uint32)	# groups for edges
+		tracks = typedlist(dtype='I')		# groups for edges
 
 		tmp = {}	# faces adjacent to edges
 		for i,face in enumerate(self.faces):
@@ -522,7 +522,7 @@ class Mesh(Container):
 			args = args[0]
 		groups = set(args)
 		edges = typedlist(dtype=uvec2)
-		tracks = typedlist(dtype=uint32)
+		tracks = typedlist(dtype='I')
 		couples = OrderedDict()
 		belong = {}
 		for i,face in enumerate(self.faces):
@@ -575,7 +575,7 @@ class Mesh(Container):
 			frontier[b] = True
 		# duplicate points and reindex faces
 		points = copy(self.points)
-		idents = [0] * len(self.points)		# track id corresponding to each point
+		idents = typedlist.full(0, len(self.points), 'I')		# track id corresponding to each point
 		duplicated = {}		# new point index for couples (frontierpoint, group)
 		def repl(pt, track):
 			if frontier[pt]:
@@ -670,7 +670,7 @@ class Mesh(Container):
 		''' return the unconnected parts of the mesh as several meshes '''
 		islands = []
 		faces = typedlist(dtype=uvec3)
-		tracks = typedlist(dtype=uint32)
+		tracks = typedlist(dtype='I')
 		def atface(i, reached):
 			faces.append(self.faces[i])
 			tracks.append(self.tracks[i])
@@ -757,7 +757,7 @@ class Mesh(Container):
 			groups = set(mesh.tracks)
 		new = copy(self)
 		new.faces = typedlist((f	for f,t in zip(self.faces, self.tracks)	if t not in groups), dtype=uvec3)
-		new.tracks = typedlist((t	for t in self.tracks	if t not in groups), dtype=uint32)
+		new.tracks = typedlist((t	for t in self.tracks	if t not in groups), dtype='I')
 		new += mesh
 		return new
 	
@@ -826,8 +826,8 @@ class Mesh(Container):
 		normals = m.vertexnormals()
 		
 		return displays.SolidDisplay(scene, 
-				glmarray(m.points), 
-				glmarray(normals), 
+				m.points, 
+				normals, 
 				m.faces, 
 				edges,
 				idents,
@@ -844,11 +844,11 @@ class Mesh(Container):
 			return displays.Display()
 		
 		return displays.SolidDisplay(scene, 
-				npcast(m.points) .astype('f4'), 
-				npcast(normals) .astype('f4'), 
+				npcast(m.points), 
+				npcast(normals), 
 				npcast(m.faces),
 				npcast(edges),
-				npcast(idents),
+				idents,
 				color = self.options.get('color'),
 				)
 	
@@ -865,10 +865,7 @@ class Mesh(Container):
 		
 
 def reprarray(array, name):
-	#if len(array) <= 5:		
-	content = ', '.join((str(e) for e in array))
-	#elif len(array) <= 20:	content = ',\n           '.join((str(e) for e in array))
-	#else:					content = '{} {}'.format(len(array), name)
+	content = ', '.join((repr(e) for e in array))
 	return '['+content+']'
 
 def striplist(list, used):
@@ -897,6 +894,12 @@ def npcast(storage, dtype=None):
 		return buff
 	else:
 		return np.array(storage, dtype=dtype)
+		
+def ensure_typedlist(obj, dtype):
+	if isinstance(obj, typedlist) and obj.dtype == dtype:
+		return obj
+	else:
+		return typedlist(obj, dtype)
 
 
 class Web(Container):
@@ -904,19 +907,19 @@ class Web(Container):
 		this definition is very close to the definition of Mesh, but with edges instead of triangles
 		
 		Attributes:
-			points:	list of vec3 for points
-			edges:		list of couples for edges, the couple is oriented (meanings of this depends on the usage)
-			tracks:	integer giving the group each line belong to
-			groups:	custom information for each group
+			points:     typedlist of vec3 for points
+			edges:      typedlist of couples for edges, the couple is oriented (meanings of this depends on the usage)
+			tracks:     typedlist of integers giving the group each line belong to
+			groups:     custom information for each group
 			options:	custom informations for the entire web
 	'''
 
 	# --- standard point container methods ---
 	
 	def __init__(self, points=None, edges=None, tracks=None, groups=None, options=None):
-		self.points = points or typedlist(dtype=vec3)
-		self.edges = edges or typedlist(dtype=uvec2)
-		self.tracks = tracks or typedlist.full(uint32(0), len(self.edges))
+		self.points = ensure_typedlist(points, vec3)
+		self.edges = ensure_typedlist(edges, uvec2)
+		self.tracks = ensure_typedlist(tracks or typedlist.full(0, len(self.edges), 'I'), 'I')
 		self.groups = groups or [None] * (max(self.tracks, default=-1)+1)
 		self.options = options or {}
 		
@@ -942,15 +945,13 @@ class Web(Container):
 			else:
 				lp = len(self.points)
 				self.points.extend(other.points)
-				for a,b in other.edges:
-					self.edges.append((a+lp, b+lp))
+				self.edges.extend(e+lp  for e in other.edges)
 			if self.groups is other.groups:
 				self.tracks.extend(other.tracks)
 			else:
 				lt = len(self.groups)
 				self.groups.extend(other.groups)
-				for track in other.tracks:
-					self.tracks.append(track+lt)
+				self.tracks.extend(t+lt   for t in other.tracks)
 			return self
 		else:
 			return NotImplemented
@@ -968,7 +969,7 @@ class Web(Container):
 			if group is specified, it will be the new definition put in each groups
 		'''
 		return Web(self.points, self.edges,
-					typedlist(range(len(self.edges)), dtype=uint32),
+					typedlist(range(len(self.edges)), dtype='I'),
 					[group]*len(self.edges),
 					self.options,
 					)
@@ -1003,8 +1004,8 @@ class Web(Container):
 			for edge in self.edges:
 				for p in edge:
 					used[p] = True
-		self.points = copy(self.points)
-		self.edges = copy(self.edges)
+		self.points = deepcopy(self.points)
+		self.edges = deepcopy(self.edges)
 		reindex = striplist(self.points, used)
 		for i,e in enumerate(self.edges):
 			self.edges[i] = uvec2(reindex[e[0]], reindex[e[1]])
@@ -1014,7 +1015,7 @@ class Web(Container):
 			
 	def isline(self):
 		''' true if each point is used at most 2 times by edges '''
-		reached = typedlist.full(uint32(0), len(self.points))
+		reached = typedlist.full(0, len(self.points), 'I')
 		for line in self.edges:
 			for p in line:	reached[p] += 1
 		for r in reached:
@@ -1027,6 +1028,9 @@ class Web(Container):
 	
 	def check(self):
 		''' check that the internal data references are good (indices and list lengths) '''
+		if not (isinstance(self.points, typedlist) and self.points.dtype == vec3):	raise MeshError("points must be a typedlist(dtype=vec3)")
+		if not (isinstance(self.edges, typedlist) and self.edges.dtype == uvec2): 	raise MeshError("edges must be in a typedlist(dtype=uvec2)")
+		if not (isinstance(self.tracks, typedlist) and self.tracks.dtype == 'I'): 	raise MeshError("tracks must be in a typedlist(dtype='I')")
 		l = len(self.points)
 		for line in self.edges:
 			for p in line:
@@ -1055,7 +1059,7 @@ class Web(Container):
 			
 			On a frontier between multiple groups, there is as many points as groups, each associated to a group.
 		'''
-		indices = typedlist(dtype=uint32)
+		indices = typedlist(dtype='I')
 		tracks = []
 		tmp = {}
 		# insert points belonging to different groups
@@ -1081,8 +1085,8 @@ class Web(Container):
 		if len(args) == 1 and hasattr(args[0], '__iter__'):
 			args = args[0]
 		groups = set(args)
-		indices = []
-		tracks = []
+		indices = typedlist(dtype='I')
+		tracks = typedlist(dtype='I')
 		couples = OrderedDict()
 		belong = {}
 		for i,edge in enumerate(self.edges):
@@ -1106,7 +1110,7 @@ class Web(Container):
 		elif hasattr(groups, '__iter__'):	groups = set(groups)
 		else:								groups = (groups,)
 		edges = typedlist(dtype=uvec2)
-		tracks = typedlist(dtype=uint32)
+		tracks = typedlist(dtype='I')
 		for f,t in zip(self.edges, self.tracks):
 			if t in groups:
 				edges.append(f)
@@ -1186,8 +1190,8 @@ class Web(Container):
 					repr(self.options))
 					
 	def display(self, scene):		
-		points = []
-		idents = []
+		points = typedlist(dtype=vec3)
+		idents = typedlist(dtype='I')
 		edges = []
 		frontiers = []
 		def usept(pi, ident, used):
@@ -1215,8 +1219,8 @@ class Web(Container):
 			return displays.Display()
 		
 		return displays.WebDisplay(scene,
-				glmarray(points), 
-				edges,
+				npcast(points), 
+				npcast(edges),
 				frontiers,
 				idents,
 				color=self.options.get('color'))
@@ -1270,17 +1274,17 @@ class Wire(Container):
 		Used to borrow reference of points from a mesh by keeping their original indices
 
 		Attributes:
-			points:	points buffer
+			points:	    points buffer
 			indices:	indices of the line's points in the buffer
-			tracks:	group index for each point in indices
+			tracks:	    group index for each point in indices
 						it can be used to associate groups to points or to edges (if to edges, then take care to still have as many track as indices)
 			groups:	data associated to each point (or edge)
 	'''
 	__slots__ = 'points', 'indices', 'tracks', 'groups'
 	
 	def __init__(self, points=None, indices=None, tracks=None, groups=None, options=None):
-		self.points = points or typedlist(dtype=vec3)
-		self.indices = indices or typedlist(range(len(self.points)), dtype=uint32)
+		self.points = ensure_typedlist(points, vec3)
+		self.indices = ensure_typedlist(indices or range(len(self.points)), 'I')
 		self.tracks = tracks or None
 		self.groups = groups or [None]
 		self.options = options or {}
@@ -1297,10 +1301,10 @@ class Wire(Container):
 		else:						raise TypeError('item index must be int or slice')
 		
 	def flip(self):
-		indices = self.indices[:]
+		indices = deepcopy(self.indices)
 		indices.reverse()
 		if self.tracks:
-			tracks = self.tracks[:-1]
+			tracks = deepcopy(self.tracks[:-1])
 			tracks.reverse()
 			tracks.append(self.tracks[-1])
 		else:
@@ -1320,7 +1324,7 @@ class Wire(Container):
 		'''
 		return Wire(self.points, 
 					self.indices,
-					typedlist(range(len(self.indices)), dtype=uint32),
+					typedlist(range(len(self.indices)), dtype='I'),
 					[group]*len(self.indices),
 					self.options,
 					)
@@ -1353,6 +1357,9 @@ class Wire(Container):
 	
 	def check(self):
 		''' raise if the internal data are not consistent '''
+		if not (isinstance(self.points, typedlist) and self.points.dtype == vec3):	raise MeshError("points must be a typedlist(dtype=vec3)")
+		if not (isinstance(self.indices, typedlist) and self.indices.dtype == 'I'): 	raise MeshError("indices must be a typedlist(dtype='I')")
+		if self.tracks and not (isinstance(self.tracks, typedlist) and self.tracks.dtype == 'I'): 	raise MeshError("tracks must be a typedlist(dtype='I')")
 		l = len(self.points)
 		for i in self.indices:
 			if i >= l:	raise MeshError("some indices are greater than the number of points", i, l)
@@ -1478,17 +1485,17 @@ class Wire(Container):
 			if self.groups is other.groups:
 				if self.tracks or other.tracks:
 					if not self.tracks:
-						self.tracks = typedlist.full(uint32(0), li)
-					self.tracks.extend(other.tracks or [0]*len(other.indices))
+						self.tracks = typedlist.full(0, li, 'I')
+					self.tracks.extend(other.tracks or typedlist.full(0, len(other.indices), 'I'))
 			else:
 				lg = len(self.groups)
 				self.groups.extend(other.groups)
 				if not self.tracks:	
-					self.tracks = typedlist.full(uint32(0), li)
+					self.tracks = typedlist.full(0, li, 'I')
 				if other.tracks:
 					self.tracks.extend(track+lg	for track in other.tracks)
 				else:
-					self.tracks.extend([lg]*len(other.indices))
+					self.tracks.extend(typedlist(lg, len(other.indices), 'I'))
 			return self
 		else:
 			return NotImplemented
@@ -1500,7 +1507,7 @@ class Wire(Container):
 			return a table of the reindex made
 		'''
 		self.points = typedlist((self.points[i]	for i in self.indices), dtype=vec3)
-		self.indices = typedlist(range(len(self.points)), dtype=vec3)
+		self.indices = typedlist(range(len(self.points)), dtype='I')
 		if self.points[-1] == self.points[0]:	
 			self.points.pop()
 			self.indices[-1] = 0

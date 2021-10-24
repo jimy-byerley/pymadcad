@@ -98,7 +98,7 @@ def intersectwith(m1, m2, prec=None) -> Web:
 		The algorithm is using ngon intersections and retriangulation, in order to avoid infinite loops and intermediate triangles.
 	'''
 	if not prec:	prec = m1.precision()
-	frontier = Web(m1.points, groups=m2.faces)	# cut points for each face from m2
+	frontier = Web(m1.points, groups=list(m2.faces))	# cut points for each face from m2
 	
 	# topology informations for optimization
 	points = hashing.PointSet(prec, manage=m1.points)
@@ -170,19 +170,23 @@ def intersectwith(m1, m2, prec=None) -> Web:
 								outline.add((seg[i],e[1]))
 			
 			# simplify the intersection lines
-			segts = Web(m1.points, list(segts.keys()), list(segts.values()), m2.faces)
+			segts = Web(m1.points, segts.keys(), segts.values(), frontier.groups)
 			segts.mergepoints(line_simplification(segts, prec))
 			frontier += segts
 			
 			# retriangulate the cutted surface
-			segts.edges.extend([(b,a) for a,b in segts.edges])
+			segts.edges.extend(uvec2(b,a) for a,b in segts.edges[:])
 			segts.edges.extend(outline)
-			segts.tracks = [0] * len(segts.edges)
+			segts.tracks = typedlist.full(0, len(segts.edges), 'I')
 			flat = triangulation.triangulation_closest(segts, normal)
+			flat.check()
 			# append the triangulated face, in association with the original track
-			flat.tracks = [track] * len(flat.faces)
+			flat.tracks = typedlist.full(track, len(flat.faces), 'I')
 			flat.groups = m1.groups
+			
 			mn += flat
+			mn.check()
+	
 	# append non-intersected faces
 	for f,t,grp in zip(m1.faces, m1.tracks, grp):
 		if grp == -1:
@@ -191,6 +195,7 @@ def intersectwith(m1, m2, prec=None) -> Web:
 	
 	m1.faces = mn.faces
 	m1.tracks = mn.tracks
+	m1.check()
 	return frontier
 
 
@@ -203,9 +208,10 @@ def booleanwith(m1, m2, side, prec=None) -> set:
 	used = [False] * len(m1.faces)
 	notto = set(edgekey(*e) for e in frontier.edges)
 	front = []
+	
 	# get front and mark frontier faces as used
 	for e,f2 in zip(frontier.edges, frontier.tracks):
-		for edge in (e, (e[1],e[0])):
+		for edge in ((e[0],e[1]), (e[1],e[0])):
 			if edge in conn1:
 				fi = conn1[edge]
 				f = m1.faces[fi]
@@ -219,8 +225,8 @@ def booleanwith(m1, m2, side, prec=None) -> set:
 						break
 	if not front:
 		if side:	
-			m1.faces = []
-			m1.tracks = []
+			m1.faces = typedlist(dtype=uvec3)
+			m1.tracks = typedlist(dtype='I')
 		return notto
 	
 	# display frontier
@@ -236,19 +242,19 @@ def booleanwith(m1, m2, side, prec=None) -> set:
 	
 	# propagation
 	front = [e for e in front if edgekey(*e) not in notto]
-	c = 1
+	#c = 1
 	while front:
 		newfront = []
 		for edge in front:
 			if edge in conn1:
 				fi = conn1[edge]
 				if not used[fi]:
-					used[fi] = c
+					used[fi] = True
 					f = m1.faces[fi]
 					for i in range(3):
 						if edgekey(f[i-1],f[i]) not in notto:	
 							newfront.append((f[i],f[i-1]))
-		c += 1
+		#c += 1
 		front = newfront
 	# selection of faces
 	#if debug_propagation:

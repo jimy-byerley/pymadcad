@@ -219,17 +219,17 @@ def inflateoffsets(surf, distance, method='face') -> '[vec3]':
 			fnormal = surf.facenormal(face)
 			for p in face:
 				lengths[p] = min(lengths[p], 1/dot(pnormals[p], fnormal))
-		return [pnormals[p]*lengths[p]*distance   for p in range(len(pnormals))]
+		return typedlist((pnormals[p]*lengths[p]*distance   for p in range(len(pnormals))), dtype=vec3)
 	
 	elif method == 'edge':
 		lengths = [inf]*len(pnormals)
 		for edge,enormal in surf.edgenormals().items():
 			for p in edge:
 				lengths[p] = min(lengths[p], 1/dot(pnormals[p], enormal))
-		return [pnormals[p]*lengths[p]*distance	for p in range(len(pnormals))]
+		return typedlist((pnormals[p]*lengths[p]*distance	for p in range(len(pnormals))), dtype=vec3)
 		
 	elif method == 'point':
-		return [pnormals[p]*distance	for p in range(len(pnormals))]
+		return typedlist((pnormals[p]*distance	for p in range(len(pnormals))), dtype=vec3)
 
 def inflate(surf, distance, method='face') -> 'Mesh':
 	''' move all points of the surface to make a new one at a certain distance of the last one
@@ -344,7 +344,7 @@ def dividedtriangle(placement, div=1) -> 'Mesh':
 			s = c+j
 			mesh.faces.append((s, s+i-1, s+i))
 		c += i
-	mesh.tracks = typedlist([uint32(0)]) * len(mesh.faces)
+	mesh.tracks = typedlist.full(0, len(mesh.faces), 'I')
 
 	return mesh
 
@@ -354,7 +354,7 @@ def subdivide(mesh, div=1) -> 'Mesh':
 	n = div+2
 	pts = typedlist(dtype=vec3)
 	faces = typedlist(dtype=uvec3)
-	tracks = typedlist(dtype=uint32)
+	tracks = typedlist(dtype='I')
 	c = 0
 	for f,t in enumerate(mesh.tracks):
 		# place the points
@@ -399,7 +399,7 @@ def brick(*args, **kwargs) -> 'Mesh':
 	else:							
 		box = Box(*args, **kwargs)
 	mesh = Mesh(
-		typedlist([
+		[
 			vec3(1, 0, 0),
 			vec3(1, 0, 1),
 			vec3(0, 0, 1),
@@ -407,8 +407,8 @@ def brick(*args, **kwargs) -> 'Mesh':
 			vec3(1, 1, 0),
 			vec3(1, 1, 1),
 			vec3(0, 1, 1),
-			vec3(0, 1, 0)]),
-		typedlist([
+			vec3(0, 1, 0)],
+		[
 			uvec3(0, 1, 2),
 			uvec3(0, 2, 3),
 			uvec3(4, 7, 6),
@@ -420,8 +420,8 @@ def brick(*args, **kwargs) -> 'Mesh':
 			uvec3(2, 6, 7),
 			uvec3(2, 7, 3),
 			uvec3(4, 0, 3),
-			uvec3(4, 3, 7)]),
-		typedlist([	0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5	], dtype=uint32),
+			uvec3(4, 3, 7)],
+		[	0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5	],
 		[None] * 6,
 		)
 	for i in range(len(mesh.points)):

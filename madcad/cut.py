@@ -479,8 +479,8 @@ def intersection_axis_face(axis, face, prec):
 
 def removefaces(mesh, crit):
 	''' remove faces whose indices are present in faces, (for huge amount, prefer pass faces as a set) '''
-	newfaces = []
-	newtracks = []
+	newfaces = typedlist(dtype=uvec3)
+	newtracks = typedlist(dtype='I')
 	for i in range(len(mesh.faces)):
 		if not crit(i):
 			newfaces.append(mesh.faces[i])
@@ -490,8 +490,8 @@ def removefaces(mesh, crit):
 	
 def removeedges(mesh, crit):
 	''' remove faces whose indices are present in faces, (for huge amount, prefer pass faces as a set) '''
-	newedges = []
-	newtracks = []
+	newedges = typedlist(dtype=uvec2)
+	newtracks = typedlist(dtype='I')
 	for i in range(len(mesh.edges)):
 		if not crit(i):
 			newedges.append(mesh.edges[i])
@@ -597,6 +597,7 @@ def mesh_bevel(mesh, edges, cutter, resolution=None):
 			)
 	# cut faces
 	segments = mesh_multicut(mesh, edges, cutter, conn)
+	mesh.check()
 	conn = connef(mesh.faces)
 	pts = mesh.points
 	
@@ -705,7 +706,7 @@ def mesh_bevel(mesh, edges, cutter, resolution=None):
 		new += tangentjunction(pts, match, normals, div)
 	
 	new.groups = ['junction']
-	new.tracks = [0] * len(new.faces)
+	new.tracks = typedlist.full(0, len(new.faces), 'I')
 	mesh += new
 	mesh.mergeclose()
 
@@ -877,7 +878,7 @@ def wire_multicut(wire, points, cutter):
 	
 	cutter = interpretcutter(cutter)
 	if not wire.tracks:
-		wire.tracks = [0]*len(wire.indices)
+		wire.tracks = typedlist.full(0, len(wire.indices), 'I')
 	g = len(wire.groups)
 	wire.groups.append('chamfer')
 	
@@ -887,7 +888,8 @@ def wire_multicut(wire, points, cutter):
 		# get point location in the wire
 		if origin == wire.indices[0] or origin == wire.indices[-1]:
 			raise MeshError('a chamfer cannot have only one side')
-		index = next(i for i,p in enumerate(wire.indices)  if p == origin)
+		print(origin, wire.indices)
+		index = wire.indices.index(origin)
 		
 		# compute cut plane
 		t0, t1 = normalize(wire[index] - wire[index-1]),  normalize(wire[index+1] - wire[index])
