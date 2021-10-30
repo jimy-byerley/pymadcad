@@ -839,42 +839,47 @@ def get_pitch_cone_angle(z_pinion:int, z_wheel:int, shaft_angle:float=0.5 * pi) 
 	return atan2(sin(shaft_angle), ((z_wheel / z_pinion) + cos(shaft_angle)))
 
 
-def spherical_involute(cone_angle):
+def spherical_involute(t:float, t0:float, cone_angle:float) -> vec3:
 	"""
 	Return spherical involute function
 
 	Parameter:
 
-		cone_angle (float): the cone angle
+		t (float): 				the angular position
+		t0 (float): 			the difference phase
+		cone_angle (float): 	the cone angle
 
 	Note:
 
-		the lambda function return a normalized `vec3`
+		return a normalized `vec3`
 	"""
 	cos_g, sin_g = cos(cone_angle), sin(cone_angle)
-	return lambda t, t0 : vec3(
+	return vec3(
 		sin_g * cos(t * sin_g) * cos(t + t0) + sin(t * sin_g) * sin(t + t0),
 		sin_g * cos(t * sin_g) * sin(t + t0) - sin(t * sin_g) * cos(t + t0),
 		cos_g * cos(t * sin_g),
 	)
 
 
-def spherical_involuteof(pitch_cone_angle:float):
+def spherical_involuteat(t:float, t0:float, pitch_cone_angle:float, alpha:float) -> vec3:
 	"""
 	Return the spherical interference function
 
 	Parameter:
 
-		pitch_cone_angle (float): the pitch cone angle
+		t (float): 					the angular position
+		t0 (float): 				the difference phase
+		pitch_cone_angle (float):	the pitch cone angle
+		alpha(float): 				the height angle offset of the rack
 
 	Note:
 
-		the lambda function return a normalized `vec3`
+		return a normalized `vec3`
 	"""
 	cos_p, sin_p = cos(pitch_cone_angle), sin(pitch_cone_angle)
-	involute = spherical_involute(pitch_cone_angle)
+	involute = lambda t, t0: spherical_involute(t, t0, pitch_cone_angle)
 	vec = lambda t: vec3(-cos_p * cos(t), -cos_p * sin(t), sin_p)
-	return lambda t, t0, alpha: cos(alpha) * involute(t, t0) + sin(alpha) * vec(t + t0)
+	return cos(alpha) * involute(t, t0) + sin(alpha) * vec(t + t0)
 
 
 def derived_spherical_involute(cone_angle:float, t0:float):
@@ -914,7 +919,7 @@ def jacobian_spherical_involute(base_cona_angle:float, pitch_cone_angle:float, t
 	return lambda t1, t2: mat3(derived_involute(t1), -derived_interference(t2), vec3(0, 0, 1))
 
 
-def spherical_rack_tools(z, pressure_angle=pi / 9, ka=1, kd=1.25):
+def spherical_rack_tools(z:float, pressure_angle:float=pi / 9, ka:float=1, kd:float=1.25):
 	"""
 	Return a list of all information useful to generate a spherical rack.
 	Five elements :
@@ -947,7 +952,7 @@ def spherical_rack_tools(z, pressure_angle=pi / 9, ka=1, kd=1.25):
 	t_min = acos(cos(gamma_r) / cos_b) / sin_b
 	t_max = acos(cos(gamma_f) / cos_b) / sin_b
 
-	involute = spherical_involute(gamma_b)
+	involute = lambda t, t0: spherical_involute(t, t0, gamma_b)
 	v = vec3(1, 1, 0)
 	phase_empty = 2 * pi * k - anglebt(involute(t_min, 0) * v, involute(-t_min, phase_diff) * v)
 
@@ -993,7 +998,7 @@ def spherical_gearprofile(z:int, pitch_cone_angle:float, pressure_angle:float=pi
 	gamma_b = asin(cos(pressure_angle) * sin(gamma_p))
 	cos_b, sin_b = cos(gamma_b), sin(gamma_b)
 	tooth_size = pi / z
-	involute = spherical_involute(gamma_b)
+	involute = lambda t, t0 : spherical_involute(t, t0, gamma_b)
 	epsilon_p = acos(cos(gamma_p) / cos_b) / sin_b
 	theta_p = anglebt(involute(0, 0) * vec3(1, 1, 0), involute(epsilon_p, 0) * vec3(1, 1, 0))
 	phase_diff = tooth_size + 2 * theta_p
@@ -1016,7 +1021,7 @@ def spherical_gearprofile(z:int, pitch_cone_angle:float, pressure_angle:float=pi
 
 	# Calculation of offsets due to geometry of spherical rack
 	_, t_rack_max, phase1, _, rinvolute = spherical_rack_tools(1 / k, pressure_angle, ka, kd)
-	interference = spherical_involuteof(gamma_p)
+	interference = lambda t, t0 : spherical_involuteat(t, t0, gamma_p, alpha)
 	alpha = 2 * ka * k
 	n1, n2 = rinvolute(t_rack_max, 0) * vec3(1, 1, 0), rinvolute(-t_rack_max, phase1) * vec3(1, 1, 0)
 	beta = 0.5 * anglebt(n1, n2) * length(n1) / sin_b
@@ -1024,7 +1029,8 @@ def spherical_gearprofile(z:int, pitch_cone_angle:float, pressure_angle:float=pi
 	# Newton method to calculate the intersection between
 	# the spherical involute and the spherical interference.
 	# Objective function
-	f = lambda t1, t2: involute(t1, 0) - spherical_involuteof(gamma_p)(t2, -0.5 * phase_interference + beta, alpha)
+	involuteat = lambda t2, t0 : spherical_involuteat(t2, t0, gamma_p, alpha)
+	f = lambda t1, t2: involute(t1, 0) - involuteat(t2, -0.5 * phase_interference + beta)
 	# Jacobian matrix
 	J = jacobian_spherical_involute(gamma_b, gamma_p, 0, -0.5 * phase_interference + beta, alpha)
 
@@ -1034,14 +1040,14 @@ def spherical_gearprofile(z:int, pitch_cone_angle:float, pressure_angle:float=pi
 		t1, t2, t3 = vec3(t1, t2, t3) - inverse(J(t1, t2)) * f(t1, t2)
 
 	# Build sides of a tooth
-	interference1 = [interference(t, -0.5 * phase_interference + beta, alpha) for t in frange(0, t2)]
-	interference2 = [interference(-t, phase_diff + 0.5 * phase_interference - beta, alpha) for t in frange(0, t2)]
+	interference1 = [interference(t, -0.5 * phase_interference + beta) for t in frange(0, t2)]
+	interference2 = [interference(-t, phase_diff + 0.5 * phase_interference - beta) for t in frange(0, t2)]
 	side1 = interference1[:-1] + [involute(t, 0) for t in frange(t1, t_max)]
 	side2 = interference2[:-1] + [involute(-t, phase_diff) for t in frange(t1, t_max)]
 
 	# Extreme points of sides to compute angle between them
-	a = interference(0, -0.5 * phase_interference + beta, alpha)
-	b = interference(0, phase_diff + 0.5 * phase_interference - beta, alpha)
+	a = interference(0, -0.5 * phase_interference + beta)
+	b = interference(0, phase_diff + 0.5 * phase_interference - beta)
 	final_phase_empty = 2 * pi / z - anglebt(a * vec3(1, 1, 0), b * vec3(1, 1, 0))
 	top = Segment(involute(t_max, 0), involute(-t_max, phase_diff)).mesh()
 	bottom = Segment(angleAxis(-final_phase_empty, vec3(0, 0, 1)) * a, a).mesh()
