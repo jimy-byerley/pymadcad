@@ -825,7 +825,7 @@ def frange(start:float, end:float, div:int=10):
 	return (start + i * k for i in range(div))
 
 
-def get_gamma_p(z_pinion:int, z_wheel:int, shaft_angle:float=0.5 * pi):
+def get_gamma_p(z_pinion:int, z_wheel:int, shaft_angle:float=0.5 * pi): # Pitch angle
 	"""
 	Return the pitch cone angle of the pinion called `gamma_p`.
 	The pitch cone angle of the wheel is equal to `shaft_angle - gamma_p`
@@ -833,20 +833,27 @@ def get_gamma_p(z_pinion:int, z_wheel:int, shaft_angle:float=0.5 * pi):
 	return atan2(sin(shaft_angle), ((z_wheel / z_pinion) + cos(shaft_angle)))
 
 
-def spherical_involute(gamma:float):
+def spherical_involute(gamma): # t, t0 en argument
 	"""
 	Return spherical involute function according to `gamma` a cone angle
 	Note: unit radius
 	"""
 	cos_g, sin_g = cos(gamma), sin(gamma)
 	phi = lambda t, t0: (t - t0) * sin_g
+
+	# return lambda t, t0: vec3(
+	# 	sin_g * cos(phi(t, t0)) * cos(t) + sin(phi(t, t0)) * sin(t),
+	# 	sin_g * cos(phi(t, t0)) * sin(t) - sin(phi(t, t0)) * cos(t),
+	# 	cos_g * cos(phi(t, t0))
+	# )
+
 	x = lambda t, t0: sin_g * cos(phi(t, t0)) * cos(t) + sin(phi(t, t0)) * sin(t)
 	y = lambda t, t0: sin_g * cos(phi(t, t0)) * sin(t) - sin(phi(t, t0)) * cos(t)
 	z = lambda t, t0: cos_g * cos(phi(t, t0))
-	return lambda t, t0: vec3(x(t + t0, t0), y(t + t0, t0), z(t + t0, t0))
+	return lambda t, t0: vec3(x(t + t0, t0), y(t + t0, t0), z(t + t0, t0)) # supprimer le parametre t0
 
 
-def spherical_interference(gamma_p:float):
+def spherical_interference(gamma_p:float): # spherical_involute_interference & renommer involuteof
 	"""
 	Return the spherical interference function
 	according to `gamma_p` the pitch cone angle
@@ -858,7 +865,7 @@ def spherical_interference(gamma_p:float):
 	return lambda t, t0, alpha: cos(alpha) * involute(t, t0) + sin(alpha) * vec(t + t0)
 
 
-def newton_method(init:tuple, f:callable, J:callable):
+def newton_method(init:tuple, f:callable, J:callable): # integrer
 	"""
 	Newton method to calculate the intersection between
 	the spherical involute and the spherical interference.
@@ -901,7 +908,7 @@ def jacobian_spherical_involute(gamma_b, gamma_p, t01, t02, alpha):
 	return lambda t1, t2: mat3(derived_involute(t1), -derived_interference(t2), vec3(0, 0, 1))
 
 
-def spherical_rack(k, m, pressure_angle=pi / 9, ka=1, kd=1.25):
+def spherical_rack(k, m, pressure_angle=pi / 9, ka=1, kd=1.25): # spherical_rack_tools
 	"""
 	Return a list of all information useful to generate a spherical rack.
 	Five elements :
@@ -931,7 +938,7 @@ def spherical_rack(k, m, pressure_angle=pi / 9, ka=1, kd=1.25):
 	return [t_min, t_max, phase_diff, phase_empty, involute]
 
 
-def spherical_rack_profile(m:float, k:float, pressure_angle:float=pi / 9, ka:float=1, kd:float=1.25):
+def spherical_rack_profile(m:float, k:float, pressure_angle:float=pi / 9, ka:float=1, kd:float=1.25): # degager le v & changer k => z
 	"""
 	Return a `Wire` which is a tooth of the rack where :
 	- `m` is the module
@@ -949,7 +956,10 @@ def spherical_rack_profile(m:float, k:float, pressure_angle:float=pi / 9, ka:flo
 	v = side1[0] + side2[0] # Temporarily used to calculation
 	return wire, v
 
-def spherical_involute_profile(z, m, gamma_p, pressure_angle=pi / 9, ka=1, kd=1.25):
+def spherical_involute_profile(z, m, gamma_p, pressure_angle=pi / 9, ka=1, kd=1.25): # renommer en spherical_gearprofile & retourner qu'une seule dent
+
+	# COMMENTER LES LIGNES DU PROGRAMME
+
 	gamma_b = asin(cos(pressure_angle) * sin(gamma_p))
 	cos_b, sin_b = cos(gamma_b), sin(gamma_b)
 	tooth_size = pi / z
@@ -967,7 +977,11 @@ def spherical_involute_profile(z, m, gamma_p, pressure_angle=pi / 9, ka=1, kd=1.
 	epsilon_p = acos(cos(gamma_p) / cos_b) / sin_b
 	# print(theta_p)
 	# print(epsilon_p - phi_p)
-	
+
+	# calculer t_p pour le point M
+	# calculer l'angle entre P et M avec P projete sur le plan du cercle de base
+
+
 	phase_diff = tooth_size + 2 * theta_p
 	phase_empty = 2 * pi / z - phase_diff
 
@@ -1021,7 +1035,10 @@ def cone_projection(profile, gamma_p):
 	new_points = [1 / dot(ref(atan2(point.y, point.x)), point) * point for point in profile.points]
 	return Wire(new_points, indices=profile.indices)
 
-def bevel_gear(z, m, gamma_p, pressure_angle=pi/9, ka=1, kd=1.25, bore_radius=None, bore_height=None):
+def bevel_gear(z, m, gamma_p, pressure_angle=pi/9, ka=1, kd=1.25, bore_radius=None, bore_height=None): # DEBUG: bore_height = 0
+
+	# mettre le pas au lieu du module
+
 	gamma_b = asin(cos(pressure_angle) * sin(gamma_p))
 	sin_b = cos(pressure_angle) * sin(gamma_p)
 	rp = 0.5 * m * z
@@ -1035,12 +1052,14 @@ def bevel_gear(z, m, gamma_p, pressure_angle=pi/9, ka=1, kd=1.25, bore_radius=No
 	k = sin(gamma_p) / z
 	gamma_r = gamma_p - 2 * kd * k
 
+	junction_straight = partial(junction, tangents="straight")
+
 	phi_p = acos(tan(gamma_b) / tan(gamma_p))
 	theta_p = atan2(sin_b * tan(phi_p), 1) / sin_b - phi_p
 	phase_diff = pi / z + 2 * theta_p
-	alignment = vec3(cos(0.5*phase_diff), sin(0.5*phase_diff), 0)
-	outside_limit = Circle((vec3(0, 0, rho1 * cos(gamma_r)), vec3(0, 0, 1)), rho1 * sin(gamma_r), alignment=alignment, resolution=("div",3*z)).mesh()
-	inside_limit = Circle((vec3(0, 0, rho0 * cos(gamma_r)), vec3(0, 0, 1)), rho0 * sin(gamma_r), alignment=alignment, resolution=("div",3*z)).mesh()
+	alignment = vec3(cos(0.5 * phase_diff), sin(0.5 * phase_diff), 0)
+	outside_limit = Circle((vec3(0, 0, rho1 * cos(gamma_r)), vec3(0, 0, 1)), rho1 * sin(gamma_r), alignment=alignment, resolution=("div",3 * z)).mesh()
+	inside_limit = Circle((vec3(0, 0, rho0 * cos(gamma_r)), vec3(0, 0, 1)), rho0 * sin(gamma_r), alignment=alignment, resolution=("div",3 * z)).mesh()
 	teeth_border = junction(outside_profile, inside_profile.flip(), tangents="straight")
 	top_border = junction(outside_profile, outside_limit.flip(), tangents="straight")
 	bottom_border = junction(inside_profile.flip(), inside_limit, tangents="straight")
