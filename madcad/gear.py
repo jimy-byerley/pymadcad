@@ -1143,4 +1143,4 @@ def bevel_gear(step:float, z:int, pitch_cone_angle:float, pressure_angle:float=p
 		top = triangulation(outside_limit)
 		bottom = triangulation(inside_limit.flip())
 		surfaces.extend([top, bottom])
-	return reduce(add, surfaces)
+	return reduce(add, surfaces).finish()
