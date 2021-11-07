@@ -38,6 +38,7 @@ from .blending import junction, blendpair
 from .generation import extrusion, revolution, repeat, extrans
 from .primitives import Circle, ArcCentered, Segment, Interpolated
 from .triangulation import triangulation
+from .boolean import intersection
 from .selection import *
 from .rendering import show
 from .cut import bevel
@@ -1103,44 +1104,54 @@ def bevel_gear(step:float, z:int, pitch_cone_angle:float, pressure_angle:float=p
 
 	# Generate spherical profiles
 	spherical_profile = spherical_gearprofile(z, gamma_p, pressure_angle, ka, kd) # one tooth
-	cone_profile = cone_projection(spherical_profile, gamma_p) # project the spherical profile on a cone
-	outside_profile = repeat_circular(cone_profile.transform(rho1), z)
-	inside_profile = repeat_circular(cone_profile.transform(rho0), z)
+	outside_profile = spherical_profile.transform(rho1 * 1.1)
+	inside_profile = spherical_profile.transform(rho0 * 0.9)
 
-	# Generate surfaces of the bevel gear
+	# Partial functions for convenience
 	junction_straight = partial(junction, tangents="straight")
-	alignment = vec3(cos(0.5 * phase_diff), sin(0.5 * phase_diff), 0)
-	outside_limit = Circle((vec3(0, 0, rho1 * cos(gamma_r)), vec3(0, 0, 1)), rho1 * sin(gamma_r), alignment=alignment, resolution=("div",3 * z)).mesh()
-	inside_limit = Circle((vec3(0, 0, rho0 * cos(gamma_r)), vec3(0, 0, 1)), rho0 * sin(gamma_r), alignment=alignment, resolution=("div",3 * z)).mesh()
-	teeth_border = junction_straight(outside_profile, inside_profile.flip())
-	top_border = junction_straight(outside_profile, outside_limit.flip())
-	bottom_border = junction_straight(inside_profile.flip(), inside_limit)
-	surfaces = [top_border, teeth_border, bottom_border]
+	blendpair_straight = partial(blendpair, tangents="straight")
 
-	# Generate the internal part
+	# Generate teeth border
+	teeth_border = blendpair_straight(outside_profile, inside_profile.flip())
+
+	# Common values
+	v = vec3(1, 1, 0)
+	angle1tooth = anglebt(spherical_profile[0] * v, spherical_profile[-1] * v)
+	gamma_l = gamma_p + 2 * (ka + 0.25) * k # offset : 0.25 for boolean operation
+	A = vec3(rho1 * sin(gamma_r), 0, rho1 * cos(gamma_r))
+	B = vec3(rho1 * sin(gamma_l), 0, rho1 * cos(gamma_l))
+	C = vec3(rho0 * sin(gamma_r), 0, rho0 * cos(gamma_r))
+	D = vec3(rho0 * sin(gamma_l), 0, rho0 * cos(gamma_l))
+	v1 = A * v
+	v2 = spherical_profile[0] * v
+	phase_tooth_body = anglebt(v1, v2)
+	phase_tooth_body = -phase_tooth_body if cross(v1, v2).z > 0 else phase_tooth_body
+
+
+	# Generate points for a section
 	if bore_radius is None:
 		bore_radius = 0.5 * rho0 * sin(gamma_r)
 	if bore_height is None:
 		bore_height = 0.4 * rho1 * cos(gamma_r)
 	if bore_radius:
-		condition_radius = 1.5 * bore_radius if bore_height else bore_radius
-		top_circle = Circle((vec3(0, 0, rho1 * cos(gamma_r)), vec3(0, 0, 1)), condition_radius).mesh()
-		bottom_circle = Circle((vec3(0, 0, rho0 * cos(gamma_r)), vec3(0, 0, 1)), bore_radius).mesh()
-		top = junction_straight(outside_limit.flip(), top_circle)
-		bottom = junction_straight(inside_limit, bottom_circle.flip())
 		if bore_height:
-			inside_hole = extrusion(vec3(0, 0, bore_height +  (rho1 - rho0) * cos(gamma_r)), bottom_circle.flip())
-			outside_hole = extrusion(vec3(0, 0, bore_height), top_circle)
-			top_hole = junction_straight(
-				bottom_circle.transform(vec3(0, 0, bore_height +  (rho1 - rho0) * cos(gamma_r))),
-				top_circle.transform(vec3(0, 0, bore_height)).flip(),
-			)
-			surfaces.extend([top, bottom, inside_hole, outside_hole, top_hole])
+			E = vec3(1.5 * bore_radius, 0, rho1 * cos(gamma_r))
+			F = vec3(bore_radius, 0, rho0 * cos(gamma_r))
+			G = vec3(1.5 * bore_radius, 0, rho1 * cos(gamma_r) + bore_height) # top of the bore
+			H = vec3(bore_radius, 0, rho1 * cos(gamma_r) + bore_height) # top of the bore
+			points = [A, B, D, C, F, H, G, E, A]
 		else:
-			inside_hole = extrusion(vec3(0, 0, (rho1 - rho0) * cos(gamma_r)), bottom_circle.flip())
-			surfaces.extend([top, bottom, inside_hole])
+			E = vec3(bore_radius, 0, rho1 * cos(gamma_r))
+			F = vec3(bore_radius, 0, rho0 * cos(gamma_r))
+			points = [A, B, D, C, F, E, A]
 	else:
-		top = triangulation(outside_limit)
-		bottom = triangulation(inside_limit.flip())
-		surfaces.extend([top, bottom])
-	return reduce(add, surfaces).finish()
+		E = vec3(0, 0, rho1 * cos(gamma_r))
+		F = vec3(0, 0, rho0 * cos(gamma_r))
+		points = [A, B, D, C, F, E, A]
+
+
+	body = revolution(angle1tooth, (vec3(0),vec3(0, 0, 1)), Wire(points).segmented())
+	one_tooth = intersection(body, teeth_border.transform(angleAxis(phase_tooth_body, vec3(0, 0, 1))))
+	all_teeth = repeat(one_tooth, z, rotatearound(angle1tooth, (vec3(0, 0, 0), vec3(0, 0, 1))))
+	all_teeth.mergeclose()
+	return all_teeth
