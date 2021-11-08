@@ -41,7 +41,7 @@ from .triangulation import triangulation
 from .boolean import intersection
 from .selection import *
 from .rendering import show
-from .cut import bevel
+from .cut import bevel, chamfer
 from . import settings
 
 from math import *
@@ -1139,18 +1139,20 @@ def bevel_gear(step:float, z:int, pitch_cone_angle:float, pressure_angle:float=p
 			F = vec3(bore_radius, 0, rho0 * cos(gamma_r))
 			G = vec3(1.5 * bore_radius, 0, rho1 * cos(gamma_r) + bore_height) # top of the bore
 			H = vec3(bore_radius, 0, rho1 * cos(gamma_r) + bore_height) # top of the bore
-			points = [A, B, D, C, F, H, G, E, A]
+			wire = Wire([A, B, D, C, F, H, G, E, A]).segmented()
+			chamfer(wire, [4, 5, 6], ("distance", 0.5))
+			bevel(wire, [7], ("distance", 1)) if bore_height > 1.4 else None
 		else:
 			E = vec3(bore_radius, 0, rho1 * cos(gamma_r))
 			F = vec3(bore_radius, 0, rho0 * cos(gamma_r))
-			points = [A, B, D, C, F, E, A]
+			wire = Wire([A, B, D, C, F, E, A]).segmented()
+			chamfer(wire, [4, 5], ("distance", 0.5))
 	else:
 		E = vec3(0, 0, rho1 * cos(gamma_r))
 		F = vec3(0, 0, rho0 * cos(gamma_r))
-		points = [A, B, D, C, F, E, A]
+		wire = Wire([A, B, D, C, F, E, A]).segmented()
 
-
-	body = revolution(angle1tooth, (vec3(0),vec3(0, 0, 1)), Wire(points).segmented())
+	body = revolution(angle1tooth, (vec3(0),vec3(0, 0, 1)), wire)
 	one_tooth = intersection(body, teeth_border.transform(angleAxis(phase_tooth_body, vec3(0, 0, 1))))
 	all_teeth = repeat(one_tooth, z, rotatearound(angle1tooth, (vec3(0, 0, 0), vec3(0, 0, 1))))
 	all_teeth.mergeclose()
