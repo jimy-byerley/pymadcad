@@ -1140,13 +1140,13 @@ def bevel_gear(step:float, z:int, pitch_cone_angle:float, pressure_angle:float=p
 			G = vec3(1.5 * bore_radius, 0, rho1 * cos(gamma_r) + bore_height) # top of the bore
 			H = vec3(bore_radius, 0, rho1 * cos(gamma_r) + bore_height) # top of the bore
 			wire = Wire([A, B, D, C, F, H, G, E, A]).segmented()
-			chamfer(wire, [4, 5, 6], ("distance", 0.5))
-			bevel(wire, [7], ("distance", 1)) if bore_height > 1.4 else None
+			chamfer(wire, [4, 5, 6], ("distance", bore_radius * 0.05))
+			bevel(wire, [7], ("distance", bore_height * 0.1))
 		else:
 			E = vec3(bore_radius, 0, rho1 * cos(gamma_r))
 			F = vec3(bore_radius, 0, rho0 * cos(gamma_r))
 			wire = Wire([A, B, D, C, F, E, A]).segmented()
-			chamfer(wire, [4, 5], ("distance", 0.5))
+			chamfer(wire, [4, 5], ("distance", bore_radius * 0.05))
 	else:
 		E = vec3(0, 0, rho1 * cos(gamma_r))
 		F = vec3(0, 0, rho0 * cos(gamma_r))
