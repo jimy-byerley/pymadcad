@@ -1,6 +1,7 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
 import numpy as np
+import numpy.lib.recfunctions as rfn
 import os, tempfile
 from functools import wraps
 from hashlib import md5
@@ -114,26 +115,25 @@ else:
 		if 'face' not in index:		raise FileFormatError('file must have a face buffer')
 		
 		# collect points
-		for vertex in data.elements[index['vertex']].data.astype(tuple):
-			mesh.points.append(vec3(vertex))
+		mesh.points = typedlist(data.elements[index['vertex']].data.astype('f8, f8, f8'), dtype=vec3)
 		
 		# collect faces
 		faces = data.elements[index['face']].data
 		if faces.dtype.names[0] == 'vertex_indices':
 			for face in faces['vertex_indices']:
+				#print('  ', type(face), face, face.dtype, face.strides)
 				if len(face) == 3:	# triangle
-					mesh.faces.append(tuple(face))
+					mesh.faces.append(face)
 				elif len(face) > 3:	# quad or other extended face
 					mesh += triangulation.triangulation_outline(Wire(mesh.points, face))
 		else:
-			for face in faces.data:
-				mesh.faces.append(tuple(*face[:2]))
+			mesh.faces = numpy_to_typedlist(faces.astype('u4', copy=False), dtype=uvec4)
 
 		# collect tracks
 		if 'group' in faces.dtype.names:
-			mesh.tracks = list(faces['group'])
+			mesh.tracks = typedlist(faces['group'].astype('u4'), dtype='I')
 		else:
-			mesh.tracks = [0] * len(mesh.faces)
+			mesh.tracks = typedlist.full(0, len(mesh.faces), 'I')
 		
 		# create groups  (TODO find a way to get it from the file, PLY doesn't support non-scalar types)
 		mesh.groups = [None] * (max(mesh.tracks, default=-1)+1)
@@ -141,12 +141,10 @@ else:
 		return mesh
 
 	def ply_write(mesh, file, **opts):
-		vertices = np.array(
-						[ tuple(p) for p in mesh.points], 
-						dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4')])
-		faces = np.array(
-					[ (f,t)  for f,t in zip(mesh.faces, mesh.tracks)],
-					dtype=[('vertex_indices', 'u4', (3,)), ('group', 'u2')])
+		vertices = np.array(mesh.points, copy=False).astype(np.dtype([('x', 'f4'), ('y', 'f4'), ('z', 'f4')]))
+		faces = np.empty(len(mesh.faces), dtype=[('vertex_indices', 'u4', (3,)), ('group', 'u2')])
+		faces['vertex_indices'] = typedlist_to_numpy(mesh.faces, 'u4')
+		faces['group'] = typedlist_to_numpy(mesh.tracks, 'u4')
 		ev = PlyElement.describe(vertices, 'vertex')
 		ef = PlyElement.describe(faces, 'face')
 		PlyData([ev,ef], opts.get('text', False)).write(file)
@@ -160,21 +158,21 @@ try:
 except ImportError:	pass
 else:
 
+	from .mathutils import *
+	from .mesh import numpy_to_typedlist, typedlist_to_numpy
 	def stl_read(file, **opts):
 		stlmesh = stl.mesh.Mesh.from_file(file, calculate_normals=False)
 		trinum = stlmesh.points.shape[0]
-		ptsbuff = stlmesh.points.reshape(trinum*3, 3).astype('f8')
-		pts = glm.array(ptsbuff).to_list()
-		faces = [(i, i+1, i+2)  for i in range(0, 3*trinum, 3)]
-		mesh = Mesh(pts, faces)
+		mesh = Mesh(
+			numpy_to_typedlist(stlmesh.points.reshape(trinum*3, 3), vec3), 
+			typedlist(uvec3(i, i+1, i+2)  for i in range(0, 3*trinum, 3)),
+			)
 		mesh.options['name'] = stlmesh.name
 		return mesh
 
 	def stl_write(mesh, file, **opts):
 		stlmesh = stl.mesh.Mesh(np.zeros(len(mesh.faces), dtype=stl.mesh.Mesh.dtype), name=mesh.options.get('name'))
-		for i, f in enumerate(mesh.faces):
-			for j in range(3):
-				stlmesh.vectors[i][j] = mesh.points[f[j]]
+		stlmesh.vectors[:] = typedlist_to_numpy(mesh.points, 'f4')[typedlist_to_numpy(mesh.faces, 'i4')]
 		stlmesh.save(file)
 
 '''
