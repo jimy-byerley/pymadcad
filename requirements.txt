@@ -1,4 +1,4 @@
-pyglm>=1.2
+pyglm>=2.5.5
 moderngl>=5.6
 numpy>=1.1
 scipy>=1.3
