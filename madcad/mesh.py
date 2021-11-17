@@ -26,15 +26,16 @@
 from copy import copy, deepcopy
 from random import random
 import numpy as np
+import numpy.lib.recfunctions as rfn
 from array import array
 from collections import OrderedDict
 from numbers import Integral, Real
 import math
+
 from .mathutils import *
 from . import displays
 from . import text
 from . import hashing
-
 from .asso import Asso
 
 __all__ = [
@@ -86,6 +87,7 @@ class Container:
 			if used != i:	merges[i] = used
 		self.mergepoints(merges)
 		self.points = points.points
+		self.points.shrink()
 		return merges
 		
 	def mergegroups(self, defs=None, merges=None):
@@ -124,9 +126,10 @@ class Container:
 				- mergeclose
 				- strippoints
 				- stripgroups
+				- check
 		'''
 		self.mergeclose()
-		#self.strippoints()	# not needed since the new merclose implementation
+		#self.strippoints()	# not needed since the new mergeclose implementation
 		self.stripgroups()
 		self.check()
 		return self
@@ -204,6 +207,7 @@ class Mesh(Container):
 			groups:     custom information for each group
 			options:	custom informations for the entire mesh
 	'''
+	#__slots__ = 'points', 'faces', 'tracks', 'groups', 'options'
 	
 	# --- standard point container methods ---
 	
@@ -213,7 +217,6 @@ class Mesh(Container):
 		self.tracks = ensure_typedlist(tracks or typedlist.full(0, len(self.faces), 'I'), 'I')
 		self.groups = groups or [None] * (max(self.tracks, default=-1)+1)
 		self.options = options or {}
-	
 	
 	def __add__(self, other):
 		''' append the faces and points of the other mesh '''
@@ -267,6 +270,7 @@ class Mesh(Container):
 				self.tracks.pop(i)
 			else:
 				i += 1
+		self.faces.shrink()
 	
 	def strippoints(self, used=None):
 		''' remove points that are used by no faces, return the reindex list.
@@ -282,6 +286,7 @@ class Mesh(Container):
 		self.points = deepcopy(self.points)
 		self.faces = deepcopy(self.faces)
 		reindex = striplist(self.points, used)
+		self.points.shrink()
 		for i,f in enumerate(self.faces):
 			self.faces[i] = uvec3(reindex[f[0]], reindex[f[1]], reindex[f[2]])
 		return reindex
@@ -321,19 +326,6 @@ class Mesh(Container):
 		if len(self.faces) != len(self.tracks):	raise MeshError("tracks list doesn't match faces list length")
 		if max(self.tracks, default=-1) >= len(self.groups): raise MeshError("some face group indices are greater than the number of groups", max(self.tracks, default=-1), len(self.groups))
 	
-	def finish(self):
-		''' finish and clean the mesh 
-			note that this operation can cost as much as other transformation operation
-			job done
-				- mergeclose
-				- strippoints
-				- stripgroups
-		'''
-		self.mergeclose()
-		self.strippoints()
-		self.stripgroups()
-		self.check()
-	
 	
 	# --- selection methods ---
 	
@@ -362,7 +354,7 @@ class Mesh(Container):
 	
 	def facenormals(self):
 		''' list normals for each face '''
-		return list(map(self.facenormal, self.faces))
+		return typedlist(map(self.facenormal, self.faces), vec3)
 	
 	def edgenormals(self):
 		''' dict of normals for each UNORIENTED edge '''
@@ -408,6 +400,7 @@ class Mesh(Container):
 		
 		for i in range(l):
 			normals[i] = normalize(normals[i])
+		assert len(normals) == len(self.points)
 		return normals
 		
 	def tangents(self):
@@ -488,7 +481,7 @@ class Mesh(Container):
 	
 	def outlines(self):
 		''' return a Web of ORIENTED edges '''
-		return Web(self.points, list(self.outlines_oriented()))
+		return Web(self.points, self.outlines_oriented())
 		
 	def groupoutlines(self):
 		''' return a dict of ORIENTED edges indexing groups.
@@ -589,7 +582,8 @@ class Mesh(Container):
 			else:
 				idents[pt] = track
 				return pt
-		faces = typedlist((uvec3(repl(a,t), repl(b,t), repl(c,t))  for (a,b,c),t in zip(self.faces, self.tracks)), dtype=uvec3)
+		faces = typedlist((uvec3(repl(a,t), repl(b,t), repl(c,t))  
+						for (a,b,c),t in zip(self.faces, self.tracks)), dtype=uvec3)
 		
 		self.points = points
 		self.faces = faces
@@ -675,7 +669,7 @@ class Mesh(Container):
 			faces.append(self.faces[i])
 			tracks.append(self.tracks[i])
 		def atisland(reached):
-			islands.append(Mesh(self.points, faces[:], tracks[:], self.groups))
+			islands.append(Mesh(self.points, deepcopy(faces), deepcopy(tracks), self.groups))
 			faces.clear()
 			tracks.clear()
 		self.propagate(atface, atisland, conn=conn)
@@ -844,11 +838,11 @@ class Mesh(Container):
 			return displays.Display()
 		
 		return displays.SolidDisplay(scene, 
-				npcast(m.points), 
-				npcast(normals), 
-				npcast(m.faces),
-				npcast(edges),
-				idents,
+				typedlist_to_numpy(m.points, 'f4'), 
+				typedlist_to_numpy(normals, 'f4'), 
+				typedlist_to_numpy(m.faces, 'u4'),
+				typedlist_to_numpy(edges, 'u4'),
+				typedlist_to_numpy(idents, 'u4'),
 				color = self.options.get('color'),
 				)
 	
@@ -894,8 +888,25 @@ def npcast(storage, dtype=None):
 		return buff
 	else:
 		return np.array(storage, dtype=dtype)
+
+def numpy_to_typedlist(array: 'ndarray', dtype) -> 'typedlist':
+	''' convert a numpy.ndarray into a typedlist with the given dtype, if the conversion is possible term to term '''
+	ndtype = np.array(typedlist(dtype)).dtype
+	if ndtype.fields:
+		return typedlist(rfn.unstructured_to_structured(array).astype(ndtype, copy=False), dtype)
+	else:
+		return typedlist(array.astype(ndtype, copy=False), dtype)
+	
+def typedlist_to_numpy(array: 'typedlist', dtype) -> 'ndarray':
+	''' convert a typedlist to a numpy.ndarray with the given dtype, if the conversion is possible term to term '''
+	tmp = np.array(array, copy=False)
+	if tmp.dtype.fields:
+		return rfn.structured_to_unstructured(tmp, dtype)
+	else:
+		return tmp.astype(dtype)
 		
 def ensure_typedlist(obj, dtype):
+	''' return a typedlist with the given dtype, create it from whatever is in obj if needed '''
 	if isinstance(obj, typedlist) and obj.dtype == dtype:
 		return obj
 	else:
@@ -1280,7 +1291,7 @@ class Wire(Container):
 						it can be used to associate groups to points or to edges (if to edges, then take care to still have as many track as indices)
 			groups:	data associated to each point (or edge)
 	'''
-	__slots__ = 'points', 'indices', 'tracks', 'groups'
+	#__slots__ = 'points', 'indices', 'tracks', 'groups'
 	
 	def __init__(self, points=None, indices=None, tracks=None, groups=None, options=None):
 		self.points = ensure_typedlist(points, vec3)
@@ -1495,7 +1506,7 @@ class Wire(Container):
 				if other.tracks:
 					self.tracks.extend(track+lg	for track in other.tracks)
 				else:
-					self.tracks.extend(typedlist(lg, len(other.indices), 'I'))
+					self.tracks.extend(typedlist.full(lg, len(other.indices), 'I'))
 			return self
 		else:
 			return NotImplemented

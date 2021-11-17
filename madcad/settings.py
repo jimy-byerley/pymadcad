@@ -64,11 +64,11 @@ primitives = {
 
 # get configuration directory depending on OS
 if sys.platform == 'win32':
-        home = os.getenv('USERPROFILE')
-        configdir = home+'/AppData/Local'
+	home = os.getenv('USERPROFILE')
+	configdir = home+'/AppData/Local'
 else:
-        home = os.getenv('HOME')
-        configdir = home+'/.config'
+	home = os.getenv('HOME')
+	configdir = home+'/.config'
 
 config = configdir+'/madcad/pymadcad.yaml'
 settings = {'display':display, 'scene':scene, 'controls':controls, 'primitives':primitives}
