@@ -32,7 +32,7 @@ setup(
 			'*.pyx', 
 			'*.c', 
 			],
-		'': ['COPYING', 'COPYING.LESSER', 'README'],
+		'': ['COPYING', 'COPYING.LESSER', 'README.md', 'requirements.txt'],
 		},
 	
 	# metadata for pypi
