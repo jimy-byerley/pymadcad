@@ -205,12 +205,14 @@ def booleanwith(m1, m2, side, prec=None) -> set:
 	used = [False] * len(m1.faces)
 	notto = set(edgekey(*e) for e in frontier.edges)
 	front = []
+	
 	# get front and mark frontier faces as used
 	for e,f2 in zip(frontier.edges, frontier.tracks):
 		for edge in (e, (e[1],e[0])):
 			if edge in conn1:
 				fi = conn1[edge]
 				f = m1.faces[fi]
+				# find from which side to propagate
 				for i in range(3):
 					if f[i] not in edge:
 						proj = dot(m1.points[f[i]] - m1.points[f[i-1]], m2.facenormal(f2))  * (-1 if side else 1)
@@ -252,6 +254,7 @@ def booleanwith(m1, m2, side, prec=None) -> set:
 							newfront.append((f[i],f[i-1]))
 		c += 1
 		front = newfront
+	
 	# selection of faces
 	#if debug_propagation:
 		#from . import text
@@ -260,6 +263,7 @@ def booleanwith(m1, m2, side, prec=None) -> set:
 				#p = m1.facepoints(i)
 				#scn3D.add(text.Text((p[0]+p[1]+p[2])/3, str(u), 9, (1,0,1), align=('center', 'center')))
 	
+	# filter mesh content to keep
 	m1.faces =  [f for u,f in zip(used, m1.faces) if u]
 	m1.tracks = [t for u,t in zip(used, m1.tracks) if u]
 	return notto
@@ -267,8 +271,7 @@ def booleanwith(m1, m2, side, prec=None) -> set:
 #debug_propagation = False
 
 
-def intersectwith_web(mesh: Web, ref: Web, prec=None) -> Wire:
-	
+def cut_web(mesh: Web, ref: Web, prec=None) -> Wire:
 	if not prec:  prec = mesh.precision()
 	frontier = Wire(mesh.points, groups=ref.faces)
 	
@@ -280,21 +283,19 @@ def intersectwith_web(mesh: Web, ref: Web, prec=None) -> Wire:
 	conn = connpe(mesh.faces)
 	
 	mn = Web(mesh.points, groups=mesh.groups)  # resulting mesh
-	for i in range(len(mesh.edges)):
-		if mesh.edgepoints(i) in prox:
-		
+	for e1 in range(len(mesh.edges)):
+		close = set( prox.get(mesh.edgepoints(e1)) )
+		if close:
 			# no need to get the straight zone around because on the case of an edge, it will not grow in complexity more than the number of cut segments
 			# and an edge is easy to remesh after multiple intersections
 			# compute intersections
 			segts = {}
-			for e1 in plane:
-				e = mesh.edges[e1]
-				for e2 in set( prox.get(mesh.edgepoints(e1)) ):
-					intersect = intersect_segments(mesh.edgepoints(e1), ref.edgepoints(e2), prec)
-					if intersect:
-						seg = points.add(intersect)
-						if seg in segts:	continue
-						segts[seg] = e2
+			e = mesh.edges[e1]
+			for e2 in close:
+				intersect = intersect_edges(mesh.edgepoints(e1), ref.edgepoints(e2), prec)
+				if intersect:
+					seg = points.add(intersect)
+					segts.setdefault(seg, e2)
 			
 			# remesh the cutted edge
 			segts = sorted(segts.items(), key=lambda s: dot(mesh.points[s[0]], direction))
@@ -304,27 +305,65 @@ def intersectwith_web(mesh: Web, ref: Web, prec=None) -> Wire:
 			mn += Web(segts.points, segts.edges, typedlist.full(track, len(segts.edges), 'I'), mesh.groups)
 		
 		else:
-			mn.edges.append(mesh.edges[i])
-			mn.tracks.append(mesh.tracks[i])
-			
-	mesh.edges = mn.edges
-	mesh.tracks = mn.tracks
-	return frontier
+			mn.edges.append(mesh.edges[e1])
+			mn.tracks.append(mesh.tracks[e1])
 	
-	
-def booleanwith_web(mesh, ref, side, prec=None) -> set:
-	if not prec:	prec = mesh.precision()
-	frontier = intersectwith(mesh, ref, prec)
-	
-	conn1 = connef(mesh.faces)
-	used = [False] * len(mesh.faces)
-	notto = set(frontier.indices)
-	front = []
-	# get front and mark frontier points as used
-	
+	return mn, frontier
 
 	
-def intersect_segments(e1, e2, prec):
+def pierce_web(mesh, ref, side, prec=None) -> set:
+	if not prec:	prec = mesh.precision()
+	frontier = cut_web(mesh, ref, prec)
+	
+	conn1 = connpe(mesh.edges)
+	used = [False] * len(mesh.edges)
+	notto = set(frontier.indices)
+	front = []
+	
+	# get front and mark frontier points as used
+	for p,e2 in zip(frontier.indices, frontier.tracks):
+		for ei in conn1[p]:
+			e = mesh.edges[ei]
+			# find from which side to propagate
+			if e[0] == p and side:
+				front.append(e[1])
+				used[edge] = True
+			elif e[1] == p and not side:
+				front.append(e[0])
+				used[edge] = True
+	
+	if not front:
+		if side:
+			mesh.edges = []
+			mesh.tracks = []
+		return notto
+		
+	# propagation
+	c = 1
+	while front:
+		newfront = []
+		for p in front:
+			for ei in conn1[p]:
+				if not used[ei]:
+					used[ei] = c
+					e = mesh.edges[ei]
+					for i in e:
+						if i not in notto:
+							front.append(i)
+		c += 1
+		front = newfront
+		
+	# filter mesh content to keep
+	return Web(
+				mesh.points,
+				[e  for u,e in zip(used, mesh.edges) if u],
+				[t  for u,t in zip(used, mesh.tracks) if u],
+				mesh.groups,
+				)
+
+	
+def intersect_edges(e1, e2, prec):
+	''' intersection between 2 segments '''
 	d1 = e1[1]-e1[0]
 	d2 = e2[1]-e2[0]
 	p = unproject(noproject(e2[0]-e1[0], d1), d2)
@@ -333,3 +372,69 @@ def intersect_segments(e1, e2, prec):
 	if dot(e2[0]-p, d2) > prec or dot(p-e2[1], d2) > prec:	return
 	return p
 
+	
+	
+def cut_web_mesh(mesh: Web, ref: Web, prec=None) -> Wire:
+	
+	if not prec:  prec = mesh.precision()
+	frontier = Wire(mesh.points, groups=ref.faces)
+	
+	# topology informations for optimization
+	points = hashing.PointSet(prec, manage=mesh.points)
+	prox = hashing.PositionMap(hashing.webcellsize(ref))
+	for f in range(len(ref.edges)):
+		prox.add(prox.facepoints(f), f)
+	conn = connpe(mesh.faces)
+	
+	mn = Web(mesh.points, groups=mesh.groups)  # resulting mesh
+	for e1 in range(len(mesh.edges)):
+		close = set(prox.get(mesh.facepoints(e1)))
+		if close:
+		
+			# no need to get the straight zone around because on the case of an edge, it will not grow in complexity more than the number of cut segments
+			# and an edge is easy to remesh after multiple intersections
+			# compute intersections
+			segts = {}
+			e = mesh.edges[e1]
+			for f2 in set( prox.get(mesh.edgepoints(e1)) ):
+				intersect = intersect_edge_face(mesh.edgepoints(e1), ref.facepoints(f2), prec)
+				if intersect:
+					seg = points.add(intersect)
+					segts.setdefault(seg, f2)
+		
+			# remesh the cutted edge
+			segts = sorted(segts.items(), key=lambda s: dot(mesh.points[s[0]], direction))
+			edges = web(Wire(mesh.points, map(itemgetter(0), segts), map(itemgetter(1), segts), ref.faces))
+			# append the remeshed edge in association with the original track
+			frontier += segts
+			mn += Web(segts.points, segts.edges, typedlist.full(track, len(segts.edges), 'I'), mesh.groups)
+		
+		else:
+			mn.edges.append(mesh.edges[e1])
+			mn.tracks.append(mesh.tracks[e1])
+			
+	return mn, frontier
+	
+
+def intersect_edge_face(edge, face, prec):
+	''' intersection between a segment and a triangle
+		In case of intersection with an edge of the triangle or an extremity of the edge, return the formed point.
+	'''
+	n = cross(face[1]-face[0], face[2]-face[0])
+	a, b = edge
+	da = dot(face[0]-a, n)
+	db = dot(face[0]-b, n)
+	if abs(da) <= prec:		p = a
+	elif abs(db) <= prec:	p = b
+	elif da * db > 0:		return None	# the segment doesn't reach the plane
+	else:
+		edgedir = b-a
+		proj = dot(edgedir, n)
+		if abs(proj) <= prec:	return None	# the segment is parallel to the plane
+		p = a + da * edgedir / proj
+	
+	# check that the point is inside the triangle
+	for i in range(3):
+		if dot(face[i] - p, normalize(cross(n,face[i]-face[i-1]))) > prec:
+			return None  # the point is outside the triangle
+	return p
