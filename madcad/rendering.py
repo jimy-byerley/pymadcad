@@ -321,6 +321,7 @@ class Perspective:
 		self.fov = fov or settings.display['field_of_view']
 	def matrix(self, ratio, distance) -> fmat4:
 		return perspective(self.fov, ratio, distance*1e-2, distance*1e4)
+
 class Orthographic:
 	''' object used as `View.projection` '''
 	def matrix(self, ratio, distance) -> fmat4:
