@@ -15,7 +15,7 @@ setup(
 	version='0.9.2',
 	python_requires='>=3.6',
 	install_requires=[
-		'pyglm>=1.2',
+		'pyglm>=2.5.5',
 		'moderngl>=5.6',
 		'numpy>=1.1',
 		'scipy>=1.3',
