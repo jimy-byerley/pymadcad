@@ -719,12 +719,12 @@ class SplineDisplay(Display):
 		self.shader['proj'].write(view.uniforms['proj'])
 		view.scene.ctx.point_size = 4
 		
-		self.shader['layer'] = -2e-4
+		self.shader['layer'] = -2e-6
 		self.shader['color'].write(self.color_handles if not self.selected else fvec4(settings.display['select_color_line'],self.color_handles[3]))
 		self.va_handles.render(mgl.POINTS)
 		self.va_handles.render(mgl.LINE_STRIP)
 		
-		self.shader['layer'] = -1e-4
+		self.shader['layer'] = -1e-6
 		self.shader['color'].write(self.color if not self.selected else fvec4(settings.display['select_color_line'],self.color[3]))
 		self.va_curve.render(mgl.LINE_STRIP)
 		
