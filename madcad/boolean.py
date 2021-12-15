@@ -11,12 +11,13 @@
 	After intersection, the selection of surface sides to keep or not is done through a propagation.
 '''
 
-from copy import copy,deepcopy
+from copy import copy, deepcopy
+from operator import itemgetter
 from time import time
 from math import inf
 from .mathutils import *
 from . import core
-from .mesh import Mesh, Web, edgekey, connef, line_simplification
+from .mesh import Mesh, Web, Wire, web, edgekey, connef, connpe, line_simplification
 from . import hashing
 from . import triangulation
 
@@ -269,104 +270,147 @@ def booleanwith(m1, m2, side, prec=None) -> set:
 	return notto
 
 #debug_propagation = False
+from nprint import nprint
 
-
-def cut_web(mesh: Web, ref: Web, prec=None) -> Wire:
-	if not prec:  prec = mesh.precision()
-	frontier = Wire(mesh.points, groups=ref.faces)
+def cut_web(w1: Web, ref: Web, prec=None) -> Wire:
+	if not prec:  prec = w1.precision()
+	frontier = Wire(w1.points, [], [], groups=ref.edges)
 	
 	# topology informations for optimization
-	points = hashing.PointSet(prec, manage=mesh.points)
-	prox = hashing.PositionMap(hashing.webcellsize(ref))
+	points = hashing.PointSet(prec, manage=w1.points)
+	prox = hashing.PositionMap(hashing.meshcellsize(ref))
 	for e in range(len(ref.edges)):
-		prox.add(prox.edgepoints(e), e)
-	conn = connpe(mesh.faces)
+		prox.add(ref.edgepoints(e), e)
+	conn = connpe(w1.edges)
 	
-	mn = Web(mesh.points, groups=mesh.groups)  # resulting mesh
-	for e1 in range(len(mesh.edges)):
-		close = set( prox.get(mesh.edgepoints(e1)) )
+	mn = Web(w1.points, groups=w1.groups)  # resulting w1
+	for e1 in range(len(w1.edges)):
+		processed = False
+		close = set( prox.get(w1.edgepoints(e1)) )
 		if close:
 			# no need to get the straight zone around because on the case of an edge, it will not grow in complexity more than the number of cut segments
-			# and an edge is easy to remesh after multiple intersections
+			# and an edge is easy to reweb after multiple intersections
 			# compute intersections
 			segts = {}
-			e = mesh.edges[e1]
+			e = w1.edges[e1]
 			for e2 in close:
-				intersect = intersect_edges(mesh.edgepoints(e1), ref.edgepoints(e2), prec)
+				intersect = intersect_edges(w1.edgepoints(e1), ref.edgepoints(e2), prec)
 				if intersect:
 					seg = points.add(intersect)
 					segts.setdefault(seg, e2)
 			
-			# remesh the cutted edge
-			segts = sorted(segts.items(), key=lambda s: dot(mesh.points[s[0]], direction))
-			edges = web(Wire(mesh.points, map(itemgetter(0), segts), map(itemgetter(1), segts), ref.faces))
-			# append the remeshed edge in association with the original track
-			frontier += segts
-			mn += Web(segts.points, segts.edges, typedlist.full(track, len(segts.edges), 'I'), mesh.groups)
+			if segts:
+				# reweb the cutted edge
+				direction = w1.points[e[1]] - w1.points[e[0]]
+				sorted_segts = sorted(segts.items(), key=lambda s: dot(w1.points[s[0]], direction))
+				# append the rewebed edge in association with the original track
+				frontier += Wire(
+						w1.points, 
+						list(map(itemgetter(0), sorted_segts)), 
+						list(map(itemgetter(1), sorted_segts)), 
+						ref.edges,
+						)
+				mn += web(Wire(
+						w1.points, 
+						[e[0]] + list(map(itemgetter(0), sorted_segts)) + [e[1]], 
+						[w1.tracks[e1]] * (len(sorted_segts)+2), 
+						w1.groups,
+						))
+				processed = True
 		
-		else:
-			mn.edges.append(mesh.edges[e1])
-			mn.tracks.append(mesh.tracks[e1])
-	
+		if not processed:
+			mn.edges.append(w1.edges[e1])
+			mn.tracks.append(w1.tracks[e1])
+
+	mn.check()
 	return mn, frontier
 
 	
-def pierce_web(mesh, ref, side, prec=None) -> set:
-	if not prec:	prec = mesh.precision()
-	frontier = cut_web(mesh, ref, prec)
+def pierce_web(web, ref, side=True, prec=None) -> set:
+	if not prec:	prec = web.precision()
+	web, frontier = cut_web(web, ref, prec)
+	stops = set(frontier.indices)
 	
-	conn1 = connpe(mesh.edges)
-	used = [False] * len(mesh.edges)
-	notto = set(frontier.indices)
-	front = []
+	conn = connpe(web.edges)
+	used = [0] * len(web.edges)
+	nprint('conn', conn)
+	nprint('frontier', frontier.indices)
 	
-	# get front and mark frontier points as used
-	for p,e2 in zip(frontier.indices, frontier.tracks):
-		for ei in conn1[p]:
-			e = mesh.edges[ei]
-			# find from which side to propagate
-			if e[0] == p and side:
-				front.append(e[1])
-				used[edge] = True
-			elif e[1] == p and not side:
-				front.append(e[0])
-				used[edge] = True
+	# sort points by distance to a "center"
+	center = web.barycenter()
+	order = sorted(range(len(web.points)), key=lambda i:  distance2(web.points[i], center))
 	
-	if not front:
-		if side:
-			mesh.edges = []
-			mesh.tracks = []
-		return notto
+	# always start an island from the most exterior
+	for start in order:
+		ei = next(conn[start], None)
+		if not ei or used[ei]:	continue
+		print('start from', start)
 		
-	# propagation
-	c = 1
-	while front:
-		newfront = []
-		for p in front:
-			for ei in conn1[p]:
-				if not used[ei]:
-					used[ei] = c
-					e = mesh.edges[ei]
-					for i in e:
-						if i not in notto:
-							front.append(i)
-		c += 1
-		front = newfront
+		# propagate
+		front = [(start, True)]
+		while front:
+			last, keep = front.pop()
+			print('  visit', last, keep)
+			for ei in conn[last]:
+				if used[ei]:	continue
+				used[ei] = 1 if keep else 2
+				direction = int(web.edges[ei][0] == last)
+				current = web.edges[ei][direction]
+				front.append((current, keep ^ (current in stops)))
 		
-	# filter mesh content to keep
+	# filter web content to keep
 	return Web(
-				mesh.points,
-				[e  for u,e in zip(used, mesh.edges) if u],
-				[t  for u,t in zip(used, mesh.tracks) if u],
-				mesh.groups,
+				web.points,
+				[e  for u,e in zip(used, web.edges) if u == 1],
+				[t  for u,t in zip(used, web.tracks) if u == 1],
+				web.groups,
 				)
+				
+def boolean_web(w1, w2, sides, prec=None) -> set:
+	if not prec:	prec = web.precision()
+	
+	result = pierce_web(w1, w2, sides[0], prec)
+	w2 = copy(w2)
+	frontier = cut_web(w2, result, prec)
+	conn2 = connep(w2)
+	
+	used = [False] * len(w2.edges)
+	stops = set(frontier.indices)
+	
+	for p2, ei in zip(frontier.indices, frontier.tracks):
+		# check which side to keep to respect the choices made in the first web
+		e1 = result.edges[ei]
+		direction = int(distance2(w2.points[p2]-result.points[e1[0]]) < distance2(w2.points[p2]-result.points[e1[1]]))
+		front = []
+		for ei in conn2[p2]:
+			if w2.edges[ei][direction] == p2:
+				front.append(w2.edges[ei][direction-1])
+		# propagate
+		while front:
+			last = front.pop()
+			for ei in conn2[last]:
+				if used[ei]:	continue
+				used[ei] = True
+				direction = int(w2.edges[ei][1] == last)
+				next = web.edges[ei][direction]
+				if next in stops:
+					front.append(next)
+	
+	# filter web content to keep
+	result += Web(
+			w2.points,
+			[e  for u,e in zip(used, w2.edges) if u],
+			[t  for u,t in zip(used, w2.tracks) if u],
+			w2.groups,
+			)
+		
 
 	
 def intersect_edges(e1, e2, prec):
 	''' intersection between 2 segments '''
 	d1 = e1[1]-e1[0]
 	d2 = e2[1]-e2[0]
-	p = unproject(noproject(e2[0]-e1[0], d1), d2)
+	p = e2[0] + unproject(noproject(e1[0]-e2[0], d1), d2)
 	#prec = NUMPREC * max(length2(d1), length2(d2))
 	if dot(e1[0]-p, d1) > prec or dot(p-e1[1], d1) > prec:	return
 	if dot(e2[0]-p, d2) > prec or dot(p-e2[1], d2) > prec:	return
@@ -438,3 +482,28 @@ def intersect_edge_face(edge, face, prec):
 		if dot(face[i] - p, normalize(cross(n,face[i]-face[i-1]))) > prec:
 			return None  # the point is outside the triangle
 	return p
+
+	
+	
+'''
+intersect(mesh, ref, prec=None) -> Web frontier
+intersect(web, ref, prec=None) -> Wire frontier
+intersect(web, mesh, prec=None) -> Wire frontier
+
+cut(mesh, ref, prec=None) -> Web frontier
+cut(web, ref, prec=None) -> Wire frontier
+cut(web, mesh, prec=None) -> Wire frontier
+
+pierce(mesh, ref, side=True, prec=None) -> Mesh
+pierce(web, ref, side=True, prec=None) -> Web
+pierce(web, mesh, side=True, prec=None) -> Web
+
+boolean(o1, o2, sides) -> o
+union(o1, o2) -> o
+	r = pierce(o1, o2, True) + pierce(o2, o1, True)
+	r.mergeclose()
+	return r
+difference(o1, o2) -> o
+intersection(o1, o2) -> o
+
+'''
