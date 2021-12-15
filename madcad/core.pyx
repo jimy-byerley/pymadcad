@@ -114,9 +114,8 @@ def rasterize_segment(spaceo, double cell):
 	space = [glm2c(spaceo[0]), glm2c(spaceo[1])]
 	rasterization = []
 	
-	# permutation of coordinates to get the direction the closer to Z
-	v = vsub(space[1], space[0])
-	n = vabs(v)
+	# permutation of coordinates to get the direction the closest to Z
+	n = vabs(vsub(space[1], space[0]))
 	if vmax(n) < NUMPREC*max(norminf(space[0]), norminf(space[1])):	return rasterization
 	if   n.y >= n.x and n.y >= n.z:		order,reorder = [2,0,1],[1,2,0]
 	elif n.x >= n.y and n.x >= n.z:		order,reorder = [1,2,0],[2,0,1]
@@ -127,8 +126,9 @@ def rasterize_segment(spaceo, double cell):
 			varr(&space[i])[j] = varr(&temp)[order[j]]
 	
 	# prepare variables
+	v = vsub(space[1], space[0])
 	cell2 = cell/2
-	assert v.z
+	assert v.z, order
 	dy = v.y/v.z
 	dx = v.x/v.z
 	o = space[0]
