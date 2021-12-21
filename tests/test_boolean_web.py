@@ -1,5 +1,6 @@
 from madcad import *
 from madcad.boolean import cut_web, pierce_web, boolean_web
+from madcad.nprint import nprint
 
 wa = web(Circle((O,Z), 1))
 
@@ -16,14 +17,24 @@ others = {
 
 results = []
 for i, wb in others.items():
-	print('*', i, repr(wb))
-	results.extend([
-		Solid(content=pierce_web(wa, wb), wb=wb),
-		Solid(content=boolean_web(wa, wb, (True, False))),
-		Solid(content=boolean_web(wa, wb, (False, True))),
-		])
+	nprint('* wb={} '.format(i))
+	
+	r = pierce_web(wa, wb)
+	r.check()
+	assert r.isline()
+	results.append(Solid(content=r, wb=wb))
+	
+	r = boolean_web(wa, wb, (True, False))
+	r.check()
+	assert r.isline()
+	results.append(Solid(content=r))
+	
+	r = boolean_web(wa, wb, (False, True))
+	r.check()
+	assert r.isline()
+	results.append(Solid(content=r))
 
 for i, result in enumerate(results):
 	result.position += i*Z
 
-show([results], options={'display_points':True})
+show(results, options={'display_points':True})

@@ -13,6 +13,7 @@
 
 from copy import copy, deepcopy
 from operator import itemgetter
+from functools import singledispatch
 from time import time
 from math import inf
 from .mathutils import *
@@ -21,81 +22,22 @@ from .mesh import Mesh, Web, Wire, web, edgekey, connef, connpe, line_simplifica
 from . import hashing
 from . import triangulation
 
-__all__ = ['intersect', 'pierce', 'boolean', 'intersection', 'union', 'difference']
-		
+__all__ = ['pierce', 'boolean', 'intersection', 'union', 'difference']
 
 
-def intersect(m1, m2) -> '(Web, Web)':
-	''' cut the faces of m1 and m2 at their intersections '''
-	if not prec:	prec = max(m1.precision(), m2.precision())
-	m3 = copy(m1)
-	return intersectwith(m1, m2, prec), intersectwith(m2, m3, prec)
 	
-def pierce(m1, m2, selector=False) -> Mesh:
-	''' cut the faces of m1 at their intersection with faces of m2, and remove the faces inside
-	
-		selector decides which part of each mesh to keep
-	
-		 - False keep the exterior part (part exclusive to the other mesh)
-		 - True keep the common part
-	'''
-	m3 = copy(m1)
-	booleanwith(m3, m2, selector)
-	return m3
-
-def boolean(m1, m2, selector=(False,True), prec=None) -> Mesh:
-	''' execute boolean operation on volumes 
-	
-		selector decides which part of each mesh to keep
-	
-		 - False keep the exterior part (part exclusive to the other mesh)
-		 - True keep the common part
-	'''
-	if not prec:	prec = max(m1.precision(), m2.precision())
-	
-	if selector[0] is not None:
-		if selector[1] is not None:
-			mc1, mc2 = copy(m1), copy(m2)
-			booleanwith(mc1, m2, selector[0], prec)
-			booleanwith(mc2, m1, selector[1], prec)
-			if selector[0] and not selector[1]:		mc1 = mc1.flip()
-			if not selector[0] and selector[1]:		mc2 = mc2.flip()
-			res = mc1 + mc2
-			res.mergeclose()
-			return res
-		else:
-			mc1 = copy(m1)
-			booleanwith(mc1, m2, selector[0], prec)
-			return mc1
-	elif selector[1] is not None:
-		return boolean(m2, m1, (selector[1], selector[0]))
-
-def union(a, b) -> Mesh:			
-	''' return a mesh for the union of the volumes. 
-		It is a boolean with selector (False,False) 
-	'''
-	return boolean(a,b, (False,False))
-
-def intersection(a, b) -> Mesh:	
-	''' return a mesh for the common volume. 
-		It is a boolean with selector (True, True) 
-	'''
-	return boolean(a,b, (True,True))
-
-def difference(a, b) -> Mesh:	
-	''' return a mesh for the volume of a less the common volume with b
-		It is a boolean with selector (False, True)
-	'''
-	return boolean(a,b, (False,True))
+# ------- implementated operators -------
 
 
 
-def intersectwith(m1, m2, prec=None) -> Web:
+def cut_mesh(m1, m2, prec=None) -> '(Mesh, Web)':
 	''' Cut m1 faces at their intersections with m2. 
-		Returning the intersection edges in m1 and associated m2 faces.
+		The return value is `(cutted, frontier)` where:
+			
+			:cutted(Mesh):	is `m1` with the faces cutted, but representing the same surface as before
+			:frontier(Web): is a Web where edges are the intersection edges, and whose groups are the causing faces in `m2`
 		
-		m1 faces and tracks are replaced thus the underlying buffers stays untouched.
-	
+		Returning the intersection edges in m1 and associated m2 faces.
 		The algorithm is using ngon intersections and retriangulation, in order to avoid infinite loops and intermediate triangles.
 	'''
 	if not prec:	prec = m1.precision()
@@ -192,15 +134,13 @@ def intersectwith(m1, m2, prec=None) -> Web:
 			mn.faces.append(f)
 			mn.tracks.append(t)
 	
-	m1.faces = mn.faces
-	m1.tracks = mn.tracks
-	return frontier
+	return mn, frontier
 
 
-def booleanwith(m1, m2, side, prec=None) -> set:
-	''' execute the boolean operation inplace and only on m1 '''
+def pierce_mesh(m1, m2, side=False, prec=None) -> set:
+
 	if not prec:	prec = m1.precision()
-	frontier = intersectwith(m1, m2, prec)
+	m1, frontier = cut_mesh(m1, m2, prec)
 	
 	conn1 = connef(m1.faces)
 	used = [False] * len(m1.faces)
@@ -265,14 +205,36 @@ def booleanwith(m1, m2, side, prec=None) -> set:
 				#scn3D.add(text.Text((p[0]+p[1]+p[2])/3, str(u), 9, (1,0,1), align=('center', 'center')))
 	
 	# filter mesh content to keep
-	m1.faces =  [f for u,f in zip(used, m1.faces) if u]
-	m1.tracks = [t for u,t in zip(used, m1.tracks) if u]
-	return notto
+	return Mesh(
+			m1.points,
+			[f for u,f in zip(used, m1.faces) if u],
+			[t for u,t in zip(used, m1.tracks) if u],
+			m1.groups,
+			)
 
-#debug_propagation = False
-from nprint import nprint
 
-def cut_web(w1: Web, ref: Web, prec=None) -> Wire:
+def boolean_mesh(m1, m2, selector=(False,True), prec=None) -> Mesh:
+
+	if not prec:	prec = max(m1.precision(), m2.precision())
+	
+	mc1 = pierce(m1, m2, selector[0], prec)
+	mc2 = pierce(m2, m1, selector[1], prec)
+	if selector[0] and not selector[1]:		mc1 = mc1.flip()
+	if not selector[0] and selector[1]:		mc2 = mc2.flip()
+	res = mc1 + mc2
+	res.mergeclose()
+	return res
+
+
+
+def cut_web(w1: Web, ref: Web, prec=None) -> '(Web, Wire)':
+	''' Cut the web edges at their intersectsions with the `ref` web
+		
+		The return value is `(cutted, frontier)` where:
+			
+			:cutted(Web):	is `w1` with the edges cutted, but representing the same lines as before
+			:frontier(Wire): is a Web where edges are the intersection edges, and whose groups are the causing faces in `ref`
+		'''
 	if not prec:  prec = w1.precision()
 	frontier = Wire(w1.points, [], [], groups=ref.edges)
 	
@@ -326,7 +288,8 @@ def cut_web(w1: Web, ref: Web, prec=None) -> Wire:
 	return mn, frontier
 
 	
-def pierce_web(web, ref, side=True, prec=None) -> set:
+def pierce_web(web, ref, side=False, prec=None):
+
 	if not prec:	prec = web.precision()
 	web, frontier = cut_web(web, ref, prec)
 	stops = set(frontier.indices)
@@ -363,7 +326,8 @@ def pierce_web(web, ref, side=True, prec=None) -> set:
 				web.groups,
 				)
 				
-def boolean_web(w1, w2, sides, prec=None) -> set:
+def boolean_web(w1, w2, sides, prec=None):
+
 	if not prec:	prec = max(w1.precision(), w2.precision())
 	
 	result = pierce_web(w1, w2, sides[0], prec)
@@ -404,7 +368,7 @@ def boolean_web(w1, w2, sides, prec=None) -> set:
 		
 
 	
-def intersect_edges(e1, e2, prec):
+def intersect_edges(e1: '(vec3,vec3)', e2: '(vec3,vec3)', prec) -> vec3:
 	''' intersection between 2 segments '''
 	d1 = e1[1]-e1[0]
 	d2 = e2[1]-e2[0]
@@ -419,7 +383,8 @@ def intersect_edges(e1, e2, prec):
 	
 	
 def cut_web_mesh(mesh: Web, ref: Web, prec=None) -> Wire:
-	
+	''' Cut the web inplace at its intersections with the `ref` web.
+	'''
 	if not prec:  prec = mesh.precision()
 	frontier = Wire(mesh.points, groups=ref.faces)
 	
@@ -460,7 +425,7 @@ def cut_web_mesh(mesh: Web, ref: Web, prec=None) -> Wire:
 	return mn, frontier
 	
 
-def intersect_edge_face(edge, face, prec):
+def intersect_edge_face(edge: '(vec3, vec3)', face: '(vec3, vec3, vec3)', prec) -> vec3:
 	''' intersection between a segment and a triangle
 		In case of intersection with an edge of the triangle or an extremity of the edge, return the formed point.
 	'''
@@ -483,27 +448,69 @@ def intersect_edge_face(edge, face, prec):
 			return None  # the point is outside the triangle
 	return p
 
+
+
+# --------------- stable API -------------------
+
+pierce_ops = {
+	(Mesh,Mesh):	pierce_mesh,
+	(Web,Web):		pierce_web,
+	#(Web,Mesh):		pierce_web_mesh,
+	}
+def pierce(m, ref, side=False, prec=None):
+	''' 
+		pierce(Mesh, Mesh) -> Mesh
+		pierce(Web, Web) -> Web
+		pierce(Web, Mesh) -> Web
 	
+		cut the faces of `a` at their intersection with faces of `b`, and remove the faces inside
 	
-'''
-intersect(mesh, ref, prec=None) -> Web frontier
-intersect(web, ref, prec=None) -> Wire frontier
-intersect(web, mesh, prec=None) -> Wire frontier
+		`side` decides which part of each mesh to keep
+	
+		 - False keep the exterior part (part exclusive to the other mesh)
+		 - True keep the common part
+	'''
+	op = pierce_ops.get((type(m), type(ref)))
+	if not op:
+		raise TypeError('pierce is not possible between {} and {}'.format(type(m), type(ref)))
+	return op(m, ref, side, prec)
 
-cut(mesh, ref, prec=None) -> Web frontier
-cut(web, ref, prec=None) -> Wire frontier
-cut(web, mesh, prec=None) -> Wire frontier
 
-pierce(mesh, ref, side=True, prec=None) -> Mesh
-pierce(web, ref, side=True, prec=None) -> Web
-pierce(web, mesh, side=True, prec=None) -> Web
+boolean_ops = {
+	(Mesh,Mesh):	boolean_mesh,
+	(Web,Web):		boolean_web,
+	}
+def boolean(a, b, sides=(False,True), prec=None):
+	''' 
+		boolean(Mesh, Mesh) -> Mesh
+		boolean(Web, Web) -> Web
+	
+		execute boolean operation on volumes 
+	
+		selector decides which part of each mesh to keep
+	
+		 - False keep the exterior part (part exclusive to the other mesh)
+		 - True keep the common part
+	'''
+	op = boolean_ops.get((type(a), type(b)))
+	if not op:
+		raise TypeError('pierce is not possible between {} and {}'.format(type(a), type(b)))
+	return op(a, b, sides, prec)
 
-boolean(o1, o2, sides) -> o
-union(o1, o2) -> o
-	r = pierce(o1, o2, True) + pierce(o2, o1, True)
-	r.mergeclose()
-	return r
-difference(o1, o2) -> o
-intersection(o1, o2) -> o
+def union(a, b) -> Mesh:
+	''' return a mesh for the union of the volumes. 
+		It is a boolean with selector (False,False) 
+	'''
+	return boolean(a,b, (False,False))
 
-'''
+def intersection(a, b) -> Mesh:	
+	''' return a mesh for the common volume. 
+		It is a boolean with selector (True, True) 
+	'''
+	return boolean(a,b, (True,True))
+
+def difference(a, b) -> Mesh:	
+	''' return a mesh for the volume of a less the common volume with b
+		It is a boolean with selector (False, True)
+	'''
+	return boolean(a,b, (False,True))
