@@ -47,10 +47,13 @@ __all__ = ['pierce', 'boolean', 'intersection', 'union', 'difference']
 
 def cut_mesh(m1, m2, prec=None) -> '(Mesh, Web)':
 	''' Cut m1 faces at their intersections with m2. 
-		The return value is `(cutted, frontier)` where:
+		
+		Returns:	
 			
-			:cutted(Mesh):	is `m1` with the faces cutted, but representing the same surface as before
-			:frontier(Web): is a Web where edges are the intersection edges, and whose groups are the causing faces in `m2`
+			`(cutted, frontier)`
+			
+				:cutted(Mesh):	is `m1` with the faces cutted, but representing the same surface as before
+				:frontier(Web): is a Web where edges are the intersection edges, and whose groups are the causing faces in `m2`
 		
 		Returning the intersection edges in m1 and associated m2 faces.
 		The algorithm is using ngon intersections and retriangulation, in order to avoid infinite loops and intermediate triangles.
@@ -245,10 +248,13 @@ def boolean_mesh(m1, m2, selector=(False,True), prec=None) -> Mesh:
 def cut_web(w1: Web, ref: Web, prec=None) -> '(Web, Wire)':
 	''' Cut the web edges at their intersectsions with the `ref` web
 		
-		The return value is `(cutted, frontier)` where:
+		
+		Returns:
 			
-			:cutted(Web):	is `w1` with the edges cutted, but representing the same lines as before
-			:frontier(Wire): is a Web where edges are the intersection edges, and whose groups are the causing faces in `ref`
+			`(cutted, frontier)`
+			
+				:cutted(Web):	is `w1` with the edges cutted, but representing the same lines as before
+				:frontier(Wire): is a Web where edges are the intersection edges, and whose groups are the causing faces in `ref`
 		'''
 	if not prec:  prec = w1.precision()
 	frontier = Wire(w1.points, [], [], groups=ref.edges)
@@ -486,7 +492,7 @@ def pierce(m, ref, side=False, prec=None):
 		`side` decides which part of each mesh to keep
 	
 		 - False keeps the exterior part (part exclusive to the other mesh)
-		 - True keeps the common part
+		 - True keeps the interior part (the common part)
 	'''
 	op = pierce_ops.get((type(m), type(ref)))
 	if not op:
