@@ -1,14 +1,29 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
 '''	
-	Defines boolean operations for triangular meshes. Strictly speaking, boolean operations applies on sets, but considering the volumes delimited by their mesh envelopes, we can perform boolean operations on those volumes by manipulating only surface meshes.
+	This modules provide boolean operations for all kind of meshes.
 	
+	Strictly speaking, boolean operations are operations on methematically defined sets. In a n-dimensinal space it applies to subsets of point of the same dimension (volumes in 3D, surfaces in 2D).
+	Here, volumes are defined by their exterior envelope (a Mesh) and surfaces by their contour (Web). So the boolean operation consist of intersecting the envelopes and contours and decide which cutted parts to keep.
+
 	This relies on a new intersection algorithm named syandana. It finds candidates for intersections using a spacial hashing of triangles over a voxel (see madcad.hashing). This is solving the problem of putting triangles in an octree.
 	Also to avoid the increasing complexity of the operation with flat planes divided in multiple parallel triangles, the algorithm is implemented with a detection of ngons.
 	
 	The syandana algorithm achieves intersections of meshes in nearly `O(n)` where usual methods are `O(n**2)`
 	
 	After intersection, the selection of surface sides to keep or not is done through a propagation.
+
+	
+	Note:
+	
+		Web boolean operations theoretically means something only in a 2d space, and it takes place in a 3d space here, causing many situations where a web portion can be both inside and outside the contour. The algorithm here works even with meshes that are not planar at all. but it always assumes that the web you give it can be processed consistently as if it was.
+	
+	Note:
+		
+		Mesh boolean operation is relying on the surface outer normal to decide what is exterior and interior. It's always a local decision (ie. a decision made at the intersection), So the meshes must be well oriented.
+		
+		Web boolean operations on the other hand CANNOT be local due to the 3d space it's laying in. (a higher dimension than the surface it's theoreticall meant to outline). So it may sometimes not behave the way you expect it.
+		To solve ambiguities of interior and exterior, the most outer part of first mesh argument is always considered to belong to the exterior. And the information is propagated through the web.
 '''
 
 from copy import copy, deepcopy
@@ -458,17 +473,20 @@ pierce_ops = {
 	#(Web,Mesh):		pierce_web_mesh,
 	}
 def pierce(m, ref, side=False, prec=None):
-	''' 
-		pierce(Mesh, Mesh) -> Mesh
-		pierce(Web, Web) -> Web
-		pierce(Web, Mesh) -> Web
-	
-		cut the faces of `a` at their intersection with faces of `b`, and remove the faces inside
+	''' cut a web/mesh and remove its parts considered inside the `ref` shape
+		
+		overloads:
+		
+		.. code::
+		
+			pierce(Mesh, Mesh) -> Mesh
+			pierce(Web, Web) -> Web
+			pierce(Web, Mesh) -> Web
 	
 		`side` decides which part of each mesh to keep
 	
-		 - False keep the exterior part (part exclusive to the other mesh)
-		 - True keep the common part
+		 - False keeps the exterior part (part exclusive to the other mesh)
+		 - True keeps the common part
 	'''
 	op = pierce_ops.get((type(m), type(ref)))
 	if not op:
@@ -481,16 +499,19 @@ boolean_ops = {
 	(Web,Web):		boolean_web,
 	}
 def boolean(a, b, sides=(False,True), prec=None):
-	''' 
-		boolean(Mesh, Mesh) -> Mesh
-		boolean(Web, Web) -> Web
+	''' cut two web/mesh and keep its interior or exterior parts
 	
-		execute boolean operation on volumes 
+		overloads:
+		
+		.. code::
+		
+			boolean(Mesh, Mesh) -> Mesh
+			boolean(Web, Web) -> Web
 	
-		selector decides which part of each mesh to keep
+		`sides` decides which part of each mesh to keep
 	
-		 - False keep the exterior part (part exclusive to the other mesh)
-		 - True keep the common part
+		 - False keeps the exterior part (part exclusive to the other mesh)
+		 - True keeps the common part
 	'''
 	op = boolean_ops.get((type(a), type(b)))
 	if not op:
