@@ -25,5 +25,6 @@ void main()
 	vec4 position = spaces[space] * vec4(v_position,1);
 	normal = mat3(spaces[space]) * v_normal;
 	sight = vec3(position);
-	gl_Position = proj * position + vec4(0,0,v_layer,0);
+	gl_Position = proj * position;
+	gl_Position[2] += v_layer * gl_Position[3];
 }

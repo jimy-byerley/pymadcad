@@ -319,14 +319,14 @@ class SolidDisplay(Display):
 		self.vertices = Vertices(scene.ctx, positions, idents)
 		self.disp_faces = FacesDisplay(scene, self.vertices, normals, faces, color=color, reflect=reflect, layer=0)
 		self.disp_ghost = GhostDisplay(scene, self.vertices, normals, faces, color=line, layer=0)
-		self.disp_groups = LinesDisplay(scene, self.vertices, lines, color=line, alpha=1, layer=-2e-4)
-		self.disp_points = PointsDisplay(scene, self.vertices, range(len(positions)), layer=-3e-4)
+		self.disp_groups = LinesDisplay(scene, self.vertices, lines, color=line, alpha=1, layer=-2e-6)
+		self.disp_points = PointsDisplay(scene, self.vertices, range(len(positions)), layer=-3e-6)
 		wire = []
 		for f in faces:
 			wire.append((f[0], f[1]))
 			wire.append((f[1], f[2]))
 			wire.append((f[2], f[0]))
-		self.disp_wire = LinesDisplay(scene, self.vertices, wire, color=line, alpha=0.3, layer=-1e-4)
+		self.disp_wire = LinesDisplay(scene, self.vertices, wire, color=line, alpha=0.3, layer=-1e-6)
 		
 	def stack(self, scene):
 		yield ((), 'screen', -1, self.vertices.prerender)
@@ -364,9 +364,9 @@ class WebDisplay(Display):
 		if not color:	
 			color = fvec3(settings.display['line_color'])
 		self.vertices = Vertices(scene.ctx, positions, idents)
-		self.disp_edges = LinesDisplay(scene, self.vertices, lines, color=color, alpha=1, layer=-2e-4)
-		self.disp_groups = PointsDisplay(scene, self.vertices, points, layer=-3e-4)
-		self.disp_points = PointsDisplay(scene, self.vertices, range(len(positions)), layer=-1e-4)
+		self.disp_edges = LinesDisplay(scene, self.vertices, lines, color=color, alpha=1, layer=-2e-6)
+		self.disp_groups = PointsDisplay(scene, self.vertices, points, layer=-3e-6)
+		self.disp_points = PointsDisplay(scene, self.vertices, range(len(positions)), layer=-1e-6)
 		
 
 	def stack(self, scene):
@@ -719,12 +719,12 @@ class SplineDisplay(Display):
 		self.shader['proj'].write(view.uniforms['proj'])
 		view.scene.ctx.point_size = 4
 		
-		self.shader['layer'] = -2e-4
+		self.shader['layer'] = -2e-6
 		self.shader['color'].write(self.color_handles if not self.selected else fvec4(settings.display['select_color_line'],self.color_handles[3]))
 		self.va_handles.render(mgl.POINTS)
 		self.va_handles.render(mgl.LINE_STRIP)
 		
-		self.shader['layer'] = -1e-4
+		self.shader['layer'] = -1e-6
 		self.shader['color'].write(self.color if not self.selected else fvec4(settings.display['select_color_line'],self.color[3]))
 		self.va_curve.render(mgl.LINE_STRIP)
 		

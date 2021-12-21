@@ -499,7 +499,7 @@ def boundingbox(obj, ignore=False, default=Box(width=vec3(-inf))) -> Box:
 				except TypeError:	continue
 		else:
 			bound = boundingbox(next(obj, default))
-			for e in obj:	bound.union(e)
+			for e in obj:	bound.union_update(e)
 		return bound
 	if ignore:
 		return default
