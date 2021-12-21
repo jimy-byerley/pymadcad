@@ -333,8 +333,6 @@ def pierce_web(web, ref, side=True, prec=None) -> set:
 	
 	conn = connpe(web.edges)
 	used = [0] * len(web.edges)
-	nprint('conn', conn)
-	nprint('frontier', frontier.indices)
 	
 	# sort points by distance to a "center"
 	center = web.barycenter()
@@ -342,15 +340,14 @@ def pierce_web(web, ref, side=True, prec=None) -> set:
 	
 	# always start an island from the most exterior
 	for start in order:
+		if start in stops:	continue
 		ei = next(conn[start], None)
 		if not ei or used[ei]:	continue
-		print('start from', start)
 		
 		# propagate
-		front = [(start, True)]
+		front = [(start, side)]
 		while front:
 			last, keep = front.pop()
-			print('  visit', last, keep)
 			for ei in conn[last]:
 				if used[ei]:	continue
 				used[ei] = 1 if keep else 2
@@ -367,12 +364,11 @@ def pierce_web(web, ref, side=True, prec=None) -> set:
 				)
 				
 def boolean_web(w1, w2, sides, prec=None) -> set:
-	if not prec:	prec = web.precision()
+	if not prec:	prec = max(w1.precision(), w2.precision())
 	
 	result = pierce_web(w1, w2, sides[0], prec)
-	w2 = copy(w2)
-	frontier = cut_web(w2, result, prec)
-	conn2 = connep(w2)
+	w2, frontier = cut_web(w2, result, prec)
+	conn2 = connpe(w2.edges)
 	
 	used = [False] * len(w2.edges)
 	stops = set(frontier.indices)
@@ -380,24 +376,26 @@ def boolean_web(w1, w2, sides, prec=None) -> set:
 	for p2, ei in zip(frontier.indices, frontier.tracks):
 		# check which side to keep to respect the choices made in the first web
 		e1 = result.edges[ei]
-		direction = int(distance2(w2.points[p2]-result.points[e1[0]]) < distance2(w2.points[p2]-result.points[e1[1]]))
+		direction = sides[0] ^ sides[1] ^ (distance2(w2.points[p2], result.points[e1[0]]) < distance2(w2.points[p2], result.points[e1[1]]))
 		front = []
 		for ei in conn2[p2]:
 			if w2.edges[ei][direction] == p2:
 				front.append(w2.edges[ei][direction-1])
+				used[ei] = True
 		# propagate
 		while front:
 			last = front.pop()
+			if last in stops:	continue
+			
 			for ei in conn2[last]:
 				if used[ei]:	continue
 				used[ei] = True
-				direction = int(w2.edges[ei][1] == last)
-				next = web.edges[ei][direction]
-				if next in stops:
-					front.append(next)
-	
+				direction = int(w2.edges[ei][0] == last)
+				next = w2.edges[ei][direction]
+				front.append(next)
+					
 	# filter web content to keep
-	result += Web(
+	return result + Web(
 			w2.points,
 			[e  for u,e in zip(used, w2.edges) if u],
 			[t  for u,t in zip(used, w2.tracks) if u],
@@ -410,7 +408,9 @@ def intersect_edges(e1, e2, prec):
 	''' intersection between 2 segments '''
 	d1 = e1[1]-e1[0]
 	d2 = e2[1]-e2[0]
-	p = e2[0] + unproject(noproject(e1[0]-e2[0], d1), d2)
+	g = e1[0]-e2[0]
+	p = e2[0] + unproject(noproject(g, d1), d2)
+	if not isfinite(p):		return
 	#prec = NUMPREC * max(length2(d1), length2(d2))
 	if dot(e1[0]-p, d1) > prec or dot(p-e1[1], d1) > prec:	return
 	if dot(e2[0]-p, d2) > prec or dot(p-e2[1], d2) > prec:	return
