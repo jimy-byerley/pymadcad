@@ -32,3 +32,4 @@ more advanced
 
 .. autofunction:: cut_mesh
 .. autofunction:: cut_web
+.. autofunction:: cut_web_mesh

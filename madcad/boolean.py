@@ -275,7 +275,6 @@ def cut_web(w1: Web, ref: Web, prec=None) -> '(Web, Wire)':
 			# and an edge is easy to reweb after multiple intersections
 			# compute intersections
 			segts = {}
-			e = w1.edges[e1]
 			for e2 in close:
 				intersect = intersect_edges(w1.edgepoints(e1), ref.edgepoints(e2), prec)
 				if intersect:
@@ -283,6 +282,7 @@ def cut_web(w1: Web, ref: Web, prec=None) -> '(Web, Wire)':
 					segts.setdefault(seg, e2)
 			
 			if segts:
+				e = w1.edges[e1]
 				# reweb the cutted edge
 				direction = w1.points[e[1]] - w1.points[e[0]]
 				sorted_segts = sorted(segts.items(), key=lambda s: dot(w1.points[s[0]], direction))
@@ -403,48 +403,107 @@ def intersect_edges(e1: '(vec3,vec3)', e2: '(vec3,vec3)', prec) -> vec3:
 
 	
 	
-def cut_web_mesh(mesh: Web, ref: Web, prec=None) -> Wire:
+def cut_web_mesh(w1: Web, ref: Mesh, prec=None) -> '(Web, Wire)':
 	''' Cut the web inplace at its intersections with the `ref` web.
+	
+		Returns:
+		
+			`(cutted, frontier)`
 	'''
-	if not prec:  prec = mesh.precision()
-	frontier = Wire(mesh.points, groups=ref.faces)
+	if not prec:  prec = w1.precision()
+	frontier = Wire(w1.points, [], [], groups=ref.faces)
 	
 	# topology informations for optimization
-	points = hashing.PointSet(prec, manage=mesh.points)
-	prox = hashing.PositionMap(hashing.webcellsize(ref))
-	for f in range(len(ref.edges)):
-		prox.add(prox.facepoints(f), f)
-	conn = connpe(mesh.faces)
+	points = hashing.PointSet(prec, manage=w1.points)
+	prox = hashing.PositionMap(hashing.meshcellsize(ref))
+	for f in range(len(ref.faces)):
+		prox.add(ref.facepoints(f), f)
+	conn = connpe(w1.edges)
 	
-	mn = Web(mesh.points, groups=mesh.groups)  # resulting mesh
-	for e1 in range(len(mesh.edges)):
-		close = set(prox.get(mesh.facepoints(e1)))
+	mn = Web(w1.points, groups=w1.groups)  # resulting web
+	for e1 in range(len(w1.edges)):
+		processed = False
+		close = set(prox.get(w1.edgepoints(e1)))
 		if close:
 		
 			# no need to get the straight zone around because on the case of an edge, it will not grow in complexity more than the number of cut segments
 			# and an edge is easy to remesh after multiple intersections
 			# compute intersections
 			segts = {}
-			e = mesh.edges[e1]
-			for f2 in set( prox.get(mesh.edgepoints(e1)) ):
-				intersect = intersect_edge_face(mesh.edgepoints(e1), ref.facepoints(f2), prec)
+			for f2 in close:
+				intersect = intersect_edge_face(w1.edgepoints(e1), ref.facepoints(f2), prec)
 				if intersect:
 					seg = points.add(intersect)
 					segts.setdefault(seg, f2)
 		
-			# remesh the cutted edge
-			segts = sorted(segts.items(), key=lambda s: dot(mesh.points[s[0]], direction))
-			edges = web(Wire(mesh.points, map(itemgetter(0), segts), map(itemgetter(1), segts), ref.faces))
-			# append the remeshed edge in association with the original track
-			frontier += segts
-			mn += Web(segts.points, segts.edges, typedlist.full(track, len(segts.edges), 'I'), mesh.groups)
+			if segts:
+				e = w1.edges[e1]
+				# reweb the cutted edge
+				direction = w1.points[e[1]] - w1.points[e[0]]
+				sorted_segts = sorted(segts.items(), key=lambda s: dot(w1.points[s[0]], direction))
+				# append the rewebed edge in association with the original track
+				frontier += Wire(
+						w1.points, 
+						list(map(itemgetter(0), sorted_segts)), 
+						list(map(itemgetter(1), sorted_segts)), 
+						ref.faces,
+						)
+				mn += web(Wire(
+						w1.points, 
+						[e[0]] + list(map(itemgetter(0), sorted_segts)) + [e[1]], 
+						[w1.tracks[e1]] * (len(sorted_segts)+2), 
+						w1.groups,
+						))
+				processed = True
 		
-		else:
-			mn.edges.append(mesh.edges[e1])
-			mn.tracks.append(mesh.tracks[e1])
-			
+		if not processed:
+			mn.edges.append(w1.edges[e1])
+			mn.tracks.append(w1.tracks[e1])
+	
 	return mn, frontier
 	
+					
+def pierce_web_mesh(w1: Web, ref: Mesh, side, prec=None) -> Web:
+
+	if not prec:	prec = w1.precision()
+	
+	w1, frontier = cut_web_mesh(w1, ref, prec)
+	conn = connpe(w1.edges)
+	
+	used = [False] * len(w1.edges)
+	stops = set(frontier.indices)
+	
+	for p1, fi in zip(frontier.indices, frontier.tracks):
+		# check which side to keep
+		normal = ref.facenormal(fi)
+		front = []
+		for ei in conn[p1]:
+			e1 = w1.edges[ei]
+			direction = int(e1[0] == p1)
+			#print(dot(w1.points[e1[direction]] - w1.points[p1], normal))
+			if side ^ (dot(w1.points[e1[direction]] - w1.points[p1], normal) > 0):
+				front.append(e1[direction])
+				used[ei] = True
+		
+		# propagate
+		while front:
+			last = front.pop()
+			if last in stops:	continue
+			
+			for ei in conn[last]:
+				if used[ei]:	continue
+				used[ei] = True
+				direction = int(w1.edges[ei][0] == last)
+				next = w1.edges[ei][direction]
+				front.append(next)
+	
+	# filter web content to keep
+	return Web(
+			w1.points,
+			[e  for u,e in zip(used, w1.edges) if u],
+			[t  for u,t in zip(used, w1.tracks) if u],
+			w1.groups,
+			)
 
 def intersect_edge_face(edge: '(vec3, vec3)', face: '(vec3, vec3, vec3)', prec) -> vec3:
 	''' intersection between a segment and a triangle
@@ -476,7 +535,7 @@ def intersect_edge_face(edge: '(vec3, vec3)', face: '(vec3, vec3, vec3)', prec) 
 pierce_ops = {
 	(Mesh,Mesh):	pierce_mesh,
 	(Web,Web):		pierce_web,
-	#(Web,Mesh):		pierce_web_mesh,
+	(Web,Mesh):		pierce_web_mesh,
 	}
 def pierce(m, ref, side=False, prec=None):
 	''' cut a web/mesh and remove its parts considered inside the `ref` shape
@@ -521,7 +580,7 @@ def boolean(a, b, sides=(False,True), prec=None):
 	'''
 	op = boolean_ops.get((type(a), type(b)))
 	if not op:
-		raise TypeError('pierce is not possible between {} and {}'.format(type(a), type(b)))
+		raise TypeError('boolean is not possible between {} and {}'.format(type(a), type(b)))
 	return op(a, b, sides, prec)
 
 def union(a, b) -> Mesh:
