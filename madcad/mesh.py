@@ -207,11 +207,16 @@ class Mesh(Container):
 	# --- standard point container methods ---
 	
 	def __init__(self, points=None, faces=None, tracks=None, groups=None, options=None):
-		self.points = points or []
-		self.faces = faces or []
-		self.tracks = tracks or [0] * len(self.faces)
-		self.groups = groups or [None] * (max(self.tracks, default=-1)+1)
-		self.options = options or {}
+		if points is None:	points = []
+		if faces is None:	faces = []
+		if tracks is None:	tracks = [0] * len(faces)
+		if groups is None:	groups = [None] * (max(tracks, default=-1)+1)
+		if options is None:	options = {}
+		self.points = points
+		self.faces = faces
+		self.tracks = tracks
+		self.groups = groups
+		self.options = options
 	
 	
 	def __add__(self, other):
@@ -894,11 +899,16 @@ class Web(Container):
 	# --- standard point container methods ---
 	
 	def __init__(self, points=None, edges=None, tracks=None, groups=None, options=None):
-		self.points = points or []
-		self.edges = edges or []
-		self.tracks = tracks or [0] * len(self.edges)
-		self.groups = groups or [None] * (max(self.tracks, default=-1)+1)
-		self.options = options or {}
+		if points is None:	points = []
+		if edges is None:	edges = []
+		if tracks is None:	tracks = [0] * len(edges)
+		if groups is None:	groups = [None] * (max(tracks, default=-1)+1)
+		if options is None:	options = {}
+		self.points = points
+		self.edges = edges
+		self.tracks = tracks
+		self.groups = groups
+		self.options = options
 			
 	def __add__(self, other):
 		''' append the faces and points of the other mesh '''
@@ -1256,11 +1266,15 @@ class Wire(Container):
 	__slots__ = 'points', 'indices', 'tracks', 'groups'
 	
 	def __init__(self, points=None, indices=None, tracks=None, groups=None, options=None):
-		self.points = points or []
-		self.indices = indices or list(range(len(self.points)))
-		self.tracks = tracks or None #jitmap(self.indices, lambda i:0)
-		self.groups = groups or [None]
-		self.options = options or {}
+		if points is None:	points = []
+		if indices is None:	indices = list(range(len(points)))
+		if groups is None:	groups = [None]
+		if options is None:	options = {}
+		self.points = points
+		self.indices = indices 
+		self.tracks = tracks
+		self.groups = groups
+		self.options = options
 	
 	def __len__(self):	return len(self.indices)
 	def __iter__(self):	return (self.points[i] for i in self.indices)

@@ -31,8 +31,8 @@ C1 = wire(Softened([
 		vec3(-2.275, -4.168, 0.4291)]))
 m = tube(C1, C0)
 
-boolean.intersectwith(diff, m)	# mark first intersections
-boolean.intersectwith(diff, m)	# remark the same intersections
+diff, frontier = boolean.cut_mesh(diff, m)	# mark first intersections
+diff, frontier = boolean.cut_mesh(diff, m)	# remark the same intersections
 res = difference(diff, m)		# boolean on top of already marked intersections
 
 res.check()
