@@ -236,7 +236,7 @@ class Solid:
 					self.apply_pose()
 					view.update()
 				
-				if evt.button() == Qt.LeftButton and evt.type() == QEvent.MouseButtonRelease:
+				if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
 					if moved:	evt.accept()
 					break
 						
