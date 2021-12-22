@@ -160,9 +160,10 @@ def pierce_mesh(m1, m2, side=False, prec=None) -> set:
 	if not prec:	prec = m1.precision()
 	m1, frontier = cut_mesh(m1, m2, prec)
 	
-	conn1 = connef(m1.faces)
-	used = [False] * len(m1.faces)
-	notto = set(edgekey(*e) for e in frontier.edges)
+	conn1 = connef(m1.faces)		# connectivity for propagation
+	stops = set(edgekey(*e) for e in frontier.edges)  # propagation stop points
+	
+	used = [False] * len(m1.faces)	# whether to keep the matching faces
 	front = []
 	
 	# get front and mark frontier faces as used
@@ -184,11 +185,11 @@ def pierce_mesh(m1, m2, side=False, prec=None) -> set:
 		if side:	
 			m1.faces = []
 			m1.tracks = []
-		return notto
+		return stops
 	
 	# display frontier
 	#from . import text
-	#for edge in notto:
+	#for edge in stops:
 		#p = (m1.points[edge[0]] + m1.points[edge[1]]) /2
 		#scn3D.add(text.Text(p, str(edge), 9, (1, 1, 0)))
 	#if debug_propagation:
@@ -198,7 +199,7 @@ def pierce_mesh(m1, m2, side=False, prec=None) -> set:
 		#scn3D.add(w)
 	
 	# propagation
-	front = [e for e in front if edgekey(*e) not in notto]
+	front = [e for e in front if edgekey(*e) not in stops]
 	c = 1
 	while front:
 		newfront = []
@@ -209,7 +210,7 @@ def pierce_mesh(m1, m2, side=False, prec=None) -> set:
 					used[fi] = c
 					f = m1.faces[fi]
 					for i in range(3):
-						if edgekey(f[i-1],f[i]) not in notto:	
+						if edgekey(f[i-1],f[i]) not in stops:	
 							newfront.append((f[i],f[i-1]))
 		c += 1
 		front = newfront
@@ -248,7 +249,6 @@ def boolean_mesh(m1, m2, selector=(False,True), prec=None) -> Mesh:
 def cut_web(w1: Web, ref: Web, prec=None) -> '(Web, Wire)':
 	''' Cut the web edges at their intersectsions with the `ref` web
 		
-		
 		Returns:
 			
 			`(cutted, frontier)`
@@ -266,9 +266,11 @@ def cut_web(w1: Web, ref: Web, prec=None) -> '(Web, Wire)':
 		prox.add(ref.edgepoints(e), e)
 	conn = connpe(w1.edges)
 	
-	mn = Web(w1.points, groups=w1.groups)  # resulting w1
+	mn = Web(w1.points, groups=w1.groups)  # resulting web
 	for e1 in range(len(w1.edges)):
-		processed = False
+		processed = False  # flag enabled when the edge is reconstructed
+		
+		# collect edges in ref that can have intersection with e1
 		close = set( prox.get(w1.edgepoints(e1)) )
 		if close:
 			# no need to get the straight zone around because on the case of an edge, it will not grow in complexity more than the number of cut segments
@@ -281,6 +283,7 @@ def cut_web(w1: Web, ref: Web, prec=None) -> '(Web, Wire)':
 					seg = points.add(intersect)
 					segts.setdefault(seg, e2)
 			
+			# reconstruct the geometries
 			if segts:
 				e = w1.edges[e1]
 				# reweb the cutted edge
@@ -301,6 +304,7 @@ def cut_web(w1: Web, ref: Web, prec=None) -> '(Web, Wire)':
 						))
 				processed = True
 		
+		# keep the non intersected faces as is
 		if not processed:
 			mn.edges.append(w1.edges[e1])
 			mn.tracks.append(w1.tracks[e1])
@@ -313,10 +317,10 @@ def pierce_web(web, ref, side=False, prec=None):
 
 	if not prec:	prec = web.precision()
 	web, frontier = cut_web(web, ref, prec)
-	stops = set(frontier.indices)
+	conn = connpe(web.edges)		# connectivity
+	stops = set(frontier.indices)	# propagation stop points
 	
-	conn = connpe(web.edges)
-	used = [0] * len(web.edges)
+	used = [0] * len(web.edges)		# whether to keep the matching edges or not
 	
 	# sort points by distance to a "center"
 	center = web.barycenter()
@@ -329,7 +333,7 @@ def pierce_web(web, ref, side=False, prec=None):
 		if not ei or used[ei]:	continue
 		
 		# propagate
-		front = [(start, side)]
+		front = [(start, side)]		# points on the propagation front
 		while front:
 			last, keep = front.pop()
 			for ei in conn[last]:
@@ -353,20 +357,22 @@ def boolean_web(w1, w2, sides, prec=None):
 	
 	result = pierce_web(w1, w2, sides[0], prec)
 	w2, frontier = cut_web(w2, result, prec)
-	conn2 = connpe(w2.edges)
+	conn2 = connpe(w2.edges)		# connectivity
+	stops = set(frontier.indices)	# propagation stop points
 	
-	used = [False] * len(w2.edges)
-	stops = set(frontier.indices)
+	used = [False] * len(w2.edges)  # whether to keep the matching edges or not
 	
 	for p2, ei in zip(frontier.indices, frontier.tracks):
+		front = []	# points on the propagation front
+		
 		# check which side to keep to respect the choices made in the first web
 		e1 = result.edges[ei]
 		direction = sides[0] ^ sides[1] ^ (distance2(w2.points[p2], result.points[e1[0]]) < distance2(w2.points[p2], result.points[e1[1]]))
-		front = []
 		for ei in conn2[p2]:
 			if w2.edges[ei][direction] == p2:
 				front.append(w2.edges[ei][direction-1])
 				used[ei] = True
+		
 		# propagate
 		while front:
 			last = front.pop()
@@ -422,7 +428,9 @@ def cut_web_mesh(w1: Web, ref: Mesh, prec=None) -> '(Web, Wire)':
 	
 	mn = Web(w1.points, groups=w1.groups)  # resulting web
 	for e1 in range(len(w1.edges)):
-		processed = False
+		processed = False	# flag enabled when the edge is reconstructed
+		
+		# collect edges in ref that can have intersection with e1
 		close = set(prox.get(w1.edgepoints(e1)))
 		if close:
 		
@@ -436,6 +444,7 @@ def cut_web_mesh(w1: Web, ref: Mesh, prec=None) -> '(Web, Wire)':
 					seg = points.add(intersect)
 					segts.setdefault(seg, f2)
 		
+			# reconstruct the geometries
 			if segts:
 				e = w1.edges[e1]
 				# reweb the cutted edge
@@ -456,6 +465,7 @@ def cut_web_mesh(w1: Web, ref: Mesh, prec=None) -> '(Web, Wire)':
 						))
 				processed = True
 		
+		# keep the non intersected faces as is
 		if not processed:
 			mn.edges.append(w1.edges[e1])
 			mn.tracks.append(w1.tracks[e1])
@@ -468,19 +478,19 @@ def pierce_web_mesh(w1: Web, ref: Mesh, side, prec=None) -> Web:
 	if not prec:	prec = w1.precision()
 	
 	w1, frontier = cut_web_mesh(w1, ref, prec)
-	conn = connpe(w1.edges)
+	conn = connpe(w1.edges)			# connectivity
+	stops = set(frontier.indices)	# propagation stop points
 	
-	used = [False] * len(w1.edges)
-	stops = set(frontier.indices)
+	used = [False] * len(w1.edges)	# whether to keep the matching edges
 	
 	for p1, fi in zip(frontier.indices, frontier.tracks):
+		front = []	# points on the propagation front
+		
 		# check which side to keep
 		normal = ref.facenormal(fi)
-		front = []
 		for ei in conn[p1]:
 			e1 = w1.edges[ei]
 			direction = int(e1[0] == p1)
-			#print(dot(w1.points[e1[direction]] - w1.points[p1], normal))
 			if side ^ (dot(w1.points[e1[direction]] - w1.points[p1], normal) > 0):
 				front.append(e1[direction])
 				used[ei] = True
