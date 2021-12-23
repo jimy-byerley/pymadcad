@@ -1,50 +1,42 @@
 #!/usr/bin/python3
 from madcad.gear import *
 from madcad.mesh import edgekey, facekeyo
+from madcad.kinematic import Solid
 
 # Colors
 class bcolors:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
+	HEADER = '\033[95m'
+	OKBLUE = '\033[94m'
+	OKCYAN = '\033[96m'
+	OKGREEN = '\033[92m'
+	WARNING = '\033[93m'
+	FAIL = '\033[91m'
+	ENDC = '\033[0m'
+	BOLD = '\033[1m'
+	UNDERLINE = '\033[4m'
 
-
-def test_gear(name, *args, **kwargs):
-    print("{}: {}, {}".format(name, args, kwargs))
-    try:
-        mesh = gear(*args, **kwargs)
-        if mesh.isenvelope():
-            print(f"{bcolors.OKGREEN}Passed !\n{bcolors.ENDC}")
-        else:
-            print(f"{bcolors.FAIL}>>> Failed ! <<<\n{bcolors.ENDC}")
-    except Exception as e:
-        print(bcolors.WARNING + str(e) + bcolors.ENDC)
-        print(f"{bcolors.FAIL}>>> Failed ! <<<\n{bcolors.ENDC}")
+results = []
 
 def testing(function):
-    def wrapper(name, *args, **kwargs):
-        print("{}: {}, {}".format(name, args, kwargs))
-        try:
-            function(name, *args, **kwargs)
-            print(f"{bcolors.OKGREEN}Passed !\n{bcolors.ENDC}")
-        except Exception as e:
-            print(bcolors.WARNING + str(e) + bcolors.ENDC)
-            print(f"{bcolors.FAIL}>>> Failed ! <<<\n{bcolors.ENDC}")
-    return wrapper
+	def wrapper(name, *args, **kwargs):
+		print("{}: {}, {}".format(name, args, kwargs))
+		try:
+			r = function(name, *args, **kwargs)
+			print(f"{bcolors.OKGREEN}Passed !\n{bcolors.ENDC}")
+		except Exception as e:
+			print(bcolors.WARNING + str(e) + bcolors.ENDC)
+			print(f"{bcolors.FAIL}>>> Failed ! <<<\n{bcolors.ENDC}")
+		else:
+			results.append(r)
+	return wrapper
 
 @testing
 def test_bevel_gear(name, *args, **kwargs):
-    bevel_gear(*args, **kwargs)
+	return bevel_gear(*args, **kwargs)
 
 @testing
 def test_spherical_rack_profile(name, *args, **kwargs):
-    spherical_rack_profile(*args, **kwargs)
+	return spherical_rack_profile(*args, **kwargs)
 
 
 z_pinion = 25
@@ -112,3 +104,12 @@ pressure_angle = pi / 9
 test_bevel_gear("Bevel gear pinion", pi * m, z_pinion, gamma_p, pressure_angle = pressure_angle, ka=0.65, kd = 1)
 test_bevel_gear("Bevel gear wheel", pi * m, z_wheel, shaft_angle - gamma_p, pressure_angle = pressure_angle)
 test_spherical_rack_profile("Spherical rack", z_pinion/sin(gamma_p))
+
+
+x = 0
+for i, part in enumerate(results):
+	box = boundingbox(part)
+	results[i] = solid = Solid(content=part)
+	solid.position = vec3(x-box.min.x,0,0)
+	x +=  box.width.x
+show(results)
