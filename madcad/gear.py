@@ -40,7 +40,8 @@ from .primitives import Circle, ArcCentered, Segment
 from .triangulation import triangulation
 from .selection import *
 from .rendering import show
-from .cut import bevel
+from .cut import bevel, chamfer
+from .boolean import intersection
 from . import settings
 
 from math import *
