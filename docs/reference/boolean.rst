@@ -12,6 +12,9 @@ most common
 
 .. autofunction:: boolean
 
+
+Those are shortcuts for `boolean`:
+
 .. autofunction:: union
 
 	.. image:: /screenshots/boolean-union.png
@@ -27,5 +30,6 @@ most common
 more advanced
 -------------
 
-.. autofunction:: intersectwith
-.. autofunction:: booleanwith
+.. autofunction:: cut_mesh
+.. autofunction:: cut_web
+.. autofunction:: cut_web_mesh

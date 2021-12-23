@@ -26,6 +26,9 @@ from . import primitives
 from . import displays, text, settings
 from . import scheme
 
+
+class SolveError(Exception):	pass
+
 class Constraint(object):
 	def __init__(self, *args, **kwargs):
 		for i,name in enumerate(self.__slots__):
@@ -41,6 +44,10 @@ class Constraint(object):
 def isconstraint(obj):
 	''' return True if obj match the constraint signature '''
 	return hasattr(obj, 'fit') and hasattr(obj, 'slvvars')
+
+	
+	
+
 
 class Tangent(Constraint):
 	''' Makes to curves tangent in the given point 
@@ -180,6 +187,8 @@ class PointOn(Constraint):
 		return distance(self.curve.slv_nearest(self.point), self.point) ** 2
 
 		
+		
+
 def solve(constraints, fixed=(), *args, **kwargs):
 	''' short hand to use the class Problem '''
 	return Problem(constraints, fixed).solve(*args, **kwargs)
@@ -303,63 +312,8 @@ class Problem:
 		else:
 			raise SolveError('no solution found')
 
-'''
-def solve_old(constraints, precision=1e-4, afterset=None, fixed=()):
-	corrections = {}
-	params = {}
-	rate = 1
-	max_delta = inf
-	
-	# recuperation des parametres a modifier
-	for const in constraints:
-		for param in const.params():
-			corrections[id(param)] = None
-			params[id(param)] = param
-			
-	# resolution iterative
-	while max_delta > precision:
-		max_delta = 0
-		
-		for k in corrections:
-			corrections[k] = vec3(0)
-			
-		for const in constraints:
-			corr = list(zip(const.params(), const.corrections()))
-			for i in reversed(range(len(corr))):
-				if id(corr[i][0]) in fixed:	corr.pop(i)
-			if not len(corr):	continue
-			f = rate / len(corr)
-			for p,correction in corr:
-				corrections[id(p)] += correction * f
-		
-		print('corrections', corrections)
-		
-		for k,correction in corrections.items():
-			corr_norm = length(correction)
-			if corr_norm > max_delta:	max_delta = corr_norm
-			params[k] += correction
-		
-		#print(max_delta)
-		if afterset:	afterset()
 
-	return max_delta
-'''
 
-class SolveError(Exception):	pass
-
-'''
-def geoparams(constraints):
-	knownparams = set()
-	# get parameters and prepare solver
-	for const in constraints:
-		for param in const.params():
-			k = id(param)
-			if k not in knownparams:
-				knownparams.add(k)
-				yield param
-'''
-
-from math import inf
 
 def solve2(constraints, precision=1e-4, afterset=None, fixed=(), maxiter=0):
 	params = []

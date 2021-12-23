@@ -1,0 +1,82 @@
+os: linux
+dist: focal
+language: python
+
+stages:
+  - test
+  - name: deploy
+    # to only build tags
+    if: tag IS PRESENT  AND repo = jimy-byerley/pymadcad
+    # To only build tags that look like vX.Y.Z:
+    #   if: tag =~ ^v\d+\.\d+\.\d+$ AND repo = jimy-byerley/pymadcad
+
+jobs:
+  # jobs to run in addition to the job matrix (which is only composed by 1 in this file, and dedicated to tests)
+  include:
+    # Deploy source distribution
+    - stage: deploy
+      name: Deploy source distribution
+      install: python3 -m pip install twine
+      script: |
+        python3 setup.py sdist --formats=gztar
+        python3 -m twine upload --skip-existing dist/*.tar.gz
+      
+    # Deploy on linux
+    - stage: deploy
+      name: Build and deploy Linux wheels
+      services: docker
+      install: python3 -m pip install cibuildwheel twine
+      script: |
+        python3 -m cibuildwheel --output-dir wheelhouse
+        python3 -m twine upload --skip-existing wheelhouse/*.whl
+        
+    # Deploy on ios
+    - stage: deploy
+      name: Build and deploy iOS wheels
+      os: osx
+      install: python3 -m pip install cibuildwheel twine
+      script: |
+        python3 -m cibuildwheel --output-dir wheelhouse
+        python3 -m twine upload --skip-existing wheelhouse/*.whl
+    
+    # Deploy on windows
+    - stage: deploy
+      name: Build and deploy Windows wheels
+      os: windows
+      language: shell
+      install: python3 -m pip install cibuildwheel twine
+      script: |
+        python3 -m cibuildwheel --output-dir wheelhouse
+        python3 -m twine upload --skip-existing wheelhouse/*.whl
+
+        
+
+before_install:
+  - |
+    if [[ "$TRAVIS_OS_NAME" = windows ]]; then
+        choco upgrade python -y --version 3.8
+        export PATH="/c/Python38:/c/Python38/Scripts:$PATH"
+        # make sure it's on PATH as 'python3'
+        ln -s /c/Python38/python.exe /c/Python38/python3.exe
+    fi
+
+install:
+  - echo "nothing"
+  #- python3 -m pip install cython
+
+script:
+  - echo "nothing"
+  #- python3 setup.py install
+  # TODO add automated tests
+
+
+env:
+  global:
+    - CIBW_BUILD=cp3*
+    - CIBW_SKIP=cp34-* cp35-*
+    
+    - TWINE_USERNAME=__token__
+    # TWINE_PASSWORD
+    # this is encrypted using `travis encrypt "TWINE_PASSWORD=pypi-..." --com`
+    # the travis command can only be obtained in ruby, using `gem install travis`
+    - secure: "0h95pbqnCTGC+0LH7qWlZ3Ea3fle18hG0dQlumMNwYvHPo86qFNK1TAcfaR4Vj42nA853c8LLmYDx8g1y1rhuRl3BJsQUghy8Lvj6mjIbreJpDKHIN+lrb6q5cwIf0HaXwMcjfky+jbfsWAkC9yIIym2IDTa123ntyUaZaiEoUUhxshYoYROIUe6U1/uazkIPCFd+Xl5j+8A/4hYhS3b4hCy4g8kZz7dhgBOsjP1Fk+CzHA+T/HDNU/uEyd0eWOcPa/smfdM/O5PP9Ic6xSKObCuP9aDaCVY1A4JKsmp3IK8hFXwcTjjiVFgaLnn98GdNz/tM5Spr7+x7DrH5LJ7OJjHfwnyP6E09LpuVAOTGgxKneXxxSXNi7APTmsEt9ffQglA3uZF5BpIm9COc+gAOEEkLpoZDNSt19pTNC8sESWEn+2qB+mGBzKBld2XSb+1f+l03VWP5DtCx83kLYJreah2lMe5spVR2uhpUSaFaJdbVgpvMRlkuOqbquvMJUxmi9nRLul9EQP60TpmfNy9hyscfj7YP36M67W19dPnqrUjWGC1643N2g5qZ4XwOYsQoBW3MGHS7/WlASD+SP4pDVw+As0hORXs7J0JFOkhykZos7/V9qmhP7v7VMGk8HNQWLG5yJHFPEN49Rqqnw0kWpDvdFqrgJNH6So/m2SN5gM="

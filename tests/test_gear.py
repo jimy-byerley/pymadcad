@@ -3,39 +3,42 @@ from madcad.mesh import edgekey, facekeyo
 
 # Colors
 class bcolors:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
+	HEADER = '\033[95m'
+	OKBLUE = '\033[94m'
+	OKCYAN = '\033[96m'
+	OKGREEN = '\033[92m'
+	WARNING = '\033[93m'
+	FAIL = '\033[91m'
+	ENDC = '\033[0m'
+	BOLD = '\033[1m'
+	UNDERLINE = '\033[4m'
 
 
 def test_gear(name, *args, **kwargs):
-    print("{}: {}, {}".format(name, args, kwargs))
-    try:
-        mesh = gear(*args, **kwargs)
-        if mesh.isenvelope():
-            print(f"{bcolors.OKGREEN}Passed !\n{bcolors.ENDC}")
-        else:
-            print(f"{bcolors.FAIL}>>> Failed ! <<<\n{bcolors.ENDC}")
-    except Exception as e:
-        print(bcolors.WARNING + str(e) + bcolors.ENDC)
-        print(f"{bcolors.FAIL}>>> Failed ! <<<\n{bcolors.ENDC}")
+	print("{}: {}, {}".format(name, args, kwargs))
+	try:
+		mesh = gear(*args, **kwargs)
+		if mesh.isenvelope():
+			print(f"{bcolors.OKGREEN}Passed !\n{bcolors.ENDC}")
+		else:
+			print(f"{bcolors.FAIL}>>> Failed ! <<<\n{bcolors.ENDC}")
+	except Exception as e:
+		print(bcolors.WARNING + str(e) + bcolors.ENDC)
+		print(f"{bcolors.FAIL}>>> Failed ! <<<\n{bcolors.ENDC}")
+		raise
+	#show([mesh])
 
 def testing(function):
-    def wrapper(name, *args, **kwargs):
-        print("{}: {}, {}".format(name, args, kwargs))
-        try:
-            function(name, *args, **kwargs)
-            print(f"{bcolors.OKGREEN}Passed !\n{bcolors.ENDC}")
-        except Exception as e:
-            print(bcolors.WARNING + str(e) + bcolors.ENDC)
-            print(f"{bcolors.FAIL}>>> Failed ! <<<\n{bcolors.ENDC}")
-    return wrapper
+	def wrapper(name, *args, **kwargs):
+		print("{}: {}, {}".format(name, args, kwargs))
+		try:
+			function(name, *args, **kwargs)
+			print(f"{bcolors.OKGREEN}Passed !\n{bcolors.ENDC}")
+		except Exception as e:
+			print(bcolors.WARNING + str(e) + bcolors.ENDC)
+			print(f"{bcolors.FAIL}>>> Failed ! <<<\n{bcolors.ENDC}")
+			raise
+	return wrapper
 
 @testing
 def test_full(name, *args, **kwargs):
@@ -57,7 +60,7 @@ def test_rounded(name, *args, **kwargs):
 
 test_gear("full test", 10, 30, 10)
 test_gear("helical test", 10, 30, 10, helix_angle = radians(20))
-test_gear("chamfer test", 10, 30, 10, chamfer = pi / 3)
+test_gear("chamfer test", 10, 30, 10, chamfer = pi / 8)
 test_gear("circle test", 10, 30, 10, pattern = "circle")
 test_gear("rect test", 10, 30, 10, pattern = "rect")
 test_gear("rounded test", 10, 30, 10, pattern = "rounded")
@@ -75,15 +78,15 @@ test_gear("rounded spec height test", 10, 30, 10, pattern = "rounded", int_heigh
 
 test_gear("gearprofile values test", 10, 20, 15)
 test_gear("gearprofile values test", 15, 25, 15)
-test_gear("gearprofile values test", 1.2, 5, 2)
+test_gear("gearprofile values test", 1.2, 6, 2)
 test_gear("gearprofile values test", 2, 10, 2)
 
 test_gear("gearexterior values test", 10, 20, 15, chamfer = pi/4)
 test_gear("gearexterior values test", 10, 20, 15, helix_angle = radians(20))
 test_gear("gearexterior values test", 15, 25, 15, chamfer = pi/5)
 test_gear("gearexterior values test", 15, 25, 15, helix_angle = radians(22))
-test_gear("gearexterior values test", 1.2, 5, 2, chamfer = pi/6)
-test_gear("gearexterior values test", 1.2, 5, 2, helix_angle = radians(20))
+test_gear("gearexterior values test", 1.2, 6, 2, chamfer = pi/6)
+test_gear("gearexterior values test", 1.2, 6, 2, helix_angle = radians(20))
 test_gear("gearexterior values test", 2, 10, 2, chamfer = pi/8)
 test_gear("gearexterior values test", 2, 10, 2, helix_angle = radians(30))
 

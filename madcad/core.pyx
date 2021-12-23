@@ -108,16 +108,17 @@ def rasterize_segment(spaceo, double cell):
 	cdef double x,y,z, xmin,ymin, zmin,zmax
 	cdef long pk[3]
 	cdef cvec3 space[2]
+	cdef double prec
 	
 	if cell <= 0:	raise ValueError('cell must be strictly positive')
 	
 	space = [glm2c(spaceo[0]), glm2c(spaceo[1])]
 	rasterization = []
+	prec = NUMPREC * max(norminf(space[0]), norminf(space[1]))
 	
-	# permutation of coordinates to get the direction the closer to Z
-	v = vsub(space[1], space[0])
-	n = vabs(v)
-	if vmax(n) < NUMPREC*max(norminf(space[0]), norminf(space[1])):	return rasterization
+	# permutation of coordinates to get the direction the closest to Z
+	n = vabs(vsub(space[1], space[0]))
+	if vmax(n) < prec:	return rasterization
 	if   n.y >= n.x and n.y >= n.z:		order,reorder = [2,0,1],[1,2,0]
 	elif n.x >= n.y and n.x >= n.z:		order,reorder = [1,2,0],[2,0,1]
 	else:								order,reorder = [0,1,2],[0,1,2]
@@ -127,8 +128,9 @@ def rasterize_segment(spaceo, double cell):
 			varr(&space[i])[j] = varr(&temp)[order[j]]
 	
 	# prepare variables
+	v = vsub(space[1], space[0])
 	cell2 = cell/2
-	assert v.z
+	assert v.z, order
 	dy = v.y/v.z
 	dx = v.x/v.z
 	o = space[0]
@@ -136,6 +138,8 @@ def rasterize_segment(spaceo, double cell):
 	# z selection
 	zmin,zmax = space[0].z, space[1].z
 	if v.z < 0:		zmin,zmax = zmax,zmin
+	zmin -= prec
+	zmax += prec
 	zmin -= pmod(zmin,cell)
 	for i in range(max(1,<size_t>ceil((zmax-zmin)/cell))):
 		z = zmin + cell*i + cell2
@@ -143,6 +147,8 @@ def rasterize_segment(spaceo, double cell):
 		# y selection
 		ymin,ymax = o.y + dx*(z-cell2-o.z),  o.y + dx*(z+cell2-o.z)
 		if dy < 0:	ymin,ymax = ymax,ymin
+		ymin -= prec
+		ymax += prec
 		ymin -= pmod(ymin,cell)
 		for j in range(max(1,<size_t>ceil((ymax-ymin)/cell))):
 			y = ymin + j*cell + cell2
@@ -150,6 +156,8 @@ def rasterize_segment(spaceo, double cell):
 			# x selection
 			xmin,xmax = o.x + dx*(z-cell2-o.z),  o.x + dx*(z+cell2-o.z)
 			if dx < 0:	xmin,xmax = xmax,xmin	
+			xmin -= prec
+			xmax += prec
 			xmin -= pmod(xmin,cell)
 			for k in range(max(1,<size_t>ceil((xmax-xmin)/cell))):
 				x = xmin + k*cell + cell2
@@ -172,15 +180,17 @@ def rasterize_triangle(spaceo, double cell):
 	cdef cvec3 pmin, pmax
 	cdef double xmin,xmax, ymin,ymax, zmin,zmax
 	cdef cvec3 space[3]
+	cdef double prec
 	
 	if cell <= 0:	raise ValueError('cell must be strictly positive')
 	
 	space = [glm2c(spaceo[0]), glm2c(spaceo[1]), glm2c(spaceo[2])]
 	rasterization = []
+	prec = NUMPREC*max(norminf(space[0]), norminf(space[1]), norminf(space[2]))
 	
 	# permutation of coordinates to get the normal the closer to Z
 	n = vabs(cross(vsub(space[1],space[0]), vsub(space[2],space[0])))
-	if vmax(n) < NUMPREC*max(norminf(space[0]), norminf(space[1]), norminf(space[2])):	return rasterization
+	if vmax(n) < prec:	return rasterization
 	if   n.y >= n.x and n.y >= n.z:		order,reorder = [2,0,1],[1,2,0]
 	elif n.x >= n.y and n.x >= n.z:		order,reorder = [1,2,0],[2,0,1]
 	else:								order,reorder = [0,1,2],[0,1,2]
@@ -213,6 +223,8 @@ def rasterize_triangle(spaceo, double cell):
 	for i in range(3):	varr(&pmax)[i] += cell - pmod(varr(&pmax)[i], cell)
 	
 	# x selection
+	xmin -= prec
+	xmax += prec
 	xmin -= pmod(xmin,cell)
 	for i in range(max(1,<size_t>ceil((xmax-xmin)/cell))):
 		x = xmin + cell*i + cell2
@@ -227,6 +239,8 @@ def rasterize_triangle(spaceo, double cell):
 				candy[candylen+1] = ( space[i].y + d * (x+cell2-space[i].x) )
 				candylen += 2
 		ymin,ymax = max(pmin.y,amin(candy,candylen)), min(pmax.y,amax(candy,candylen))
+		ymin -= prec
+		ymax += prec
 		ymin -= pmod(ymin,cell)
 		if ymax < ymin:	continue
 		for j in range(max(1,<size_t>ceil((ymax-ymin)/cell))):
@@ -240,6 +254,8 @@ def rasterize_triangle(spaceo, double cell):
 				o.z + dx*(x+cell2-o.x) + dy*(y+cell2-o.y),
 				]
 			zmin,zmax = max(pmin.z,amin(candz,4)), min(pmax.z,amax(candz,4))
+			zmin -= prec
+			zmax += prec
 			zmin -= pmod(zmin,cell)
 			if zmax < zmin:	continue
 			for k in range(max(1,<size_t>ceil((zmax-zmin)/cell))):

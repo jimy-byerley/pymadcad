@@ -15,6 +15,6 @@ void main() {
 	
 	gl_Position = proj * view * vec4(v_position,1); 				// set vertex position for render
 	// with an offset to display wires on the top of faces
-	if ((flags&1) != 0)	gl_Position[2] += 10*layer;
-	else				gl_Position[2] += layer;	
+	if ((flags&1) != 0)	gl_Position[2] += 2*layer*gl_Position[3];
+	else				gl_Position[2] += layer*gl_Position[3];	
 }

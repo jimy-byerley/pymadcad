@@ -63,12 +63,18 @@ def show(objs, options=None, interest=None):
 	''' shortcut to create a QApplication showing only one view with the given objects inside.
 		the functions returns when the window has been closed and all GUI destroyed
 	'''
+	global global_context
+		
 	if isinstance(objs, list):	objs = dict(enumerate(objs))
 	
-	import sys
-	
-	QApplication.setAttribute(Qt.AA_ShareOpenGLContexts, True)
-	app = QApplication.instance() or QApplication(sys.argv)
+	app = QApplication.instance()
+	created = False
+	if not app:
+		import sys
+		QApplication.setAttribute(Qt.AA_ShareOpenGLContexts, True)
+		app = QApplication(sys.argv)
+		global_context = None
+		created = True
 	
 	# use the Qt color scheme if specified
 	if settings.display['system_theme']: 
@@ -83,8 +89,9 @@ def show(objs, options=None, interest=None):
 	view.center()
 	view.adjust()
 	
-	err = app.exec()
-	if err != 0:	print('error: Qt exited with code', err)
+	if created:
+		err = app.exec()
+		if err != 0:	print('error: Qt exited with code', err)
 
 
 class Display:
@@ -314,6 +321,7 @@ class Perspective:
 		self.fov = fov or settings.display['field_of_view']
 	def matrix(self, ratio, distance) -> fmat4:
 		return perspective(self.fov, ratio, distance*1e-2, distance*1e4)
+
 class Orthographic:
 	''' object used as `View.projection` '''
 	def matrix(self, ratio, distance) -> fmat4:
@@ -474,7 +482,7 @@ class Scene:
 		''' computes the boundingbox of the scene, with the current object poses '''
 		box = Box(center=fvec3(0), width=fvec3(-inf))
 		for display in self.displays.values():
-			box.union(display.box.transform(display.world))
+			box.union_update(display.box.transform(display.world))
 		return box
 	
 	def ressource(self, name, func=None):
@@ -605,7 +613,7 @@ class Group(Display):
 		''' computes the boundingbox of the scene, with the current object poses '''
 		box = Box(center=fvec3(0), width=fvec3(-inf))
 		for display in self.displays.values():
-			box.union(display.box)
+			box.union_update(display.box)
 		return box.transform(self._pose)
 
 

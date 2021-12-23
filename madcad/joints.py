@@ -1,6 +1,7 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
 from .mathutils import *
+from .primitives import isaxis
 from .kinematic import Screw, WireDisplay, Scheme, Joint
 from .mesh import Mesh, Wire, web, Web
 from . import generation, primitives
@@ -585,8 +586,8 @@ class Helicoid(Joint):
 	def __init__(self, s0, s1, step, b0, b1=None, position=None):
 		self.step = step	# m/tr
 		self.solids = s0, s1
-		if len(b0) == 2:			b0 = b0[0], *dirbase(b0[1])[:2]
-		if b1 and len(b1) == 2:		b1 = b1[0], *dirbase(b1[1])[:2]
+		if isaxis(b0):			b0 = b0[0], *dirbase(b0[1])[:2]
+		if b1 and isaxis(b1):	b1 = b1[0], *dirbase(b1[1])[:2]
 		self.bases = b0, b1 or b0
 		self.position = position or (self.bases[0][0], self.bases[1][0])
 		

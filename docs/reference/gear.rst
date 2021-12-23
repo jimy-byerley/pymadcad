@@ -54,6 +54,7 @@ helper tools
 .. autofunction:: involute
 .. autofunction:: involuteat
 .. autofunction:: involuteof
+.. autofunction:: repeat_circular
 
 structure patterns
 ------------------

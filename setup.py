@@ -12,16 +12,15 @@ else:
 setup(
 	# package declaration
 	name='pymadcad',
-	version='0.7',
+	version='0.9.2',
 	python_requires='>=3.6',
 	install_requires=[
-		'pyglm>=1.2', 
-		'moderngl>=5.6', 
-		'numpy>=1.1', 
-		'scipy>=1.3', 
-		'PyQt5>=5', 
-		'Pillow>=5.4', 
-		'cython>=0.29',
+		'pyglm>=1.2',
+		'moderngl>=5.6',
+		'numpy>=1.1',
+		'scipy>=1.3',
+		'PyQt5>=5',
+		'Pillow>=5.4',
 		'pyyaml>=5',
 		],
 	extras_require={
@@ -41,7 +40,7 @@ setup(
 			'*.pyx', 
 			'*.c', 
 			],
-		'': ['COPYING', 'COPYING.LESSER', 'README'],
+		'': ['COPYING', 'COPYING.LESSER', 'README.md', 'requirements.txt'],
 		},
 	
 	# metadata for pypi
