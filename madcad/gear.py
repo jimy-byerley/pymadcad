@@ -5,18 +5,18 @@
 	The mainstream gears are involute gears (using involute of circles as contact curves). This is due to the standard shape of racks. And involute gears are the best choice for most designs, which is why the current implementation focusses on them.
 
 	However the tools here are modular, which means you can combine them with your own functions to create customized gears.
-	
+
 	Examples
 	--------
-	
+
 	As a first use, you may want to generate a fully finished spur gear
 	If you do not specify optional arguments, the function will provide good defaults for it.
-		
+
 		>>> # fully featured gear
 		>>> gear(step=3, z=12, depth=4, bore_radius=1.5)
-	
+
 	You may want to generate a more bizarre gear, with a a different hub for instance. You will then need to assemble a gear from its 3 components:  exterior (tooths), structure (between hub and exterior), and hub (what holds the gear on an axis)
-	
+
 		>>> # this assemble a gear specifying each independant sub-parts
 		>>> ext_radius = (3*12)/(2*pi) - 3
 		>>> int_radius = 4
@@ -25,9 +25,9 @@
 		...		gearstructure('rounded', ext_radius, int_radius, 2, patterns=6),
 		...		my_hub_mesh,
 		...		)
-	
+
 	For reuse in your custom functions, the functions used to generate the gears are exposed:
-	
+
 		>>> # this is the raw profile of a tooth
 		>>> gearprofile(step=3, z=12)
 '''
@@ -40,7 +40,8 @@ from .primitives import Circle, ArcCentered, Segment
 from .triangulation import triangulation
 from .selection import *
 from .rendering import show
-from .cut import bevel
+from .cut import bevel, chamfer
+from .boolean import intersection
 from . import settings
 
 from math import *
@@ -52,11 +53,11 @@ from copy import copy
 
 def rackprofile(step, h=None, offset=0, alpha=radians(20), resolution=None) -> Wire:
 	''' Generate a 1-period tooth profile for a rack
-	
+
 		Parameters:
-		
+
 			step:		period length over the primitive line
-			h:		    tooth half height 
+			h:		    tooth half height
 			offset:     rack reference line offset with the primitive line (as a distance)
 			              - the primitive line is the adherence line with gears
 			              - the reference line is the line half the tooth is above and half below
@@ -66,7 +67,7 @@ def rackprofile(step, h=None, offset=0, alpha=radians(20), resolution=None) -> W
 		h = default_height(step, alpha)
 	e = offset  # change name for convenience
 	x = 0.5 + 2*e/step*tan(alpha)  # fraction of the tooth above the primitive circle
-  
+
 	return Wire([
 		vec3(step*x/2 - tan(alpha) * ( h-e),   h-e,  0),
 		vec3(step*x/2 - tan(alpha) * (-h-e),  -h-e,  0),
@@ -81,7 +82,7 @@ def gearprofile(step, z, h=None, offset=0, alpha=radians(20), resolution=None, *
 
 
 		Parameters:
-		
+
 			step:		period length over the primitive circle
 			z:			number of tooth on the gear this profile is meant for
 			h:			tooth half height
@@ -239,18 +240,18 @@ def pattern_full(ext_radius, int_radius, depth, int_height=0, **kwargs) -> Mesh:
 	the second `Web` is the bottom of the structure.
 
 	Parameters:
-	
+
 		ext_radius (float): float (radius of the external border of the pattern
 		int_radius (float): radius of the internal border of the pattern
 		depth (float): face width
-		int_height (float): 
-		
+		int_height (float):
+
 			if you want a pinion with a structure thinner than the value of `depth`,
 			the total height will be `total_height = depth - 2 * int_height`
 	"""
 	half_depth = depth / 2
 	assert half_depth > int_height, "`int_height` must be smaller than `depth / 2`"
-	
+
 	axis = (O, Z)
 	circles_ref = web(Circle(axis, ext_radius)) + web(Circle(axis, int_radius)).flip()
 	top_profile = circles_ref.transform(vec3(0, 0, half_depth - int_height))
@@ -278,7 +279,7 @@ def pattern_circle(
 	the second `Web` is the bottom of the structure and the last element `Mesh` is all side surfaces.
 
 	Parameters:
-	
+
 		ext_radius (float): radius of the external border of the structure
 		int_radius (float): radius of the internal border of the structure
 		depth (float): face width
@@ -290,7 +291,7 @@ def pattern_circle(
 		circles_place (float): radius where the origins of circles are placed
 
 	Note:
-	
+
 		- for instance, with a ratio of 1.5, the radius of circles `circles_radius` will be divided by 1.5
 		- if `circles_radius` is chosen, `ratio` won't impact the radius of circles `circles_radius`
 	"""
@@ -302,9 +303,9 @@ def pattern_circle(
 		circles_place = (ext_radius + int_radius) / 2
 	if not circles_radius:
 		circles_radius = (ext_radius - int_radius) / (4 * ratio)
-	
+
 	assert circles_radius / circles_place < sin(pi / patterns), "too many circles for the specified size. Change either 'ratio', 'circle_radius' or 'patterns'"
-	
+
 	Z = vec3(0,0,1)
 	axis = (vec3(0,0,0), Z)
 
@@ -348,7 +349,7 @@ def create_pattern_rect(
 	and `pattern_rounded` when `pattern` = "rounded"
 
 	Parameters:
-	
+
 		ext_radius (float): radius of the external border of the structure
 		int_radius (float):  radius of the internal border of the structure
 		depth (float): face width
@@ -361,7 +362,7 @@ def create_pattern_rect(
 		rounded (bool): if it is True, the pattern will be rounded
 
 	Note:
-	
+
 		- for instance, if `ratio` is 1.5, the area of the pattern will be divided by 1.5.
 		- if `r_int` and `r_ext` are chosen, `ratio` won't impact these parameters
 	"""
@@ -394,9 +395,9 @@ def create_pattern_rect(
 
 	# Primitives
 	pattern_ref = web([
-					Segment(B2, B1), 
-					ArcCentered((O, -Z), B1, A1), 
-					Segment(A1, A2), 
+					Segment(B2, B1),
+					ArcCentered((O, -Z), B1, A1),
+					Segment(A1, A2),
 					ArcCentered((O, Z), A2, B2),
 					])
 
@@ -421,7 +422,7 @@ def create_pattern_rect(
 	top_profile = reduce(add, top_webs)
 	bottom_profile = reduce(add, bottom_webs)
 	surfaces = extrusion(vec3(0, 0, depth - 2 * int_height), bottom_webs[0].flip())
-	
+
 	mesh = triangulation(top_profile) + triangulation(bottom_profile) + surfaces
 	mesh.mergeclose()
 	return mesh
@@ -446,7 +447,7 @@ def pattern_rect(
 	the second `Web` is the bottom of the structure and the last element `Mesh` is all side surfaces.
 
 	Parameters:
-	
+
 		ext_radius: float (radius of the external border of the structure)
 		int_radius: float (radius of the internal border of the structure)
 		depth: float (face width)
@@ -458,7 +459,7 @@ def pattern_rect(
 		int_thickness (float): external radius of the pattern
 
 	Note:
-	
+
 		- for instance, if `ratio` is 1.5, the area of the pattern will be divided by 1.5.
 		- if `r_int` and `r_ext` are chosen, `ratio` won't impact these parameters
 	"""
@@ -484,7 +485,7 @@ def pattern_rounded(
 	the second `Web` is the bottom of the structure and the last element `Mesh` is all side surfaces.
 
 	Parameters:
-	
+
 		ext_radius: float (radius of the external border of the structure)
 		int_radius: float (radius of the internal border of the structure)
 		depth: float (face width)
@@ -496,13 +497,13 @@ def pattern_rounded(
 		int_thickness (float): external radius of the pattern
 
 	Note:
-	
+
 		- for instance, if `ratio` is 1.5, the area of the pattern will be divided by 1.5.
 		- if `r_int` and `r_ext` are chosen, `ratio` won't impact these parameters
 	"""
 	return create_pattern_rect(ext_radius, int_radius, depth, int_height, ratio, patterns, ext_thickness, int_thickness, True)
 
-	
+
 def minmax_radius(points):
 	min, max = inf, 0
 	for p in points:
@@ -510,8 +511,8 @@ def minmax_radius(points):
 		if r > max:		max = r
 		elif r < min:	min = r
 	return sqrt(min), sqrt(max)
-		
-		
+
+
 
 def gearexterior(
 	profile: Wire,
@@ -525,7 +526,7 @@ def gearexterior(
 	Generate the external part of the pinion
 
 	Parameters:
-	
+
 		profile (Web):         profile of the pinion generated by `gearprofile`
 		depth (float):         extrusion eight - width of the gear along its axis
 		step (float):          step of chordal pitch, must be specified for non-null helix_angle, unused otherwise
@@ -535,15 +536,13 @@ def gearexterior(
 	# TODO: helical + chamfer
 
 	half_depth = depth / 2
-	
-	# resolution
 	footer, header = minmax_radius(profile.points)
 	
 	# Internal circles
 	circle_ref = wire(Circle((O,Z), footer - 0.3*(header-footer)))
 	top_circle = circle_ref.transform(vec3(0, 0, half_depth))
 	bottom_circle = circle_ref.transform(vec3(0, 0, -half_depth))
-	
+
 	assert not (chamfer and helix_angle),  "chamfer is not (yet) supported with a non-null helix_angle"
 
 	if chamfer:  # chamfer case
@@ -604,7 +603,6 @@ def gearexterior(
 		bottom_surface = triangulation(web([bottom_gear_edge.flip(), bottom_circle]))
 		mesh = gear_surface + top_surface + bottom_surface
 		mesh.mergeclose()
-	
 	return mesh
 
 
@@ -619,19 +617,19 @@ def gearstructure(
 ) -> Mesh:
 	"""
 	Generate the internal part of the pinion
-	
+
 	Parameters:
-	
-		ext_radius (float): 
-		
+
+		ext_radius (float):
+
 				given by the attribut `_radius` of the result of `repeat_circular` -
 				to avoid interference, it must be smaller than `_radius` (for instance 0.95 * `_radius`))
-		
+
 		int_radius (float):    it is the same radius of the largest radius of the hub part
 		depth (float):         face width
 		pattern:               any of 'full', 'circle', 'rect', 'rounded'
-		int_height (float): 
-		
+		int_height (float):
+
 				if you want a pinion with a structure thinner than the value of `depth`,
 				the total height will be `total_height = depth - 2 * int_height`
 	"""
@@ -653,7 +651,7 @@ def gearhub(
 	Generate a hub for a pinion part
 
 	Parameters:
-	
+
 		bore_radius (float):     radius of the central bore
 		depth (float):           face width; same parameter for `gearexterior` and `gearstructure`
 		int_height (float):      only useful for no hub case, checkout the function `gearstructure` for more information
@@ -661,7 +659,7 @@ def gearhub(
 		hub_radius (float):      external radius of the hub
 
 	Note:
-	
+
 		- if `bore_radius` is null, the function will return a top circle and a bottom circle used for `geargather` function
 		- if `hub_height` is null, the function will return a structure with a bore and without a hub
 	"""
@@ -701,7 +699,7 @@ def gearhub(
 def geargather(exterior, structure, hub) -> Mesh:
 	"""
 	Gather all parts: exterior, structure, and hub
-	
+
 	You can obtain them via the provided functions, or generate them yourself.
 	"""
 	exterior.mergeclose()
@@ -759,47 +757,47 @@ def gear(
 ) -> Mesh:
 	"""
 	Generate a pinion.
-	
+
 	Any extra argument will go to functions `gearprofile`, `gearstructure`, or `gearhub`
 
 	Parameters:
-	
-		step (float):    
-		
+
+		step (float):
+
 			tooth step over the primitive curve, same as the matching rack step
 			the primitive perimeter is `step * z` and radius is `step * z / 2*pi`
-		
+
 		z (int):         number of teeth
 		depth (float):       extrusion eight - width of the gear along its axis
 		bore_radius (float):   radius of the main bore
 		int_height (float):    if you want a pinion with a structure thinner than the value of `depth`,
 						       the total height will be `total_height = depth - 2 * int_height`
-		pattern: 
+		pattern:
 			determine the structure between exterior (tooth) and hub
 			This argument specifies the use a a function named `'pattern_'+pattern` in this module.
 
 	* Extra parameters for `gearprofile`
-	
+
 		offset (float):   offset of tooth (as a distance)
 		alpha (float):    pressure angle in radian
-	
+
 	* Extra parameters for `gearexterior`
-	
+
 		helix_angle (float):   helix angle to get a helical pinion in radian
 		chamfer (float):       chamfer angle - only for straight pinion
-	
+
 	* Extra parameters for `gearstructure`
-	
+
 		ratio (float):       influence the proportion of dimensions of the structure
-		
+
 		Note: `int_height` impacts the thickness of the structure unless specified
-	
+
 	* Extra parameters for `gearhub`
-	
+
 		hub_height (float):   height of the hub shoulder
-	
+
 	Note:
-	
+
 		- `int_height` impacts the height of the hub unless specified.
 		- if `hub_height` is null, there will be no hub.
 	"""
@@ -810,12 +808,349 @@ def gear(
 	hub = gearhub(bore_radius, depth, int_height, **kwargs)
 	ext_int = minmax_radius(exterior.points)[0]
 	structure = gearstructure(
-					pattern, 
-					ext_int * 0.95, 
-					max(minmax_radius(hub.points)[1], 0.2*ext_int), 
-					depth, 
-					int_height, 
+					pattern,
+					ext_int * 0.95,
+					max(minmax_radius(hub.points)[1], 0.2*ext_int),
+					depth,
+					int_height,
 					**kwargs)
 	return geargather(exterior, structure, hub)
 
 
+def frange(start:float, end:float, div:int=10):
+	"""Generate `div` numbers from `start` to `end`"""
+	k = (end - start) / (div - 1)
+	return (start + i * k for i in range(div))
+
+
+def get_pitch_cone_angle(z_pinion:int, z_wheel:int, shaft_angle:float=0.5 * pi) -> float:
+	"""
+	Return the pitch cone angle of the pinion called `gamma_p`.
+	The pitch cone angle of the wheel is equal to `shaft_angle - gamma_p`
+
+	Parameters :
+
+		z_pinion (int): 		the number of teeth on the bevel pinion
+		z_wheel (int): 			the number of teeth on the bevel wheel
+		shaft_angle (float): 	the shaft angle
+	"""
+	return atan2(sin(shaft_angle), ((z_wheel / z_pinion) + cos(shaft_angle)))
+
+
+def spherical_involute(t:float, t0:float, cone_angle:float) -> vec3:
+	"""
+	Return spherical involute function
+
+	Parameter:
+
+		t (float): 				the angular position
+		t0 (float): 			the difference phase
+		cone_angle (float): 	the cone angle
+
+	Note:
+
+		return a normalized `vec3`
+	"""
+	cos_g, sin_g = cos(cone_angle), sin(cone_angle)
+	return vec3(
+		sin_g * cos(t * sin_g) * cos(t + t0) + sin(t * sin_g) * sin(t + t0),
+		sin_g * cos(t * sin_g) * sin(t + t0) - sin(t * sin_g) * cos(t + t0),
+		cos_g * cos(t * sin_g),
+	)
+
+
+def spherical_involuteat(t:float, t0:float, pitch_cone_angle:float, alpha:float) -> vec3:
+	"""
+	Return the spherical interference function
+
+	Parameter:
+
+		t (float): 					the angular position
+		t0 (float): 				the difference phase
+		pitch_cone_angle (float):	the pitch cone angle
+		alpha(float): 				the height angle offset of the rack
+
+	Note:
+
+		return a normalized `vec3`
+	"""
+	cos_p, sin_p = cos(pitch_cone_angle), sin(pitch_cone_angle)
+	involute = lambda t, t0: spherical_involute(t, t0, pitch_cone_angle)
+	vec = lambda t: vec3(-cos_p * cos(t), -cos_p * sin(t), sin_p)
+	return cos(alpha) * involute(t, t0) + sin(alpha) * vec(t + t0)
+
+
+def derived_spherical_involute(cone_angle:float, t0:float):
+	"""
+	Return the function of the derived spherical involute function.
+
+	Parameters:
+
+		cone_angle (float): 	the cone angle
+		t0 (float): 			the phase difference
+	"""
+	cos_g, sin_g = cos(cone_angle), sin(cone_angle)
+	return lambda t: vec3(
+		cos_g ** 2 * sin(t * sin_g) * cos(t + t0),
+		cos_g ** 2 * sin(t * sin_g) * sin(t + t0),
+		-cos_g * sin_g * sin(t * sin_g),
+	)
+
+
+def jacobian_spherical_involute(base_cona_angle:float, pitch_cone_angle:float, t01:float, t02:float, alpha:float) -> callable:
+	"""
+	Return the function of the jacobian used for the newton method in `spherical_gearprofile`
+
+	Parameters:
+
+		base_cona_angle (float): 	the base cone angle
+		pitch_cone_angle (float): 	the pitch cone angle
+		t01 (float): 				the phase of the spherical involute function
+		t02 (float): 				the phase of the spherical interference function
+		alpha (float): 				the height angle offset of the rack
+	"""
+	dsi = derived_spherical_involute # for convenience
+	derived_involute = dsi(base_cona_angle, t01)
+	cos_p = cos(pitch_cone_angle)
+	vec = lambda t: vec3(cos_p * sin(t), -cos_p * cos(t), 0)
+	derived_interference = lambda t: dsi(pitch_cone_angle, t02)(t) * cos(alpha) + sin(alpha) * vec(t + t02)
+	return lambda t1, t2: mat3(derived_involute(t1), -derived_interference(t2), vec3(0, 0, 1))
+
+
+def spherical_rack_tools(z:float, pressure_angle:float=pi / 9, ka:float=1, kd:float=1.25):
+	"""
+	Return a list of all information useful to generate a spherical rack.
+	Five elements :
+		1) the minimum abscissa for the function (fifth element)
+		2) the maximum abscissa for the function (fifth element)
+		3) the phase of a tooth
+		4) the phase of space
+		5) the function to generate a tooth
+
+	Parameters :
+
+		z (float):
+			number of tooth of the rack equal to `z_pinion / sin(pitch_cone_angle)`
+			or `z_wheel / sin(shaft_angle - pitch_cone_angle)`
+		pressure_angle (float): the pressure angle of the gear
+		ka (float): 			the addendum coefficient
+		kd (float): 			the dedendum coefficient
+	"""
+	k = 1 / z
+	gamma_p = 0.5 * pi
+	gamma_b = asin(cos(pressure_angle))
+	cos_b, sin_b = cos(gamma_b), sin(gamma_b)
+	gamma_f = gamma_p + 2 * ka * k
+	gamma_r = gamma_p - 2 * kd * k
+
+	phi_p = acos(tan(gamma_b) / tan(gamma_p))
+	theta_p = atan2(sin_b * tan(phi_p), 1) / sin_b - phi_p
+	phase_diff = k * pi + 2 * theta_p
+
+	t_min = acos(cos(gamma_r) / cos_b) / sin_b
+	t_max = acos(cos(gamma_f) / cos_b) / sin_b
+
+	involute = lambda t, t0: spherical_involute(t, t0, gamma_b)
+	v = vec3(1, 1, 0)
+	phase_empty = 2 * pi * k - anglebt(involute(t_min, 0) * v, involute(-t_min, phase_diff) * v)
+
+	return [t_min, t_max, phase_diff, phase_empty, involute]
+
+
+def spherical_rack_profile(z:float, pressure_angle:float=pi / 9, ka:float=1, kd:float=1.25):
+	"""
+	Return a `Wire` which is a tooth of the rack.
+
+	Parameters :
+
+		z (float):
+			number of tooth of the rack equal to `z_pinion / sin(pitch_cone_angle)`
+			or `z_wheel / sin(shaft_angle - pitch_cone_angle)`
+		pressure_angle (float): 	the pressure angle of the gear
+		ka (float): 				the addendum coefficient
+		kd (float): 				the dedendum coefficient
+	"""
+	t_min, t_max, phase1, phase2, involute = spherical_rack_tools(z, pressure_angle, ka, kd)
+	side1 = [involute(t, 0) for t in frange(t_min, t_max)]
+	side2 = [involute(-t, phase1) for t in frange(t_min, t_max)]
+	segment = Segment(involute(t_min, -phase2), side1[0]).mesh()
+	segment2 = Segment(side1[-1], side2[-1]).mesh()
+	wire = segment + Wire(side1) + segment2 + Wire(side2).flip()
+	return wire
+
+
+def spherical_gearprofile(z:int, pitch_cone_angle:float, pressure_angle:float=pi / 9, ka:float=1, kd:float=1.25) -> Wire:
+	"""
+	Generate and return a `Wire` of a 1-period tooth spherical profile for a bevel gear
+
+	Parameters:
+
+		z (int):						number of tooth on the gear this profile is meant for
+		pitch_cone_angle (float): 		the pitch cone angle
+		pressure_angle (float):			pressure angle of the tooth
+		ka (float):						addendum coefficient
+		kd (float): 					dedendum coefficient
+	"""
+	# Initialization of parameters
+	gamma_p = pitch_cone_angle # for convenience
+	gamma_b = asin(cos(pressure_angle) * sin(gamma_p))
+	cos_b, sin_b = cos(gamma_b), sin(gamma_b)
+	tooth_size = pi / z
+	involute = lambda t, t0 : spherical_involute(t, t0, gamma_b)
+	epsilon_p = acos(cos(gamma_p) / cos_b) / sin_b
+	theta_p = anglebt(involute(0, 0) * vec3(1, 1, 0), involute(epsilon_p, 0) * vec3(1, 1, 0))
+	phase_diff = tooth_size + 2 * theta_p
+	phase_empty = phase_interference = 2 * pi / z - phase_diff
+	# The following number `k` is useful to simplify some calculations
+	# It's broadly speaking `1/z_rack` and `z_rack` is not an integer !
+	k = sin(gamma_p) / z
+
+	# Spherical involute part
+	gamma_f = gamma_p + 2 * ka * k # addendum cone angle
+	gamma_r = gamma_p - 2 * kd * k # dedendum cone angle
+	t_min = 0
+	t_max = acos(cos(gamma_f) / cos_b) / sin_b
+	if gamma_r > gamma_b:
+		v = vec3(1, 1, 0)
+		t_min = acos(cos(gamma_r) / cos_b) / sin_b
+		phase_empty = 2 * pi / z - anglebt(
+			involute(t_min, 0) * v, involute(-t_min, phase_diff) * v
+		)
+
+	# Calculation of offsets due to geometry of spherical rack
+	_, t_rack_max, phase1, _, rinvolute = spherical_rack_tools(1 / k, pressure_angle, ka, kd)
+	interference = lambda t, t0 : spherical_involuteat(t, t0, gamma_p, alpha)
+	alpha = 2 * ka * k
+	n1, n2 = rinvolute(t_rack_max, 0) * vec3(1, 1, 0), rinvolute(-t_rack_max, phase1) * vec3(1, 1, 0)
+	beta = 0.5 * anglebt(n1, n2) * length(n1) / sin_b
+
+	# Newton method to calculate the intersection between
+	# the spherical involute and the spherical interference.
+	# Objective function
+	involuteat = lambda t2, t0 : spherical_involuteat(t2, t0, gamma_p, alpha)
+	f = lambda t1, t2: involute(t1, 0) - involuteat(t2, -0.5 * phase_interference + beta)
+	# Jacobian matrix
+	J = jacobian_spherical_involute(gamma_b, gamma_p, 0, -0.5 * phase_interference + beta, alpha)
+
+	# Compute the intersection values
+	t1, t2, t3 = 0.5 * t_max, -0.5 * t_max, 0
+	for i in range(8):
+		t1, t2, t3 = vec3(t1, t2, t3) - inverse(J(t1, t2)) * f(t1, t2)
+
+	# Build sides of a tooth
+	interference1 = [interference(t, -0.5 * phase_interference + beta) for t in frange(0, t2)]
+	interference2 = [interference(-t, phase_diff + 0.5 * phase_interference - beta) for t in frange(0, t2)]
+	side1 = interference1[:-1] + [involute(t, 0) for t in frange(t1, t_max)]
+	side2 = interference2[:-1] + [involute(-t, phase_diff) for t in frange(t1, t_max)]
+
+	# Extreme points of sides to compute angle between them
+	a = interference(0, -0.5 * phase_interference + beta)
+	b = interference(0, phase_diff + 0.5 * phase_interference - beta)
+	final_phase_empty = 2 * pi / z - anglebt(a * vec3(1, 1, 0), b * vec3(1, 1, 0))
+	top = Segment(involute(t_max, 0), involute(-t_max, phase_diff)).mesh()
+	bottom = Segment(angleAxis(-final_phase_empty, vec3(0, 0, 1)) * a, a).mesh()
+
+	return bottom + Wire(side1) + top + Wire(side2).flip()
+
+
+def cone_projection(profile: Wire, pitch_cone_angle:float) -> Wire:
+	"""
+	Return a Wire of the spherical profile projected on a cone
+
+	Parameters:
+		profile (Wire) : 			the spherical profile
+		pitch_cone_angle (float) : 	the pitch cone angle
+	"""
+	ref = lambda t: vec3(sin(pitch_cone_angle) * cos(t), sin(pitch_cone_angle) * sin(t), cos(pitch_cone_angle))
+	new_points = [1 / dot(ref(atan2(point.y, point.x)), point) * point for point in profile.points]
+	return Wire(new_points, indices=profile.indices)
+
+
+def bevel_gear(step:float, z:int, pitch_cone_angle:float, pressure_angle:float=pi/9, ka:float=1, kd:float=1.25, bore_radius:float=None, bore_height:float=None):
+	"""
+	Generate a bevel gear.
+
+	Parameters:
+
+		step (float):
+
+			tooth step over the primitive curve, same as the matching rack step
+			the primitive perimeter is `step * z` and radius is `step * z / (2 * pi)`
+
+		z (int):		 			number of teeth
+		pitch_cone_angle (float):	   		pitch cone angle
+		pressure_angle (flaot):		the pressure angle of the tooth
+		bore_radius (float):   		radius of the main bore
+		bore_height (float):   		height of the main bore
+	"""
+
+	# Initialization of parameters
+	gamma_p = pitch_cone_angle # for convenience
+	gamma_b = asin(cos(pressure_angle) * sin(gamma_p))
+	sin_b = cos(pressure_angle) * sin(gamma_p)
+	m = step / pi
+	rp = 0.5 * m * z
+	rb = rp * cos(pressure_angle)
+	rho1 = rp / sin(gamma_p)
+	rho0 = 2 * rho1 / 3
+	k = sin(gamma_p) / z
+	gamma_r = gamma_p - 2 * kd * k
+	phi_p = acos(tan(gamma_b) / tan(gamma_p))
+	theta_p = atan2(sin_b * tan(phi_p), 1) / sin_b - phi_p
+	phase_diff = pi / z + 2 * theta_p
+
+	# Generate spherical profiles
+	spherical_profile = spherical_gearprofile(z, gamma_p, pressure_angle, ka, kd) # one tooth
+	outside_profile = spherical_profile.transform(rho1 * 1.1)
+	inside_profile = spherical_profile.transform(rho0 * 0.9)
+
+	# Partial functions for convenience
+	junction_straight = partial(junction, tangents="straight")
+	blendpair_straight = partial(blendpair, tangents="straight")
+
+	# Generate teeth border
+	teeth_border = blendpair_straight(outside_profile, inside_profile.flip())
+
+	# Common values
+	v = vec3(1, 1, 0)
+	angle1tooth = anglebt(spherical_profile[0] * v, spherical_profile[-1] * v)
+	gamma_l = gamma_p + 2 * (ka + 0.25) * k # offset : 0.25 for boolean operation
+	A = vec3(rho1 * sin(gamma_r), 0, rho1 * cos(gamma_r))
+	B = vec3(rho1 * sin(gamma_l), 0, rho1 * cos(gamma_l))
+	C = vec3(rho0 * sin(gamma_r), 0, rho0 * cos(gamma_r))
+	D = vec3(rho0 * sin(gamma_l), 0, rho0 * cos(gamma_l))
+	v1 = A * v
+	v2 = spherical_profile[0] * v
+	phase_tooth_body = anglebt(v1, v2)
+	phase_tooth_body = -phase_tooth_body if cross(v1, v2).z > 0 else phase_tooth_body
+
+
+	# Generate points for a section
+	if bore_radius is None:
+		bore_radius = 0.5 * rho0 * sin(gamma_r)
+	if bore_height is None:
+		bore_height = 0.4 * rho1 * cos(gamma_r)
+	if bore_radius:
+		if bore_height:
+			E = vec3(1.5 * bore_radius, 0, rho1 * cos(gamma_r))
+			F = vec3(bore_radius, 0, rho0 * cos(gamma_r))
+			G = vec3(1.5 * bore_radius, 0, rho1 * cos(gamma_r) + bore_height) # top of the bore
+			H = vec3(bore_radius, 0, rho1 * cos(gamma_r) + bore_height) # top of the bore
+			wire = Wire([A, B, D, C, F, H, G, E, A]).segmented()
+			chamfer(wire, [4, 5, 6], ("distance", bore_radius * 0.05))
+			bevel(wire, [7], ("distance", bore_height * 0.1))
+		else:
+			E = vec3(bore_radius, 0, rho1 * cos(gamma_r))
+			F = vec3(bore_radius, 0, rho0 * cos(gamma_r))
+			wire = Wire([A, B, D, C, F, E, A]).segmented()
+			chamfer(wire, [4, 5], ("distance", bore_radius * 0.05))
+	else:
+		E = vec3(0, 0, rho1 * cos(gamma_r))
+		F = vec3(0, 0, rho0 * cos(gamma_r))
+		wire = Wire([A, B, D, C, F, E, A]).segmented()
+
+	body = revolution(angle1tooth, (vec3(0),vec3(0, 0, 1)), wire)
+	one_tooth = intersection(body, teeth_border.transform(angleAxis(phase_tooth_body, vec3(0, 0, 1))))
+	all_teeth = repeat(one_tooth, z, rotatearound(angle1tooth, (vec3(0, 0, 0), vec3(0, 0, 1))))
+	all_teeth.mergeclose()
+	return all_teeth
