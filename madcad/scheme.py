@@ -477,10 +477,10 @@ def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None):
 	bo = b + (offset - shift) * x
 	# create scheme
 	sch = Scheme()
-	sch.set(shader='line', layer=1e-2, color=fvec4(color,0.3))
+	sch.set(shader='line', layer=1e-4, color=fvec4(color,0.3))
 	sch.add([a, ao])
 	sch.add([b, bo])
-	sch.set(layer=-1e-2, color=fvec4(color,0.7))
+	sch.set(layer=-1e-4, color=fvec4(color,0.7))
 	sch.add([ao, bo])
 	sch.add(txt.Text(
 				mix(ao,bo,0.5), 
@@ -573,12 +573,12 @@ def note_angle(a0, a1, offset=0, d=None, tol=None, text=None, unit='deg'):
 	p0 = center+radius*d0
 	p1 = center+radius*d1
 	sch = Scheme()
-	sch.set(shader='line', layer=1e-2, color=fvec4(color,0.3))
+	sch.set(shader='line', layer=1e-4, color=fvec4(color,0.3))
 	sch.add([p0, o0])
 	sch.add([p1, o1])
 	arc = ArcCentered((center,z), p0, p1, ('rad',0.05)).mesh()
 	sch.add(arc, color=fvec4(color,0.7))
-	sch.set(layer=-1e-2)
+	sch.set(layer=-1e-4)
 	sch.add(txt.Text(
 				arc[len(arc)//2], 
 				text, 
@@ -599,6 +599,7 @@ def note_angle(a0, a1, offset=0, d=None, tol=None, text=None, unit='deg'):
 				resolution=('div',8)), 
 			space=scale_screen(fvec3(p1)))
 	return sch
+
 	
 def _mesh_direction(mesh):
 	if isinstance(mesh, Mesh):	return mesh.facenormal(0)
@@ -672,7 +673,7 @@ def note_label(placement, offset=None, text='!', style='rect'):
 				resolution=('div',8),
 				),
 			space=scale_screen(fvec3(p)), shader='fill')
-	sch.add([p, p+offset], space=world, shader='line', layer=2e-3)
+	sch.add([p, p+offset], space=world, shader='line', layer=2e-4)
 	r = 5
 	if style == 'circle':	outline = web(Circle((vec3(0),vec3(0,0,1)), r))
 	elif style == 'rect':	outline = [vec3(r,r,0), vec3(-r,r,0), vec3(-r,-r,0), vec3(r,-r,0), vec3(r,r,0)]
