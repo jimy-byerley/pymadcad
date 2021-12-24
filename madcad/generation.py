@@ -495,10 +495,12 @@ def regon(axis, radius, n, alignment=None) -> 'Wire':
 def repeat(pattern, n, trans):
 	''' create a mesh duplicating n times the given pattern, each time applying the given transform.
 		
-		:pattern:   can either be a `Mesh`, `Web` or `Wire`   
-					the return type will depend on the input type
-		:n:         the number of repetitions
-		:trans:     is the transformation between each duplicate
+		Parameters:
+		
+			pattern:   can either be a `Mesh`, `Web` or `Wire`   
+						the return type will depend on the input type
+			n:         the number of repetitions
+			trans:     is the transformation between each duplicate
 	'''
 	current = pattern
 	pool = type(pattern)(groups=pattern.groups)

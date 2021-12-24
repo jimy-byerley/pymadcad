@@ -107,7 +107,8 @@ class Screw(object):
 		return '{}(\n\t{}, \n\t{}, \n\t{})'.format(self.__class__.__name__, repr(self.resulting), repr(self.momentum), repr(self.position))
 
 def comomentum(t1, t2):
-	''' comomentum of torsors:   dot(M1, R2)  +  dot(M2, R1)
+	''' comomentum of screws:   `dot(M1, R2)  +  dot(M2, R1)`
+		
 		the result is independent of torsors location
 	'''
 	t2 = t2.locate(t1.position)
@@ -117,11 +118,27 @@ def comomentum(t1, t2):
 class Solid:
 	''' Solid for kinematic definition, used as variable by the kinematic solver
 	
-	Attributes:
-		orientation (quat):  rotation from local to world space
-		position (vec3):     displacement from local to world
-		content (dict/list):      objects to display using the solid's pose
-		name (str):          optional name to display on the scheme
+		A Solid is also a way to group objects and move it anywere without modifying them, as the objects contained in a solid are considered to be in solid local coordinates.
+		A Solid is just like a dictionnary with a pose.
+	
+		Attributes:
+			orientation (quat):  rotation from local to world space
+			position (vec3):     displacement from local to world
+			content (dict/list):      objects to display using the solid's pose
+			name (str):          optional name to display on the scheme
+			
+		Example:
+			
+			>>> mypart = icosphere(vec3(0), 1)
+			>>> s = Solid(content=mypart)   # create a solid with whatever inside
+			
+			>>> s.itransform(vec3(1,2,3))	# translate the solid, keeping the content untouched
+			>>> s.transform(vec3(1,2,3))   # make a new translated solid, keeping the same content without copy
+			
+			>>> # put any content is in a dict
+			>>> s['content']
+			<Mesh ...>
+			>>> s['whatever'] = vec3(5,2,1)
 	'''
 	def __init__(self, pose=None, **content):
 		if pose:
@@ -176,7 +193,7 @@ class Solid:
 		return s
 		
 	def place(self, *args, **kwargs) -> 'Solid': 
-		''' strictly equivalent to `.transform(placement(...))` '''
+		''' strictly equivalent to `.transform(placement(...))`, see `placement` for parameters specifications. '''
 		s = copy(self)
 		s.pose = placement(*args, **kwargs)
 		return s
