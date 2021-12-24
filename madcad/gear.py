@@ -225,7 +225,7 @@ def angle(p):
 def repeat_circular(profile, n: int) -> Wire:
 	''' Repeat n times the given Wire by rotation around (O,Z) '''
 	result = repeat(profile, n, rotatearound(
-		anglebt(noproject(profile[0],Z), noproject(profile[-1],Z)),
+		anglebt(noproject(profile[0],Z), noproject(profile[-1],Z)), 
 		(O,Z),
 		))
 	result.mergeclose()
@@ -403,12 +403,12 @@ def create_pattern_rect(
 
 	# Multiply the pattern of reference
 	if rounded:  # rounded case
-		bevel(	pattern_ref,
-				pattern_ref.frontiers(0,1,2),
+		bevel(	pattern_ref, 
+				pattern_ref.frontiers(0,1,2), 
 				('radius', min(0.3*(r_ext - r_int), r_int*(angle_step/2-theta_1))),
 				)
-		bevel(	pattern_ref,
-				pattern_ref.frontiers(2,3,0),
+		bevel(	pattern_ref, 
+				pattern_ref.frontiers(2,3,0), 
 				('radius', min(0.3*(r_ext - r_int), r_ext*(angle_step/2-theta_2))),
 				)
 		pattern_ref.mergeclose()
@@ -536,10 +536,8 @@ def gearexterior(
 	# TODO: helical + chamfer
 
 	half_depth = depth / 2
-
-	# resolution
 	footer, header = minmax_radius(profile.points)
-
+	
 	# Internal circles
 	circle_ref = wire(Circle((O,Z), footer - 0.3*(header-footer)))
 	top_circle = circle_ref.transform(vec3(0, 0, half_depth))
@@ -555,7 +553,7 @@ def gearexterior(
 		for i, point in enumerate(profile.points):
 			# truncate points that overlap the primitive
 			r = length2(point)
-			if r > start**2:
+			if r > start**2:  
 				r = sqrt(r)
 				profile.points[i] = point - vec3(0, 0, (r - start) * k)
 				truncated.points[i] = point * start / r
@@ -605,7 +603,6 @@ def gearexterior(
 		bottom_surface = triangulation(web([bottom_gear_edge.flip(), bottom_circle]))
 		mesh = gear_surface + top_surface + bottom_surface
 		mesh.mergeclose()
-
 	return mesh
 
 
