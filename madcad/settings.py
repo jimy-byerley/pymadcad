@@ -9,7 +9,7 @@ dictionnaries:
 
 from math import pi, ceil, floor, sqrt
 from glm import fvec3, fvec4
-import os, yaml
+import sys, os, yaml
 from os.path import dirname, exists
 
 
@@ -62,8 +62,15 @@ primitives = {
 	'curve_resolution': ['rad', pi/16],	# angle maximal pour discretisation des courbes
 	}
 
+# get configuration directory depending on OS
+if sys.platform == 'win32':
+        home = os.getenv('USERPROFILE')
+        configdir = home+'/AppData/Local'
+else:
+        home = os.getenv('HOME')
+        configdir = home+'/.config'
 
-config = os.getenv('HOME')+'/.config/madcad/pymadcad.yaml'
+config = configdir+'/madcad/pymadcad.yaml'
 settings = {'display':display, 'scene':scene, 'controls':controls, 'primitives':primitives}
 
 

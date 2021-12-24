@@ -1,62 +1,43 @@
-from time import time
 from copy import deepcopy
-from nprint import nprint
-from madcad import vec3,mat4, rotate, Mesh, quat, transform, normalize
-from madcad.boolean import difference, booleanwith, intersectwith
-from madcad import boolean
+from madcad import *
+from madcad.boolean import pierce, boolean
+from madcad.generation import brick
+from madcad.nprint import nprint
 
-from madcad import show
-
-m1 = Mesh(
-	[
-		vec3(1.0, -1.0, -1.0),
-		vec3(1.0, -1.0, 1.0),
-		vec3(-1.0, -1.0, 1.0),
-		vec3(-1.0, -1.0, -1.0),
-		vec3(1.0, 1.0, -1.0),
-		vec3(1.0, 1.0, 1.0),
-		vec3(-1.0, 1.0, 1.0),
-		vec3(-1.0, 1.0, -1.0)],
-	[
-		(0, 1, 2),
-		(0, 2, 3),
-		(4, 7, 6),
-		(4, 6, 5),
-		(0, 4, 5),
-		(0, 5, 1),
-		(1, 5, 6),
-		(1, 6, 2),
-		(2, 6, 7),
-		(2, 7, 3),
-		(4, 0, 3),
-		(4, 3, 7)],
-	[	0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5	],
-	[None] * 6,
-	)
-
+m1 = brick(width=vec3(2))
 m2 = (deepcopy(m1)
 		.transform(vec3(0.5, 0.3, 0.4))
 		.transform(quat(0.7*vec3(1,1,0)))
 		)
+		
 
-#boolean.debug_propagation = True
-#boolean.scn3D = scn3D
-#m3 = deepcopy(m1)
-#intersectwith(m3, m2)
-#booleanwith(m3, m2, True)
+results = []
 
-m3 = boolean.boolean(m1, m2, (True, False))
-m3.mergeclose()
-m3.strippoints()
-m3.check()
-assert m3.isenvelope()
+for side in (False, True):
+	nprint('* pierce(side={})'.format(side))
+	
+	r = pierce(m1, m2, side)
+	r.check()
+	assert r.issurface()
+	results.append(r)
+	
+	r = pierce(m2, m1, side)
+	r.check()
+	assert r.issurface()
+	results.append(r)
 
-# debug purpose
-#m3.options.update({'debug_display':True, 'debug_points':True, 'debug_faces':False})
-#m2.options.update({'debug_display':True, 'debug_points':False, 'debug_faces':'indices'})
-#m1.options.update({'debug_display':True, 'debug_points':False, 'debug_faces':'indices'})
-#m3.groups = [None]*len(m3.faces)
-#m3.tracks = list(range(len(m3.faces)))
+for sidea in (False, True):
+	for sideb in (False, True):
+		nprint('* boolean(sides=({}, {}))'.format(sidea, sideb))
+		r = boolean(m1, m2, (sidea, sideb))
+		r.check()
+		assert r.isenvelope()
+		results.append(r)
+
 # display
-show([m3])
+for i in range(len(results)):
+	results[i] = Solid(content=results[i])
+	results[i].position += 4*i*Y
+
+show(results)
 

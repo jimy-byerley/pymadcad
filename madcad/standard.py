@@ -19,7 +19,7 @@ from .primitives import *
 from .mesh import Mesh, Web, Wire, web, wire
 from .generation import *
 from .blending import *
-from .boolean import union, difference, intersection, booleanwith
+from .boolean import pierce, union, difference, intersection
 from .cut import *
 from .io import cachefunc
 
@@ -847,7 +847,7 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 			])
 		bevel(cage_profile, [1], ('radius',c))
 		cage = revolution(2*pi, axis, cage_profile)
-		booleanwith(cage, inflate(rollers, 0.5*c), False)
+		cage = pierce(cage, inflate(rollers, 0.5*c), False)
 		cage = thicken(cage, c) .option(color=vec3(0.3,0.2,0))
 		
 		# assemble
@@ -915,7 +915,7 @@ def bearing_thrust(dint, dext, h, detail=False):
 		bevel(cage_profile, [1,2], ('radius',c), resolution=('div',1))
 		
 		cage_surf = revolution(2*pi, axis, cage_profile)
-		booleanwith(cage_surf, inflate(balls, 0.2*c), False)
+		cage_surf = pierce(cage_surf, inflate(balls, 0.2*c), False)
 		cage = thicken(cage_surf, c) .option(color=vec3(0.3,0.2,0))  .option(color=vec3(0.3,0.2,0))
 		
 		# assemble
@@ -1069,7 +1069,7 @@ def linrange(start, stop=None, step=None, div=0, end=True):
 	if step is None:	step = (stop-start)/(div+1)
 	elif step * (stop-start) < 0:	step = -step
 	if not end:			stop -= step
-	stop += NUMPREC
+	stop += NUMPREC*stop
 	
 	t = start
 	while t <= stop:

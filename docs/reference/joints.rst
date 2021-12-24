@@ -6,16 +6,30 @@ joints	- Kinematic Joints definition
 
 Simple joints
 -------------
+	
+.. autoclass:: madcad.joints.Ball
+
+	.. image:: /screenshots/joints-ball.png
 
 .. autoclass:: madcad.joints.Pivot
 
+	.. image:: /screenshots/joints-pivot.png
+
 .. autoclass:: madcad.joints.Gliding
+
+	.. image:: /screenshots/joints-gliding.png
 
 .. autoclass:: madcad.joints.Track
 
+	.. image:: /screenshots/joints-track.png
+
 .. autoclass:: madcad.joints.Punctiform
 
+	.. image:: /screenshots/joints-punctiform.png
+
 .. autoclass:: madcad.joints.Planar
+
+	.. image:: /screenshots/joints-planar.png
 
 Complex joints
 --------------
@@ -34,3 +48,4 @@ Complex joints
 		
 		If the helicoid is involved in any gearings or reductors, the result might be not what was expected.
 		
+	.. image:: /screenshots/joints-helicoid.png

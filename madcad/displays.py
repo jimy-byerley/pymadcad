@@ -319,14 +319,14 @@ class SolidDisplay(Display):
 		self.vertices = Vertices(scene.ctx, positions, idents)
 		self.disp_faces = FacesDisplay(scene, self.vertices, normals, faces, color=color, reflect=reflect, layer=0)
 		self.disp_ghost = GhostDisplay(scene, self.vertices, normals, faces, color=line, layer=0)
-		self.disp_groups = LinesDisplay(scene, self.vertices, lines, color=line, alpha=1, layer=-2e-4)
-		self.disp_points = PointsDisplay(scene, self.vertices, range(len(positions)), layer=-3e-4)
+		self.disp_groups = LinesDisplay(scene, self.vertices, lines, color=line, alpha=1, layer=-2e-6)
+		self.disp_points = PointsDisplay(scene, self.vertices, range(len(positions)), layer=-3e-6)
 		wire = []
 		for f in faces:
 			wire.append((f[0], f[1]))
 			wire.append((f[1], f[2]))
 			wire.append((f[2], f[0]))
-		self.disp_wire = LinesDisplay(scene, self.vertices, wire, color=line, alpha=0.3, layer=-1e-4)
+		self.disp_wire = LinesDisplay(scene, self.vertices, wire, color=line, alpha=0.3, layer=-1e-6)
 		
 	def stack(self, scene):
 		yield ((), 'screen', -1, self.vertices.prerender)
@@ -364,9 +364,9 @@ class WebDisplay(Display):
 		if not color:	
 			color = fvec3(settings.display['line_color'])
 		self.vertices = Vertices(scene.ctx, positions, idents)
-		self.disp_edges = LinesDisplay(scene, self.vertices, lines, color=color, alpha=1, layer=-2e-4)
-		self.disp_groups = PointsDisplay(scene, self.vertices, points, layer=-3e-4)
-		self.disp_points = PointsDisplay(scene, self.vertices, range(len(positions)), layer=-1e-4)
+		self.disp_edges = LinesDisplay(scene, self.vertices, lines, color=color, alpha=1, layer=-2e-6)
+		self.disp_groups = PointsDisplay(scene, self.vertices, points, layer=-3e-6)
+		self.disp_points = PointsDisplay(scene, self.vertices, range(len(positions)), layer=-1e-6)
 		
 
 	def stack(self, scene):
@@ -719,12 +719,12 @@ class SplineDisplay(Display):
 		self.shader['proj'].write(view.uniforms['proj'])
 		view.scene.ctx.point_size = 4
 		
-		self.shader['layer'] = -2e-4
+		self.shader['layer'] = -2e-6
 		self.shader['color'].write(self.color_handles if not self.selected else fvec4(settings.display['select_color_line'],self.color_handles[3]))
 		self.va_handles.render(mgl.POINTS)
 		self.va_handles.render(mgl.LINE_STRIP)
 		
-		self.shader['layer'] = -1e-4
+		self.shader['layer'] = -1e-6
 		self.shader['color'].write(self.color if not self.selected else fvec4(settings.display['select_color_line'],self.color[3]))
 		self.va_curve.render(mgl.LINE_STRIP)
 		
@@ -737,6 +737,105 @@ class SplineDisplay(Display):
 	def stack(self, scene):
 		return (	((), 'screen', 1, self.render),
 					((), 'ident', 1, self.identify)	)
+					
+					
+					
+class VoxelDisplay(Display):
+	''' display a voxel as a scalar field.
+		its opacity is computed using its density as absorbance.
+		
+		Parameters:
+			
+			voxel:	a numpy array with dimension 3, no specific value range is required
+			
+		Attributes:
+		
+			space:	transformation matrix from voxel normalized coordinates (position in the array as range 0-1) to local coordinates
+			world:	transformation matrix from local to world coordinates
+			value_range:	
+				
+				tuple `(min, max)`  giving the min and max values to display
+				- values below min will be transparent
+				- values above max will be fully opaq
+				
+			color_range:	tuple `(fvec4, fvec4)` of colors matching the value range bounds
+		
+		value examples:
+		
+			* value_range
+			
+				```
+				(0.4, 0.9)  # erase the lower value and saturate the maxium ones
+				```
+				
+			* color_range
+			
+				```
+				(fvec4(0,0,1,1), fvec4(0,1,0,1))	 # blue-green
+				(fvec4(0,0.5,1,1), fvec4(1,1,0,1))   # lightblue-yellow
+				(fvec4(1,0,0.3,1), fvec4(1,1,0,1))   # red-yellow
+				(fvec4(0,0,1,1), fvec4(1,0.5,0.1,1)) # blue-orange
+				(fvec4(0,0,1,1), fvec4(1,0.1,0.1,1)) # blue-red
+				(fvec4(0,0,0,1), fvec4(1,1,1,1))     # black-white
+				(fvec4(1,1,1,1), fvec4(1,1,1,1))     # white-white
+				```
+	'''
+	def __init__(self, scene, voxel: 'ndarray', space: 'fmat4', 
+				value=(0, 1), 
+				color=(fvec4(0,0,1,1), fvec4(0,1,0,1))):
+		
+		self.voxel = scene.ctx.texture3d(
+			voxel.shape, 
+			1, 
+			voxel.transpose(2,1,0).copy().astype('f2'),  # axis permutation for opengl
+			dtype='f2',
+			)
+		self.voxel.repeat_x = False
+		self.voxel.repeat_y = False
+		self.voxel.repeat_z = False
+		self.space = space
+		self.value_range = value
+		self.color_range = color
+
+		def load(scene):
+			from . import generation
+			from .mesh import glmarray
+			
+			# load shader
+			shader = scene.ctx.program(
+						vertex_shader=open(ressourcedir+'/shaders/voxel.vert').read(),
+						fragment_shader=open(ressourcedir+'/shaders/voxel.frag').read(),
+						)
+			# load vertex buffer for the brick
+			brick = generation.brick(min=vec3(0), max=vec3(1)) .flip()
+			pts = []
+			for face in brick.faces:
+				pts.extend(brick.facepoints(face))
+			vb = scene.ctx.buffer(glmarray(pts))
+			
+			return shader, vb
+		
+		self.shader, self.vb = scene.ressource('shader_voxel', load)
+		self.va = scene.ctx.vertex_array(
+				self.shader,
+				[(self.vb, '3f', 'v_position')],
+				)
+
+	def render(self, view):
+		view.scene.ctx.enable(mgl.DEPTH_TEST | mgl.CULL_FACE)
+		self.shader['value_min'] = self.value_range[0]
+		self.shader['value_max'] = self.value_range[1]
+		self.shader['color_min'].write(self.color_range[0])
+		self.shader['color_max'].write(self.color_range[1])
+		self.shader['view'].write(view.uniforms['view'] * self.world * self.space)
+		self.shader['proj'].write(view.uniforms['proj'])
+		self.voxel.use(0)
+		self.va.render(mgl.vertex_array.TRIANGLES)
+		
+	def stack(self, scene):
+		return ((), 'screen', 10, self.render),
+
+
 
 
 def tupledisplay(scene, t):

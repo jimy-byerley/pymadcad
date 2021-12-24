@@ -1,100 +1,61 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
 '''	
-	Defines boolean operations for triangular meshes. Strictly speaking, boolean operations applies on sets, but considering the volumes delimited by their mesh envelopes, we can perform boolean operations on those volumes by manipulating only surface meshes.
+	This modules provide boolean operations for all kind of meshes.
 	
+	Strictly speaking, boolean operations are operations on methematically defined sets. In a n-dimensinal space it applies to subsets of point of the same dimension (volumes in 3D, surfaces in 2D).
+	Here, volumes are defined by their exterior envelope (a Mesh) and surfaces by their contour (Web). So the boolean operation consist of intersecting the envelopes and contours and decide which cutted parts to keep.
+
 	This relies on a new intersection algorithm named syandana. It finds candidates for intersections using a spacial hashing of triangles over a voxel (see madcad.hashing). This is solving the problem of putting triangles in an octree.
 	Also to avoid the increasing complexity of the operation with flat planes divided in multiple parallel triangles, the algorithm is implemented with a detection of ngons.
 	
 	The syandana algorithm achieves intersections of meshes in nearly `O(n)` where usual methods are `O(n**2)`
 	
 	After intersection, the selection of surface sides to keep or not is done through a propagation.
+
+	
+	Note:
+	
+		Web boolean operations theoretically means something only in a 2d space, and it takes place in a 3d space here, causing many situations where a web portion can be both inside and outside the contour. The algorithm here works even with meshes that are not planar at all. but it always assumes that the web you give it can be processed consistently as if it was.
+	
+	Note:
+		
+		Mesh boolean operation is relying on the surface outer normal to decide what is exterior and interior. It's always a local decision (ie. a decision made at the intersection), So the meshes must be well oriented.
+		
+		Web boolean operations on the other hand CANNOT be local due to the 3d space it's laying in. (a higher dimension than the surface it's theoreticall meant to outline). So it may sometimes not behave the way you expect it.
+		To solve ambiguities of interior and exterior, the most outer part of first mesh argument is always considered to belong to the exterior. And the information is propagated through the web.
 '''
 
-from copy import copy,deepcopy
+from copy import copy, deepcopy
+from operator import itemgetter
+from functools import singledispatch
 from time import time
 from math import inf
 from .mathutils import *
 from . import core
-from .mesh import Mesh, Web, edgekey, connef, line_simplification
+from .mesh import Mesh, Web, Wire, web, edgekey, connef, connpe, line_simplification
 from . import hashing
 from . import triangulation
 
-__all__ = ['intersect', 'pierce', 'boolean', 'intersection', 'union', 'difference']
-		
+__all__ = ['pierce', 'boolean', 'intersection', 'union', 'difference']
 
 
-def intersect(m1, m2) -> '(Web, Web)':
-	''' cut the faces of m1 and m2 at their intersections '''
-	if not prec:	prec = max(m1.precision(), m2.precision())
-	m3 = copy(m1)
-	return intersectwith(m1, m2, prec), intersectwith(m2, m3, prec)
 	
-def pierce(m1, m2, selector=False) -> Mesh:
-	''' cut the faces of m1 at their intersection with faces of m2, and remove the faces inside
-	
-		selector decides which part of each mesh to keep
-	
-		 - False keep the exterior part (part exclusive to the other mesh)
-		 - True keep the common part
-	'''
-	m3 = copy(m1)
-	booleanwith(m3, m2, selector)
-	return m3
-
-def boolean(m1, m2, selector=(False,True), prec=None) -> Mesh:
-	''' execute boolean operation on volumes 
-	
-		selector decides which part of each mesh to keep
-	
-		 - False keep the exterior part (part exclusive to the other mesh)
-		 - True keep the common part
-	'''
-	if not prec:	prec = max(m1.precision(), m2.precision())
-	
-	if selector[0] is not None:
-		if selector[1] is not None:
-			mc1, mc2 = copy(m1), copy(m2)
-			booleanwith(mc1, m2, selector[0], prec)
-			booleanwith(mc2, m1, selector[1], prec)
-			if selector[0] and not selector[1]:		mc1 = mc1.flip()
-			if not selector[0] and selector[1]:		mc2 = mc2.flip()
-			res = mc1 + mc2
-			res.mergeclose()
-			return res
-		else:
-			mc1 = copy(m1)
-			booleanwith(mc1, m2, selector[0], prec)
-			return mc1
-	elif selector[1] is not None:
-		return boolean(m2, m1, (selector[1], selector[0]))
-
-def union(a, b) -> Mesh:			
-	''' return a mesh for the union of the volumes. 
-		It is a boolean with selector (False,False) 
-	'''
-	return boolean(a,b, (False,False))
-
-def intersection(a, b) -> Mesh:	
-	''' return a mesh for the common volume. 
-		It is a boolean with selector (True, True) 
-	'''
-	return boolean(a,b, (True,True))
-
-def difference(a, b) -> Mesh:	
-	''' return a mesh for the volume of a less the common volume with b
-		It is a boolean with selector (False, True)
-	'''
-	return boolean(a,b, (False,True))
+# ------- implementated operators -------
 
 
 
-def intersectwith(m1, m2, prec=None) -> Web:
+def cut_mesh(m1, m2, prec=None) -> '(Mesh, Web)':
 	''' Cut m1 faces at their intersections with m2. 
-		Returning the intersection edges in m1 and associated m2 faces.
 		
-		m1 faces and tracks are replaced thus the underlying buffers stays untouched.
-	
+		Returns:	
+			
+			`(cutted, frontier)`
+			
+				:cutted(Mesh):	is `m1` with the faces cutted, but representing the same surface as before
+				:frontier(Web): is a Web where edges are the intersection edges, and whose groups are the causing faces in `m2`
+		
+		Returning the intersection edges in m1 and associated m2 faces.
 		The algorithm is using ngon intersections and retriangulation, in order to avoid infinite loops and intermediate triangles.
 	'''
 	if not prec:	prec = m1.precision()
@@ -114,6 +75,8 @@ def intersectwith(m1, m2, prec=None) -> Web:
 		# process the flat surface starting here, if the m1's triangle hits m2
 		if grp[i] == -1 and m1.facepoints(i) in prox2:
 			
+			# a triangle cutted by an other will split it into 5 triangles, and each will be divided in 5 more if the cutting is stupidly incrmental
+			# here we collect all the planar triangles and cut it as one n-gon to reduce the complexity
 			# get the flat region - aka the n-gon to be processed
 			currentgrp += 1
 			surf = []
@@ -189,26 +152,27 @@ def intersectwith(m1, m2, prec=None) -> Web:
 			mn.faces.append(f)
 			mn.tracks.append(t)
 	
-	m1.faces = mn.faces
-	m1.tracks = mn.tracks
-	return frontier
+	return mn, frontier
 
 
-def booleanwith(m1, m2, side, prec=None) -> set:
-	''' execute the boolean operation inplace and only on m1 '''
+def pierce_mesh(m1, m2, side=False, prec=None) -> set:
+
 	if not prec:	prec = m1.precision()
-	frontier = intersectwith(m1, m2, prec)
+	m1, frontier = cut_mesh(m1, m2, prec)
 	
-	conn1 = connef(m1.faces)
-	used = [False] * len(m1.faces)
-	notto = set(edgekey(*e) for e in frontier.edges)
+	conn1 = connef(m1.faces)		# connectivity for propagation
+	stops = set(edgekey(*e) for e in frontier.edges)  # propagation stop points
+	
+	used = [False] * len(m1.faces)	# whether to keep the matching faces
 	front = []
+	
 	# get front and mark frontier faces as used
 	for e,f2 in zip(frontier.edges, frontier.tracks):
 		for edge in (e, (e[1],e[0])):
 			if edge in conn1:
 				fi = conn1[edge]
 				f = m1.faces[fi]
+				# find from which side to propagate
 				for i in range(3):
 					if f[i] not in edge:
 						proj = dot(m1.points[f[i]] - m1.points[f[i-1]], m2.facenormal(f2))  * (-1 if side else 1)
@@ -221,11 +185,11 @@ def booleanwith(m1, m2, side, prec=None) -> set:
 		if side:	
 			m1.faces = []
 			m1.tracks = []
-		return notto
+		return stops
 	
 	# display frontier
 	#from . import text
-	#for edge in notto:
+	#for edge in stops:
 		#p = (m1.points[edge[0]] + m1.points[edge[1]]) /2
 		#scn3D.add(text.Text(p, str(edge), 9, (1, 1, 0)))
 	#if debug_propagation:
@@ -235,7 +199,7 @@ def booleanwith(m1, m2, side, prec=None) -> set:
 		#scn3D.add(w)
 	
 	# propagation
-	front = [e for e in front if edgekey(*e) not in notto]
+	front = [e for e in front if edgekey(*e) not in stops]
 	c = 1
 	while front:
 		newfront = []
@@ -246,10 +210,11 @@ def booleanwith(m1, m2, side, prec=None) -> set:
 					used[fi] = c
 					f = m1.faces[fi]
 					for i in range(3):
-						if edgekey(f[i-1],f[i]) not in notto:	
+						if edgekey(f[i-1],f[i]) not in stops:	
 							newfront.append((f[i],f[i-1]))
 		c += 1
 		front = newfront
+	
 	# selection of faces
 	#if debug_propagation:
 		#from . import text
@@ -258,10 +223,390 @@ def booleanwith(m1, m2, side, prec=None) -> set:
 				#p = m1.facepoints(i)
 				#scn3D.add(text.Text((p[0]+p[1]+p[2])/3, str(u), 9, (1,0,1), align=('center', 'center')))
 	
-	m1.faces =  [f for u,f in zip(used, m1.faces) if u]
-	m1.tracks = [t for u,t in zip(used, m1.tracks) if u]
-	return notto
+	# filter mesh content to keep
+	return Mesh(
+			m1.points,
+			[f for u,f in zip(used, m1.faces) if u],
+			[t for u,t in zip(used, m1.tracks) if u],
+			m1.groups,
+			)
 
-#debug_propagation = False
+
+def boolean_mesh(m1, m2, selector=(False,True), prec=None) -> Mesh:
+
+	if not prec:	prec = max(m1.precision(), m2.precision())
+	
+	mc1 = pierce(m1, m2, selector[0], prec)
+	mc2 = pierce(m2, m1, selector[1], prec)
+	if selector[0] and not selector[1]:		mc1 = mc1.flip()
+	if not selector[0] and selector[1]:		mc2 = mc2.flip()
+	res = mc1 + mc2
+	res.mergeclose()
+	return res
 
 
+
+def cut_web(w1: Web, ref: Web, prec=None) -> '(Web, Wire)':
+	''' Cut the web edges at their intersectsions with the `ref` web
+		
+		Returns:
+			
+			`(cutted, frontier)`
+			
+				:cutted(Web):	is `w1` with the edges cutted, but representing the same lines as before
+				:frontier(Wire): is a Web where edges are the intersection edges, and whose groups are the causing faces in `ref`
+		'''
+	if not prec:  prec = w1.precision()
+	frontier = Wire(w1.points, [], [], groups=ref.edges)
+	
+	# topology informations for optimization
+	points = hashing.PointSet(prec, manage=w1.points)
+	prox = hashing.PositionMap(hashing.meshcellsize(ref))
+	for e in range(len(ref.edges)):
+		prox.add(ref.edgepoints(e), e)
+	conn = connpe(w1.edges)
+	
+	mn = Web(w1.points, groups=w1.groups)  # resulting web
+	for e1 in range(len(w1.edges)):
+		processed = False  # flag enabled when the edge is reconstructed
+		
+		# collect edges in ref that can have intersection with e1
+		close = set( prox.get(w1.edgepoints(e1)) )
+		if close:
+			# no need to get the straight zone around because on the case of an edge, it will not grow in complexity more than the number of cut segments
+			# and an edge is easy to reweb after multiple intersections
+			# compute intersections
+			segts = {}
+			for e2 in close:
+				intersect = intersect_edges(w1.edgepoints(e1), ref.edgepoints(e2), prec)
+				if intersect:
+					seg = points.add(intersect)
+					segts.setdefault(seg, e2)
+			
+			# reconstruct the geometries
+			if segts:
+				e = w1.edges[e1]
+				# reweb the cutted edge
+				direction = w1.points[e[1]] - w1.points[e[0]]
+				sorted_segts = sorted(segts.items(), key=lambda s: dot(w1.points[s[0]], direction))
+				# append the rewebed edge in association with the original track
+				frontier += Wire(
+						w1.points, 
+						list(map(itemgetter(0), sorted_segts)), 
+						list(map(itemgetter(1), sorted_segts)), 
+						ref.edges,
+						)
+				mn += web(Wire(
+						w1.points, 
+						[e[0]] + list(map(itemgetter(0), sorted_segts)) + [e[1]], 
+						[w1.tracks[e1]] * (len(sorted_segts)+2), 
+						w1.groups,
+						))
+				processed = True
+		
+		# keep the non intersected faces as is
+		if not processed:
+			mn.edges.append(w1.edges[e1])
+			mn.tracks.append(w1.tracks[e1])
+
+	mn.check()
+	return mn, frontier
+
+	
+def pierce_web(web, ref, side=False, prec=None):
+
+	if not prec:	prec = web.precision()
+	web, frontier = cut_web(web, ref, prec)
+	conn = connpe(web.edges)		# connectivity
+	stops = set(frontier.indices)	# propagation stop points
+	
+	used = [0] * len(web.edges)		# whether to keep the matching edges or not
+	
+	# sort points by distance to a "center"
+	center = web.barycenter()
+	order = sorted(range(len(web.points)), key=lambda i:  distance2(web.points[i], center))
+	
+	# always start an island from the most exterior
+	for start in order:
+		if start in stops:	continue
+		ei = next(conn[start], None)
+		if not ei or used[ei]:	continue
+		
+		# propagate
+		front = [(start, side)]		# points on the propagation front
+		while front:
+			last, keep = front.pop()
+			for ei in conn[last]:
+				if used[ei]:	continue
+				used[ei] = 1 if keep else 2
+				direction = int(web.edges[ei][0] == last)
+				current = web.edges[ei][direction]
+				front.append((current, keep ^ (current in stops)))
+		
+	# filter web content to keep
+	return Web(
+				web.points,
+				[e  for u,e in zip(used, web.edges) if u == 1],
+				[t  for u,t in zip(used, web.tracks) if u == 1],
+				web.groups,
+				)
+				
+def boolean_web(w1, w2, sides, prec=None):
+
+	if not prec:	prec = max(w1.precision(), w2.precision())
+	
+	result = pierce_web(w1, w2, sides[0], prec)
+	w2, frontier = cut_web(w2, result, prec)
+	conn2 = connpe(w2.edges)		# connectivity
+	stops = set(frontier.indices)	# propagation stop points
+	
+	used = [False] * len(w2.edges)  # whether to keep the matching edges or not
+	
+	for p2, ei in zip(frontier.indices, frontier.tracks):
+		front = []	# points on the propagation front
+		
+		# check which side to keep to respect the choices made in the first web
+		e1 = result.edges[ei]
+		direction = sides[0] ^ sides[1] ^ (distance2(w2.points[p2], result.points[e1[0]]) < distance2(w2.points[p2], result.points[e1[1]]))
+		for ei in conn2[p2]:
+			if w2.edges[ei][direction] == p2:
+				front.append(w2.edges[ei][direction-1])
+				used[ei] = True
+		
+		# propagate
+		while front:
+			last = front.pop()
+			if last in stops:	continue
+			
+			for ei in conn2[last]:
+				if used[ei]:	continue
+				used[ei] = True
+				direction = int(w2.edges[ei][0] == last)
+				next = w2.edges[ei][direction]
+				front.append(next)
+					
+	# filter web content to keep
+	return result + Web(
+			w2.points,
+			[e  for u,e in zip(used, w2.edges) if u],
+			[t  for u,t in zip(used, w2.tracks) if u],
+			w2.groups,
+			)
+		
+
+	
+def intersect_edges(e1: '(vec3,vec3)', e2: '(vec3,vec3)', prec) -> vec3:
+	''' intersection between 2 segments '''
+	d1 = e1[1]-e1[0]
+	d2 = e2[1]-e2[0]
+	g = e1[0]-e2[0]
+	p = e2[0] + unproject(noproject(g, d1), d2)
+	if not isfinite(p):		return
+	#prec = NUMPREC * max(length2(d1), length2(d2))
+	if dot(e1[0]-p, d1) > prec or dot(p-e1[1], d1) > prec:	return
+	if dot(e2[0]-p, d2) > prec or dot(p-e2[1], d2) > prec:	return
+	return p
+
+	
+	
+def cut_web_mesh(w1: Web, ref: Mesh, prec=None) -> '(Web, Wire)':
+	''' Cut the web inplace at its intersections with the `ref` web.
+	
+		Returns:
+		
+			`(cutted, frontier)`
+	'''
+	if not prec:  prec = w1.precision()
+	frontier = Wire(w1.points, [], [], groups=ref.faces)
+	
+	# topology informations for optimization
+	points = hashing.PointSet(prec, manage=w1.points)
+	prox = hashing.PositionMap(hashing.meshcellsize(ref))
+	for f in range(len(ref.faces)):
+		prox.add(ref.facepoints(f), f)
+	conn = connpe(w1.edges)
+	
+	mn = Web(w1.points, groups=w1.groups)  # resulting web
+	for e1 in range(len(w1.edges)):
+		processed = False	# flag enabled when the edge is reconstructed
+		
+		# collect edges in ref that can have intersection with e1
+		close = set(prox.get(w1.edgepoints(e1)))
+		if close:
+		
+			# no need to get the straight zone around because on the case of an edge, it will not grow in complexity more than the number of cut segments
+			# and an edge is easy to remesh after multiple intersections
+			# compute intersections
+			segts = {}
+			for f2 in close:
+				intersect = intersect_edge_face(w1.edgepoints(e1), ref.facepoints(f2), prec)
+				if intersect:
+					seg = points.add(intersect)
+					segts.setdefault(seg, f2)
+		
+			# reconstruct the geometries
+			if segts:
+				e = w1.edges[e1]
+				# reweb the cutted edge
+				direction = w1.points[e[1]] - w1.points[e[0]]
+				sorted_segts = sorted(segts.items(), key=lambda s: dot(w1.points[s[0]], direction))
+				# append the rewebed edge in association with the original track
+				frontier += Wire(
+						w1.points, 
+						list(map(itemgetter(0), sorted_segts)), 
+						list(map(itemgetter(1), sorted_segts)), 
+						ref.faces,
+						)
+				mn += web(Wire(
+						w1.points, 
+						[e[0]] + list(map(itemgetter(0), sorted_segts)) + [e[1]], 
+						[w1.tracks[e1]] * (len(sorted_segts)+2), 
+						w1.groups,
+						))
+				processed = True
+		
+		# keep the non intersected faces as is
+		if not processed:
+			mn.edges.append(w1.edges[e1])
+			mn.tracks.append(w1.tracks[e1])
+	
+	return mn, frontier
+	
+					
+def pierce_web_mesh(w1: Web, ref: Mesh, side, prec=None) -> Web:
+
+	if not prec:	prec = w1.precision()
+	
+	w1, frontier = cut_web_mesh(w1, ref, prec)
+	conn = connpe(w1.edges)			# connectivity
+	stops = set(frontier.indices)	# propagation stop points
+	
+	used = [False] * len(w1.edges)	# whether to keep the matching edges
+	
+	for p1, fi in zip(frontier.indices, frontier.tracks):
+		front = []	# points on the propagation front
+		
+		# check which side to keep
+		normal = ref.facenormal(fi)
+		for ei in conn[p1]:
+			e1 = w1.edges[ei]
+			direction = int(e1[0] == p1)
+			if side ^ (dot(w1.points[e1[direction]] - w1.points[p1], normal) > 0):
+				front.append(e1[direction])
+				used[ei] = True
+		
+		# propagate
+		while front:
+			last = front.pop()
+			if last in stops:	continue
+			
+			for ei in conn[last]:
+				if used[ei]:	continue
+				used[ei] = True
+				direction = int(w1.edges[ei][0] == last)
+				next = w1.edges[ei][direction]
+				front.append(next)
+	
+	# filter web content to keep
+	return Web(
+			w1.points,
+			[e  for u,e in zip(used, w1.edges) if u],
+			[t  for u,t in zip(used, w1.tracks) if u],
+			w1.groups,
+			)
+
+def intersect_edge_face(edge: '(vec3, vec3)', face: '(vec3, vec3, vec3)', prec) -> vec3:
+	''' intersection between a segment and a triangle
+		In case of intersection with an edge of the triangle or an extremity of the edge, return the formed point.
+	'''
+	n = cross(face[1]-face[0], face[2]-face[0])
+	a, b = edge
+	da = dot(face[0]-a, n)
+	db = dot(face[0]-b, n)
+	if abs(da) <= prec:		p = a
+	elif abs(db) <= prec:	p = b
+	elif da * db > 0:		return None	# the segment doesn't reach the plane
+	else:
+		edgedir = b-a
+		proj = dot(edgedir, n)
+		if abs(proj) <= prec:	return None	# the segment is parallel to the plane
+		p = a + da * edgedir / proj
+	
+	# check that the point is inside the triangle
+	for i in range(3):
+		if dot(face[i] - p, normalize(cross(n,face[i]-face[i-1]))) > prec:
+			return None  # the point is outside the triangle
+	return p
+
+
+
+# --------------- stable API -------------------
+
+pierce_ops = {
+	(Mesh,Mesh):	pierce_mesh,
+	(Web,Web):		pierce_web,
+	(Web,Mesh):		pierce_web_mesh,
+	}
+def pierce(m, ref, side=False, prec=None):
+	''' cut a web/mesh and remove its parts considered inside the `ref` shape
+		
+		overloads:
+		
+		.. code::
+		
+			pierce(Mesh, Mesh) -> Mesh
+			pierce(Web, Web) -> Web
+			pierce(Web, Mesh) -> Web
+	
+		`side` decides which part of each mesh to keep
+	
+		 - False keeps the exterior part (part exclusive to the other mesh)
+		 - True keeps the interior part (the common part)
+	'''
+	op = pierce_ops.get((type(m), type(ref)))
+	if not op:
+		raise TypeError('pierce is not possible between {} and {}'.format(type(m), type(ref)))
+	return op(m, ref, side, prec)
+
+
+boolean_ops = {
+	(Mesh,Mesh):	boolean_mesh,
+	(Web,Web):		boolean_web,
+	}
+def boolean(a, b, sides=(False,True), prec=None):
+	''' cut two web/mesh and keep its interior or exterior parts
+	
+		overloads:
+		
+		.. code::
+		
+			boolean(Mesh, Mesh) -> Mesh
+			boolean(Web, Web) -> Web
+	
+		`sides` decides which part of each mesh to keep
+	
+		 - False keeps the exterior part (part exclusive to the other mesh)
+		 - True keeps the common part
+	'''
+	op = boolean_ops.get((type(a), type(b)))
+	if not op:
+		raise TypeError('boolean is not possible between {} and {}'.format(type(a), type(b)))
+	return op(a, b, sides, prec)
+
+def union(a, b) -> Mesh:
+	''' return a mesh for the union of the volumes. 
+		It is a boolean with selector (False,False) 
+	'''
+	return boolean(a,b, (False,False))
+
+def intersection(a, b) -> Mesh:	
+	''' return a mesh for the common volume. 
+		It is a boolean with selector (True, True) 
+	'''
+	return boolean(a,b, (True,True))
+
+def difference(a, b) -> Mesh:	
+	''' return a mesh for the volume of a less the common volume with b
+		It is a boolean with selector (False, True)
+	'''
+	return boolean(a,b, (False,True))

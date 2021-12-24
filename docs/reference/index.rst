@@ -26,6 +26,7 @@ submodules
 	blending.rst
 	cut.rst
 	boolean.rst
+	reverse.rst
 	
 	io.rst
 	settings.rst
