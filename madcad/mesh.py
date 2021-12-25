@@ -1498,7 +1498,9 @@ class Wire(Container):
 			self.indices[-1] = 0
 	
 	def display(self, scene):
-		return web(self).display(scene)
+		w = web(self)
+		w.options = self.options
+		return w.display(scene)
 	
 	def __repr__(self):
 		return '<Wire with {} points at 0x{:x}, {} indices>'.format(len(self.points), id(self.points), len(self.indices))

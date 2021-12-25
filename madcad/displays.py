@@ -361,8 +361,7 @@ class WebDisplay(Display):
 	def __init__(self, scene, positions, lines, points, idents, color=None):
 		self.box = npboundingbox(positions)
 		self.options = scene.options
-		if not color:	
-			color = fvec3(settings.display['line_color'])
+		color = fvec4(fvec3(color or settings.display['line_color']), 1)
 		self.vertices = Vertices(scene.ctx, positions, idents)
 		self.disp_edges = LinesDisplay(scene, self.vertices, lines, color=color, alpha=1, layer=-2e-6)
 		self.disp_groups = PointsDisplay(scene, self.vertices, points, layer=-3e-6)
@@ -547,9 +546,9 @@ class GhostDisplay:
 			self.va_ident.render(mgl.TRIANGLES)
 	
 class LinesDisplay:
-	def __init__(self, scene, vertices, lines, color=None, alpha=1, layer=0):
+	def __init__(self, scene, vertices, lines, color, alpha=1, layer=0):
 		self.layer = layer
-		self.color = fvec4(color or settings.display['line_color'], alpha)
+		self.color = color
 		self.select_color = fvec4(settings.display['select_color_line'], alpha)
 		self.vertices = vertices
 		
