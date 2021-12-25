@@ -828,7 +828,7 @@ def get_pitch_cone_angle(z_pinion:int, z_wheel:int, shaft_angle:float=0.5 * pi) 
 	Return the pitch cone angle of the pinion called `gamma_p`.
 	The pitch cone angle of the wheel is equal to `shaft_angle - gamma_p`
 
-	Parameters :
+	Parameters:
 
 		z_pinion (int): 		the number of teeth on the bevel pinion
 		z_wheel (int): 			the number of teeth on the bevel wheel
@@ -837,19 +837,19 @@ def get_pitch_cone_angle(z_pinion:int, z_wheel:int, shaft_angle:float=0.5 * pi) 
 	return atan2(sin(shaft_angle), ((z_wheel / z_pinion) + cos(shaft_angle)))
 
 
-def spherical_involute(t:float, t0:float, cone_angle:float) -> vec3:
+def spherical_involute(cone_angle:float, t0:float, t:float) -> vec3:
 	"""
 	Return spherical involute function
 
-	Parameter:
+	Parameters:
 
 		t (float): 				the angular position
 		t0 (float): 			the difference phase
 		cone_angle (float): 	the cone angle
 
-	Note:
-
-		return a normalized `vec3`
+	Return:	
+	
+		a normalized `vec3`
 	"""
 	cos_g, sin_g = cos(cone_angle), sin(cone_angle)
 	return vec3(
@@ -859,23 +859,23 @@ def spherical_involute(t:float, t0:float, cone_angle:float) -> vec3:
 	)
 
 
-def spherical_involuteat(t:float, t0:float, pitch_cone_angle:float, alpha:float) -> vec3:
+def spherical_involuteof(pitch_cone_angle:float, t0:float, alpha:float, t:float) -> vec3:
 	"""
 	Return the spherical interference function
 
-	Parameter:
+	Parameters:
 
 		t (float): 					the angular position
 		t0 (float): 				the difference phase
 		pitch_cone_angle (float):	the pitch cone angle
 		alpha(float): 				the height angle offset of the rack
 
-	Note:
-
-		return a normalized `vec3`
+	Return:	
+	
+		a normalized `vec3`
 	"""
 	cos_p, sin_p = cos(pitch_cone_angle), sin(pitch_cone_angle)
-	involute = lambda t, t0: spherical_involute(t, t0, pitch_cone_angle)
+	involute = lambda t, t0: spherical_involute(pitch_cone_angle, t0, t)
 	vec = lambda t: vec3(-cos_p * cos(t), -cos_p * sin(t), sin_p)
 	return cos(alpha) * involute(t, t0) + sin(alpha) * vec(t + t0)
 
@@ -921,6 +921,7 @@ def spherical_rack_tools(z:float, pressure_angle:float=pi / 9, ka:float=1, kd:fl
 	"""
 	Return a list of all information useful to generate a spherical rack.
 	Five elements :
+	
 		1) the minimum abscissa for the function (fifth element)
 		2) the maximum abscissa for the function (fifth element)
 		3) the phase of a tooth
@@ -930,8 +931,10 @@ def spherical_rack_tools(z:float, pressure_angle:float=pi / 9, ka:float=1, kd:fl
 	Parameters :
 
 		z (float):
+			
 			number of tooth of the rack equal to `z_pinion / sin(pitch_cone_angle)`
 			or `z_wheel / sin(shaft_angle - pitch_cone_angle)`
+		
 		pressure_angle (float): the pressure angle of the gear
 		ka (float): 			the addendum coefficient
 		kd (float): 			the dedendum coefficient
@@ -950,22 +953,24 @@ def spherical_rack_tools(z:float, pressure_angle:float=pi / 9, ka:float=1, kd:fl
 	t_min = acos(cos(gamma_r) / cos_b) / sin_b
 	t_max = acos(cos(gamma_f) / cos_b) / sin_b
 
-	involute = lambda t, t0: spherical_involute(t, t0, gamma_b)
+	involute = lambda t, t0: spherical_involute(gamma_b, t0, t)
 	v = vec3(1, 1, 0)
 	phase_empty = 2 * pi * k - anglebt(involute(t_min, 0) * v, involute(-t_min, phase_diff) * v)
 
 	return [t_min, t_max, phase_diff, phase_empty, involute]
 
 
-def spherical_rack_profile(z:float, pressure_angle:float=pi / 9, ka:float=1, kd:float=1.25):
+def spherical_rackprofile(z:float, pressure_angle:float=pi / 9, ka:float=1, kd:float=1.25):
 	"""
 	Return a `Wire` which is a tooth of the rack.
 
-	Parameters :
+	Parameters:
 
 		z (float):
+		
 			number of tooth of the rack equal to `z_pinion / sin(pitch_cone_angle)`
 			or `z_wheel / sin(shaft_angle - pitch_cone_angle)`
+		
 		pressure_angle (float): 	the pressure angle of the gear
 		ka (float): 				the addendum coefficient
 		kd (float): 				the dedendum coefficient
@@ -996,7 +1001,7 @@ def spherical_gearprofile(z:int, pitch_cone_angle:float, pressure_angle:float=pi
 	gamma_b = asin(cos(pressure_angle) * sin(gamma_p))
 	cos_b, sin_b = cos(gamma_b), sin(gamma_b)
 	tooth_size = pi / z
-	involute = lambda t, t0 : spherical_involute(t, t0, gamma_b)
+	involute = lambda t, t0 : spherical_involute(gamma_b, t0, t)
 	epsilon_p = acos(cos(gamma_p) / cos_b) / sin_b
 	theta_p = anglebt(involute(0, 0) * vec3(1, 1, 0), involute(epsilon_p, 0) * vec3(1, 1, 0))
 	phase_diff = tooth_size + 2 * theta_p
@@ -1019,7 +1024,7 @@ def spherical_gearprofile(z:int, pitch_cone_angle:float, pressure_angle:float=pi
 
 	# Calculation of offsets due to geometry of spherical rack
 	_, t_rack_max, phase1, _, rinvolute = spherical_rack_tools(1 / k, pressure_angle, ka, kd)
-	interference = lambda t, t0 : spherical_involuteat(t, t0, gamma_p, alpha)
+	interference = lambda t, t0 : spherical_involuteof(gamma_p, t0, alpha, t)
 	alpha = 2 * ka * k
 	n1, n2 = rinvolute(t_rack_max, 0) * vec3(1, 1, 0), rinvolute(-t_rack_max, phase1) * vec3(1, 1, 0)
 	beta = 0.5 * anglebt(n1, n2) * length(n1) / sin_b
@@ -1027,7 +1032,7 @@ def spherical_gearprofile(z:int, pitch_cone_angle:float, pressure_angle:float=pi
 	# Newton method to calculate the intersection between
 	# the spherical involute and the spherical interference.
 	# Objective function
-	involuteat = lambda t2, t0 : spherical_involuteat(t2, t0, gamma_p, alpha)
+	involuteat = lambda t2, t0 : spherical_involuteof(gamma_p, t0, alpha, t2)
 	f = lambda t1, t2: involute(t1, 0) - involuteat(t2, -0.5 * phase_interference + beta)
 	# Jacobian matrix
 	J = jacobian_spherical_involute(gamma_b, gamma_p, 0, -0.5 * phase_interference + beta, alpha)
@@ -1066,7 +1071,7 @@ def cone_projection(profile: Wire, pitch_cone_angle:float) -> Wire:
 	return Wire(new_points, indices=profile.indices)
 
 
-def bevel_gear(step:float, z:int, pitch_cone_angle:float, pressure_angle:float=pi/9, ka:float=1, kd:float=1.25, bore_radius:float=None, bore_height:float=None):
+def bevelgear(step:float, z:int, pitch_cone_angle:float, pressure_angle:float=pi/9, ka:float=1, kd:float=1.25, bore_radius:float=None, bore_height:float=None):
 	"""
 	Generate a bevel gear.
 
@@ -1088,9 +1093,7 @@ def bevel_gear(step:float, z:int, pitch_cone_angle:float, pressure_angle:float=p
 	gamma_p = pitch_cone_angle # for convenience
 	gamma_b = asin(cos(pressure_angle) * sin(gamma_p))
 	sin_b = cos(pressure_angle) * sin(gamma_p)
-	m = step / pi
-	rp = 0.5 * m * z
-	rb = rp * cos(pressure_angle)
+	rp = z*step / (2*pi)
 	rho1 = rp / sin(gamma_p)
 	rho0 = 2 * rho1 / 3
 	k = sin(gamma_p) / z
@@ -1104,12 +1107,8 @@ def bevel_gear(step:float, z:int, pitch_cone_angle:float, pressure_angle:float=p
 	outside_profile = spherical_profile.transform(rho1 * 1.1)
 	inside_profile = spherical_profile.transform(rho0 * 0.9)
 
-	# Partial functions for convenience
-	junction_straight = partial(junction, tangents="straight")
-	blendpair_straight = partial(blendpair, tangents="straight")
-
 	# Generate teeth border
-	teeth_border = blendpair_straight(outside_profile, inside_profile.flip())
+	teeth_border = blendpair(outside_profile, inside_profile.flip(), tangents="straight")
 
 	# Common values
 	v = vec3(1, 1, 0)
@@ -1149,8 +1148,9 @@ def bevel_gear(step:float, z:int, pitch_cone_angle:float, pressure_angle:float=p
 		F = vec3(0, 0, rho0 * cos(gamma_r))
 		wire = Wire([A, B, D, C, F, E, A]).segmented()
 
-	body = revolution(angle1tooth, (vec3(0),vec3(0, 0, 1)), wire)
-	one_tooth = intersection(body, teeth_border.transform(angleAxis(phase_tooth_body, vec3(0, 0, 1))))
-	all_teeth = repeat(one_tooth, z, rotatearound(angle1tooth, (vec3(0, 0, 0), vec3(0, 0, 1))))
-	all_teeth.mergeclose()
+	axis = (O,Z)
+	body = revolution(angle1tooth, axis, wire)
+	one_tooth = intersection(body, teeth_border.transform(angleAxis(phase_tooth_body, axis[1])))
+	all_teeth = repeat(one_tooth, z, rotatearound(angle1tooth, axis))
+	all_teeth.finish()
 	return all_teeth
