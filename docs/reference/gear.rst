@@ -12,11 +12,36 @@ tooth profiles generation
 The following functions are focussing on involute gears. If you want more details on how involutes gears are defined and computed, you can take a look at the `algorithm section <https://pymadcad.readthedocs.io/en/latest/algorithms/gearprofile.html>`_
 
 .. autofunction:: rackprofile
+
+	example:
+	
+		>>> rackprofile(1)
+		
+	.. image:: /screenshots/rackprofile.png
+
 .. autofunction:: gearprofile
 
-	The result is the following curve (the white one):
-	
+	example:
+		
+		>>> gearprofile(1, 12)
+
 	.. image:: /screenshots/gearprofile.png
+	
+.. autofunction:: spherical_rackprofile
+
+	example:
+	
+		>>> spherical_rackprofile(12)
+	
+	.. image:: /screenshots/spherical_rackprofile.png
+
+.. autofunction:: spherical_gearprofile
+
+	example:
+	
+		>>> spherical_gearprofile(12, pi/4)
+
+	.. image:: /screenshots/spherical_gearprofile.png
 
 gear generation
 ---------------
@@ -46,6 +71,17 @@ gear generation
 
 .. autofunction:: gearhub
 
+bevel gear generation
+---------------------
+
+.. autofunction:: bevelgear
+
+	example:
+	
+		>>> bevelgear(1, 12, pi/3)
+
+	.. image:: /screenshots/bevelgear.png
+
 
 helper tools
 ------------
@@ -54,6 +90,8 @@ helper tools
 .. autofunction:: involute
 .. autofunction:: involuteat
 .. autofunction:: involuteof
+.. autofunction:: spherical_involute
+.. autofunction:: spherical_involuteof
 .. autofunction:: repeat_circular
 
 structure patterns
