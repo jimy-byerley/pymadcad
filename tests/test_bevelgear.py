@@ -26,17 +26,18 @@ def testing(function):
 		except Exception as e:
 			print(bcolors.WARNING + str(e) + bcolors.ENDC)
 			print(f"{bcolors.FAIL}>>> Failed ! <<<\n{bcolors.ENDC}")
+			raise
 		else:
 			results.append(r)
 	return wrapper
 
 @testing
 def test_bevel_gear(name, *args, **kwargs):
-	return bevel_gear(*args, **kwargs)
+	return bevelgear(*args, **kwargs)
 
 @testing
 def test_spherical_rack_profile(name, *args, **kwargs):
-	return spherical_rack_profile(*args, **kwargs)
+	return spherical_rackprofile(*args, **kwargs)
 
 
 z_pinion = 25
