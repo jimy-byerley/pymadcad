@@ -1621,6 +1621,10 @@ def arrangeface(f, p):
 	if   p == f[1]:	return f[1],f[2],f[0]
 	elif p == f[2]:	return f[2],f[0],f[1]
 	else:			return f
+	
+def arrangeedge(e, p):
+	if p == e[1]:	return e[1], e[0]
+	else:			return e
 
 def connpp(ngons):
 	''' point to point connectivity 
@@ -1825,9 +1829,9 @@ def distance2_pm(point, mesh) -> '(d, prim)':
 			d = e[1]-e[0]
 			x = dot(point - e[0], d) / length2(d)
 			# check if closer to the edge points than to the edge axis
-			if x < 0:	dist, candidate = distance2(point, e[0]), e[0]
-			elif x > 1:	dist, candidate = distance2(point, e[1]), e[1]
-			else:		dist, candidate = length2(noproject(point - e[0], d)), e
+			if x < 0:	dist, candidate = distance2(point, e[0]), edge[0]
+			elif x > 1:	dist, candidate = distance2(point, e[1]), edge[1]
+			else:		dist, candidate = length2(noproject(point - e[0], d)), edge
 			if dist < score:
 				best, score = candidate, dist
 	elif isinstance(mesh, vec3):

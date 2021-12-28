@@ -1,13 +1,15 @@
 import moderngl as mgl
 import numpy.core as np
 import glm
+from operator import itemgetter
 
 from .mathutils import *
 from .rendering import Display
 from .common import ressourcedir
-from .mesh import Container, Mesh, Web, Wire, web, wire, mesh_distance
+from .mesh import Container, Mesh, Web, Wire, web, wire, mesh_distance, connef, connpe, connexity, edgekey, arrangeface, arrangeedge
 from .rendering import Displayable, writeproperty
 from .primitives import *
+from . import mathutils
 from . import generation as gt
 from . import text as txt
 from . import settings
@@ -472,9 +474,11 @@ def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None):
 	color = settings.display['annotation_color']
 	# convert input vectors
 	x = dirbase(project, b-a)[0]
-	shift = 0.5 * dot(b-a, x)
-	ao = a + (offset + shift) * x
-	bo = b + (offset - shift) * x
+	if not isinstance(offset, vec3):
+		offset = offset * x
+	shift = 0.5 * mathutils.project(b-a, offset)
+	ao = a + offset + shift
+	bo = b + offset - shift
 	# create scheme
 	sch = Scheme()
 	sch.set(shader='line', layer=1e-4, color=fvec4(color,0.3))
@@ -599,6 +603,93 @@ def note_angle(a0, a1, offset=0, d=None, tol=None, text=None, unit='deg'):
 				resolution=('div',8)), 
 			space=scale_screen(fvec3(p1)))
 	return sch
+	
+def note_radius(mesh, offset=None, d=None, tol=None, text=None):
+	''' place a curvature radius quotation. This will be the minimal curvature radius ovserved in the mesh 
+		As a mesh is generaly speaking an approximation of the desired shape, the radius may be approximative as well
+	'''
+	if isinstance(mesh, Mesh):
+		conn = connef(mesh.faces)
+		radius, place = mesh_curvature_radius(mesh, conn)
+		normal = normalize(mesh.facenormal(conn[place]) + mesh.facenormal(conn[(place[1], place[0])]))
+	elif isinstance(mesh, Web):
+		conn = connpe(mesh.edges)
+		radius, place = mesh_curvature_radius(mesh, conn)
+		normal = - normalize(sum(mesh.edgedirection(arrangeedge(mesh.edges[e], place))  for e in conn[place]))
+	else:
+		raise TypeError('input mesh must be Mesh, Web or Wire')
+	if not offset:
+		offset = 0.2 * length(boundingbox(mesh).width)
+	
+	if isinstance(place, tuple):
+		place = sum(mesh.points[i]  for i in place) / len(place)
+	else:
+		place = mesh.points[place]
+	
+	return note_leading((place,normal), offset=offset, text=text or 'R {:.4g}'.format(radius))
+	
+def mesh_curvature_radius(mesh, conn=None):
+	''' find the minimum curvature radius of a mesh.
+	
+		Returns:
+		
+			`(distance, primitive)` where primitives varies according to the input mesh dimension
+			
+			- `(int,int)` for a Mesh input
+			- `int`  for a Web/Wire input
+	'''
+	if isinstance(mesh, Mesh):
+		def analyse(mesh, conn):
+			pts = mesh.points
+			if not conn:	conn = connef(mesh.faces)
+			for edge in conn:
+				a, b = edgekey(*edge)
+				if a != edge[0]:	continue
+				fa, fb = conn.get((a,b)), conn.get((b,a))
+				if not fb:	continue
+				ca = arrangeface(mesh.faces[fa], a)[2]
+				cb = arrangeface(mesh.faces[fb], b)[2]
+				dir = pts[b]-pts[a]
+				pca = noproject(pts[ca]-pts[a], dir)
+				pcb = noproject(pts[cb]-pts[b], dir)
+				master = pca if length2(pca) > length2(pcb) else pcb
+				n = normalize(cross(dir, pca)) + normalize(cross(pcb, dir))
+				print(length(unproject(master/2, n)))
+				yield length(unproject(master/2, n)), (a,b)
+	
+	elif isinstance(mesh, Web):
+		def analyse(web, conn):
+			pts = web.points
+			if not conn:	conn = connpe(web.edges)
+			usage = connexity(web.edges)
+			for p in range(len(pts)):
+				if usage.get(p, 0) >= 2:
+					n = sum(pts[p] - pts[arrangeedge(web.edges[o], p)[1]]  for o in conn[p])
+					master = max(conn[p], key=lambda o: distance2(pts[p], pts[o]))
+					yield length(unproject((pts[master]-pts[p])/2, n)), p
+				
+	elif isinstance(mesh, Wire):
+		def analyse(wire, conn):
+			pts = wire.points
+			for i in range(1,len(wire.indices)-1):
+				a, p, b = wire.indices[i-1:i+2]
+				master = a if distance2(pts[a],pts[p]) < distance2(pts[b],pts[p]) else b
+				yield length(unproject((pts[master]-pts[p])/2, n)), p
+	
+	return min(analyse(mesh, conn), key=itemgetter(0), default=None)
+		
+
+def note_bounds(obj):
+	''' create dimension annotations on the boundingbox of an object '''
+	box = boundingbox(obj)
+	size = 0.05 * length(box.width)
+	return [
+		note_distance(box.min, vec3(box.max.x, box.min.y, box.min.z), offset=size*vec3(0,-1,-1)),
+		note_distance(box.min, vec3(box.min.x, box.max.y, box.min.z), offset=size*vec3(-1,0,-1)),
+		note_distance(box.min, vec3(box.min.x, box.min.y, box.max.z), offset=size*vec3(-1,-1,0)),
+		box,
+		]
+
 
 	
 def _mesh_direction(mesh):
