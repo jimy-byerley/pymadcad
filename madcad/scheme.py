@@ -654,7 +654,6 @@ def mesh_curvature_radius(mesh, conn=None):
 				pcb = noproject(pts[cb]-pts[b], dir)
 				master = pca if length2(pca) > length2(pcb) else pcb
 				n = normalize(cross(dir, pca)) + normalize(cross(pcb, dir))
-				print(length(unproject(master/2, n)))
 				yield length(unproject(master/2, n)), (a,b)
 	
 	elif isinstance(mesh, Web):
