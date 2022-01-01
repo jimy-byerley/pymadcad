@@ -2,6 +2,7 @@ import moderngl as mgl
 import numpy.core as np
 import glm
 from operator import itemgetter
+from collections import deque
 
 from .mathutils import *
 from .rendering import Display
@@ -604,18 +605,22 @@ def note_angle(a0, a1, offset=0, d=None, tol=None, text=None, unit='deg'):
 			space=scale_screen(fvec3(p1)))
 	return sch
 	
-def note_radius(mesh, offset=None, d=None, tol=None, text=None):
+def note_radius(mesh, offset=None, d=None, tol=None, text=None, propagate=2):
 	''' place a curvature radius quotation. This will be the minimal curvature radius ovserved in the mesh 
 		As a mesh is generaly speaking an approximation of the desired shape, the radius may be approximative as well
 	'''
 	if isinstance(mesh, Mesh):
-		conn = connef(mesh.faces)
-		radius, place = mesh_curvature_radius(mesh, conn)
-		normal = normalize(mesh.facenormal(conn[place]) + mesh.facenormal(conn[(place[1], place[0])]))
+		normals = mesh.vertexnormals()
+		radius, place = mesh_curvature_radius(mesh, normals=normals, propagate=propagate)
+		normal = normals[place]
 	elif isinstance(mesh, Web):
-		conn = connpe(mesh.edges)
-		radius, place = mesh_curvature_radius(mesh, conn)
-		normal = - normalize(sum(mesh.edgedirection(arrangeedge(mesh.edges[e], place))  for e in conn[place]))
+		conn = connpp(mesh.edges)
+		radius, place = mesh_curvature_radius(mesh, conn=conn, propagate=propagate)
+		normal = - normalize(sum(normalize(mesh.points[p]-mesh.points[place])  for p in conn[place]))
+	elif isinstance(mesh, wire):
+		normals = mesh.vertexnormals()
+		radius, place = mesh_curvature_radius(mesh, normals=normals, propagate=propagate)
+		normal = normals[place]
 	else:
 		raise TypeError('input mesh must be Mesh, Web or Wire')
 	if not offset:
@@ -628,55 +633,191 @@ def note_radius(mesh, offset=None, d=None, tol=None, text=None):
 	
 	return note_leading((place,normal), offset=offset, text=text or 'R {:.4g}'.format(radius))
 	
-def mesh_curvature_radius(mesh, conn=None):
+import numpy.linalg
+import numpy as np
+from .mesh import connpp
+	
+def mesh_curvature_radius(mesh, conn=None, normals=None, propagate=2) -> '(distance, point)':
 	''' find the minimum curvature radius of a mesh.
 	
-		Returns:
+		Parameters:
 		
-			`(distance, primitive)` where primitives varies according to the input mesh dimension
-			
-			- `(int,int)` for a Mesh input
-			- `int`  for a Web/Wire input
+			mesh:			the surface/line to search
+			conn:			a point-to-point connectivity (computed if not provided)
+			normals:		the vertex normals (computed if not provided)
+			propagate(int):	the maximum propagation rank for points to pick for the regression
+	
+		Returns:	`(distance: float, point: int)` where primitives varies according to the input mesh dimension
 	'''
-	if isinstance(mesh, Mesh):
-		def analyse(mesh, conn):
-			pts = mesh.points
-			if not conn:	conn = connef(mesh.faces)
-			for edge in conn:
-				a, b = edgekey(*edge)
-				if a != edge[0]:	continue
-				fa, fb = conn.get((a,b)), conn.get((b,a))
-				if not fb:	continue
-				ca = arrangeface(mesh.faces[fa], a)[2]
-				cb = arrangeface(mesh.faces[fb], b)[2]
-				dir = pts[b]-pts[a]
-				pca = noproject(pts[ca]-pts[a], dir)
-				pcb = noproject(pts[cb]-pts[b], dir)
-				master = pca if length2(pca) > length2(pcb) else pcb
-				n = normalize(cross(dir, pca)) + normalize(cross(pcb, dir))
-				yield length(unproject(master/2, n)), (a,b)
-	
-	elif isinstance(mesh, Web):
-		def analyse(web, conn):
-			pts = web.points
-			if not conn:	conn = connpe(web.edges)
-			usage = connexity(web.edges)
-			for p in range(len(pts)):
-				if usage.get(p, 0) >= 2:
-					n = sum(pts[p] - pts[arrangeedge(web.edges[o], p)[1]]  for o in conn[p])
-					master = max(conn[p], key=lambda o: distance2(pts[p], pts[o]))
-					yield length(unproject((pts[master]-pts[p])/2, n)), p
-				
-	elif isinstance(mesh, Wire):
-		def analyse(wire, conn):
-			pts = wire.points
-			for i in range(1,len(wire.indices)-1):
-				a, p, b = wire.indices[i-1:i+2]
-				master = a if distance2(pts[a],pts[p]) < distance2(pts[b],pts[p]) else b
-				yield length(unproject((pts[master]-pts[p])/2, n)), p
-	
-	return min(analyse(mesh, conn), key=itemgetter(0), default=None)
 		
+	def propagate_pp(conn, start, maxrank):
+		front = [(0,s) for s in start]
+		seen = set()
+		while front:
+			rank, p = front.pop()
+			if p in seen:	continue
+			seen.add(p)
+			yield p
+			if rank < maxrank:
+				for n in conn[p]:
+					if n not in seen:	
+						front.append((rank+1, n))
+	
+	if isinstance(mesh, Mesh):		
+		if not conn:	conn = connpp(mesh.faces)
+		if not normals:	normals = mesh.vertexnormals()
+		it = ( (p, list(propagate_pp(conn, [p], propagate)))   for p in range(len(mesh.points)) )
+	elif isinstance(mesh, Web):	
+		if not conn:	conn = connpp(mesh.edges)
+		if not normals:	
+			normals = [vec3(0)  for p in mesh.points]
+			pts = mesh.points
+			for e in mesh.edges:
+				d = pts[e[0]] - pts[e[1]]
+				normals[e[0]] += d
+				normals[e[1]] -= d
+			for i,n in enumerate(normals):
+				normals[i] = normalize(n)
+		it = ( (p, list(propagate_pp(conn, [p], propagate)))   for p in range(len(mesh.points)) )
+	elif isinstance(mesh, Wire):
+		if not normals:	normals = mesh.vertexnormals()
+		it = ( (mesh.indices[i], mesh.indices[i-propagate:i+propagate])   for i in range(len(mesh.indices)) )
+	else:
+		raise TypeError('bad input type')
+	
+	def analyse():
+		pts = mesh.points		
+		for p, neigh in it:
+			# decide a local coordinate system
+			u,v,w = dirbase(normals[p])
+			# get neighboors contributions
+			b = np.empty(len(neigh))
+			a = np.empty((len(neigh), 14))
+			for i,n in enumerate(neigh):
+				e = pts[n] - pts[p]
+				b[i] = dot(e,w)
+				eu = dot(e,u)
+				ev = dot(e,v)
+				# these are the monoms to compose to build a polynom approximating the surface until 4th-order derivatives
+				a[i] = (	eu**2, ev**2, eu*ev,
+							eu, ev,
+							eu**3, eu**2*ev, eu*ev**2, ev**3,
+							eu**4, eu**3*ev, eu**2*ev**2, eu*ev**3, ev**4,
+							)
+
+			# least squares resulution, the complexity is roughly the same as inverting a mat3
+			(au, av, auv, *_), residuals, *_ = np.linalg.lstsq(a, b)
+			# diagonalize the curve tensor to get the principal curvatures
+			diag, transfer = np.linalg.eigh(mat2(2*au, auv, 
+													auv, 2*av))
+			yield 1/np.max(np.abs(diag)), p
+	
+	return min(analyse(), key=itemgetter(0), default=None)
+	
+	
+def mesh_curvature_radius(mesh, conn=None, normals=None, propagate=2) -> '(distance, point)':
+	''' find the minimum curvature radius of a mesh.
+	
+		Parameters:
+		
+			mesh:			the surface/line to search
+			conn:			a point-to-point connectivity (computed if not provided)
+			normals:		the vertex normals (computed if not provided)
+			propagate(int):	the maximum propagation rank for points to pick for the regression
+	
+		Returns:	`(distance: float, point: int)` where primitives varies according to the input mesh dimension
+	'''
+		
+	curvatures = mesh_curvatures(mesh, conn, normals, propagate)
+	
+	place = min(range(len(mesh.points)),
+				key=lambda p: 1/np.max(np.abs(curvatures[p][0])), 
+				default=None)
+	return 1/np.max(np.abs(curvatures[place][0])), place
+	
+def mesh_curvatures(mesh, conn=None, normals=None, propagate=2):
+	''' compute the curvature around a point in a mesh/web/wire
+	
+		Parameters:
+		
+			mesh:			the surface/line to search
+			conn:			a point-to-point connectivity (computed if not provided)
+			normals:		the vertex normals (computed if not provided)
+			propagate(int):	the maximum propagation rank for points to pick for the regression
+	
+		Returns:	
+			
+			`[(tuple, mat3)]`
+			
+			where the `tuple` contains the curvature in each of the column directions in the `mat3`. The `mat3` has the principal directions of curvature
+	'''
+	pts = mesh.points
+		
+	# propagate though the mesh and return seen points
+	def propagate_pp(conn, start, maxrank):
+		front = deque((0,s) for s in start)
+		seen = set()
+		while front:
+			rank, p = front.popleft()
+			if p in seen:	continue
+			seen.add(p)
+			if rank < maxrank:
+				for n in conn[p]:
+					if n not in seen:	
+						front.append((rank+1, n))
+		return seen
+	
+	if isinstance(mesh, Mesh):		
+		if not conn:	conn = connpp(mesh.faces)
+		if not normals:	normals = mesh.vertexnormals()
+		it = ( (p, propagate_pp(conn, [p], propagate))   for p in range(len(mesh.points)) )
+	elif isinstance(mesh, Web):	
+		if not conn:	conn = connpp(mesh.edges)
+		if not normals:	
+			normals = [vec3(0)  for p in mesh.points]
+			for e in mesh.edges:
+				d = pts[e[0]] - pts[e[1]]
+				normals[e[0]] += d
+				normals[e[1]] -= d
+			for i,n in enumerate(normals):
+				normals[i] = normalize(n)
+		it = ( (p, propagate_pp(conn, [p], propagate))   for p in range(len(mesh.points)) )
+	elif isinstance(mesh, Wire):
+		if not normals:	normals = mesh.vertexnormals()
+		it = ( (mesh.indices[i], mesh.indices[i-propagate:i+propagate])   for i in range(len(mesh.indices)) )
+	else:
+		raise TypeError('bad input shape type')
+	
+	curvatures = [None]*len(pts)
+	
+	for p, neigh in it:
+		# decide a local coordinate system
+		u,v,w = dirbase(normals[p])
+		# get neighboors contributions
+		b = np.empty(len(neigh))
+		a = np.empty((len(neigh), 14))
+		for i,n in enumerate(neigh):
+			e = pts[n] - pts[p]
+			b[i] = dot(e,w)
+			eu = dot(e,u)
+			ev = dot(e,v)
+			# these are the monoms to compose to build a polynom approximating the surface until 4th-order derivatives
+			a[i] = (	eu**2, ev**2, eu*ev,  # what we want to get
+						# the others terms are only present to catch the surface regularities and not disturb the curvature terms
+						eu, ev,
+						eu**3, eu**2*ev, eu*ev**2, ev**3,
+						eu**4, eu**3*ev, eu**2*ev**2, eu*ev**3, ev**4,
+						)
+
+		# least squares resulution, the complexity is roughly the same as inverting a mat3
+		(au, av, auv, *_), residuals, *_ = np.linalg.lstsq(a, b, rcond=None)
+		# diagonalize the curve tensor to get the principal curvatures
+		diag, transfer = np.linalg.eigh(mat2(2*au, auv, 
+												auv, 2*av))
+		curvatures[p] = diag, mat3(u,v,w) * mat3(mat2(transfer))
+		
+	return curvatures
+
 
 def note_bounds(obj):
 	''' create dimension annotations on the boundingbox of an object '''
