@@ -477,7 +477,7 @@ def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None):
 	x = dirbase(project, b-a)[0]
 	if not isinstance(offset, vec3):
 		offset = offset * x
-	shift = 0.5 * mathutils.project(b-a, offset)
+	shift = 0.5 * mathutils.project(b-a, offset)	if length2(offset) else 0
 	ao = a + offset + shift
 	bo = b + offset - shift
 	# create scheme
