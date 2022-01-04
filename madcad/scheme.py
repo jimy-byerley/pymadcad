@@ -1,3 +1,21 @@
+# This file is part of pymadcad,  distributed under license LGPL v3
+
+''' This module provides annotation functions to quickly measure and show things on meshes
+	
+	This is more to be considered as a rendering feature, rather than a proper measuring system.
+	Everything is built on the class `Scheme` that provide a very versatile way to structure and render simple but animated schematics
+	
+	Those functions are designed to be very simple to use, (sometimes even minimalistic)
+		
+		>>> mesh = brick(width=vec3(3,2,1))
+		>>> show([
+		... 	mesh,
+		... 	note_distance_planes(mesh.group(4), mesh.group(2)),
+		... 	note_leading(mesh.group(3), text='truc'),
+		... 	])
+			
+'''
+
 import moderngl as mgl
 import numpy.core as np
 import glm
@@ -31,6 +49,36 @@ __all__ = ['Scheme',
 
 
 class Scheme:
+	''' an object containing schematics. 
+	
+		This is a buffer object, it isnot intended to be useful to modify a scheme.
+		
+		Attributes:
+		
+			spaces(list):       a space is any function giving a mat4 to position a point on the screen (openGL convensions as used)
+			
+			vertices(list):	    
+			
+				a vertex is a tuple
+				
+				`(space id, position, normal, color, layer, track, flags)`
+			
+			primitives(list):   
+			
+				list of buffers (of point indices, edges, triangles, depending on the exact primitive type), associaded to each supported shader in the scheem
+				
+				currently supported shaders are:
+				
+				- `'line'`  uniform opaque/transparent lines
+				- `'fill'`  uniform opaque/transparent triangles
+				- `'ghost'` triangles of surface that fade when its normal is close to the view
+			
+			components(list):   objects to display setting their local space to one of the spaces
+				
+			annotate(bool):     whether this object must be considered as an annotation (and hidden with others when requested)
+			
+			current(dict):     last vertex definition, implicitely reused for convenience
+	'''
 	def __init__(self, vertices=None, spaces=None, primitives=None, annotation=True, **kwargs):
 		self.vertices = vertices or [] # list of vertices
 		self.spaces = spaces or []	# definition of each space

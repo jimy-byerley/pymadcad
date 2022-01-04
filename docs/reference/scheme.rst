@@ -13,12 +13,13 @@ schematics system
 		.. automethod:: set
 		.. automethod:: add
 		.. automethod:: component
+		.. automethod:: __add__
 		
-		.. automethod:: display
+	The following functions are commonly used spaces in madcad schematics
 			
-	.. autofunction:: view
-	.. autofunction:: screen
-	.. autofunction:: world
+	.. py:data:: view
+	.. py:data:: screen
+	.. py:data:: world
 	.. autofunction:: halo_world
 	.. autofunction:: halo_view
 	.. autofunction:: halo_screen
