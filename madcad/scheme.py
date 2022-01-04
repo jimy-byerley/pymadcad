@@ -24,7 +24,10 @@ __all__ = ['Scheme',
 			'note_distance_planes',
 			'note_distance_set',
 			'note_angle_planes', 
-			'note_angle_edge']
+			'note_angle_edge',
+			'note_radius',
+			'note_bounds',
+			]
 
 
 class Scheme:

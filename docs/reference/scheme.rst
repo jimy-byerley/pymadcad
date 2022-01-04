@@ -46,6 +46,14 @@ annotation functions
 		
 		.. image:: /screenshots/note_distance_set.png
 		
+	.. autofunction:: note_bounds
+	
+		.. image:: /screenshots/note_bounds.png
+	
+	.. autofunction:: note_radius
+	
+		.. image:: /screenshots/note_radius.png
+		
 	.. autofunction:: note_angle
 		
 		.. image:: /screenshots/note_angle.png
@@ -58,3 +66,9 @@ annotation functions
 	.. autofunction:: note_label
 		
 		.. image:: /screenshots/note_label.png
+	
+measuring tools
+---------------
+
+	.. autofunction:: mesh_curvature_radius
+	.. autofunction:: mesh_curvatures

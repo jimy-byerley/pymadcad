@@ -1,5 +1,5 @@
 from madcad import *
-from madcad.scheme import note_bounds, note_radius
+from madcad.scheme import *
 
 def test(line, mesh):
 	return [
