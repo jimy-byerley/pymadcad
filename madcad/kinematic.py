@@ -663,6 +663,37 @@ class Kinematic:
 		for solid,pose in zip(self.solids, pose):
 			solid.position = vec3(pose[3])
 			solid.orientation = quat_cast(mat3(pose))
+			
+	def __copy__(self):
+		memo = {id(s): copy(s)}
+		joints = []
+		for joint in self.joints:
+			newjoint = copy(joint)
+			newjoint.solids = [memo[id(s)]  for s in joint.solids]
+			joints.append(newjoint)
+		
+		return Kinematic(
+					joints, 
+					set(id(memo[i])  for i in self.fixed), 
+					[memo[id(s)]  for s in self.solids],
+					)
+	
+	def __add__(self, other):
+		return Kinematic(self.joints+other.joints, self.fixed|other.fixed, self.solids+other.solids)
+		
+	def __iadd__(self, other):
+		self.joints.extend(other.joints)
+		self.solids.extend(other.solids)
+		self.fixed.update(other.fixed)
+		return self
+	
+	def itransform(self, trans):
+		for solid in self.solids:
+			solid.itransform(trans)
+	def transform(self):
+		new = copy(self)
+		new.itransform(trans)
+		return new
 		
 	def graph(self) -> 'Graph':
 		''' graph representing solid as nodes and joints as bidirectional links '''
