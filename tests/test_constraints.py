@@ -1,5 +1,6 @@
 from madcad import vec3, Point, Segment, ArcCentered, Distance, Tangent, Angle, solve
 from math import radians
+from madcad.rendering import show
 
 print('\nequilateral triangle')
 A = Point(0, 0, 0)
@@ -16,6 +17,7 @@ csts = [
 	]
 solve(csts, fixed=[A], afterset=lambda x: print(repr((A,B,C))))
 print('final', repr((A,B,C)))
+show([AB,AC,BC, csts])
 
 print('\ntangent arc')
 A = Point(0, 0, 0)
@@ -36,6 +38,7 @@ csts = [
 	]
 solve(csts, fixed=[A,Z], afterset=lambda x: print(repr((A,B,C,O))))
 print('final', repr((A,B,C,O)))
+show([AB, AC, BC, csts])
 
 print('\nangle')
 A = Point(0, 0, 0)
@@ -56,3 +59,4 @@ csts = [
 	]
 solve(csts, fixed=[A], afterset=lambda x: print(repr((A,B,C,D))))
 print('final', repr((A,B,C,D)))
+show([AB, AC, CD, BD, csts])
