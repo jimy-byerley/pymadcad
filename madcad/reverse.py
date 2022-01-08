@@ -11,7 +11,7 @@ __all__ = [	'segmentation',
 			]
 
 
-def segmentation(mesh, tolerance=5, sharp=0.2, numprec=1e-5) -> Mesh:
+def segmentation(mesh, tolerance=5, sharp=0.2) -> Mesh:
 	''' surface segmentation based on curvature.
 		This functions splits faces into groups based on curvature proximity.
 		Ideally each resulting group is a set of faces with the same curvature. In practice such is not possible due to the mesh resolution introducing bias in curvature estimation. Thus a `tolerance` is used to decide what is a sufficiently close curvature to belong to the same group.
@@ -23,7 +23,6 @@ def segmentation(mesh, tolerance=5, sharp=0.2, numprec=1e-5) -> Mesh:
 		
 			tolerance (float):	maximum difference factor between curvatures of a same group  (1 means +100% curvature is allowed)
 			sharp (float):	angle above which an angle is always sharp (radians)
-			numprec (floart):	precision factor for the operation, the constant NUMPREC is not used because segmentation often works on imported geometries which precision can be significantly lower than madcad's float64 precision
 			
 		NOTE:
 			
@@ -41,7 +40,7 @@ def segmentation(mesh, tolerance=5, sharp=0.2, numprec=1e-5) -> Mesh:
 	pts = mesh.points
 	conn = connef(mesh.faces)
 	facenormals = mesh.facenormals()
-	prec = mesh.maxnum() * numprec * tolerance
+	prec = 1 / mesh.maxnum()  # curvature precision, curvature is rad/m, so 1rad/max dist seems to be a fairly low curvature
 	
 	# this is what this functions is working to create: new groups and tracks to assign it to faces
 	tracks = [-1] * len(mesh.faces)
@@ -69,7 +68,7 @@ def segmentation(mesh, tolerance=5, sharp=0.2, numprec=1e-5) -> Mesh:
 	
 	# divide contributions to face curvatures
 	for i,f in enumerate(mesh.faces):
-		area = length(cross(pts[f[1]]-pts[f[0]], pts[f[2]]-pts[f[0]])) * weight[i]
+		area = 0.5 * length(cross(pts[f[1]]-pts[f[0]], pts[f[2]]-pts[f[0]])) * weight[i]
 		if area:	facecurve[i] /= area
 		else:		facecurve[i] = 0
 		#debug.append(text.Text(
@@ -98,6 +97,20 @@ def segmentation(mesh, tolerance=5, sharp=0.2, numprec=1e-5) -> Mesh:
 		front = [(f[k-1], f[k-2])  for k in range(3)]   # propagation frontline
 		reached = {i}  # faces reached by propagation
 		
+		# for triangles on the frontier of a curved surface, the curvature may appear to be null (or close), in this case look for a paired triangle
+		if abs(facecurve[i]) < prec:
+			best = None
+			fence = inf
+			for i,e in enumerate(front):
+				j = conn.get(e)
+				if j is None or tracks[j] != -1 or j in reached:	continue
+				if edgecurve[edgekey(*e)] >= sharp:	continue
+				score = abs(facecurve[j]-facecurve[i])
+				if score < fence:
+					best, fence = j, score
+			if best is not None:
+				estimate = facecurve[best]
+		
 		# propagation
 		while front:
 			e = front.pop()
@@ -109,7 +122,7 @@ def segmentation(mesh, tolerance=5, sharp=0.2, numprec=1e-5) -> Mesh:
 			# split groups at maximum curvature
 			if edgecurve[edgekey(*e)] >= sharp:	continue
 			# split groups when curvature is too far from average curvature
-			if abs(facecurve[j]-estimate) / (abs(estimate) + prec) > tolerance:	continue
+			if abs(facecurve[j]-estimate) / (abs(estimate)+prec) > tolerance:	continue
 			
 			# improve estimation of average curvature
 			tracks[j] = len(groups)

@@ -19,12 +19,13 @@
 
 from collections import Counter
 import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import least_squares
 from .nprint import nprint
 from .mathutils import *
 from . import primitives
 from . import displays, text, settings
 from . import scheme
+import array
 
 
 class SolveError(Exception):	pass
@@ -58,7 +59,7 @@ class Tangent(Constraint):
 	__slots__ = 'c1', 'c2', 'p', 'size'
 	slvvars = 'c1', 'c2', 'p'
 	def fit(self):
-		return length(cross(self.c1.slv_tangent(self.p), self.c2.slv_tangent(self.p))) **2
+		return length2(cross(self.c1.slv_tangent(self.p), self.c2.slv_tangent(self.p))),
 	
 	#def display(self, scene):
 		#return displays.TangentDisplay(scene, (self.p, self.c2.slv_tangent(self.p)), self.size)
@@ -72,18 +73,18 @@ class Distance(Constraint):
 			if self.along:
 				if isinstance(along, vec3):	a = along
 				else:						a = along.direction
-				return (dot(self.p1-self.p2, a) - d) ** 2
+				return (dot(self.p1-self.p2, a) - d) ** 2,
 			else:
-				return (distance(self.p1, self.p2) - self.d) **2
+				return (distance(self.p1, self.p2) - self.d) **2,
 		elif isinstance(self.p1, vec3):
-			return (length(noproject(self.p2.origin-self.p1, self.p2.direction)) - self.d) **2
+			return (length(noproject(self.p2.origin-self.p1, self.p2.direction)) - self.d) **2,
 		elif isinstance(self.p2, vec3):
-			return (length(noproject(self.p1.origin-self.p2, self.p1.direction)) - self.d) **2
+			return (length(noproject(self.p1.origin-self.p2, self.p1.direction)) - self.d) **2,
 		else:
 			d1 = self.p1.direction
 			d2 = self.p2.direction
 			if dot(d1,d2) < 0:	d2 = -d2
-			return length2(cross(d1,d2)) + (length(noproject(self.p1.origin-self.p2.origin, d1+d2)) - self.d) **2
+			return length2(cross(d1,d2)), (length(noproject(self.p1.origin-self.p2.origin, d1+d2)) - self.d) **2
 			
 	#def fitgrad(self):
 		#return derived.compose(dot, Derived(self.p1), Derived(self.p2))
@@ -92,17 +93,17 @@ class Distance(Constraint):
 			return scene.display(scheme.note_distance(
 					self.p1, self.p2, 
 					project=self.along,
-					text='{:.5g}\n{:+.1g}'.format(self.d, sqrt(self.fit())),
+					text='{:.5g}\n{:+.1g}'.format(self.d, sqrt(self.fit()[0])),
 					))
 		elif isinstance(self.p1, vec3):
 			return scene.display(scheme.note_distance(
 					self.p1, self.p1 + noproject(self.p2.origin-self.p1, self.p2.direction),
-					text='{:.5g}\n{:+.1g}'.format(self.d, sqrt(self.fit())),
+					text='{:.5g}\n{:+.1g}'.format(self.d, sqrt(self.fit()[0])),
 					))
 		elif isinstance(self.p2, vec3):
 			return scene.display(scheme.note_distance(
 					self.p2, self.p2 + noproject(self.p1.origin-self.p2, self.p1.direction), 
-					text='{:.5g}\n{:+.1g}'.format(self.d, sqrt(self.fit())),
+					text='{:.5g}\n{:+.1g}'.format(self.d, sqrt(self.fit()[0])),
 					))
 		else:
 			p = mix(self.p1.origin, self.p2.origin, 0.5)
@@ -115,7 +116,7 @@ class Distance(Constraint):
 			return scene.display(scheme.note_distance(
 					p + noproject(p1-p, d),
 					p + noproject(p2-p, d),
-					text='{:.5g}\n{:+.1g}'.format(self.d, sqrt(self.fit())),
+					text='{:.5g}\n{:+.1g}'.format(self.d, sqrt(self.fit()[0])),
 					))
 			
 
@@ -127,12 +128,13 @@ class Angle(Constraint):
 		d1 = self.s1.direction
 		d2 = self.s2.direction
 		a = atan2(length(cross(d1,d2)), dot(d1,d2))
-		return (a - self.angle)**2
+		return (a - self.angle)**2,
+	
 	def display(self, scene):
 		return scene.display(scheme.note_angle(
 					(self.s1.origin, -self.s1.direction),
 					(self.s2.origin, -self.s2.direction),
-					text='{:.5g}°\n{:+.1g}'.format(degrees(self.angle), degrees(sqrt(self.fit()))),
+					text='{:.5g}°\n{:+.1g}'.format(degrees(self.angle), degrees(sqrt(self.fit()[0]))),
 					))
 
 class Parallel(Constraint):
@@ -142,7 +144,7 @@ class Parallel(Constraint):
 	def fit(self):
 		d1 = self.s1.direction
 		d2 = self.s2.direction
-		return length2(cross(d1,d2))
+		return length2(cross(d1,d2)),
 		
 
 class Radius(Constraint):
@@ -153,7 +155,7 @@ class Radius(Constraint):
 	__slots__ = 'arc', 'radius', 'location'
 	slvvars = 'arc',	
 	def fit(self):
-		return (self.arc.radius - self.radius) **2
+		return (self.arc.radius - self.radius) **2,
 	
 	def display(self, scene):
 		r = self.arc.radius
@@ -173,8 +175,7 @@ class OnPlane(Constraint):
 	def fit(self):
 		s = 0
 		for p in self.pts:
-			s += dot(p-self.axis[0], self.axis[1]) **2
-		return s
+			yield dot(p-self.axis[0], self.axis[1]) **2
 
 class PointOn(Constraint):
 	''' Puts the given point on the curve.
@@ -184,7 +185,7 @@ class PointOn(Constraint):
 	__slots__ = 'point', 'curve'	
 	slvvars = 'point', 'curve'
 	def fit(self):
-		return distance(self.curve.slv_nearest(self.point), self.point) ** 2
+		return distance2(self.curve.slv_nearest(self.point), self.point),
 
 		
 		
@@ -286,28 +287,41 @@ class Problem:
 			x[i:i+l] = v
 			i += l
 		return x
+	
 	def place(self, x):
 		i = 0
 		for v in self.slvvars.values():
 			l = len(v)
 			for j in range(l):	v[j] = x[i+j]
 			i += l
+	
 	def fit(self):
-		return sum((fit()  for fit in self.constraints))
+		residuals = array.array('d')
+		for fit in self.constraints:
+			residuals.extend(fit())
+		return residuals
+	
 	def evaluate(self, x):
 		self.place(x)
 		return self.fit()
 	
-	def solve(self, precision=1e-4, method='BFGS', afterset=None, maxiter=None):
+	def solve(self, precision=1e-6, method='trf', maxiter=None, afterset=None):
 		#nprint(self.slvvars)
-		res = minimize(self.evaluate, self.state(), 
-				tol=precision, method=method, callback=afterset, 
-				options={'eps':precision/2, 'maxiter':maxiter})
-		if res.fun <= precision:
-			self.place(res.x)
+		if afterset:	evaluate = lambda x: afterset(x) or self.evaluate(x)
+		else:			evaluate = self.evaluate
+		res = least_squares(evaluate, self.state(), 
+				xtol=precision, 
+				gtol=precision**3,
+				ftol=precision**2,
+				method=method, 
+				max_nfev=maxiter,
+				)
+		
+		self.place(res.x)
+		#print(res)
+		if res.cost < precision:
 			return res
-		elif not res.success:
-			print(res)
+		elif not res.sucess:
 			raise SolveError(res.message)
 		else:
 			raise SolveError('no solution found')

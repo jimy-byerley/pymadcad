@@ -178,10 +178,10 @@ class ArcCentered(object):
 	slvvars = ('axis', 'a', 'b')
 	slv_tangent = tangent
 	def fit(self):
-		return (	dot(self.a-self.axis[0], self.axis[1]) **2 
-				+	dot(self.b-self.axis[0], self.axis[1]) **2
-				+   (distance(self.a,self.axis[0]) - distance(self.b,self.axis[0])) **2
-				+	(length(self.axis[1])-1) **2
+		return (dot(self.a-self.axis[0], self.axis[1]) **2,
+				dot(self.b-self.axis[0], self.axis[1]) **2,
+				(distance(self.a,self.axis[0]) - distance(self.b,self.axis[0])) **2,
+				(length(self.axis[1])-1) **2,
 				)
 	
 	def mesh(self, resolution=None):
@@ -225,7 +225,7 @@ class ArcTangent(object):
 	slv_tangent = tangent
 	
 	def fit(self):
-		return (distance(self.a, self.b) - distance(self.c, self.b)) **2
+		return (distance(self.a, self.b) - distance(self.c, self.b)) **2,
 	
 	def mesh(self, resolution=None):
 		return mkarc(self.axis, self.a, self.c, resolution or self.resolution)
@@ -305,7 +305,7 @@ class Circle(object):
 		return self.axis[0]
 	
 	def fit(self):
-		return (length(self.axis[1])-1) **2
+		return (length(self.axis[1])-1) **2,
 	
 	def tangent(self, pt):
 		''' tangent to the closest point of the curve to pt '''

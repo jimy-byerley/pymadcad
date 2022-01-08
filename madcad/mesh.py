@@ -214,7 +214,7 @@ class Mesh(Container):
 	def __init__(self, points=None, faces=None, tracks=None, groups=None, options=None):
 		self.points = ensure_typedlist(points, vec3)
 		self.faces = ensure_typedlist(faces, uvec3)
-		self.tracks = ensure_typedlist(tracks or typedlist.full(0, len(self.faces), 'I'), 'I')
+		self.tracks = ensure_typedlist(tracks if tracks is not None else typedlist.full(0, len(self.faces), 'I'), 'I')
 		self.groups = groups or [None] * (max(self.tracks, default=-1)+1)
 		self.options = options or {}
 	
@@ -1295,7 +1295,7 @@ class Wire(Container):
 	
 	def __init__(self, points=None, indices=None, tracks=None, groups=None, options=None):
 		self.points = ensure_typedlist(points, vec3)
-		self.indices = ensure_typedlist(indices or range(len(self.points)), 'I')
+		self.indices = ensure_typedlist(indices if indices is not None else range(len(self.points)), 'I')
 		self.tracks = tracks or None
 		self.groups = groups or [None]
 		self.options = options or {}
@@ -1524,7 +1524,9 @@ class Wire(Container):
 			self.indices[-1] = 0
 	
 	def display(self, scene):
-		return web(self).display(scene)
+		w = web(self)
+		w.options = self.options
+		return w.display(scene)
 	
 	def __repr__(self):
 		return '<Wire with {} points at 0x{:x}, {} indices>'.format(len(self.points), id(self.points), len(self.indices))
@@ -1645,6 +1647,10 @@ def arrangeface(f, p):
 	if   p == f[1]:	return f[1],f[2],f[0]
 	elif p == f[2]:	return f[2],f[0],f[1]
 	else:			return f
+	
+def arrangeedge(e, p):
+	if p == e[1]:	return e[1], e[0]
+	else:			return e
 
 def connpp(ngons):
 	''' point to point connectivity 
@@ -1849,9 +1855,9 @@ def distance2_pm(point, mesh) -> '(d, prim)':
 			d = e[1]-e[0]
 			x = dot(point - e[0], d) / length2(d)
 			# check if closer to the edge points than to the edge axis
-			if x < 0:	dist, candidate = distance2(point, e[0]), e[0]
-			elif x > 1:	dist, candidate = distance2(point, e[1]), e[1]
-			else:		dist, candidate = length2(noproject(point - e[0], d)), e
+			if x < 0:	dist, candidate = distance2(point, e[0]), edge[0]
+			elif x > 1:	dist, candidate = distance2(point, e[1]), edge[1]
+			else:		dist, candidate = length2(noproject(point - e[0], d)), edge
 			if dist < score:
 				best, score = candidate, dist
 	elif isinstance(mesh, vec3):

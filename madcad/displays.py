@@ -361,8 +361,7 @@ class WebDisplay(Display):
 	def __init__(self, scene, positions, lines, points, idents, color=None):
 		self.box = npboundingbox(positions)
 		self.options = scene.options
-		if not color:	
-			color = fvec3(settings.display['line_color'])
+		color = color or settings.display['line_color']
 		self.vertices = Vertices(scene.ctx, positions, idents)
 		self.disp_edges = LinesDisplay(scene, self.vertices, lines, color=color, alpha=1, layer=-2e-6)
 		self.disp_groups = PointsDisplay(scene, self.vertices, points, layer=-3e-6)
@@ -547,9 +546,9 @@ class GhostDisplay:
 			self.va_ident.render(mgl.TRIANGLES)
 	
 class LinesDisplay:
-	def __init__(self, scene, vertices, lines, color=None, alpha=1, layer=0):
+	def __init__(self, scene, vertices, lines, color, alpha=1, layer=0):
 		self.layer = layer
-		self.color = fvec4(color or settings.display['line_color'], alpha)
+		self.color = fvec4(fvec3(color), alpha)
 		self.select_color = fvec4(settings.display['select_color_line'], alpha)
 		self.vertices = vertices
 		
@@ -719,12 +718,12 @@ class SplineDisplay(Display):
 		self.shader['proj'].write(view.uniforms['proj'])
 		view.scene.ctx.point_size = 4
 		
-		self.shader['layer'] = -2e-4
+		self.shader['layer'] = -2e-6
 		self.shader['color'].write(self.color_handles if not self.selected else fvec4(settings.display['select_color_line'],self.color_handles[3]))
 		self.va_handles.render(mgl.POINTS)
 		self.va_handles.render(mgl.LINE_STRIP)
 		
-		self.shader['layer'] = -1e-4
+		self.shader['layer'] = -1e-6
 		self.shader['color'].write(self.color if not self.selected else fvec4(settings.display['select_color_line'],self.color[3]))
 		self.va_curve.render(mgl.LINE_STRIP)
 		

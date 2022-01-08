@@ -1,13 +1,34 @@
+# This file is part of pymadcad,  distributed under license LGPL v3
+
+''' This module provides annotation functions to quickly measure and show things on meshes
+	
+	This is more to be considered as a rendering feature, rather than a proper measuring system.
+	Everything is built on the class `Scheme` that provide a very versatile way to structure and render simple but animated schematics
+	
+	Those functions are designed to be very simple to use, (sometimes even minimalistic)
+		
+		>>> mesh = brick(width=vec3(3,2,1))
+		>>> show([
+		... 	mesh,
+		... 	note_distance_planes(mesh.group(4), mesh.group(2)),
+		... 	note_leading(mesh.group(3), text='truc'),
+		... 	])
+			
+'''
+
 import moderngl as mgl
 import numpy.core as np
 import glm
+from operator import itemgetter
+from collections import deque
 
 from .mathutils import *
 from .rendering import Display
 from .common import ressourcedir
-from .mesh import Container, Mesh, Web, Wire, web, wire, mesh_distance
+from .mesh import Container, Mesh, Web, Wire, web, wire, mesh_distance, connef, connpe, connexity, edgekey, arrangeface, arrangeedge
 from .rendering import Displayable, writeproperty
 from .primitives import *
+from . import mathutils
 from . import generation as gt
 from . import text as txt
 from . import settings
@@ -21,10 +42,43 @@ __all__ = ['Scheme',
 			'note_distance_planes',
 			'note_distance_set',
 			'note_angle_planes', 
-			'note_angle_edge']
+			'note_angle_edge',
+			'note_radius',
+			'note_bounds',
+			]
 
 
 class Scheme:
+	''' an object containing schematics. 
+	
+		This is a buffer object, it isnot intended to be useful to modify a scheme.
+		
+		Attributes:
+		
+			spaces(list):       a space is any function giving a mat4 to position a point on the screen (openGL convensions as used)
+			
+			vertices(list):	    
+			
+				a vertex is a tuple
+				
+				`(space id, position, normal, color, layer, track, flags)`
+			
+			primitives(list):   
+			
+				list of buffers (of point indices, edges, triangles, depending on the exact primitive type), associaded to each supported shader in the scheem
+				
+				currently supported shaders are:
+				
+				- `'line'`  uniform opaque/transparent lines
+				- `'fill'`  uniform opaque/transparent triangles
+				- `'ghost'` triangles of surface that fade when its normal is close to the view
+			
+			components(list):   objects to display setting their local space to one of the spaces
+				
+			annotate(bool):     whether this object must be considered as an annotation (and hidden with others when requested)
+			
+			current(dict):     last vertex definition, implicitely reused for convenience
+	'''
 	def __init__(self, vertices=None, spaces=None, primitives=None, annotation=True, **kwargs):
 		self.vertices = vertices or [] # list of vertices
 		self.spaces = spaces or []	# definition of each space
@@ -472,15 +526,17 @@ def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None):
 	color = settings.display['annotation_color']
 	# convert input vectors
 	x = dirbase(project, b-a)[0]
-	shift = 0.5 * dot(b-a, x)
-	ao = a + (offset + shift) * x
-	bo = b + (offset - shift) * x
+	if not isinstance(offset, vec3):
+		offset = offset * x
+	shift = 0.5 * mathutils.project(b-a, offset)	if length2(offset) else 0
+	ao = a + offset + shift
+	bo = b + offset - shift
 	# create scheme
 	sch = Scheme()
-	sch.set(shader='line', layer=1e-2, color=fvec4(color,0.3))
+	sch.set(shader='line', layer=1e-4, color=fvec4(color,0.3))
 	sch.add([a, ao])
 	sch.add([b, bo])
-	sch.set(layer=-1e-2, color=fvec4(color,0.7))
+	sch.set(layer=-1e-4, color=fvec4(color,0.7))
 	sch.add([ao, bo])
 	sch.add(txt.Text(
 				mix(ao,bo,0.5), 
@@ -573,12 +629,12 @@ def note_angle(a0, a1, offset=0, d=None, tol=None, text=None, unit='deg'):
 	p0 = center+radius*d0
 	p1 = center+radius*d1
 	sch = Scheme()
-	sch.set(shader='line', layer=1e-2, color=fvec4(color,0.3))
+	sch.set(shader='line', layer=1e-4, color=fvec4(color,0.3))
 	sch.add([p0, o0])
 	sch.add([p1, o1])
 	arc = ArcCentered((center,z), p0, p1, ('rad',0.05)).mesh()
 	sch.add(arc, color=fvec4(color,0.7))
-	sch.set(layer=-1e-2)
+	sch.set(layer=-1e-4)
 	sch.add(txt.Text(
 				arc[len(arc)//2], 
 				text, 
@@ -599,6 +655,233 @@ def note_angle(a0, a1, offset=0, d=None, tol=None, text=None, unit='deg'):
 				resolution=('div',8)), 
 			space=scale_screen(fvec3(p1)))
 	return sch
+	
+def note_radius(mesh, offset=None, d=None, tol=None, text=None, propagate=2):
+	''' place a curvature radius quotation. This will be the minimal curvature radius ovserved in the mesh 
+		As a mesh is generaly speaking an approximation of the desired shape, the radius may be approximative as well
+	'''
+	if isinstance(mesh, Mesh):
+		normals = mesh.vertexnormals()
+		radius, place = mesh_curvature_radius(mesh, normals=normals, propagate=propagate)
+		normal = normals[place]
+	elif isinstance(mesh, Web):
+		conn = connpp(mesh.edges)
+		radius, place = mesh_curvature_radius(mesh, conn=conn, propagate=propagate)
+		normal = - normalize(sum(normalize(mesh.points[p]-mesh.points[place])  for p in conn[place]))
+	elif isinstance(mesh, wire):
+		normals = mesh.vertexnormals()
+		radius, place = mesh_curvature_radius(mesh, normals=normals, propagate=propagate)
+		normal = normals[place]
+	else:
+		raise TypeError('input mesh must be Mesh, Web or Wire')
+	if not offset:
+		offset = 0.2 * length(boundingbox(mesh).width)
+	
+	if isinstance(place, tuple):
+		place = sum(mesh.points[i]  for i in place) / len(place)
+	else:
+		place = mesh.points[place]
+	
+	return note_leading((place,normal), offset=offset, text=text or 'R {:.4g}'.format(radius))
+	
+import numpy.linalg
+import numpy as np
+from .mesh import connpp
+	
+def mesh_curvature_radius(mesh, conn=None, normals=None, propagate=2) -> '(distance, point)':
+	''' find the minimum curvature radius of a mesh.
+	
+		Parameters:
+		
+			mesh:			the surface/line to search
+			conn:			a point-to-point connectivity (computed if not provided)
+			normals:		the vertex normals (computed if not provided)
+			propagate(int):	the maximum propagation rank for points to pick for the regression
+	
+		Returns:	`(distance: float, point: int)` where primitives varies according to the input mesh dimension
+	'''
+		
+	def propagate_pp(conn, start, maxrank):
+		front = [(0,s) for s in start]
+		seen = set()
+		while front:
+			rank, p = front.pop()
+			if p in seen:	continue
+			seen.add(p)
+			yield p
+			if rank < maxrank:
+				for n in conn[p]:
+					if n not in seen:	
+						front.append((rank+1, n))
+	
+	if isinstance(mesh, Mesh):		
+		if not conn:	conn = connpp(mesh.faces)
+		if not normals:	normals = mesh.vertexnormals()
+		it = ( (p, list(propagate_pp(conn, [p], propagate)))   for p in range(len(mesh.points)) )
+	elif isinstance(mesh, Web):	
+		if not conn:	conn = connpp(mesh.edges)
+		if not normals:	
+			normals = [vec3(0)  for p in mesh.points]
+			pts = mesh.points
+			for e in mesh.edges:
+				d = pts[e[0]] - pts[e[1]]
+				normals[e[0]] += d
+				normals[e[1]] -= d
+			for i,n in enumerate(normals):
+				normals[i] = normalize(n)
+		it = ( (p, list(propagate_pp(conn, [p], propagate)))   for p in range(len(mesh.points)) )
+	elif isinstance(mesh, Wire):
+		if not normals:	normals = mesh.vertexnormals()
+		it = ( (mesh.indices[i], mesh.indices[i-propagate:i+propagate])   for i in range(len(mesh.indices)) )
+	else:
+		raise TypeError('bad input type')
+	
+	def analyse():
+		pts = mesh.points		
+		for p, neigh in it:
+			# decide a local coordinate system
+			u,v,w = dirbase(normals[p])
+			# get neighboors contributions
+			b = np.empty(len(neigh))
+			a = np.empty((len(neigh), 14))
+			for i,n in enumerate(neigh):
+				e = pts[n] - pts[p]
+				b[i] = dot(e,w)
+				eu = dot(e,u)
+				ev = dot(e,v)
+				# these are the monoms to compose to build a polynom approximating the surface until 4th-order derivatives
+				a[i] = (	eu**2, ev**2, eu*ev,
+							eu, ev,
+							eu**3, eu**2*ev, eu*ev**2, ev**3,
+							eu**4, eu**3*ev, eu**2*ev**2, eu*ev**3, ev**4,
+							)
+
+			# least squares resulution, the complexity is roughly the same as inverting a mat3
+			(au, av, auv, *_), residuals, *_ = np.linalg.lstsq(a, b)
+			# diagonalize the curve tensor to get the principal curvatures
+			diag, transfer = np.linalg.eigh(mat2(2*au, auv, 
+													auv, 2*av))
+			yield 1/np.max(np.abs(diag)), p
+	
+	return min(analyse(), key=itemgetter(0), default=None)
+	
+	
+def mesh_curvature_radius(mesh, conn=None, normals=None, propagate=2) -> '(distance, point)':
+	''' find the minimum curvature radius of a mesh.
+	
+		Parameters:
+		
+			mesh:			the surface/line to search
+			conn:			a point-to-point connectivity (computed if not provided)
+			normals:		the vertex normals (computed if not provided)
+			propagate(int):	the maximum propagation rank for points to pick for the regression
+	
+		Returns:	`(distance: float, point: int)` where primitives varies according to the input mesh dimension
+	'''
+		
+	curvatures = mesh_curvatures(mesh, conn, normals, propagate)
+	
+	place = min(range(len(mesh.points)),
+				key=lambda p: 1/np.max(np.abs(curvatures[p][0])), 
+				default=None)
+	return 1/np.max(np.abs(curvatures[place][0])), place
+	
+def mesh_curvatures(mesh, conn=None, normals=None, propagate=2):
+	''' compute the curvature around a point in a mesh/web/wire
+	
+		Parameters:
+		
+			mesh:			the surface/line to search
+			conn:			a point-to-point connectivity (computed if not provided)
+			normals:		the vertex normals (computed if not provided)
+			propagate(int):	the maximum propagation rank for points to pick for the regression
+	
+		Returns:	
+			
+			`[(tuple, mat3)]`
+			
+			where the `tuple` contains the curvature in each of the column directions in the `mat3`. The `mat3` has the principal directions of curvature
+	'''
+	pts = mesh.points
+		
+	# propagate though the mesh and return seen points
+	def propagate_pp(conn, start, maxrank):
+		front = deque((0,s) for s in start)
+		seen = set()
+		while front:
+			rank, p = front.popleft()
+			if p in seen:	continue
+			seen.add(p)
+			if rank < maxrank:
+				for n in conn[p]:
+					if n not in seen:	
+						front.append((rank+1, n))
+		return seen
+	
+	if isinstance(mesh, Mesh):		
+		if not conn:	conn = connpp(mesh.faces)
+		if not normals:	normals = mesh.vertexnormals()
+		it = ( (p, propagate_pp(conn, [p], propagate))   for p in range(len(mesh.points)) )
+	elif isinstance(mesh, Web):	
+		if not conn:	conn = connpp(mesh.edges)
+		if not normals:	
+			normals = [vec3(0)  for p in mesh.points]
+			for e in mesh.edges:
+				d = pts[e[0]] - pts[e[1]]
+				normals[e[0]] += d
+				normals[e[1]] -= d
+			for i,n in enumerate(normals):
+				normals[i] = normalize(n)
+		it = ( (p, propagate_pp(conn, [p], propagate))   for p in range(len(mesh.points)) )
+	elif isinstance(mesh, Wire):
+		if not normals:	normals = mesh.vertexnormals()
+		it = ( (mesh.indices[i], mesh.indices[i-propagate:i+propagate])   for i in range(len(mesh.indices)) )
+	else:
+		raise TypeError('bad input shape type')
+	
+	curvatures = [None]*len(pts)
+	
+	for p, neigh in it:
+		# decide a local coordinate system
+		u,v,w = dirbase(normals[p])
+		# get neighboors contributions
+		b = np.empty(len(neigh))
+		a = np.empty((len(neigh), 14))
+		for i,n in enumerate(neigh):
+			e = pts[n] - pts[p]
+			b[i] = dot(e,w)
+			eu = dot(e,u)
+			ev = dot(e,v)
+			# these are the monoms to compose to build a polynom approximating the surface until 4th-order derivatives
+			a[i] = (	eu**2, ev**2, eu*ev,  # what we want to get
+						# the others terms are only present to catch the surface regularities and not disturb the curvature terms
+						eu, ev,
+						eu**3, eu**2*ev, eu*ev**2, ev**3,
+						eu**4, eu**3*ev, eu**2*ev**2, eu*ev**3, ev**4,
+						)
+
+		# least squares resulution, the complexity is roughly the same as inverting a mat3
+		(au, av, auv, *_), residuals, *_ = np.linalg.lstsq(a, b, rcond=None)
+		# diagonalize the curve tensor to get the principal curvatures
+		diag, transfer = np.linalg.eigh(mat2(2*au, auv, 
+												auv, 2*av))
+		curvatures[p] = diag, mat3(u,v,w) * mat3(mat2(transfer))
+		
+	return curvatures
+
+
+def note_bounds(obj):
+	''' create dimension annotations on the boundingbox of an object '''
+	box = boundingbox(obj)
+	size = 0.05 * length(box.width)
+	return [
+		note_distance(box.min, vec3(box.max.x, box.min.y, box.min.z), offset=size*vec3(0,-1,-1)),
+		note_distance(box.min, vec3(box.min.x, box.max.y, box.min.z), offset=size*vec3(-1,0,-1)),
+		note_distance(box.min, vec3(box.min.x, box.min.y, box.max.z), offset=size*vec3(-1,-1,0)),
+		box,
+		]
+
+
 	
 def _mesh_direction(mesh):
 	if isinstance(mesh, Mesh):	return mesh.facenormal(0)
@@ -672,7 +955,7 @@ def note_label(placement, offset=None, text='!', style='rect'):
 				resolution=('div',8),
 				),
 			space=scale_screen(fvec3(p)), shader='fill')
-	sch.add([p, p+offset], space=world, shader='line', layer=2e-3)
+	sch.add([p, p+offset], space=world, shader='line', layer=2e-4)
 	r = 5
 	if style == 'circle':	outline = web(Circle((vec3(0),vec3(0,0,1)), r))
 	elif style == 'rect':	outline = [vec3(r,r,0), vec3(-r,r,0), vec3(-r,-r,0), vec3(r,-r,0), vec3(r,r,0)]

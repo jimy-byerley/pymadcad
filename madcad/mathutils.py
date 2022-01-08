@@ -86,7 +86,8 @@ def unproject(vec, dir) -> vec3:
 	
 		the result is not sensitive to the length of `dir`
 	'''
-	try:	return dot(vec,vec) / dot(vec,dir) * dir
+	if not dot(vec,vec	):		return vec3(0)
+	try:						return dot(vec,vec) / dot(vec,dir) * dir
 	except ZeroDivisionError:	return vec3(nan)
 
 def perpdot(a:vec2, b:vec2) -> float:
@@ -501,7 +502,7 @@ def boundingbox(obj, ignore=False, default=Box(width=vec3(-inf))) -> Box:
 				except TypeError:	continue
 		else:
 			bound = boundingbox(next(obj, default))
-			for e in obj:	bound.union(e)
+			for e in obj:	bound.union_update(e)
 		return bound
 	if ignore:
 		return default
