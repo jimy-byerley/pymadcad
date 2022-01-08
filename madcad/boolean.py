@@ -185,7 +185,7 @@ def pierce_mesh(m1, m2, side=False, prec=None) -> set:
 		if side:	
 			m1.faces = []
 			m1.tracks = []
-		return stops
+		return m1
 	
 	# display frontier
 	#from . import text
@@ -236,8 +236,8 @@ def boolean_mesh(m1, m2, selector=(False,True), prec=None) -> Mesh:
 
 	if not prec:	prec = max(m1.precision(), m2.precision())
 	
-	mc1 = pierce(m1, m2, selector[0], prec)
-	mc2 = pierce(m2, m1, selector[1], prec)
+	mc1 = pierce_mesh(m1, m2, selector[0], prec)
+	mc2 = pierce_mesh(m2, m1, selector[1], prec)
 	if selector[0] and not selector[1]:		mc1 = mc1.flip()
 	if not selector[0] and selector[1]:		mc2 = mc2.flip()
 	res = mc1 + mc2
