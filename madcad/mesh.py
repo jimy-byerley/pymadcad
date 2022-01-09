@@ -1415,7 +1415,7 @@ class Wire(Container):
 		''' return the opposed direction to the curvature in each point 
 			this is called normal because it would be the normal to a surface whose section would be that wire
 		'''
-		normals = typelist.full(vec3(0), len(self.indices))
+		normals = typedlist.full(vec3(0), len(self.indices))
 		for i in range(len(self.indices)):
 			a,b,c = self.indices[i-2], self.indices[i-1], self.indices[i]
 			normals[i-1] = normalize(normalize(self.points[b]-self.points[a]) + normalize(self.points[b]-self.points[c]))
