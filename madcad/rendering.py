@@ -46,6 +46,8 @@ from PyQt5.QtCore import Qt, QPoint, QEvent
 from PyQt5.QtWidgets import QOpenGLWidget, QApplication
 from PyQt5.QtGui import QSurfaceFormat, QMouseEvent, QInputEvent, QKeyEvent, QTouchEvent
 
+from PIL import Image
+
 from .mathutils import *
 from .common import ressourcedir
 from . import settings
@@ -64,9 +66,9 @@ def show(objs, options=None, interest=None):
 		the functions returns when the window has been closed and all GUI destroyed
 	'''
 	global global_context
-		
+
 	if isinstance(objs, list):	objs = dict(enumerate(objs))
-	
+
 	app = QApplication.instance()
 	created = False
 	if not app:
@@ -75,24 +77,44 @@ def show(objs, options=None, interest=None):
 		app = QApplication(sys.argv)
 		global_context = None
 		created = True
-	
+
 	# use the Qt color scheme if specified
 	if settings.display['system_theme']: 
 		settings.use_qt_colors()
-	
+
 	# create the scene as a window
 	view = View(Scene(objs, options))
 	view.show()
-	
+
 	# make the camera see everything
 	if not interest:	interest = view.scene.box()
 	view.center()
 	view.adjust()
-	
+
 	if created:
 		err = app.exec()
 		if err != 0:	print('error: Qt exited with code', err)
 
+def render(objs, options=None, interest=None, w=1920, h=1080):
+	'''shortcut to the given objects, returns a PIL Image'''
+	global global_context
+
+	if isinstance(objs, list):	objs = dict(enumerate(objs))
+
+	# create the scene as a window
+	view = RenderView(Scene(objs, options), w=w, h=h)
+	view.initializeGL()
+
+	# Call render once to populate objects in scene
+	view.render()
+
+	# make the camera see everything
+	if not interest:	interest = view.scene.box()
+	view.center()
+	view.adjust()
+
+	img = view.render()
+	return img
 
 class Display:
 	''' Blanket implementation for displays.
@@ -623,39 +645,13 @@ overrides = {
 	dict: Group,
 	}
 
-
-class View(QOpenGLWidget):
-	''' Qt widget to render and interact with displayable objects 
-		it holds a scene as renderpipeline
-		
-		Attributes definied here:
-		
-				:scene:        the `Scene` object displayed
-				:projection:   `Perspective` or `Orthographic`
-				:navigation:   `Orbit` or `Turntable`
-				:tool:         list of callables in priority order to receive events
-			
-			* render stuff
-			
-				:targets:     render targets matching those in `scene.stacks`
-				:uniforms:    parameters for rendering, used in shaders
-	'''
-	def __init__(self, scene, projection=None, navigation=None, parent=None):
-		# super init
-		super().__init__(parent)
-		fmt = QSurfaceFormat()
-		fmt.setVersion(*opengl_version)
-		fmt.setProfile(QSurfaceFormat.CoreProfile)
-		fmt.setSamples(4)
-		self.setFormat(fmt)
-		self.setFocusPolicy(Qt.StrongFocus)
-		self.setAttribute(Qt.WA_AcceptTouchEvents, True)
-		
+class ViewCommon:
+	def __init__(self, scene, projection=None, navigation=None):
 		# interaction methods
 		self.projection = projection or globals()[settings.scene['projection']]()
 		self.navigation = navigation or globals()[settings.controls['navigation']]()
 		self.tool = [Tool(self.navigation.tool, self)] # tool stack, the last tool is used for input events, until it is removed 
-		
+
 		# render parameters
 		self.scene = scene if isinstance(scene, Scene) else Scene(scene)
 		self.uniforms = {'proj':fmat4(1), 'view':fmat4(1), 'projview':fmat4(1)}	# last frame rendering constants
@@ -663,30 +659,30 @@ class View(QOpenGLWidget):
 		self.steps = []
 		self.step = 0
 		self.stepi = 0
-		
+
 		# dump targets
 		self.map_depth = None
 		self.map_idents = None
 		self.fresh = set()	# set of refreshed internal variables since the last render
-	
+
 	# -- internal frame system --
-	
 	def init(self):
-		w,h = self.width(), self.height()
+		w, h = self._width(), self._height()
+
 		ctx = self.scene.ctx
 		assert ctx, 'context is not initialized'
 
 		# self.fb_frame is already created and sized by Qt
-		self.fb_screen = ctx.detect_framebuffer(self.defaultFramebufferObject())
-		self.fb_ident = ctx.simple_framebuffer((w,h), components=3, dtype='f1')
-		self.targets = [ ('screen', self.fb_screen, self.setup_screen), 
+		self.fb_screen = self._get_fb_screen(ctx, w, h)
+		self.fb_ident = ctx.simple_framebuffer((w, h), components=3, dtype='f1')
+		self.targets = [ ('screen', self.fb_screen, self.setup_screen),
 						 ('ident', self.fb_ident, self.setup_ident)]
 		self.map_ident = np.empty((h,w), dtype='u2')
 		self.map_depth = np.empty((h,w), dtype='f4')
-		
+
 	def refreshmaps(self):
-		''' load the rendered frames from the GPU to the CPU 
-			
+		''' load the rendered frames from the GPU to the CPU
+
 			- When a picture is used to GPU rendering it's called 'frame'
 			- When it is dumped to the RAM we call it 'map' in this library
 		'''
@@ -699,22 +695,18 @@ class View(QOpenGLWidget):
 			self.fresh.add('fb_ident')
 			#from PIL import Image
 			#Image.fromarray(self.map_ident*16, 'I;16').show()
-	
+
 	def render(self):
-		# set the opengl current context from Qt (doing it only from moderngl interferes with Qt)
-		self.makeCurrent()
-		
 		# prepare the view uniforms
-		s = self.size()
-		w, h = s.width(), s.height()
+		w, h = self._width(), self._height()
 		self.uniforms['view'] = view = self.navigation.matrix()
 		self.uniforms['proj'] = proj = self.projection.matrix(w/h, self.navigation.distance)
 		self.uniforms['projview'] = proj * view
 		self.fresh.clear()
-		
+
 		# call the render stack
 		self.scene.render(self)
-	
+
 	def identstep(self, nidents):
 		''' updates the amount of rendered idents and return the start ident for the calling rendering pass 
 			method to call during a renderstep
@@ -724,7 +716,7 @@ class View(QOpenGLWidget):
 		self.steps[self.stepi] = self.step-1
 		self.stepi += 1
 		return s
-		
+
 	def setup_ident(self):
 		# steps for fast fast search of displays with the idents
 		self.stepi = 0
@@ -738,7 +730,7 @@ class View(QOpenGLWidget):
 		ctx.blend_func = mgl.ONE, mgl.ZERO
 		ctx.blend_equation = mgl.FUNC_ADD
 		self.target.clear(0)
-	
+
 	def setup_screen(self):
 		# screen rendering setup
 		ctx = self.scene.ctx
@@ -747,7 +739,7 @@ class View(QOpenGLWidget):
 		ctx.blend_func = mgl.SRC_ALPHA, mgl.ONE_MINUS_SRC_ALPHA
 		ctx.blend_equation = mgl.FUNC_ADD
 		self.target.clear(*settings.display['background_color'])
-		
+
 	def preload(self):
 		''' internal method to load common ressources '''
 		ctx, ressources = self.scene.ctx, self.scene.ressources
@@ -761,21 +753,20 @@ class View(QOpenGLWidget):
 					fragment_shader=open(ressourcedir+'/shaders/ident.frag').read(),
 					)
 
-		
 	# -- methods to deal with the view --
-	
+
 	def somenear(self, point: QPoint, radius=None) -> QPoint:
 		''' return the closest coordinate to coords, (within the given radius) for which there is an object at
 			So if objnear is returing something, objat and ptat will return something at the returned point
 		'''
-		if radius is None:	
+		if radius is None:
 			radius = settings.controls['snap_dist']
 		self.refreshmaps()
 		for x,y in snailaround((point.x(), point.y()), (self.map_ident.shape[1], self.map_ident.shape[0]), radius):
 			ident = int(self.map_ident[-y, x])
 			if ident:
 				return QPoint(x,y)
-	
+
 	def ptat(self, point: QPoint) -> fvec3:
 		''' return the point of the rendered surfaces that match the given window coordinates '''
 		self.refreshmaps()
@@ -783,7 +774,7 @@ class View(QOpenGLWidget):
 		depthred = float(self.map_depth[-point.y(),point.x()])
 		x =  (point.x()/viewport[2] *2 -1)
 		y = -(point.y()/viewport[3] *2 -1)
-		
+
 		if depthred == 1.0:
 			return None
 		else:
@@ -799,7 +790,7 @@ class View(QOpenGLWidget):
 						depth * y /proj[1][1],
 						-depth,
 						1)))
-	
+
 	def ptfrom(self, point: QPoint, center: fvec3) -> fvec3:
 		''' 3D point below the cursor in the plane orthogonal to the sight, with center as origin '''
 		view = self.uniforms['view']
@@ -813,10 +804,10 @@ class View(QOpenGLWidget):
 					-depth * y /proj[1][1],
 					depth,
 					1)))
-	
+
 	def itemat(self, point: QPoint) -> 'key':
-		''' return the key path of the object at the given screen position (widget relative). 
-			If no object is at this exact location, None is returned  
+		''' return the key path of the object at the given screen position (widget relative).
+			If no object is at this exact location, None is returned
 		'''
 		self.refreshmaps()
 		ident = int(self.map_ident[-point.y(), point.x()])
@@ -828,9 +819,9 @@ class View(QOpenGLWidget):
 			if rdri > 0:	subi = ident - self.steps[rdri-1] - 1
 			else:			subi = ident - 1
 			return (*self.scene.stacks['ident'][rdri][0], subi)
-			
+
 	# -- view stuff --
-	
+
 	def look(self, position: fvec3=None):
 		''' Make the scene navigation look at the position.
 			This is changing the camera direction, center and distance.
@@ -838,7 +829,7 @@ class View(QOpenGLWidget):
 		if not position:	position = self.scene.box().center
 		dir = position - fvec3(affineInverse(self.navigation.matrix())[3])
 		if not dot(dir,dir) > 1e-6 or not isfinite(position):	return
-		
+
 		if isinstance(self.navigation, Turntable):
 			self.navigation.yaw = atan2(dir.x, dir.y)
 			self.navigation.pitch = -atan2(dir.z, length(dir.xy))
@@ -849,21 +840,20 @@ class View(QOpenGLWidget):
 			self.navigation.orient = quat(dir, focal) * self.navigation.orient
 		else:
 			raise TypeError("navigation {} is not supported by 'look'".format(type(self.navigation)))
-		self.update()
-	
+
 	def adjust(self, box:Box=None):
 		''' Make the navigation camera large enough to get the given box in .
 			This is changing the zoom level
 		'''
 		if not box:	box = self.scene.box()
 		if box.isempty():	return
-		
+
 		# get the most distant point to the focal axis
 		invview = affineInverse(self.navigation.matrix())
 		camera, look = fvec3(invview[3]), fvec3(invview[2])
 		dist = length(noproject(box.center-camera, look)) + max(glm.abs(box.width))/2 * 1.1
 		if not dist > 1e-6:	return
-		
+
 		# adjust navigation distance
 		if isinstance(self.projection, Perspective):
 			self.navigation.distance = dist / tan(self.projection.fov/2)
@@ -871,24 +861,112 @@ class View(QOpenGLWidget):
 			self.navigation.distance = dist
 		else:
 			raise TypeError('projection {} not supported'.format(type(self.projection)))
-		self.update()
-	
+
 	def center(self, center: fvec3=None):
 		''' Relocate the navigation to the given position .
 			This is translating the camera.
 		'''
 		if not center:	center = self.scene.box().center
 		if not isfinite(center):	return
-		
+
 		self.navigation.center = center
+
+class RenderView(ViewCommon):
+	def __init__(self, scene, projection=None, navigation=None, w=1920, h=1080):
+		self.__width = w
+		self.__height = h
+		super().__init__(scene, projection=None, navigation=None)
+
+	# TODO: make this configurable
+	def _width(self):
+		return self.__width
+
+	def _height(self):
+		return self.__height
+
+	def _get_fb_screen(self, ctx, w, h):
+		return ctx.simple_framebuffer((w, h))
+
+	def initializeGL(self):
+		# retrieve global shared context if available
+		global global_context
+		global_context = mgl.create_standalone_context()
+		self.scene.ctx = global_context
+
+		self.init()
+		self.preload()
+
+	def render(self):
+		# set the opengl current context from Qt (doing it only from moderngl interferes with Qt)
+		w, h = self._width(), self._height()
+		ViewCommon.render(self)
+		img = Image.frombytes('RGB', (w, h), self.fb_screen.read(), 'raw', 'RGB', 0, -1)
+		return img
+
+
+class View(ViewCommon, QOpenGLWidget):
+	''' Qt widget to render and interact with displayable objects
+		it holds a scene as renderpipeline
+
+		Attributes definied here:
+
+				:scene:        the `Scene` object displayed
+				:projection:   `Perspective` or `Orthographic`
+				:navigation:   `Orbit` or `Turntable`
+				:tool:         list of callables in priority order to receive events
+
+			* render stuff
+
+				:targets:     render targets matching those in `scene.stacks`
+				:uniforms:    parameters for rendering, used in shaders
+	'''
+	def __init__(self, scene, projection=None, navigation=None, parent=None):
+		# super init
+		super(QOpenGLWidget, self).__init__(parent)
+		fmt = QSurfaceFormat()
+		fmt.setVersion(*opengl_version)
+		fmt.setProfile(QSurfaceFormat.CoreProfile)
+		fmt.setSamples(4)
+		self.setFormat(fmt)
+		self.setFocusPolicy(Qt.StrongFocus)
+		self.setAttribute(Qt.WA_AcceptTouchEvents, True)
+
+		ViewCommon.__init__(self, scene, projection=None, navigation=None)
+
+	def _get_fb_screen(self, ctx, w, h):
+		return ctx.detect_framebuffer(self.defaultFramebufferObject())
+
+	def _width(self):
+		return self.width()
+
+	def _height(self):
+		return self.height()
+
+	def render(self):
+		# set the opengl current context from Qt (doing it only from moderngl interferes with Qt)
+		self.makeCurrent()
+		ViewCommon.render(self)
+
+	# -- view stuff --
+
+	def look(self, position: fvec3=None):
+		ViewCommon.look(self, position)
 		self.update()
-		
+
+	def adjust(self, box:Box=None):
+		ViewCommon.adjust(self, box)
+		self.update()
+
+	def center(self, center: fvec3=None):
+		ViewCommon.center(self, center)
+		self.update()
+
 	# -- event system --
-	
+
 	def event(self, evt):
 		''' Qt event handler
 			In addition to the usual subhandlers, inputEvent is called first to handle every InputEvent.
-			
+
 			The usual subhandlers are used to implement the navigation through the scene (that is considered to be intrinsic to the scene widget).
 		'''
 		if isinstance(evt, QInputEvent):
@@ -898,19 +976,19 @@ class View(QOpenGLWidget):
 			self.inputEvent(evt)
 			if evt.isAccepted():	return True
 		return super().event(evt)
-	
+
 	def inputEvent(self, evt):
-		''' Default handler for every input event (mouse move, press, release, keyboard, ...) 
+		''' Default handler for every input event (mouse move, press, release, keyboard, ...)
 			When the event is not accepted, the usual matching Qt handlers are used (mousePressEvent, KeyPressEvent, etc).
-			
+
 			This function can be overwritten to change the view widget behavior.
 		'''
 		# send the event to the current tools using the view
-		if self.tool:	
+		if self.tool:
 			for tool in reversed(self.tool):
 				tool(evt)
 				if evt.isAccepted():	return
-				
+
 		# send the event to the scene objects, descending the item tree
 		if isinstance(evt, QMouseEvent) and evt.type() in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease, QEvent.MouseButtonDblClick, QEvent.MouseMove):
 			pos = self.somenear(evt.pos())
@@ -918,16 +996,16 @@ class View(QOpenGLWidget):
 				key = self.itemat(pos)
 				self.control(key, evt)
 				if evt.isAccepted():	return
-			
+
 			# if clicks are not accepted, then some following keyboard events may not come to the widget
 			# NOTE this also discarding the ability to move the window from empty areas
 			if evt.type() == QEvent.MouseButtonPress:
 				evt.accept()
-				
+
 	def control(self, key, evt):
 		''' transmit a control event successively to all the displays matching the key path stages.
 			At each level, if the event is not accepted, it transmits to sub items
-			
+
 			This function can be overwritten to change the interaction with the scene objects.
 		'''
 		disp = self.scene.displays
@@ -937,7 +1015,7 @@ class View(QOpenGLWidget):
 			disp.control(self, key[:i], key[i:], evt)
 			if evt.isAccepted(): return
 			stack.append(disp)
-		
+
 		if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
 			disp = stack[-1]
 			# select what is under cursor
@@ -951,9 +1029,9 @@ class View(QOpenGLWidget):
 				if hasattr(disp, '__iter__'):
 					disp.selected = any(sub.selected	for sub in disp)
 			self.update()
-	
+
 	# -- Qt things --
-	
+
 	def initializeGL(self):
 		# retrieve global shared context if available
 		global global_context
@@ -970,12 +1048,12 @@ class View(QOpenGLWidget):
 	def paintGL(self):
 		self.makeCurrent()
 		self.render()
-	
+
 	def resizeEvent(self, evt):
 		super().resizeEvent(evt)
 		self.init()
 		self.update()
-	
+
 	def changeEvent(self, evt):
 		# detect theme change
 		if evt.type() == QEvent.PaletteChange and settings.display['system_theme']:
