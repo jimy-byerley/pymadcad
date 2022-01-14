@@ -733,12 +733,19 @@ class ViewCommon:
 
 	def setup_screen(self):
 		# screen rendering setup
+		bg_color = settings.display['background_color']
 		ctx = self.scene.ctx
 		ctx.multisample = True
 		ctx.enable_only(mgl.BLEND | mgl.DEPTH_TEST)
 		ctx.blend_func = mgl.SRC_ALPHA, mgl.ONE_MINUS_SRC_ALPHA
 		ctx.blend_equation = mgl.FUNC_ADD
-		self.target.clear(*settings.display['background_color'])
+		if len(bg_color) == 3:
+			self.target.clear(*bg_color, alpha=1.0)
+		elif len(bg_color) == 4:
+			self.target.clear(*bg_color)
+		else:
+			raise ValueError(
+				f"background_color must be a RGB or RGBA tuple, currently {bg_color}")
 
 	def preload(self):
 		''' internal method to load common ressources '''
@@ -900,7 +907,7 @@ class RenderView(ViewCommon):
 		# set the opengl current context from Qt (doing it only from moderngl interferes with Qt)
 		w, h = self._width(), self._height()
 		ViewCommon.render(self)
-		img = Image.frombytes('RGB', (w, h), self.fb_screen.read(), 'raw', 'RGB', 0, -1)
+		img = Image.frombytes('RGBA', (w, h), self.fb_screen.read(components=4), 'raw', 'RGBA', 0, -1)
 		return img
 
 
