@@ -61,9 +61,12 @@ opengl_version = (3,3)
 global_context = None
 
 
-def show(objs, options=None, interest=None):
+def show(objs, options=None, interest:Box=None, size=uvec2(400,400)):
 	''' shortcut to create a QApplication showing only one view with the given objects inside.
-		the functions returns when the window has been closed and all GUI destroyed
+		
+		If a Qt app is not already running, the functions returns when the window has been closed and all GUI destroyed
+		
+		For integration in a Qt window or to manipulate the view, you should directly use `View`
 	'''
 	global global_context
 
@@ -83,43 +86,50 @@ def show(objs, options=None, interest=None):
 		settings.use_qt_colors()
 
 	# create the scene as a window
-	view = View(Scene(objs, options))
+	view = View(Scene(objs, options), size)
+	view.resize(*size)
 	view.show()
 
 	# make the camera see everything
-	if not interest:	interest = view.scene.box()
-	view.center()
-	view.adjust()
+	if not interest:	
+		interest = view.scene.box()
+	view.center(interest.center)
+	view.adjust(interest)
 
 	if created:
 		err = app.exec()
 		if err != 0:	print('error: Qt exited with code', err)
 
-def render(objs, options=None, interest=None, navigation_params=None, w=1920, h=1080):
-	'''shortcut to the given objects, returns a PIL Image'''
-	global global_context
-
+def render(objs, options=None, interest:Box=None, navigation=None, projection=None, size=uvec2(400,400)):
+	''' shortcut to render the given objects to an image, returns a PIL Image
+	
+		For repeated renderings or view manipualtion, you should directly use `Offscreen`
+		
+		NOTE:
+			the system theme colors cannot be automatically loaded since no running QApplication is assumed in the function
+	'''
 	if isinstance(objs, list):	objs = dict(enumerate(objs))
 
-	# create the scene as a window
-	view = RenderView(Scene(objs, options), w=w, h=h)
-	view.initializeGL()
+	# create the scene and an offscreen renderer
+	scene = Scene(objs, options)
+	view = Offscreen(scene, size, navigation=navigation, projection=projection)
 
-	# Call render once to populate objects in scene
-	view.render()
+	# load objects in the scene, so the scene's box can be computed
+	with scene.ctx:
+		scene.dequeue()
 
 	# make the camera see everything
-	if not interest:
-		interest = view.scene.box()
-	view.center()
-	view.adjust()
+	if not navigation:
+		if not interest:
+			interest = view.scene.box()
+		view.center(interest.center)
+		view.adjust(interest)
 
-	if navigation_params:
-		for key, val in navigation_params.items():
-			setattr(view.navigation, key, val)
+	return view.render()
 
-	img = view.render()
-	return img
+
+
+
 
 class Display:
 	''' Blanket implementation for displays.
@@ -650,7 +660,12 @@ overrides = {
 	dict: Group,
 	}
 
+
 class ViewCommon:
+	''' Common base for Qt's View rendering and Offscreen rendering. It provides common methods to render and interact with a view.
+		
+		You should always use one of its subclass.
+	'''
 	def __init__(self, scene, projection=None, navigation=None):
 		# interaction methods
 		self.projection = projection or globals()[settings.scene['projection']]()
@@ -671,19 +686,6 @@ class ViewCommon:
 		self.fresh = set()	# set of refreshed internal variables since the last render
 
 	# -- internal frame system --
-	def init(self):
-		w, h = self._width(), self._height()
-
-		ctx = self.scene.ctx
-		assert ctx, 'context is not initialized'
-
-		# self.fb_frame is already created and sized by Qt
-		self.fb_screen = self._get_fb_screen(ctx, w, h)
-		self.fb_ident = ctx.simple_framebuffer((w, h), components=3, dtype='f1')
-		self.targets = [ ('screen', self.fb_screen, self.setup_screen),
-						 ('ident', self.fb_ident, self.setup_ident)]
-		self.map_ident = np.empty((h,w), dtype='u2')
-		self.map_depth = np.empty((h,w), dtype='f4')
 
 	def refreshmaps(self):
 		''' load the rendered frames from the GPU to the CPU
@@ -703,7 +705,7 @@ class ViewCommon:
 
 	def render(self):
 		# prepare the view uniforms
-		w, h = self._width(), self._height()
+		w, h = self.fb_screen.size
 		self.uniforms['view'] = view = self.navigation.matrix()
 		self.uniforms['proj'] = proj = self.projection.matrix(w/h, self.navigation.distance)
 		self.uniforms['projview'] = proj * view
@@ -738,19 +740,19 @@ class ViewCommon:
 
 	def setup_screen(self):
 		# screen rendering setup
-		bg_color = settings.display['background_color']
 		ctx = self.scene.ctx
 		ctx.multisample = True
 		ctx.enable_only(mgl.BLEND | mgl.DEPTH_TEST)
 		ctx.blend_func = mgl.SRC_ALPHA, mgl.ONE_MINUS_SRC_ALPHA
 		ctx.blend_equation = mgl.FUNC_ADD
-		if len(bg_color) == 3:
-			self.target.clear(*bg_color, alpha=1.0)
-		elif len(bg_color) == 4:
-			self.target.clear(*bg_color)
+		
+		background = settings.display['background_color']
+		if len(background) == 3:
+			self.target.clear(*background, alpha=1)
+		elif len(background) == 4:
+			self.target.clear(*background)
 		else:
-			raise ValueError(
-				f"background_color must be a RGB or RGBA tuple, currently {bg_color}")
+			raise ValueError(f"background_color must be a RGB or RGBA tuple, currently {background}")
 
 	def preload(self):
 		''' internal method to load common ressources '''
@@ -883,38 +885,48 @@ class ViewCommon:
 
 		self.navigation.center = center
 
-class RenderView(ViewCommon):
-	def __init__(self, scene, projection=None, navigation=None, w=1920, h=1080):
-		self.__width = w
-		self.__height = h
-		super().__init__(scene, projection=None, navigation=None)
+		
 
-	# TODO: make this configurable
-	def _width(self):
-		return self.__width
-
-	def _height(self):
-		return self.__height
-
-	def _get_fb_screen(self, ctx, w, h):
-		return ctx.simple_framebuffer((w, h))
-
-	def initializeGL(self):
-		# retrieve global shared context if available
+class Offscreen(ViewCommon):
+	''' object allowing to perform offscreen rendering, navigate and get informations from screen as for a normal window 
+	'''
+	def __init__(self, scene, size=uvec2(400,400), projection=None, navigation=None):
 		global global_context
-		global_context = mgl.create_standalone_context()
-		self.scene.ctx = global_context
+		
+		super().__init__(scene, projection=projection, navigation=navigation)
+		
+		self.scene.ctx = global_context = mgl.create_standalone_context(requires=opengl_version)
 		self.scene.ctx.line_width = settings.display["line_width"]
 
-		self.init()
+		self.init(size)
 		self.preload()
 
+	def init(self, size):
+		w, h = size
+
+		ctx = self.scene.ctx
+		assert ctx, 'context is not initialized'
+
+		# self.fb_frame is already created and sized by Qt
+		self.fb_screen = ctx.simple_framebuffer(size)
+		self.fb_ident = ctx.simple_framebuffer((w, h), components=3, dtype='f1')
+		self.targets = [ ('screen', self.fb_screen, self.setup_screen),
+						 ('ident', self.fb_ident, self.setup_ident)]
+		self.map_ident = np.empty((h,w), dtype='u2')
+		self.map_depth = np.empty((h,w), dtype='f4')
+		
+	@property
+	def size(self):		
+		return self.fb_screen.size
+	
+	def resize(self, size):
+		if size != self.fb_screen.size:
+			self.ctx.finish()
+			self.init(size)
+
 	def render(self):
-		# set the opengl current context from Qt (doing it only from moderngl interferes with Qt)
-		w, h = self._width(), self._height()
-		ViewCommon.render(self)
-		img = Image.frombytes('RGBA', (w, h), self.fb_screen.read(components=4), 'raw', 'RGBA', 0, -1)
-		return img
+		super().render()
+		return Image.frombytes('RGBA', tuple(self.size), self.fb_screen.read(components=4), 'raw', 'RGBA', 0, -1)
 
 
 class View(ViewCommon, QOpenGLWidget):
@@ -946,14 +958,19 @@ class View(ViewCommon, QOpenGLWidget):
 
 		ViewCommon.__init__(self, scene, projection=None, navigation=None)
 
-	def _get_fb_screen(self, ctx, w, h):
-		return ctx.detect_framebuffer(self.defaultFramebufferObject())
+	def init(self):
+		w, h = self.width(), self.height()
 
-	def _width(self):
-		return self.width()
+		ctx = self.scene.ctx
+		assert ctx, 'context is not initialized'
 
-	def _height(self):
-		return self.height()
+		# self.fb_screen is already created and sized by Qt
+		self.fb_screen = ctx.detect_framebuffer(self.defaultFramebufferObject())
+		self.fb_ident = ctx.simple_framebuffer((w, h), components=3, dtype='f1')
+		self.targets = [ ('screen', self.fb_screen, self.setup_screen),
+						 ('ident', self.fb_ident, self.setup_ident)]
+		self.map_ident = np.empty((h,w), dtype='u2')
+		self.map_depth = np.empty((h,w), dtype='f4')
 
 	def render(self):
 		# set the opengl current context from Qt (doing it only from moderngl interferes with Qt)
@@ -988,7 +1005,7 @@ class View(ViewCommon, QOpenGLWidget):
 			evt.ignore()
 			self.inputEvent(evt)
 			if evt.isAccepted():	return True
-		return super().event(evt)
+		return QOpenGLWidget.event(self, evt)
 
 	def inputEvent(self, evt):
 		''' Default handler for every input event (mouse move, press, release, keyboard, ...)
@@ -1063,7 +1080,7 @@ class View(ViewCommon, QOpenGLWidget):
 		self.render()
 
 	def resizeEvent(self, evt):
-		super().resizeEvent(evt)
+		QOpenGLWidget.resizeEvent(self, evt)
 		self.init()
 		self.update()
 
@@ -1071,7 +1088,7 @@ class View(ViewCommon, QOpenGLWidget):
 		# detect theme change
 		if evt.type() == QEvent.PaletteChange and settings.display['system_theme']:
 			settings.use_qt_colors()
-		return super().changeEvent(evt)
+		return QOpenGLWidget.changeEvent(self, evt)
 
 
 
