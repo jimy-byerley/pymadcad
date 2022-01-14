@@ -95,7 +95,7 @@ def show(objs, options=None, interest=None):
 		err = app.exec()
 		if err != 0:	print('error: Qt exited with code', err)
 
-def render(objs, options=None, interest=None, w=1920, h=1080):
+def render(objs, options=None, interest=None, navigation_params=None, w=1920, h=1080):
 	'''shortcut to the given objects, returns a PIL Image'''
 	global global_context
 
@@ -109,9 +109,14 @@ def render(objs, options=None, interest=None, w=1920, h=1080):
 	view.render()
 
 	# make the camera see everything
-	if not interest:	interest = view.scene.box()
+	if not interest:
+		interest = view.scene.box()
 	view.center()
 	view.adjust()
+
+	if navigation_params:
+		for key, val in navigation_params.items():
+			setattr(view.navigation, key, val)
 
 	img = view.render()
 	return img
@@ -899,6 +904,7 @@ class RenderView(ViewCommon):
 		global global_context
 		global_context = mgl.create_standalone_context()
 		self.scene.ctx = global_context
+		self.scene.ctx.line_width = settings.display["line_width"]
 
 		self.init()
 		self.preload()
