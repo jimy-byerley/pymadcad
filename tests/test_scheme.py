@@ -11,7 +11,7 @@ show([
 	
 	note_floating(vec3(-2,2,-2), text="break all sharp edges\n\nsurfaces must be Ra <= 1.6 unless otherwise indicated"),
 	#note_leading(vec3(1), vec3(2), text="This is a note\n  with\n  several lines"),
-	#note_distance(vec3(0,0,1), vec3(0,0,-5), vec3(0,-3,0), tol=0.05),
+	note_distance(vec3(4,0,1), vec3(4,2,-5), project=Y, tol=0.05),
 	#note_angle((vec3(0),normalize(vec3(1,0,0))), (vec3(0),normalize(vec3(-1,2,0))), offset=2, d=4),
 	#note_label(vec3(2,1,1), vec3(0,0,1), 'A'),
 	
