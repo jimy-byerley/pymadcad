@@ -275,7 +275,7 @@ def flatsurface(outline, normal=None) -> 'Mesh':
 	if isinstance(outline, Wire):
 		m = triangulation.triangulation_outline(outline, normal)
 	else:
-		m = triangulation.triangulation(wire(outline), normal)
+		m = triangulation.triangulation(web(outline), normal)
 	if normal and dot(m.facenormal(0), normal) < 0:
 		m = m.flip()
 	return m

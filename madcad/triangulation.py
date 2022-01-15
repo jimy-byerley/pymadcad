@@ -238,7 +238,8 @@ def triangulation_outline(outline: Wire, normal=None, prec=None) -> Mesh:
 	except ValueError:	return Mesh()
 	# reducing contour, indexing proj and outlines.indices
 	hole = list(range(len(outline.indices)))
-	if length2(outline[-1]-outline[0]) < prec:		hole.pop()
+	if length2(outline[-1]-outline[0]) <= prec:		hole.pop()
+	
 	# set of remaining non-convexity points, indexing proj
 	l = len(outline.indices)
 	nonconvex = { i
@@ -298,10 +299,6 @@ def triangulation_outline(outline: Wire, normal=None, prec=None) -> Mesh:
 def planeproject(pts, normal=None):
 	''' project an outline in a plane, to get its points as vec2 '''
 	x,y,z = guessbase(pts, normal)
-	i = min(range(len(pts)), key=lambda i: dot(pts[i],x))
-	l = len(pts)
-	if dot(z, cross(pts[(i+1)%l]-pts[i], pts[(i-1)%l]-pts[i])) < 0:
-		y = -y
 	return [vec2(dot(p,x), dot(p,y))	for p in pts]
 
 def guessbase(pts, normal=None, thres=10*NUMPREC):
