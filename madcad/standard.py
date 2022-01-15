@@ -29,7 +29,7 @@ cachefunc = lambda x:x	# debug purpose
 __all__ = [	'nut', 'screw', 'washer', 
 			'coilspring_compression', 'coilspring_tension', 'coilspring_torsion',
 			'bearing', 'slidebearing',
-			'section_s', 'section_w', 'section_c', 'section_l',
+			'section_s', 'section_w', 'section_c', 'section_l', 'section_tslot',
 			]
 
 
@@ -427,7 +427,7 @@ standard_washers	= [
 	
 	
 def section_s(height=1, width=None, flange=None, thickness=None) -> Web:
-	''' standard S section. Very efficient to support direction flexion efforts.
+	''' standard S (short flange) section. Very efficient to support flexion efforts.
 	'''
 	if width is None:	width = 0.4 * height
 	if flange is None:	flange = 0.036 * height
@@ -455,7 +455,7 @@ def section_s(height=1, width=None, flange=None, thickness=None) -> Web:
 	return section.finish()
 
 def section_w(height=1, width=None, flange=None, thickness=None) -> Web:
-	''' standard W section. It is slightly different than a S section in that the flanges are straight and are usally wider.
+	''' standard W (wide flange) section. It is slightly different than a S section in that the flanges are straight and are usally wider.
 	'''
 	if width is None:	width = 0.6 * height
 	if flange is None:	flange = 0.036 * height
@@ -508,25 +508,25 @@ def section_c(height=1, width=None, thickness=None) -> Web:
 	base = base + base.transform(scaledir(Y,-1)).flip()
 	section = web(base.close().segmented())
 	
-	bevel(section, section.frontiers(0,1,5,7,6), ('radius', 0.8*e), resolution=('div',2))
+	bevel(section, section.frontiers(0,1,5,7,6), ('radius', 0.8*thickness), resolution=('div',2))
 	return section.finish()
 
 def section_tslot(size=1, slot=None, thickness=None, depth=None) -> Web:
 	''' standard T-Slot section. That section features slots on each side to put nuts at any position.
 	'''
 	if slot is None:	slot = 0.3*size
-	if thickness is None:	thickness = 0.08*height
-	if depth is None:	depth = 0.2*height
-	b = s-e
+	if thickness is None:	thickness = 0.08*size
+	if depth is None:	depth = 0.2*size
+	b = depth-thickness
 	
-	center = Circle((O,-Z), height/2-depth-2*thickness)
+	center = Circle((O,-Z), size/2-depth-2*thickness)
 	base = wire([
-		vec3(height/2, height/2, 0),
-		vec3(height/2, slot/2+thickness, 0),
-		vec3(height/2-thickness, slot/2, 0),
-		vec3(height/2-thickness, slot/2+b, 0),
-		vec3(height/2-thickness-depth+b, slot/2+b, 0),
-		vec3(height/2-thickness-depth, slot/2, 0),
+		vec3(size/2, size/2, 0),
+		vec3(size/2, slot/2+thickness, 0),
+		vec3(size/2-thickness, slot/2, 0),
+		vec3(size/2-thickness, slot/2+b, 0),
+		vec3(size/2-thickness-depth+b, slot/2+b, 0),
+		vec3(size/2-thickness-depth, slot/2, 0),
 		]) .flip()
 	base = (base + base.transform(scaledir(normalize(vec3(1,-1,0)), -1)) .flip() ).segmented()
 	base = base + base.transform(scaledir(X, -1)) .flip()
