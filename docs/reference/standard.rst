@@ -110,6 +110,27 @@ bearings
 			
 		.. image:: /screenshots/slidebearing-shoulder.png
 	
+standard sections for extrusion
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+.. autofunction:: section_tslot
+
+	.. image:: /screenshots/section_tslot.png
+
+.. autofunction:: section_s
+
+	.. image:: /screenshots/section_s.png
+
+.. autofunction:: section_w
+
+	.. image:: /screenshots/section_w.png
+	
+.. autofunction:: section_l
+
+	.. image:: /screenshots/section_l.png
+	
+.. autofunction:: section_c
+
+	.. image:: /screenshots/section_c.png
 	
 		

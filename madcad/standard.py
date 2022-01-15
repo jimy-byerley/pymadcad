@@ -29,16 +29,10 @@ cachefunc = lambda x:x	# debug purpose
 __all__ = [	'nut', 'screw', 'washer', 
 			'coilspring_compression', 'coilspring_tension', 'coilspring_torsion',
 			'bearing', 'slidebearing',
+			'section_s', 'section_w', 'section_c', 'section_l',
 			]
 
 
-def ipn(h) -> Web:
-	indev
-
-def nut(d, b, h, type, detail=False) -> Mesh:
-	indev
-	
-	
 # --------- screw stuff -----------------------
 	
 	
@@ -432,6 +426,156 @@ standard_washers	= [
 	]
 	
 	
+def section_s(height=1, width=None, flange=None, thickness=None) -> Web:
+	''' standard S section. Very efficient to support direction flexion efforts.
+	'''
+	if width is None:	width = 0.4 * height
+	if flange is None:	flange = 0.036 * height
+	if thickness is None:	thickness = 0.054 * height
+	assert width > 3*thickness+2*flange and height > 2*flange+2*thickness
+	
+	base = wire([
+		vec3(width/2, height/2, 0),
+		vec3(width/2, height/2-flange, 0),
+		vec3(thickness/2, height/2-flange-0.1*(width/2-thickness/2), 0),
+		]) .flip()
+	base = base + base.transform(scaledir(X,-1)).flip()
+	base = base + base.transform(scaledir(Y,-1)).flip()
+	section = web(base.close().segmented())
+	bevel(section, section.frontiers(0,5,10,4,6,11), ('radius', thickness*0.4), resolution=('div',2))
+	bevel(section, section.frontiers(1,0,4,3,6,7,10,9), ('radius', flange), resolution=('div',2))
+	
+	#notes = [
+		#note_distance(base.points[0], base.points[0]*vec3(1,-1,1), offset=2*flange*X),
+		#note_distance(base.points[0], base.points[1], offset=flange*X),
+		#note_distance(base.points[0], base.points[0]*vec3(-1,1,1), offset=flange*Y),
+		#note_distance(thickness/2*X, -thickness/2*X),
+		#]
+	
+	return section.finish()
+
+def section_w(height=1, width=None, flange=None, thickness=None) -> Web:
+	''' standard W section. It is slightly different than a S section in that the flanges are straight and are usally wider.
+	'''
+	if width is None:	width = 0.6 * height
+	if flange is None:	flange = 0.036 * height
+	if thickness is None:	thickness = 0.054 * height
+	assert width > 3*thickness+2*flange and height > 2*flange+2*thickness
+	
+	base = wire([
+		vec3(width/2, height/2, 0),
+		vec3(width/2, height/2-flange, 0),
+		vec3(thickness/2, height/2-flange, 0),
+		]) .flip()
+	base = (base + base.transform(scaledir(X,-1)).flip() ).segmented()
+	base = base + base.transform(scaledir(Y,-1)).flip()
+	base.close()
+	section = web(base)
+	bevel(section, section.frontiers(0,5,10,4,6,11), ('radius', thickness*0.4), resolution=('div',2))
+	bevel(section, section.frontiers(1,0,4,3,6,7,10,9), ('radius', flange*0.5), resolution=('div',2))
+	return section.finish()
+	
+def section_l(a=1, b=None, thickness=None) -> Wire:
+	''' standard L section '''
+	if b is None:	b = a
+	if thickness is None:	thickness = 0.05*max(a,b)
+	assert a > 3*thickness and b > 3*thickness
+
+	section = wire([
+		vec3(0, 0, 0),
+		vec3(0, a, 0),
+		vec3(thickness, a, 0),
+		vec3(thickness, thickness, 0),
+		vec3(b, thickness, 0),
+		vec3(b, 0, 0),
+		]) .close() .segmented() .flip()
+
+	bevel(section, [2,3,4], ('radius', thickness*0.8), resolution=('div',2))
+	return section.finish()
+	
+def section_c(height=1, width=None, thickness=None) -> Web:
+	''' standard C section '''
+	if width is None:	width = 0.6*height
+	if thickness is None:	thickness = 0.05*height
+	assert width > 3*thickness
+	
+	base = wire([
+		vec3(0, height/2, 0),
+		vec3(width, height/2, 0),
+		vec3(width, height/2-thickness, 0),
+		vec3(thickness, height/2-thickness, 0),
+		]) .flip()
+	base = base + base.transform(scaledir(Y,-1)).flip()
+	section = web(base.close().segmented())
+	
+	bevel(section, section.frontiers(0,1,5,7,6), ('radius', 0.8*e), resolution=('div',2))
+	return section.finish()
+
+def section_tslot(size=1, slot=None, thickness=None, depth=None) -> Web:
+	''' standard T-Slot section. That section features slots on each side to put nuts at any position.
+	'''
+	if slot is None:	slot = 0.3*size
+	if thickness is None:	thickness = 0.08*height
+	if depth is None:	depth = 0.2*height
+	b = s-e
+	
+	center = Circle((O,-Z), height/2-depth-2*thickness)
+	base = wire([
+		vec3(height/2, height/2, 0),
+		vec3(height/2, slot/2+thickness, 0),
+		vec3(height/2-thickness, slot/2, 0),
+		vec3(height/2-thickness, slot/2+b, 0),
+		vec3(height/2-thickness-depth+b, slot/2+b, 0),
+		vec3(height/2-thickness-depth, slot/2, 0),
+		]) .flip()
+	base = (base + base.transform(scaledir(normalize(vec3(1,-1,0)), -1)) .flip() ).segmented()
+	base = base + base.transform(scaledir(X, -1)) .flip()
+	base = base + base.transform(scaledir(Y, -1)) .flip()
+	section = web([
+		center,
+		base.close().segmented(),
+		])
+	bevel(section, section.frontiers(5,7, 41,43, 31,29, 17,19), ('radius', thickness/2), resolution=('div',2))
+	
+	#notes = [
+		#note_distance(base.points[2], base.points[5], offset=-c/2*Y),
+		#note_distance(base.points[1], base.points[2], offset=-c/2*Y, project=X),
+		#note_distance(base.points[2], base.points[2]*vec3(1,-1,1), offset=s*X),
+		#note_distance(base.points[0], base.points[0]*vec3(1,-1,1), offset=2*s*X),
+		#]
+	
+	return section.finish()
+	
+''' standard IPN sections (S sections)
+columns:
+	- h
+	- b
+	- s
+	- t
+'''
+standard_ipn = [
+	(80, 42, 3.9, 5.9),
+	(100, 50, 4.5, 6.8),
+	(120, 58, 5.1, 7.7),
+	(140, 66, 5.7, 8.6),
+	(160, 74, 6.3, 9.5),
+	(180, 82, 6.9, 10.4),
+	(200, 90, 7.5, 11.3),
+	(220, 98, 8.1, 12.2),
+	(240, 106, 8.7, 13.1),
+	(260, 113, 9.4, 14.1),
+	(280, 119, 10.1, 15.2),
+	(300, 125, 10.8, 16.2),
+	(320, 131, 11.5, 17.3),
+	(340, 137, 12.2, 18.3),
+	(360, 143, 13.0, 19.5),
+	(380, 149, 13.7, 20.5),
+	(400, 155, 14.4, 21.6),
+	(450, 170, 16.2, 24.3),
+	(500, 185, 18.0, 27.0),
+	(550, 200, 19.0, 30.0),
+	(600, 215, 21.6, 32.4),
+	]
 	
 # --------------------- coilspring stuff ------------------------
 
@@ -722,7 +866,7 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False):
 		cage_profile.mergeclose()
 
 		surf = extrusion(
-				scale(
+				mat3(
 					(rb-rr*0.6)/rb, 
 					(rb-rr*0.6)/rb, 
 					1), 
@@ -730,7 +874,7 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False):
 				alignment=0.5)
 
 		cage = thicken(
-				surf + surf.transform(scale(1,1,-1)) .flip(), 
+				surf + surf.transform(mat3(1,1,-1)) .flip(), 
 				c) .option(color=vec3(0.5,0.3,0))
 				
 		# asemble
@@ -1076,7 +1220,3 @@ def linrange(start, stop=None, step=None, div=0, end=True):
 		yield t
 		t += step
 	
-
-def scale(sx, sy, sz):
-	return mat3(sx,0,0,   0,sy,0,   0,0,sz)
-
