@@ -334,6 +334,7 @@ class Mesh(Container):
 		self.strippoints()
 		self.stripgroups()
 		self.check()
+		return self
 	
 	
 	# --- selection methods ---
