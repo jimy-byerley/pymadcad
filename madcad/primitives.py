@@ -243,11 +243,12 @@ def mkarc(axis, start, end, resolution=None):
 	x = v/r
 	y = cross(z, x)
 	angle = atan2(dot(end-center,y), dot(end-center,x)) % (2*pi)
-	div = settings.curve_resolution(angle*r, angle, resolution) +2
-	pts = []
-	for i in range(div):
-		a = angle * i/(div-1)
+	div = settings.curve_resolution(angle*r, angle, resolution)
+	pts = [start]
+	for i in range(1,div+1):
+		a = angle * i/(div+1)
 		pts.append(x*r*cos(a) + y*r*sin(a) + center)
+	pts.append(end)
 	return mesh.Wire(pts, groups=['arc'])
 
 class TangentEllipsis(object):
@@ -280,10 +281,11 @@ class TangentEllipsis(object):
 		x = origin - self.a
 		y = origin - self.c
 		div = settings.curve_resolution(distance(self.a,self.c), anglebt(x,-y), self.resolution or resolution)
-		pts = []
-		for i in range(div+2):
+		pts = [self.a]
+		for i in range(div+1):
 			t = pi/2 * i/(div+1)
 			pts.append(x*sin(t) + y*cos(t) + origin-x-y)
+		pts.append(self.b)
 		return mesh.Wire(pts, groups=['ellipsis'])
 		
 	def __repr__(self):
