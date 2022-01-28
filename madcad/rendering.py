@@ -195,7 +195,7 @@ class Display:
 		'''
 		pass
 
-def qt2glm(v):
+def qt_2_glm(v):
 	if isinstance(v, (QPoint, QPointF)):	return vec2(v.x(), v.y())
 	elif isinstance(v, (QSize, QSizeF)):	return vec2(v.width(), v.height())
 	else:
@@ -769,25 +769,25 @@ class ViewCommon:
 
 	# -- methods to deal with the view --
 
-	def somenear(self, point: QPoint, radius=None) -> QPoint:
+	def somenear(self, point: ivec2, radius=None) -> ivec2:
 		''' return the closest coordinate to coords, (within the given radius) for which there is an object at
 			So if objnear is returing something, objat and ptat will return something at the returned point
 		'''
 		if radius is None:
 			radius = settings.controls['snap_dist']
 		self.refreshmaps()
-		for x,y in snailaround((point.x(), point.y()), (self.map_ident.shape[1], self.map_ident.shape[0]), radius):
+		for x,y in snailaround(point, (self.map_ident.shape[1], self.map_ident.shape[0]), radius):
 			ident = int(self.map_ident[-y, x])
 			if ident:
-				return QPoint(x,y)
+				return uvec2(x,y)
 
-	def ptat(self, point: QPoint) -> fvec3:
+	def ptat(self, point: ivec2) -> fvec3:
 		''' return the point of the rendered surfaces that match the given window coordinates '''
 		self.refreshmaps()
 		viewport = self.fb_ident.viewport
-		depthred = float(self.map_depth[-point.y(),point.x()])
-		x =  (point.x()/viewport[2] *2 -1)
-		y = -(point.y()/viewport[3] *2 -1)
+		depthred = float(self.map_depth[-point.y,point.x])
+		x =  (point.x/viewport[2] *2 -1)
+		y = -(point.y/viewport[3] *2 -1)
 
 		if depthred == 1.0:
 			return None
@@ -805,13 +805,13 @@ class ViewCommon:
 						-depth,
 						1)))
 
-	def ptfrom(self, point: QPoint, center: fvec3) -> fvec3:
+	def ptfrom(self, point: ivec2, center: fvec3) -> fvec3:
 		''' 3D point below the cursor in the plane orthogonal to the sight, with center as origin '''
 		view = self.uniforms['view']
 		proj = self.uniforms['proj']
 		viewport = self.fb_ident.viewport
-		x =  (point.x()/viewport[2] *2 -1)
-		y = -(point.y()/viewport[3] *2 -1)
+		x =  (point.x/viewport[2] *2 -1)
+		y = -(point.y/viewport[3] *2 -1)
 		depth = (view * fvec4(fvec3(center),1))[2]
 		return vec3(fvec3(affineInverse(view) * fvec4(
 					-depth * x /proj[0][0],
@@ -819,12 +819,13 @@ class ViewCommon:
 					depth,
 					1)))
 
-	def itemat(self, point: QPoint) -> 'key':
+	def itemat(self, point: ivec2) -> 'key':
 		''' return the key path of the object at the given screen position (widget relative).
 			If no object is at this exact location, None is returned
 		'''
 		self.refreshmaps()
-		ident = int(self.map_ident[-point.y(), point.x()])
+		point = uvec2(point)
+		ident = int(self.map_ident[-point.y, point.x])
 		if ident:
 			rdri = bisect(self.steps, ident)
 			if rdri == len(self.steps):
@@ -977,6 +978,7 @@ class View(ViewCommon, QOpenGLWidget):
 		self.makeCurrent()
 		ViewCommon.render(self)
 
+	
 	# -- view stuff --
 
 	def look(self, position: fvec3=None):
@@ -990,6 +992,21 @@ class View(ViewCommon, QOpenGLWidget):
 	def center(self, center: fvec3=None):
 		ViewCommon.center(self, center)
 		self.update()
+	
+	def somenear(self, point: QPoint, radius=None) -> QPoint:
+		some = ViewCommon.somenear(self, qt_2_glm(point), radius)
+		if some:
+			return glm_to_qt(some)
+
+	def ptat(self, point: QPoint) -> fvec3:
+		return ViewCommon.ptat(self, qt_2_glm(point))
+
+	def ptfrom(self, point: QPoint, center: fvec3) -> fvec3:
+		return ViewCommon.ptfrom(self, qt_2_glm(point), center)
+
+	def itemat(self, point: QPoint) -> 'key':
+		return ViewCommon.itemat(self, qt_2_glm(point))
+	
 
 	# -- event system --
 
@@ -1097,10 +1114,10 @@ def snail(radius):
 	x = 0
 	y = 0
 	for r in range(radius):
-		for x in range(-r,r):		yield (x,-r)
-		for y in range(-r,r):		yield (r, y)
-		for x in reversed(range(-r,r)):	yield (x, r)
-		for y in reversed(range(-r,r)):	yield (-r,y)
+		for x in range(-r,r):		yield ivec2(x,-r)
+		for y in range(-r,r):		yield ivec2(r, y)
+		for x in reversed(range(-r,r)):	yield ivec2(x, r)
+		for y in reversed(range(-r,r)):	yield ivec2(-r,y)
 
 def snailaround(pt, box, radius):
 	''' generator of coordinates snailing around pt, coordinates that goes out of the box are skipped '''
@@ -1109,8 +1126,10 @@ def snailaround(pt, box, radius):
 	for rx,ry in snail(radius):
 		x,y = cx+rx, cy+ry
 		if 0 <= x and x < mx and 0 <= y and y < my:
-			yield x,y
+			yield ivec2(x,y)
 
+def glm_to_qt(p): 	return QPoint(p.x, p.y)
+def qt_2_glm(p):	return ivec2(p.x(), p.y())
 
 '''
 		-- generators helpers --
