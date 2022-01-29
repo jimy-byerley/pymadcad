@@ -326,7 +326,7 @@ class Mesh(Container):
 		if len(self.faces) != len(self.tracks):	raise MeshError("tracks list doesn't match faces list length")
 		if max(self.tracks, default=-1) >= len(self.groups): raise MeshError("some face group indices are greater than the number of groups", max(self.tracks, default=-1), len(self.groups))
 	
-	
+
 	# --- selection methods ---
 	
 	def groupnear(self, point):
@@ -1464,7 +1464,7 @@ class Wire(Container):
 		area = vec3(0)
 		c = self[0]
 		for i in range(len(self)):
-			area += cross(self[i]-c, self[i-1]-c)
+			area += cross(self[i-1]-c, self[i]-c)
 		return normalize(area)
 	
 	def __add__(self, other):

@@ -31,6 +31,9 @@ display = {
 	'line_color': fvec3(0.9, 0.9, 0.9),
 	'point_color': fvec3(0.9, 0.9, 0.9),
 	'schematics_color': fvec3(0.3, 0.8, 1),
+	# According to moderngl docs changing this is not guaranteed to work
+	# (depends on OpenGL implementation)
+	'line_width': 1.0,
 	'solver_error_color': fvec3(1, 0.3, 0.2),
 	'annotation_color': fvec3(0.2, 0.7, 1),
 	
