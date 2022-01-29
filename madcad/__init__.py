@@ -141,6 +141,7 @@ from . import (
 		io, hashing, triangulation,
 		# parts
 		standard,
+		settings,
 	)
 # gui
 from . import rendering, displays, text, scheme
@@ -163,6 +164,7 @@ from .triangulation import TriangulationError
 
 from .scheme import *
 from .text import Text
-from .rendering import Scene, Display, displayable, show
+from .rendering import Scene, Display, displayable, show, render
 
 from .standard import *
+
