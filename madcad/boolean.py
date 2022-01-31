@@ -143,13 +143,11 @@ def cut_mesh(m1, m2, prec=None) -> '(Mesh, Web)':
 			segts.edges.extend(outline)
 			segts.tracks = typedlist.full(0, len(segts.edges), 'I')
 			flat = triangulation.triangulation_closest(segts, normal)
-			flat.check()
 			# append the triangulated face, in association with the original track
 			flat.tracks = typedlist.full(track, len(flat.faces), 'I')
 			flat.groups = m1.groups
 			
 			mn += flat
-			mn.check()
 	
 	# append non-intersected faces
 	for f,t,grp in zip(m1.faces, m1.tracks, grp):
@@ -160,7 +158,7 @@ def cut_mesh(m1, m2, prec=None) -> '(Mesh, Web)':
 	return mn, frontier
 
 
-def pierce_mesh(m1, m2, side=False, prec=None) -> set:
+def pierce_mesh(m1, m2, side=False, prec=None, strict=False) -> set:
 
 	if not prec:	prec = m1.precision()
 	m1, frontier = cut_mesh(m1, m2, prec)
@@ -168,7 +166,7 @@ def pierce_mesh(m1, m2, side=False, prec=None) -> set:
 	conn1 = connef(m1.faces)		# connectivity for propagation
 	stops = set(edgekey(*e) for e in frontier.edges)  # propagation stop points
 	
-	used = [False] * len(m1.faces)	# whether to keep the matching faces
+	used = [0] * len(m1.faces)	# whether to keep the matching faces
 	front = []
 	
 	# get front and mark frontier faces as used
@@ -182,7 +180,11 @@ def pierce_mesh(m1, m2, side=False, prec=None) -> set:
 					if f[i] not in edge:
 						proj = dot(m1.points[f[i]] - m1.points[f[i-1]], m2.facenormal(f2))  * (-1 if side else 1)
 						if proj > prec:
-							used[fi] = True
+							used[fi] = 1
+							front.append((f[i], f[i-1]))
+							front.append((f[i-2], f[i]))
+						elif proj < -prec:
+							used[fi] = -1
 							front.append((f[i], f[i-1]))
 							front.append((f[i-2], f[i]))
 						break
@@ -192,14 +194,14 @@ def pierce_mesh(m1, m2, side=False, prec=None) -> set:
 			m1.tracks = typedlist(dtype='I')
 		return m1
 	
-	# display frontier
+	## display frontier
 	#from . import text
 	#for edge in stops:
 		#p = (m1.points[edge[0]] + m1.points[edge[1]]) /2
 		#scn3D.add(text.Text(p, str(edge), 9, (1, 1, 0)))
 	#if debug_propagation:
 		#from .mesh import Web
-		#w = Web([1.01*p for p in m1.points], [e for e,f2 in frontier])
+		#w = Web([1.01*p for p in m1.points], frontier.edges)
 		#w.options['color'] = (1,0.9,0.2)
 		#scn3D.add(w)
 	
@@ -209,16 +211,20 @@ def pierce_mesh(m1, m2, side=False, prec=None) -> set:
 		newfront = []
 		for edge in front:
 			if edge in conn1:
+				source = conn1.get((edge[1], edge[0]), 0)
+				#assert used[source]
 				fi = conn1[edge]
-				if not used[fi]:
-					used[fi] = True
+
+				if not used[fi] or (used[source]*used[fi] < 0 and abs(used[fi]) > abs(used[source])):
+					assert not (strict and used[fi]), "the pierced surface is both side of the piercing surface"
+					used[fi] = used[source] + (1 if used[source]>0 else -1)
 					f = m1.faces[fi]
 					for i in range(3):
 						if edgekey(f[i-1],f[i]) not in stops:	
 							newfront.append((f[i],f[i-1]))
 		front = newfront
 	
-	# selection of faces
+	## selection of faces
 	#if debug_propagation:
 		#from . import text
 		#for i,u in enumerate(used):
@@ -229,11 +235,10 @@ def pierce_mesh(m1, m2, side=False, prec=None) -> set:
 	# filter mesh content to keep
 	return Mesh(
 			m1.points,
-			[f for u,f in zip(used, m1.faces) if u],
-			[t for u,t in zip(used, m1.tracks) if u],
+			[f for u,f in zip(used, m1.faces) if u > 0],
+			[t for u,t in zip(used, m1.tracks) if u > 0],
 			m1.groups,
 			)
-
 
 def boolean_mesh(m1, m2, selector=(False,True), prec=None) -> Mesh:
 

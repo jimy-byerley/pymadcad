@@ -408,8 +408,8 @@ class Scene:
 			the object is not added to the the renderpipeline yet, but queued for next rendering.
 		'''
 		if key is None:
-			for i in range(len(self.displays)+1):
-				if i not in self.displays:	key = i
+			for i in range(len(self.displays)+len(self.queue)+1):
+				if i not in self.displays and i not in self.queue:	key = i
 		self.queue[key] = displayable
 		return key
 
