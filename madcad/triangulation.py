@@ -262,9 +262,10 @@ def triangulation_outline(outline: Wire, normal=None, prec=None) -> Mesh:
 		triangle = (hole[(i-1)%l], hole[i], hole[(i+1)%l])
 		
 		# check for badly oriented triangle
-		if perpdot(u,v) < -prec:		return -inf
+		if perpdot(u,v) < -prec:		
+			return -inf
 		# check for intersection with the rest
-		if perpdot(u,v) > prec:
+		elif perpdot(u,v) > prec:
 			# check that there is not point of the outline inside the triangle
 			for j in nonconvex:
 				if j not in triangle:
@@ -274,6 +275,9 @@ def triangulation_outline(outline: Wire, normal=None, prec=None) -> Mesh:
 							break
 					else:
 						return -inf
+		# flat triangles that change direction are forbidden, it must be considered as a +360° angle and not a 0° angle
+		elif dot(u,v) >= prec:
+			return -inf
 		return priority(u,v)
 	scores = [score(i) for i in range(len(hole))]
 	
@@ -282,7 +286,12 @@ def triangulation_outline(outline: Wire, normal=None, prec=None) -> Mesh:
 		l = len(hole)
 		i = imax(scores)
 		if scores[i] == -inf:
-			raise TriangulationError("no more feasible triangles (algorithm failure or bad input outline)", [outline.indices[i] for i in hole])
+			from .rendering import show
+			show([
+				Wire(outline.points, [outline.indices[i] for i in hole]),
+				outline,
+				], options={'display_points':True})
+			raise TriangulationError("no more feasible triangles (algorithm failure or bad input outline)", [outline.indices[i] for i in hole], outline.indices)
 		triangles.append((
 			outline.indices[hole[(i-1)%l]], 
 			outline.indices[hole[i]], 
@@ -772,7 +781,7 @@ def flat_loops(lines: Web, normal=None) -> '[Wire]':
 					angle = atan2(dot(cross(prev,dir),z), dot(prev,dir))
 				else:
 					angle = -pi
-				if pi-angle < NUMPREC:	angle -= 2*pi
+				if pi-angle <= pi*NUMPREC:	angle -= 2*pi
 				if angle > score:
 					score, best = angle, edge
 			
@@ -780,11 +789,18 @@ def flat_loops(lines: Web, normal=None) -> '[Wire]':
 			if best is None:
 				raise TriangulationError("there is not only loops in that web", loop)
 			used[best] = True
-			# stop when the best continuation is the start
 			if best == end:
+				#print('best == end', loop)
 				break
-			loop.append(lines.edges[best][1])
 			
+			loop.append(lines.edges[best][1])
+			# the very particular case of loops with null surface, or with straight return to origin might intruduce serveral loops in the same suite, the following condition prevents it
+			if loop[0] == loop[-1]:
+				prev = normalize(pts[loop[-2]] - pts[loop[-1]])
+				dir = normalize(pts[loop[1]] - pts[loop[0]])
+				if atan2(dot(cross(prev,dir),z), dot(prev,dir)) <= pi*NUMPREC:
+					used[end] = True
+					break
 			
 		loops.append(Wire(lines.points, loop))
 
