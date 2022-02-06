@@ -61,7 +61,7 @@ opengl_version = (3,3)
 global_context = None
 
 
-def show(objs, options=None, interest:Box=None, size=uvec2(400,400)):
+def show(scene, options=None, interest:Box=None, size=uvec2(400,400)):
 	''' shortcut to create a QApplication showing only one view with the given objects inside.
 		
 		If a Qt app is not already running, the functions returns when the window has been closed and all GUI destroyed
@@ -70,7 +70,8 @@ def show(objs, options=None, interest:Box=None, size=uvec2(400,400)):
 	'''
 	global global_context
 
-	if isinstance(objs, list):	objs = dict(enumerate(objs))
+	if isinstance(scene, list):	scene = dict(enumerate(scene))
+	if not isinstance(scene, Scene):	scene = Scene(scene, options)
 
 	app = QApplication.instance()
 	created = False
@@ -86,7 +87,7 @@ def show(objs, options=None, interest:Box=None, size=uvec2(400,400)):
 		settings.use_qt_colors()
 
 	# create the scene as a window
-	view = View(Scene(objs, options), size)
+	view = View(scene, size)
 	view.resize(*size)
 	view.show()
 
@@ -100,7 +101,7 @@ def show(objs, options=None, interest:Box=None, size=uvec2(400,400)):
 		err = app.exec()
 		if err != 0:	print('error: Qt exited with code', err)
 
-def render(objs, options=None, interest:Box=None, navigation=None, projection=None, size=uvec2(400,400)):
+def render(scene, options=None, interest:Box=None, navigation=None, projection=None, size=uvec2(400,400)):
 	''' shortcut to render the given objects to an image, returns a PIL Image
 	
 		For repeated renderings or view manipualtion, you should directly use `Offscreen`
@@ -108,10 +109,10 @@ def render(objs, options=None, interest:Box=None, navigation=None, projection=No
 		NOTE:
 			the system theme colors cannot be automatically loaded since no running QApplication is assumed in the function
 	'''
-	if isinstance(objs, list):	objs = dict(enumerate(objs))
+	if isinstance(scene, list):	scene = dict(enumerate(scene))
+	if not isinstance(scene, Scene):	scene = Scene(scene, options)
 
 	# create the scene and an offscreen renderer
-	scene = Scene(objs, options)
 	view = Offscreen(scene, size, navigation=navigation, projection=projection)
 
 	# load objects in the scene, so the scene's box can be computed
