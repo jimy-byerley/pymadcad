@@ -74,12 +74,15 @@ Mesh Data
 
 It's always a difficult way to stop a decision on the way to represent 3D objects. In most cases we represent it by its exterior surface, but the problem of the polygons remains: `ngons, quads, triangles, bezier,` ... ? And the way to put it into memory also: `simple unit elements, dynamically typed polygons, halfedges, quadedges,` ... Or even the way to access it: `arrays, chained lists, octree, hashmaps`.
 
-Choice was not easy but is in favor of simplicity:
-	:array storage:   ``list`` for now
-	:simple unit elements:  ``vec3`` for points and ``tuple`` for edges and trangles
-	:surface is only made of triangles:  ``(a,b,c)``
+The choice was not easy but was in favor of simplicity:
+	
+	- array storage:   ``typedlist``
+	- simple unit elements:  ``vec3`` for points and ``uvec2``, ``uvec3`` for edges and triangles
+	- surfaces are only made of triangles:  ``uvec3(a,b,c)``
 
-This structure is very simple and common in the 3D computing, and it makes easy to write most of the operations. Therefore the storage is exposed to the user.
+This structure is very simple and common in the world or 3D computing, and it makes easy to write most of the operations. Therefore the storage is exposed to the user: The ``Mesh`` class is just referencing buffers the user can hack into. and a mesh can be created from arbitrary buffers of points and faces.
+
+Points and faces were initially stored in regular python lists. It was convenient to write python algorithms using it, but any interoperability with compiled code, or with libraries using different data structures than list/pyglm. This is why `arrex <https://github.com/jimy-byerley/arrex>`_ was created. It behaves just like a python list, but stores its elements as in a buffer, and so can be easily converted or shared through numpy.
 
 Display library
 ~~~~~~~~~~~~~~~
@@ -91,11 +94,11 @@ We prefered to bet on the most - advanced and feature-complete - free library de
 	Choice is `Qt <https://www.qt.io/>`_ but with `moderngl <https://github.com/moderngl/moderngl>`_ for the render pipeline
 	
 .. note::
-	Qt5 is not very pythonic (it's designed for c++, no functional programming, huge inheritance instead of python protocols, string typing, enums, camelcase, ...). But it may evolve in the future, according to the `Qt6 guidelines <https://www.qt.io/blog/2019/08/07/technical-vision-qt-6>`_
+	Qt5 is not very pythonic (it's designed for c++, no functional programming, huge inheritance instead of python protocols, string typing, enums, camelcase, ...). But since the release of `Qt6 (guidelines) <https://www.qt.io/blog/2019/08/07/technical-vision-qt-6>`_ more pythonicity can be found, that madcad will benefit from once upgraded to Qt6
 
 References
 ~~~~~~~~~~
 
 - `Other kind of mesh structures <https://en.wikipedia.org/wiki/Polygon_mesh>`_
-- `The non-mesh parametric structure of most of CAD softwares <https://en.wikipedia.org/wiki/Constructive_solid_geometry>`_
-
+- `CSG (Constructive Solid Geometry) - the data structure of the basic CAD softwares <https://en.wikipedia.org/wiki/Constructive_solid_geometry>`_
+- `BREP (Bounded Representation) - the data structure of the advanced CAD softwares <https://fr.wikipedia.org/wiki/B-Rep>`_
