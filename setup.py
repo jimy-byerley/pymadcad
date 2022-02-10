@@ -12,8 +12,8 @@ else:
 setup(
 	# package declaration
 	name='pymadcad',
-	version='0.10.2',
-	python_requires='>=3.6',
+	version='0.11.0',
+	python_requires='>=3.8',
 	install_requires=[
 		'pyglm>=2.5.5',
 		'moderngl>=5.6',
@@ -22,6 +22,7 @@ setup(
 		'PyQt5>=5',
 		'Pillow>=5.4',
 		'pyyaml>=5',
+		'arrex>=0.3',
 		],
 	extras_require={
 		'PLY': ['plyfile>=0.7'],
@@ -56,8 +57,6 @@ setup(
 		'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
 		'Topic :: Scientific/Engineering',
 		'Development Status :: 3 - Alpha',
-		'Programming Language :: Python :: 3.6',
-		'Programming Language :: Python :: 3.7',
 		'Programming Language :: Python :: 3.8',
 		'Programming Language :: Python :: 3.9',
 		'Programming Language :: Python :: 3.10',
