@@ -1,0 +1,13 @@
+# .readthedocs.yaml
+# Read the Docs configuration file
+# See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
+version: 1
+
+build:
+    image: latest
+
+requirements_file: docs/requirements.txt
+python:
+   version: 3.8
+   use_system_site_packages: true
+   setup_py_install: true
