@@ -15,6 +15,7 @@ from . import settings
 from .triangulation import triangulation_outline
 from .blending import blenditer, match_length
 
+from numbers import Number
 from functools import singledispatch
 
 __all__ = [	'chamfer', 'bevel', 'multicut',
@@ -132,7 +133,7 @@ def mesh_cut(mesh, start, cutplane, stops, conn, prec, removal, cutghost=True):
 	# prepare propagation
 	if isinstance(start, tuple):
 		front = [start, (start[1],start[0])]
-	elif isinstance(start, int):
+	elif isinstance(start, Number):
 		front = [e	for e in conn if start in e]
 	else:
 		raise TypeError('wrong start: {}, cut can only start from a point or an edge'.format(start))
@@ -478,8 +479,8 @@ def intersection_axis_face(axis, face, prec):
 
 def removefaces(mesh, crit):
 	''' remove faces whose indices are present in faces, (for huge amount, prefer pass faces as a set) '''
-	newfaces = []
-	newtracks = []
+	newfaces = typedlist(dtype=uvec3)
+	newtracks = typedlist(dtype='I')
 	for i in range(len(mesh.faces)):
 		if not crit(i):
 			newfaces.append(mesh.faces[i])
@@ -489,8 +490,8 @@ def removefaces(mesh, crit):
 	
 def removeedges(mesh, crit):
 	''' remove faces whose indices are present in faces, (for huge amount, prefer pass faces as a set) '''
-	newedges = []
-	newtracks = []
+	newedges = typedlist(dtype=uvec2)
+	newtracks = typedlist(dtype='I')
 	for i in range(len(mesh.edges)):
 		if not crit(i):
 			newedges.append(mesh.edges[i])
@@ -548,7 +549,7 @@ def mesh_chamfer(mesh, edges, cutter):
 	for e,s in segments.items():
 		if not s:	continue
 		# corner cuts
-		if isinstance(e,int):
+		if isinstance(e, Number):
 			if e not in corners:	corners[e] = []
 			corners[e].extend(s)
 		# edge cuts
@@ -596,6 +597,7 @@ def mesh_bevel(mesh, edges, cutter, resolution=None):
 			)
 	# cut faces
 	segments = mesh_multicut(mesh, edges, cutter, conn)
+	mesh.check()
 	conn = connef(mesh.faces)
 	pts = mesh.points
 	
@@ -612,7 +614,7 @@ def mesh_bevel(mesh, edges, cutter, resolution=None):
 	for e,s in segments.items():
 		if not s:	continue
 		# corner cuts
-		if isinstance(e, int):	
+		if isinstance(e, Number):	
 			if e not in corners:	corners[e] = []
 			corners[e].extend(s)
 		# edge cuts
@@ -704,7 +706,7 @@ def mesh_bevel(mesh, edges, cutter, resolution=None):
 		new += tangentjunction(pts, match, normals, div)
 	
 	new.groups = ['junction']
-	new.tracks = [0] * len(new.faces)
+	new.tracks = typedlist.full(0, len(new.faces), 'I')
 	mesh += new
 	mesh.mergeclose()
 
@@ -876,7 +878,7 @@ def wire_multicut(wire, points, cutter):
 	
 	cutter = interpretcutter(cutter)
 	if not wire.tracks:
-		wire.tracks = [0]*len(wire.indices)
+		wire.tracks = typedlist.full(0, len(wire.indices), 'I')
 	g = len(wire.groups)
 	wire.groups.append('chamfer')
 	
@@ -886,6 +888,7 @@ def wire_multicut(wire, points, cutter):
 		# get point location in the wire
 		if origin == wire.indices[0] or origin == wire.indices[-1]:
 			raise MeshError('a chamfer cannot have only one side')
+		print(origin, wire.indices)
 		index = wire.indices.index(origin)
 		
 		# compute cut plane
@@ -925,7 +928,7 @@ def wire_multicut(wire, points, cutter):
 		wire.indices[start:end] = [m,m+1]
 		wire.tracks[start:end-1] = [g]
 		
-		cuts.append((m,m+1))
+		cuts.append((m,m+1))  # point interval including start and excluding end
 	return cuts
 		
 @chamfer.register(Wire)

@@ -14,6 +14,7 @@ diff = difference(
 	cylinder((vec3(0),z), 2, 2),
 	cylinder((vec3(2,0,1),z), 1, 4),
 	)
+print(repr(diff))
 
 # weired geometry for the next test
 C0 = wire(Interpolated([
@@ -30,6 +31,7 @@ C1 = wire(Softened([
 		vec3(-1.638, -3.067, 2.385),
 		vec3(-2.275, -4.168, 0.4291)]))
 m = tube(C1, C0)
+
 
 diff, frontier = boolean.cut_mesh(diff, m)	# mark first intersections
 diff, frontier = boolean.cut_mesh(diff, m)	# remark the same intersections

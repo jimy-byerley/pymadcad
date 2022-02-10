@@ -24,7 +24,7 @@ from PyQt5.QtCore import Qt, QEvent
 
 from .common import ressourcedir
 from .mathutils import *
-from .mesh import Mesh, Web, Wire, glmarray, striplist, distance2_pm
+from .mesh import Mesh, Web, Wire, npcast, striplist, distance2_pm
 from . import settings
 from . import constraints
 from . import text
@@ -301,8 +301,12 @@ def convexhull(pts):
 	if len(pts) == 3:
 		return Mesh(pts, [(0,1,2),(0,2,1)])
 	elif len(pts) > 3:
-		hull = scipy.spatial.ConvexHull(glmarray(pts))
-		return Mesh(pts, hull.simplices.tolist())
+		print(0.1)
+		hull = scipy.spatial.ConvexHull(npcast(pts))
+		print(0.5)
+		m = Mesh(pts, hull.simplices.tolist())
+		print(0.8)
+		return m
 	else:
 		return Mesh(pts)
 
@@ -354,9 +358,10 @@ def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)
 	for i,solid in enumerate(solids):
 		process(i,solid)
 		
+	print('collect')
 	# create convex hulls and prepare for parenting
 	hulls = [convexhull(pts).orient()  for pts in points]
-	
+	print(1)
 	boxes = [hull.box()  for hull in hulls]
 	normals = [hull.vertexnormals()  for hull in hulls]
 	barycenters = [hull.barycenter()  for hull in hulls]
@@ -366,6 +371,7 @@ def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)
 	offsets = [vec3(0)] * len(solids)
 	
 	# build a graph of connected things (distance from center to convex hulls)
+	print('build graph')
 	for i in range(len(solids)):
 		center = barycenters[i]	
 		for j in range(len(solids)):
@@ -405,6 +411,7 @@ def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)
 				if dot(offsets[i], normal) < 0:
 					offsets[i] = -offsets[i]
 	
+	print('resolve')
 	# resolve dependencies to output the offsets in the resolution order
 	order = []
 	reached = [False] * len(solids)
@@ -420,6 +427,7 @@ def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)
 			order.extend(reversed(chain))
 		i += 1
 		
+	print('finish')
 	# move more parents that have children on their way out				
 	blob = [deepcopy(box) 	for box in boxes]
 	for i in reversed(range(len(solids))):
@@ -462,6 +470,7 @@ def explode(solids, factor=1, offsets=None) -> '(solids:list, graph:Mesh)':
 	if not offsets:
 		offsets = explode_offsets(solids)
 	
+	print('move')
 	#graph = Web([o[3]  for o in offsets], groups=[None])
 	#for i, j in enumerate(parents):
 		#if j:

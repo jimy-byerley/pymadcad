@@ -14,5 +14,7 @@ for part in imported.islands():
 	part = segmentation(part)
 	parts.append(Solid(part=part))
 	print(repr(part))
-
-show(explode(parts), options={'display_faces':True})
+print('ok')
+exploded = explode(parts)
+print('show')
+show(exploded, options={'display_faces':True})

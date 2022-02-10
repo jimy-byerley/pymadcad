@@ -13,6 +13,9 @@ any = __builtins__['any']
 all = __builtins__['all']
 round = __builtins__['round']
 
+from arrex import typedlist
+import arrex.glm
+
 # alias definitions
 vec2 = dvec2
 mat2 = dmat2

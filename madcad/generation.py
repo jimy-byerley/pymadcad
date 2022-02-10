@@ -219,24 +219,25 @@ def inflateoffsets(surf, distance, method='face') -> '[vec3]':
 			fnormal = surf.facenormal(face)
 			for p in face:
 				lengths[p] = min(lengths[p], 1/dot(pnormals[p], fnormal))
-		return [pnormals[p]*lengths[p]*distance   for p in range(len(pnormals))]
+		return typedlist((pnormals[p]*lengths[p]*distance   for p in range(len(pnormals))), dtype=vec3)
 	
 	elif method == 'edge':
 		lengths = [inf]*len(pnormals)
 		for edge,enormal in surf.edgenormals().items():
 			for p in edge:
 				lengths[p] = min(lengths[p], 1/dot(pnormals[p], enormal))
-		return [pnormals[p]*lengths[p]*distance	for p in range(len(pnormals))]
+		return typedlist((pnormals[p]*lengths[p]*distance	for p in range(len(pnormals))), dtype=vec3)
 		
 	elif method == 'point':
-		return [pnormals[p]*distance	for p in range(len(pnormals))]
+		return typedlist((pnormals[p]*distance	for p in range(len(pnormals))), dtype=vec3)
 
 def inflate(surf, distance, method='face') -> 'Mesh':
 	''' move all points of the surface to make a new one at a certain distance of the last one
 
 		:method:       determines if the distance is from the old to the new faces, edges or points
 	'''
-	return Mesh([p+d   for p,d in zip(surf.points, inflateoffsets(surf, distance, method))],
+	return Mesh(
+				typedlist((p+d   for p,d in zip(surf.points, inflateoffsets(surf, distance, method))), dtype=vec3),
 				surf.faces,
 				surf.tracks,
 				surf.groups)
@@ -252,9 +253,17 @@ def thicken(surf, thickness, alignment=0, method='face') -> 'Mesh':
 	
 	a = alignment
 	b = alignment-1
-	m = (	Mesh([p+d*a  for p,d in zip(surf.points,displts)], surf.faces[:], surf.tracks[:], surf.groups)
-		+	Mesh([p+d*b  for p,d in zip(surf.points,displts)], surf.faces, surf.tracks, surf.groups[:])
-			.flip() 
+	m = (	Mesh(
+				typedlist((p+d*a  for p,d in zip(surf.points,displts)), dtype=vec3), 
+				surf.faces[:], 
+				surf.tracks[:], 
+				surf.groups)
+		+	Mesh(
+				typedlist((p+d*b  for p,d in zip(surf.points,displts)), dtype=vec3), 
+				surf.faces, 
+				surf.tracks, 
+				surf.groups[:]
+				) .flip() 
 		)
 	t = len(m.groups)
 	l = len(surf.points)
@@ -335,7 +344,7 @@ def dividedtriangle(placement, div=1) -> 'Mesh':
 			s = c+j
 			mesh.faces.append((s, s+i-1, s+i))
 		c += i
-	mesh.tracks = [0] * len(mesh.faces)
+	mesh.tracks = typedlist.full(0, len(mesh.faces), 'I')
 
 	return mesh
 
@@ -343,9 +352,9 @@ def dividedtriangle(placement, div=1) -> 'Mesh':
 def subdivide(mesh, div=1) -> 'Mesh':
 	''' subdivide all faces by the number of cuts '''
 	n = div+2
-	pts = []
-	faces = []
-	tracks = []
+	pts = typedlist(dtype=vec3)
+	faces = typedlist(dtype=uvec3)
+	tracks = typedlist(dtype='I')
 	c = 0
 	for f,t in enumerate(mesh.tracks):
 		# place the points
@@ -362,10 +371,10 @@ def subdivide(mesh, div=1) -> 'Mesh':
 		for i in reversed(range(1,n+1)):
 			for j in range(i-1):
 				s = c+j
-				faces.append((s, s+i, s+1))
+				faces.append(uvec3(s, s+i, s+1))
 			for j in range(1,i-1):
 				s = c+j
-				faces.append((s, s+i-1, s+i))
+				faces.append(uvec3(s, s+i-1, s+i))
 			c += i
 		tracks.extend([t] * (len(faces)-len(tracks)))
 	
@@ -400,18 +409,18 @@ def brick(*args, **kwargs) -> 'Mesh':
 			vec3(0, 1, 1),
 			vec3(0, 1, 0)],
 		[
-			(0, 1, 2),
-			(0, 2, 3),
-			(4, 7, 6),
-			(4, 6, 5),
-			(0, 4, 5),
-			(0, 5, 1),
-			(1, 5, 6),
-			(1, 6, 2),
-			(2, 6, 7),
-			(2, 7, 3),
-			(4, 0, 3),
-			(4, 3, 7)],
+			uvec3(0, 1, 2),
+			uvec3(0, 2, 3),
+			uvec3(4, 7, 6),
+			uvec3(4, 6, 5),
+			uvec3(0, 4, 5),
+			uvec3(0, 5, 1),
+			uvec3(1, 5, 6),
+			uvec3(1, 6, 2),
+			uvec3(2, 6, 7),
+			uvec3(2, 7, 3),
+			uvec3(4, 0, 3),
+			uvec3(4, 3, 7)],
 		[	0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5	],
 		[None] * 6,
 		)
@@ -425,34 +434,35 @@ def square(axis, width:float) -> 'Mesh':
 	'''
 	x,y,z = dirbase(axis[1])
 	return Mesh(
-		[axis[0]+0.6*width*p   for p in ((x+y), (y-x), (-y-x), (-y+x))],
-		[(0,1,2), (2,3,0)],
+		typedlist([axis[0]+0.6*width*p   for p in ((x+y), (y-x), (-y-x), (-y+x))]),
+		typedlist([uvec3(0,1,2), uvec3(2,3,0)]),
 		groups=['flat'],
 		)
 
 def icosahedron(center, radius) -> 'Mesh':
 	''' a simple icosahedron (see https://en.wikipedia.org/wiki/Icosahedron) '''
 	phi = (1+ sqrt(5)) /2	# golden ratio
-	m = Mesh([
-		vec3(0, 1, phi),
-		vec3(1, phi, 0),
-		vec3(phi, 0, 1),
-		vec3(0, -1, phi),
-		vec3(-1, phi, 0),
-		vec3(phi, 0, -1),
-		vec3(0, 1, -phi),
-		vec3(1, -phi, 0),
-		vec3(-phi, 0, 1),
-		vec3(0, -1, -phi),
-		vec3(-1, -phi, 0),
-		vec3(-phi, 0, -1),
-		],
-		[
-		(0,1,4), (0,2,1), (0,3,2), (0,8,3), (0,4,8),
-		(2,5,1), (1,6,4), (4,11,8), (8,10,3), (3,7,2),
-		(3,10,7), (2,7,5), (1,5,6), (4,6,11), (8,11,10),
-		(7,9,5), (5,9,6), (6,9,11), (11,9,10), (10,9,7),
-		],
+	m = Mesh(
+		typedlist([
+			vec3(0, 1, phi),
+			vec3(1, phi, 0),
+			vec3(phi, 0, 1),
+			vec3(0, -1, phi),
+			vec3(-1, phi, 0),
+			vec3(phi, 0, -1),
+			vec3(0, 1, -phi),
+			vec3(1, -phi, 0),
+			vec3(-phi, 0, 1),
+			vec3(0, -1, -phi),
+			vec3(-1, -phi, 0),
+			vec3(-phi, 0, -1),
+		]),
+		typedlist([
+			uvec3(0,1,4), uvec3(0,2,1), uvec3(0,3,2), uvec3(0,8,3), uvec3(0,4,8),
+			uvec3(2,5,1), uvec3(1,6,4), uvec3(4,11,8), uvec3(8,10,3), uvec3(3,7,2),
+			uvec3(3,10,7), uvec3(2,7,5), uvec3(1,5,6), uvec3(4,6,11), uvec3(8,11,10),
+			uvec3(7,9,5), uvec3(5,9,6), uvec3(6,9,11), uvec3(11,9,10), uvec3(10,9,7),
+		]),
 		)
 	f = radius/length(m.points[0])
 	for i,p in enumerate(m.points):

@@ -15,6 +15,7 @@ nprint(repr(ico))
 
 # test concatenation
 bri = brick(center=vec3(2,0,0), width=vec3(0.5))
+nprint('bri', bri)
 m = ico + bri
 m.check()
 
@@ -26,7 +27,9 @@ l[1].check()
 
 # test frontiers
 m = bri.frontiers(0,2,3)
-assert {e:m.groups[m.tracks[i]]	for i,e in enumerate(m.edges)} == {(0,1):(0,2), (1,5):(2,3), (1,2):(0,3)}
+nprint(m)
+nprint(m.tracks, m.edges)
+assert {tuple(e) : m.groups[m.tracks[i]]	for i,e in enumerate(m.edges)} == {(0,1):(0,2), (1,5):(2,3), (1,2):(0,3)}
 
 # test transform
 m = Mesh([vec3(0,0,0), vec3(1,0,0), vec3(0,1,0)], [(0,1,2)]).transform(vec3(0,0,-5))

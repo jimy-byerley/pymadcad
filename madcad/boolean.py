@@ -40,6 +40,7 @@ from . import triangulation
 __all__ = ['pierce', 'boolean', 'intersection', 'union', 'difference']
 
 
+
 	
 # ------- implementated operators -------
 
@@ -59,7 +60,7 @@ def cut_mesh(m1, m2, prec=None) -> '(Mesh, Web)':
 		The algorithm is using ngon intersections and retriangulation, in order to avoid infinite loops and intermediate triangles.
 	'''
 	if not prec:	prec = m1.precision()
-	frontier = Web(m1.points, groups=m2.faces)	# cut points for each face from m2
+	frontier = Web(m1.points, groups=list(m2.faces))	# cut points for each face from m2
 	
 	# topology informations for optimization
 	points = hashing.PointSet(prec, manage=m1.points)
@@ -133,18 +134,19 @@ def cut_mesh(m1, m2, prec=None) -> '(Mesh, Web)':
 								outline.add((seg[i],e[1]))
 			
 			# simplify the intersection lines
-			segts = Web(m1.points, list(segts.keys()), list(segts.values()), m2.faces)
+			segts = Web(m1.points, segts.keys(), segts.values(), frontier.groups)
 			segts.mergepoints(line_simplification(segts, prec))
 			frontier += segts
 			
 			# retriangulate the cutted surface
-			segts.edges.extend([(b,a) for a,b in segts.edges])
+			segts.edges.extend(uvec2(b,a) for a,b in segts.edges[:])
 			segts.edges.extend(outline)
-			segts.tracks = [0] * len(segts.edges)
+			segts.tracks = typedlist.full(0, len(segts.edges), 'I')
 			flat = triangulation.triangulation_closest(segts, normal)
 			# append the triangulated face, in association with the original track
-			flat.tracks = [track] * len(flat.faces)
+			flat.tracks = typedlist.full(track, len(flat.faces), 'I')
 			flat.groups = m1.groups
+			
 			mn += flat
 	
 	# append non-intersected faces
@@ -212,6 +214,7 @@ def pierce_mesh(m1, m2, side=False, prec=None, strict=False) -> set:
 				source = conn1.get((edge[1], edge[0]), 0)
 				#assert used[source]
 				fi = conn1[edge]
+
 				if not used[fi] or (used[source]*used[fi] < 0 and abs(used[fi]) > abs(used[source])):
 					assert not (strict and used[fi]), "the pierced surface is both side of the piercing surface"
 					used[fi] = used[source] + (1 if used[source]>0 else -1)
