@@ -26,7 +26,7 @@ from .mathutils import *
 from .rendering import Display
 from .common import ressourcedir
 from .mesh import Container, Mesh, Web, Wire, web, wire, mesh_distance, connef, connpe, connexity, edgekey, arrangeface, arrangeedge
-from .rendering import Displayable, writeproperty
+from .rendering import Displayable, writeproperty, overrides
 from .primitives import *
 from . import mathutils
 from . import generation as gt
@@ -75,7 +75,7 @@ class Scheme:
 			
 			components(list):   objects to display setting their local space to one of the spaces
 				
-			annotate(bool):     whether this object must be considered as an annotation (and hidden with others when requested)
+			annotation(bool):     whether this object must be considered as an annotation (and hidden with others when requested)
 			
 			current(dict):     last vertex definition, implicitely reused for convenience
 	'''
@@ -234,7 +234,10 @@ class Scheme:
 			
 			
 			self.nidents = max(v[5] for v in sch.vertices)+1
-			self.box = boundingbox(fvec3(v[1]) for v in sch.vertices if self.spacegens[v[0]] is world)
+			self.box = boundingbox(
+						(fvec3(v[1]) for v in sch.vertices if self.spacegens[v[0]] is world), 
+						default=Box(center=fvec3(0), width=fvec3(-inf)),
+						)
 			
 			# prepare the buffer of vertices
 			vertices = np.empty(len(sch.vertices), 'u1, 3f4, 3f4, 4u1, f4, u2, u1')
@@ -310,7 +313,7 @@ class Scheme:
 		
 		def render(self, view):
 			''' render each va in self.vas '''
-			self.compute_spaces(view)
+			#self.compute_spaces(view)
 			for name in self.vas:
 				shader = self.shaders[name][1]
 				prim, va = self.vas[name]
@@ -330,10 +333,36 @@ class Scheme:
 		def stack(self, scene):
 			if self.annotation and not scene.options['display_annotations']:
 				return
+			yield ((), 'screen', -1, self.compute_spaces)
 			yield ((), 'screen', 2, self.render) 
 			yield ((), 'ident', 2, self.identify)
 			for space,disp in self.components:
 				yield from disp.stack(scene)
+				
+class SchemeInstance:
+	def __init__(self, name, scheme, *kwargs):
+		self.name = name
+		self.scheme = scheme
+		vars(self).update(kwargs)
+	
+	class display(Scheme.display):
+		def __init__(self, scene, instance):
+			self.instance = instance
+			disp = scene.ressource(id(instance.scheme), lambda: inst.scheme.display(scene, instance.scheme))
+			vars(self).update(vars(disp))
+			self.spaces = deepcopy(disp.spaces)
+			
+		def compute_spaces(self, view):
+			''' computes the new spaces for this frame
+				this is meant to be overriden when new spaces are required 
+			'''
+			view.uniforms['world'] = self.world
+			for i,gen in enumerate(self.spacegens):
+				self.spaces[i] = gen(view, self.instance)
+			if self.components:
+				invview = affineInverse(view.uniforms['view'])
+				for space,disp in self.components:
+					disp.world = invview * self.spaces[space]
 
 # create standard spaces
 
@@ -342,13 +371,16 @@ def view(view):
 	return fmat4(1/proj[0][0],  0,0,0,
 				0, 1/proj[1][1], 0,0,
 				0,0,1,0,
-				0,0,0,1)
+				0,0,-1,1)
 
 def screen(view):
 	return fmat4(view.width()/2,0,0,0,
 				0,view.height()/2,0,0,
 				0,0,1,0,
-				0,0,0,1)
+				0,0,-1,1)
+
+def ubiquity(view):
+	return translate(fvec3(0,0,-1)) * fmat4(fmat3(view.uniforms['view']) * fmat3(view.uniforms['world']))
 
 def world(view):
 	return view.uniforms['view'] * view.uniforms['world']
@@ -387,25 +419,17 @@ def halo_screen(position):
 def scale_screen(center):
 	def mat(view):
 		m = view.uniforms['view'] * view.uniforms['world']
-		d = (m*fvec4(center,1)).z /view.height()
+		d = -(m*fvec4(center,1)).z /view.height()
 		return scale(translate(m, center), fvec3(d))
 	return mat
 
 def scale_view(center):
 	def mat(view):
 		m = view.uniforms['view'] * view.uniforms['world']
-		d = (m*fvec4(center,1)).z
-		return scale(translate(m, -center), fvec3(d))
+		d = -(m*fvec4(center,1)).z
+		return scale(translate(m, center), fvec3(d))
 	return mat
 
-
-
-class Annotation:
-	def __init__(self, *args, **kwargs):
-		for i,(k,v) in enumerate(self.defaults):
-			if i < len(args):	setattr(self, k, args[i])
-			elif k in kwargs:	setattr(self, k, kwargs[k])
-			else:				setattr(self, k, v)
 
 
 class note_leading_display(Display):
@@ -970,3 +994,157 @@ def note_label(placement, offset=None, text='!', style='rect'):
 
 def note_iso(p, offset, type, text, refs=(), label=None):
 	indev
+
+
+
+#from .scheme import SchemeInstance
+
+#class BaseDisplay(Display):
+	#scheme = None
+	
+	#def __init__(self, scene, matrix, color=None):
+		#if not color:	color = settings.display['annotation_color']
+		
+		#if not self.scheme:
+			#type(self).scheme = sch = Scheme(layer=1e-4)
+			#space = lambda view, instance: world(view) * instance.matrix
+			
+			#directions = [vec3(1,0,0), vec3(0,1,0), vec3(0,0,1)]
+			#for i in range(len(directions)):
+				#o = vec3(0)
+				#x,z = directions[i-1], directions[i]
+				
+				#def tip(view, instance, z=z): 
+					#s = space(view, instance)
+					#return scale_screen(s*z) * fmat4(fmat3(s))
+				
+				#sch.add([o, z], 
+					#space=tip, 
+					#color=fvec4(color,1), 
+					#shader='line',
+					#)
+				#sch.add(revolution(2*pi, (o,z), web([o, -20*z+9*x])), 
+					#space=tip, 
+					#color=fvec4(color,0.8), 
+					#shader='fill',
+					#)
+		
+		#if isinstance(matrix, (dmat3,fmat3,dquat,fquat)):	matrix = fmat4(fmat3(matrix))
+		#elif isinstance(matrix, fmat4):						matrix = fmat4(matrix)
+		#self.disp = scene.display(SchemeInstance(self.scheme, matrix=matrix))
+	
+	#def stack(self, scene):
+		#yield from self.disp.stack(scene)
+		
+def note_base(matrix, color=None, labels=('X', 'Y', 'Z'), name=None, size=0.1):
+	if not color:	color = settings.display['annotation_color']
+	if not name:	name = ''
+	if not labels:	labels = [None]*3
+	
+	if isinstance(matrix, (dmat3,fmat3)):
+		center = None
+		directions = mat3(matrix)
+	elif isinstance(matrix, (dmat4,fmat4)):
+		if transpose(matrix)[3] != vec4(0,0,0,1):
+			raise TypeError('mat4 must be affine in order to be displayed')
+		center = vec3(matrix[3])
+		directions = mat3(mat4(matrix))
+	else:
+		raise TypeError('only matrix with dimension 3 or 4 can be displayed')
+	
+	sch = Scheme(layer=1e-4)
+	for axislabel, direction in zip(labels, directions):
+		o = vec3(0)
+		x,y,z = dirbase(normalize(direction))
+		
+		if center:
+			sch.add([center], space=world)
+		
+		sch.add([o, size*direction], 
+			space=scale_view(fvec3(center)) if center else ubiquity, 
+			color=fvec4(color,1), 
+			shader='line',
+			)
+		sch.add(gt.revolution(2*pi, (o,z), web([o, -7*z+1.8*x])), 
+			space=scale_screen_scale_view(fvec3(center), fvec3(size*direction)) if center else scale_screen_ubiquity(fvec3(size*direction)), 
+			color=fvec4(color,0.8), 
+			shader='fill',
+			)
+		if axislabel or name:
+			sch.add(txt.Text(5*z, axislabel+' '+name, align=(0.5,0.5), color=color))
+	
+	return sch
+	
+def note_rotation(quaternion, color=None, size=0.1):
+	if not color:	color = settings.display['annotation_color']
+	
+	direction = vec3(glm.axis(quaternion))
+	angle = glm.angle(quaternion)
+	o = vec3(0)
+	x,y,z = dirbase(direction)
+	tend = -sin(angle)*x + cos(angle)*y
+	rend = cos(angle)*x + sin(angle)*y
+	
+	sch = Scheme(layer=1e-4)
+	sch.set(
+		space=ubiquity,
+		color=fvec4(color,0.6),
+		shader='line',
+		)
+	sch.add([-size*direction, -0.2*size*direction])
+	sch.add([-0.1*size*direction, 0.1*size*direction])
+	sch.add([0.2*size*direction, size*direction])
+	sch.add(gt.revolution(2*pi, (o,z), web([o, -7*z+1.8*x])), 
+		space=scale_screen_ubiquity(fvec3(size*direction)), 
+		color=fvec4(color,0.6), 
+		shader='fill',
+		)
+	
+	sch.set(
+		space=ubiquity,
+		color=fvec4(color,1),
+		shader='line',
+		)
+	sch.add([size*cos(t)*x + size*sin(t)*y  for t in linrange(0, angle, step=0.1)])
+	sch.add([size*cos(t)*x + size*sin(t)*y  for t in linrange(0, 2*pi, step=0.1)], color=fvec4(color,0.2))
+	sch.add(gt.revolution(2*pi, (size*rend, tend), web([size*tend, size*tend-7*tend+1.8*rend])), 
+		space=scale_screen_ubiquity(fvec3(size*rend)), 
+		color=fvec4(color,0.8), 
+		shader='fill',
+		)
+		
+	return sch
+	
+	
+def scale_screen_scale_view(center, offset):
+	def mat(view):
+		m = view.uniforms['view'] * view.uniforms['world']
+		d1 = -(m*fvec4(center,1)).z
+		d2 = 1/view.height()
+		return scale(translate(scale(translate(m, center), fvec3(d1)), offset), fvec3(d2))
+	return mat
+	
+def scale_screen_ubiquity(offset):
+	def mat(view):
+		m = fmat3(view.uniforms['view']) * fmat3(view.uniforms['world'])
+		d2 = 1/view.height()
+		return scale(translate(translate(fvec3(0,0,-1)) * fmat4(m), offset), fvec3(d2))
+	return mat
+	
+def base_display(scene, mat):
+	return scene.display(note_base(mat))
+	#try:	return scene.display(note_base(mat))
+	#except TypeError as err:	return Display()
+
+def quat_display(scene, quat):
+	try:	return scene.display(note_rotation(quat))
+	except TypeError:	return Display()
+		
+overrides.update({
+	dmat4: base_display,
+	fmat4: base_display,
+	dmat3: base_display,
+	fmat3: base_display,
+	dquat: quat_display,
+	fquat: quat_display,
+	})
