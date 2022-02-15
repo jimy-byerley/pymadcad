@@ -93,75 +93,6 @@ class PointDisplay(Display):
 				 ((), 'screen', 2, self.render))
 
 
-class ArrowDisplay(Display):
-	def __init__(self, scene, axis, color=None):
-		x,y,z = dirbase(axis[1])
-		self.local = fmat4(transform(axis[0],x,y,z))
-		self.color = fvec3(color or settings.display['annotation_color'])
-		self.selected = False
-		self.box = Box(center=fvec3(axis[0]), width=fvec3(0))
-		
-		# load shader
-		self.shader = scene.ressource('shader_uniformcolor', shader_uniformcolor)
-		self.ident_shader = scene.ressource('shader_ident')
-		self.va, self.va_ident = scene.ressource('arrow', self.load)
-	
-	def load(self, scene):
-		pts = [	(0,0,0), (0,0,1), 
-				(0,0,1), ( 0.16,0,1-0.2), 
-				(0,0,1), (-0.16,0,1-0.2),
-				]
-		vb = scene.ctx.buffer(np.array(pts, 'f4'))
-		va = scene.ctx.vertex_array(self.shader, [(vb, '3f', 'v_position')])
-		va_ident = scene.ctx.vertex_array(self.ident_shader, [(vb, '3f', 'v_position')])
-		return va, va_ident
-	
-	def render(self, view):
-		self.shader['layer'] = -1e-4
-		self.shader['color'].write(fvec4(fvec3(settings.display['select_color_line']) if self.selected else self.color, 1))
-		self.shader['proj'].write(view.uniforms['proj'])
-		self.shader['view'].write(view.uniforms['view'] * self.world * self.local)
-		self.va.render(mgl.LINES)
-	
-	def identify(self, view):
-		self.ident_shader['ident'] = view.identstep(1)
-		self.ident_shader['proj'].write(view.uniforms['proj'])
-		self.ident_shader['view'].write(view.uniforms['view'] * self.world * self.local)
-		self.va_ident.render(mgl.LINES)
-	
-	def stack(self, scene):
-		return ( ((), 'ident', 2, self.identify),
-				 ((), 'screen', 2, self.render))
-
-class TangentDisplay(Display):
-	def __init__(self, scene, axis, size=None, color=None):
-		self.size = size
-		self.axis = axis
-		self.arrow1 = ArrowDisplay(scene, axis, color)
-		self.arrow2 = ArrowDisplay(scene, axis, color)
-		self.box = Box(center=fvec3(axis[0]), width=fvec3(0))
-	
-	def render(self, view):
-		size = self.size or -view.uniforms['view'][3][2] * 10/view.height()
-		x,y,z = dirbase(self.axis[1])
-		self.arrow1.local = fmat4(transform(self.axis[0], size*x, size*y, size*z))
-		self.arrow2.local = fmat4(transform(self.axis[0], size*x, size*y, -size*z))
-		self.arrow1.render(view)
-		self.arrow2.render(view)
-	
-	def identify(self, view):
-		self.arrow1.identify(view)
-		self.arrow2.identify(view)
-		
-	@writeproperty
-	def world(self, world):
-		self.arrow1.world = self.arrow2.world = world
-	
-	def stack(self, scene):
-		return ( ((), 'ident', 2, self.identify),
-				 ((), 'screen', 2, self.render))
-	
-
 class AxisDisplay(Display):
 	pattern = [0, 0.25, 0.45, 0.55, 0.75, 1]
 	repetitions = 3
@@ -847,3 +778,5 @@ overrides.update({
 	tuple:  tupledisplay,
 	Box:    BoxDisplay,
 	})
+
+	
