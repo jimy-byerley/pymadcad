@@ -1194,29 +1194,4 @@ def slidebearing(dint, h=None, thickness=None, shoulder=None, opened=False):
 pour tout:
 	- liste des tailles standard
 '''
-
-def linrange(start, stop=None, step=None, div=0, end=True):
-	''' yield successive intermediate values between start and stop 
-		
-		stepping:
-		* if `step` is given, it will be the amount between raised value until it gets over `stop`
-		* if `div` is given, it will be the number of intermediate steps between `start` and `stop` (with linear spacing)
-		
-		ending:
-		* if `end` is True, it will stop iterate with value `stop` (or just before)
-		* if `end` is False, it will stop iterating just before `stop` and never with `stop`
-		
-		NOTE:  
-			If step is given and is not a multiple of `stop-start` then `end` has no influence
-	'''
-	if stop is None:	start, stop = 0, start
-	if step is None:	step = (stop-start)/(div+1)
-	elif step * (stop-start) < 0:	step = -step
-	if not end:			stop -= step
-	stop += NUMPREC*stop
-	
-	t = start
-	while t <= stop:
-		yield t
-		t += step
 	
