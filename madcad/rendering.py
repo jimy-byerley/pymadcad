@@ -571,7 +571,9 @@ class Step(Display):
 	
 		`Step(target, priority, callable)`
 	'''
-	def __init__(self, *args):	self.step = ((), *args)
+	__slots__ = 'step',
+	def __init__(self, target, priority, callable):	self.step = ((), target, priority, callable)
+	def __repr__(self):		return '{}({}, {}, {})'.format(self.step[1], self.step[2], self.step[3])
 	def stack(self, scene):		return self.step,
 
 class Displayable:
@@ -579,9 +581,12 @@ class Displayable:
 		
 		at the display creation time, it will simply execute `build(*args, **kwargs)`
 	'''
+	__slots__ = 'build', 'args', 'kwargs'
 	def __init__(self, build, *args, **kwargs):
 		self.args, self.kwargs = args, kwargs
 		self.build = build
+	def __repr__(self):
+		return '{}({}, {}, {})'.format(type(self).__name__, repr(self.args[1:-1]), repr(self.kwargs)[1:-1])
 	def display(self, scene):
 		return self.build(scene, *self.args, **self.kwargs)
 
