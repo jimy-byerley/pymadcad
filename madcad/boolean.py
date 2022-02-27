@@ -302,14 +302,18 @@ def cut_web(w1: Web, ref: Web, prec=None) -> '(Web, Wire)':
 				# append the rewebed edge in association with the original track
 				frontier += Wire(
 						w1.points, 
-						list(map(itemgetter(0), sorted_segts)), 
-						list(map(itemgetter(1), sorted_segts)), 
+						map(itemgetter(0), sorted_segts), 
+						map(itemgetter(1), sorted_segts), 
 						ref.edges,
 						)
+				
+				suite = list(map(itemgetter(0), sorted_segts))
+				if suite[0] != e[0]:	suite.insert(0, e[0])
+				if suite[-1] != e[-1]:	suite.append(e[-1])
 				mn += web(Wire(
 						w1.points, 
-						[e[0]] + list(map(itemgetter(0), sorted_segts)) + [e[1]], 
-						[w1.tracks[e1]] * (len(sorted_segts)+2), 
+						suite, 
+						[w1.tracks[e1]] * len(suite), 
 						w1.groups,
 						))
 				processed = True
@@ -318,10 +322,11 @@ def cut_web(w1: Web, ref: Web, prec=None) -> '(Web, Wire)':
 		if not processed:
 			mn.edges.append(w1.edges[e1])
 			mn.tracks.append(w1.tracks[e1])
-
+	
 	mn.check()
 	return mn, frontier
 
+from .nprint import nprint
 	
 def pierce_web(web, ref, side=False, prec=None):
 
