@@ -3,8 +3,10 @@
 '''	
 	This modules provide boolean operations for all kind of meshes.
 	
-	Strictly speaking, boolean operations are operations on methematically defined sets. In a n-dimensinal space it applies to subsets of point of the same dimension (volumes in 3D, surfaces in 2D).
+	Strictly speaking, boolean operations are operations on mathematically defined sets. In a n-dimensinal space it applies to subsets of point of the same dimension (volumes in 3D, surfaces in 2D).
 	Here, volumes are defined by their exterior envelope (a Mesh) and surfaces by their contour (Web). So the boolean operation consist of intersecting the envelopes and contours and decide which cutted parts to keep.
+	
+	.. image:: /schemes/boolean-principle.svg
 
 	This relies on a new intersection algorithm named syandana. It finds candidates for intersections using a spacial hashing of triangles over a voxel (see madcad.hashing). This is solving the problem of putting triangles in an octree.
 	Also to avoid the increasing complexity of the operation with flat planes divided in multiple parallel triangles, the algorithm is implemented with a detection of ngons.
@@ -240,14 +242,14 @@ def pierce_mesh(m1, m2, side=False, prec=None, strict=False) -> set:
 			m1.groups,
 			)
 
-def boolean_mesh(m1, m2, selector=(False,True), prec=None) -> Mesh:
+def boolean_mesh(m1, m2, sides=(False,True), prec=None) -> Mesh:
 
 	if not prec:	prec = max(m1.precision(), m2.precision())
 	
-	mc1 = pierce_mesh(m1, m2, selector[0], prec)
-	mc2 = pierce_mesh(m2, m1, selector[1], prec)
-	if selector[0] and not selector[1]:		mc1 = mc1.flip()
-	if not selector[0] and selector[1]:		mc2 = mc2.flip()
+	mc1 = pierce_mesh(m1, m2, sides[0], prec)
+	mc2 = pierce_mesh(m2, m1, sides[1], prec)
+	if sides[0] and not sides[1]:		mc1 = mc1.flip()
+	if not sides[0] and sides[1]:		mc2 = mc2.flip()
 	res = mc1 + mc2
 	res.mergeclose()
 	return res
@@ -341,7 +343,7 @@ def pierce_web(web, ref, side=False, prec=None):
 		if not ei or used[ei]:	continue
 		
 		# propagate
-		front = [(start, side)]		# points on the propagation front
+		front = [(start, not side)]		# points on the propagation front
 		while front:
 			last, keep = front.pop()
 			for ei in conn[last]:
@@ -481,7 +483,7 @@ def cut_web_mesh(w1: Web, ref: Mesh, prec=None) -> '(Web, Wire)':
 	return mn, frontier
 	
 					
-def pierce_web_mesh(w1: Web, ref: Mesh, side, prec=None) -> Web:
+def pierce_web_mesh(w1: Web, ref: Mesh, side=False, prec=None) -> Web:
 
 	if not prec:	prec = w1.precision()
 	
@@ -603,18 +605,18 @@ def boolean(a, b, sides=(False,True), prec=None):
 
 def union(a, b) -> Mesh:
 	''' return a mesh for the union of the volumes. 
-		It is a boolean with selector (False,False) 
+		It is a boolean with selector `(False,False)`
 	'''
 	return boolean(a,b, (False,False))
 
 def intersection(a, b) -> Mesh:	
 	''' return a mesh for the common volume. 
-		It is a boolean with selector (True, True) 
+		It is a boolean with selector `(True, True)`
 	'''
 	return boolean(a,b, (True,True))
 
 def difference(a, b) -> Mesh:	
-	''' return a mesh for the volume of a less the common volume with b
-		It is a boolean with selector (False, True)
+	''' return a mesh for the volume of `a` less the common volume with `b`
+		It is a boolean with selector `(False, True)`
 	'''
 	return boolean(a,b, (False,True))
