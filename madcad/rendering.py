@@ -141,7 +141,7 @@ class Display:
 			world(fmat4):  matrix from local space to parent space
 			box(Box):      boudingbox of the display in local space
 			
-			These attributes are variable members by default but can be overriden as properties if needed.
+		These attributes are variable members by default but can be overriden as properties if needed.
 	'''
 	
 	# mendatory part of the protocol
