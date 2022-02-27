@@ -78,8 +78,11 @@ primitives types
 .. autoclass:: ArcCentered
 
 	.. autoproperty:: center
+	
 	.. autoproperty:: radius
+	
 	.. autoproperty:: axis
+	
 	.. automethod:: tangent
 	
 	.. image:: /screenshots/primitives-arccentered.png
@@ -87,8 +90,11 @@ primitives types
 .. autoclass:: ArcThrough
 
 	.. autoproperty:: center
+	
 	.. autoproperty:: radius
+	
 	.. autoproperty:: axis
+	
 	.. automethod:: tangent
 	
 	.. image:: /screenshots/primitives-arcthrough.png
@@ -96,8 +102,11 @@ primitives types
 .. autoclass:: Circle
 
 	.. autoproperty:: center
+	
 	.. autoproperty:: radius
+	
 	.. autoproperty:: axis
+	
 	.. automethod:: tangent
 	
 	.. image:: /screenshots/primitives-circle.png
@@ -105,8 +114,11 @@ primitives types
 .. autoclass:: ArcTangent
 
 	.. autoproperty:: center
+	
 	.. autoproperty:: radius
+	
 	.. autoproperty:: axis
+	
 	.. automethod:: tangent
 	
 	.. image:: /screenshots/primitives-arctangent.png
@@ -114,7 +126,9 @@ primitives types
 .. autoclass:: TangentEllipsis
 
 	.. autoproperty:: center
+	
 	.. autoproperty:: axis
+	
 	.. automethod:: tangent
 	
 	.. image:: /screenshots/primitives-tangentellipsis.png

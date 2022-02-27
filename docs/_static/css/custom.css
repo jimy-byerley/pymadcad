@@ -313,6 +313,12 @@ a:visited { /* links visited */
 
 /* sphinx roles - funnction headers and all markups */
 
+.rst-content dl > dt {
+  border-left: none !important;
+  background: none !important;
+  color: inherit !important;
+}
+
 /* module items */
 .rst-content dl.class > dt,
 .rst-content dl.function > dt,
@@ -320,15 +326,16 @@ a:visited { /* links visited */
 .rst-content dl.exception > dt {
     background: #6ab0de12 !important;
     color: #319ADF !important; 
-    border-top: solid 3px #5087aa !important;
+    border-top: solid 3px #254d66 !important;
 	border-left: none !important;
 }
 .rst-content dl.method > dt,
-.rst-content dl.attribute > dt {
-    border-left: 3px solid #6eaa96 !important;
+.rst-content dl.attribute > dt,
+.rst-content dl.property > dt {
+    border-left: 3px solid #385149 !important;
 	border-top: none !important;
-	background: #243435 !important;
-	color: #649d8a !important;
+	background: #1d2626 !important;
+    color: #578676 !important;
 }
 
 /* text ident headers */
@@ -393,10 +400,20 @@ h2 {
 
 /* ugly stuff to correct other colors from readthedocs */
 
-html.writer-html4 .rst-content dl:not(.docutils) dl:not(.field-list) > dt, html.writer-html5 .rst-content dl[class]:not(.option-list):not(.field-list):not(.footnote):not(.glossary):not(.simple) dl:not(.field-list) > dt {
-  /* border-left: 3px solid #ccc; */
-  /* background: #f0f0f0; */
-  border-left: 3px solid #ffffff38;
-  background: #ffffff0a;
+/*
+.rst-content dl:not(.docutils) dl:not(.field-list) > dt, 
+.rst-content dl[class]:not(.option-list):not(.field-list):not(.footnote):not(.glossary):not(.simple) dl:not(.field-list) > dt {
+  border-left: none !important;
+  background: none !important;
+  color: inherit !important;
+}*/
+
+.rst-content dl:not(.docutils) .descclassname, 
+.rst-content dl:not(.docutils) .descname, 
+.rst-content dl:not(.docutils) .sig-name, 
+.rst-content dl[class]:not(.option-list):not(.field-list):not(.footnote):not(.glossary):not(.simple) .descclassname, 
+.rst-content dl[class]:not(.option-list):not(.field-list):not(.footnote):not(.glossary):not(.simple) .descname, 
+.rst-content dl[class]:not(.option-list):not(.field-list):not(.footnote):not(.glossary):not(.simple) .sig-name {
+    color: #ddd !important;
 }
 
