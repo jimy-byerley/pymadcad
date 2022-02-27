@@ -374,8 +374,8 @@ def view(view):
 				0,0,-1,1)
 
 def screen(view):
-	return fmat4(view.width()/2,0,0,0,
-				0,view.height()/2,0,0,
+	return fmat4(view.target.width/2,0,0,0,
+				0,view.target.height/2,0,0,
 				0,0,1,0,
 				0,0,-1,1)
 
@@ -410,7 +410,7 @@ def halo_screen(position):
 		center = view.uniforms['view'] * (view.uniforms['world'] * position)
 		m = fmat4(1)
 		m[3] = center
-		d = center.z/view.height()
+		d = center.z/view.target.height
 		m[0][0] = d
 		m[1][1] = d
 		return m
@@ -419,7 +419,7 @@ def halo_screen(position):
 def scale_screen(center):
 	def mat(view):
 		m = view.uniforms['view'] * view.uniforms['world']
-		d = -(m*fvec4(center,1)).z /view.height()
+		d = -(m*fvec4(center,1)).z /view.target.height
 		return scale(translate(m, center), fvec3(d))
 	return mat
 
@@ -447,7 +447,7 @@ class note_leading_display(Display):
 			x,y,z = dirbase(normalize(vec3(self.offset)))
 			sch.add(
 				gt.revolution(2*pi, (vec3(0), z), 
-					web([vec3(0), -8*z+2*x]), 
+					web([vec3(0), 8*z+2*x]), 
 					resolution=('div',8),
 					), 
 				shader='fill',
@@ -462,20 +462,27 @@ class note_leading_display(Display):
 		
 	def side(self, view):
 		return int((fmat3(view.uniforms['view']) * (fmat3(self.world) * self.offset))[0] > 0)
+		
+	def compute_spaces(self, view):
+		side = int((fmat3(view.uniforms['view']) * (fmat3(self.world) * self.offset))[0] > 0)
+		self.active_disp = self.disp[side]
+		self.active_disp.compute_spaces(view)
 	
 	def render(self, view):
-		disp = self.disp[self.side(view)]
-		disp.render(view)
-		for _,comp in disp.components:
+		self.active_disp.render(view)
+		for _,comp in self.active_disp.components:
 			comp.render(view)		
 	
 	def identify(self, view):
-		self.disp[self.side(view)].identify(view)
+		self.active_disp.identify(view)
 	
 	def stack(self, scene):
 		if self.annotation and not scene.options['display_annotations']:
 			return ()
-		return ((), 'screen', 2, self.render), ((), 'ident', 2, self.identify)
+		return (	((), 'screen', -1, self.compute_spaces),
+					((), 'screen', 2, self.render), 
+					((), 'ident', 2, self.identify),
+					)
 		
 	@writeproperty
 	def world(self, value):
@@ -534,7 +541,7 @@ def note_floating(position, text):
 	''' place a floating note at given position '''
 	return txt.Text(position, text, align=(0,0), color=settings.display['annotation_color'], size=9)
 
-def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None):
+def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None, side=False):
 	''' place a distance quotation between 2 points, 
 		the distance can be evaluated along vector `project` if specified 
 	'''
@@ -550,6 +557,7 @@ def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None):
 	color = settings.display['annotation_color']
 	# convert input vectors
 	x = dirbase(project, b-a)[0]
+	z = project if side else -project
 	if not isinstance(offset, vec3):
 		offset = offset * x
 	shift = 0.5 * mathutils.project(b-a, x)	if length2(x) else 0
@@ -572,13 +580,13 @@ def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None):
 	sch.add(gt.revolution(
 				2*pi, 
 				(vec3(0),project), 
-				web([vec3(0), 1.5*x-6*project]), 
+				web([vec3(0), 1.5*x-6*z]), 
 				resolution=('div',8)), 
 			space=scale_screen(fvec3(ao)))
 	sch.add(gt.revolution(
 				2*pi, 
 				(vec3(0),project), 
-				web([vec3(0), 1.5*x+6*project]), 
+				web([vec3(0), 1.5*x+6*z]), 
 				resolution=('div',8)), 
 			space=scale_screen(fvec3(bo)))
 	return sch
@@ -620,15 +628,15 @@ def note_distance_set(s0, s1, offset=0, d=None, tol=None, text=None):
 	return note_distance(p0, p1, offset, None, d, tol, text)
 		
 
-def note_angle(a0, a1, offset=0, d=None, tol=None, text=None, unit='deg'):
+def note_angle(a0, a1, offset=0, d=None, tol=None, text=None, unit='deg', side=False):
 	''' place an angle quotation between 2 axis '''
 	o0, d0 = a0
 	o1, d1 = a1
 	z = normalize(cross(d0,d1))
 	if not isfinite(z):	
 		raise ValueError('axis are parallel')
-	x0 = cross(d0,z)
-	x1 = cross(d1,z)
+	x0 = cross(d0,z) * (1 if side else -1)
+	x1 = cross(d1,z) * (1 if side else -1)
 	shift = project(o1-o0, z) * 0.5
 	# add it but in a new copy of the vectors
 	o0 = o0 + shift
@@ -975,7 +983,7 @@ def note_label(placement, offset=None, text='!', style='rect'):
 	sch.add(gt.revolution(
 				2*pi,
 				(vec3(0),z),
-				web([3*x, -5*z]),
+				web([3*x, 5*z]),
 				resolution=('div',8),
 				),
 			space=scale_screen(fvec3(p)), shader='fill')
@@ -1115,19 +1123,30 @@ def note_rotation(quaternion, color=None, size=0.1):
 		
 	return sch
 	
+'''
+transforms = [
+	mat3(),
+	angleAxis(pi/2, normalize(Z+X)),
+	translate(2*Y) * scale(vec3(0.2, 0.3, 1)),
+	translate(2*X),
+	rotate(1, vec3(1,2,3)),
+	translate(-2*X) * mat4(scaledir(vec3(1,2,-3)*0.1)),
+	]
+'''
+	
 	
 def scale_screen_scale_view(center, offset):
 	def mat(view):
 		m = view.uniforms['view'] * view.uniforms['world']
 		d1 = -(m*fvec4(center,1)).z
-		d2 = 1/view.height()
+		d2 = 1/view.target.height
 		return scale(translate(scale(translate(m, center), fvec3(d1)), offset), fvec3(d2))
 	return mat
 	
 def scale_screen_ubiquity(offset):
 	def mat(view):
 		m = fmat3(view.uniforms['view']) * fmat3(view.uniforms['world'])
-		d2 = 1/view.height()
+		d2 = 1/view.target.height
 		return scale(translate(translate(fvec3(0,0,-1)) * fmat4(m), offset), fvec3(d2))
 	return mat
 	
