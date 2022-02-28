@@ -391,11 +391,12 @@ code {
 /* markdown stuff */
 h1, h2, h3 {
 	border-bottom: 1px solid #c6c5c536;
-	margin-bottom: 5%;
+	margin-top: 5%;
 }
+/*
 h2 {
 	margin-top: 15%;
-}
+}*/
 
 
 /* ugly stuff to correct other colors from readthedocs */
