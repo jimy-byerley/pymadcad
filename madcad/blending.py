@@ -551,3 +551,210 @@ def trijoin(pts, ptgts, div):
 		for j in range(segts//2):
 			mkquad(mesh, ((c-j-1)%l, (c-j)%l, (c+j)%l, (c+j+1)%l))
 	return mesh
+	
+	
+	
+def mapcurve(wire: Wire, a: vec3, b: vec3, rotate=True, scale=True, match='length') -> Wire:
+	absciss = globals()['absciss_'+match](wire)
+	c, d = wire[0], wire[-1]
+	
+	if rotate and scale:
+		transform = quat(d-c, b-a)
+	elif rotate:
+		transform = quat(normalize(d-c), normalize(b-a))
+	elif scale:
+		transform = length(b-a) / (length(d-c) or nan)
+	else:
+		transform = 1
+	
+	return Wire(
+				points=( mix(a, b, x) + transform * (p - mix(c, d, x))
+						for p,x in zip(wire, absciss)),
+				tracks=wire.tracks,
+				groups=wire.groups,
+				)
+
+	
+def absciss_length(wire) -> '[float]':
+	# create an influence index depending on the matching
+	total = length(wire)
+	absciss = [0] * len(wire)
+	path = 0
+	for i in range(1,len(wire)):
+		path += distance(wire[i]-wire[i-1])
+		absciss[i] = path/total
+	return absciss
+	
+def absciss_distance(wire) -> '[float]':
+	origin, direction = wire[0], wire[-1]-wire[0]
+	return [ dot(p-origin, direction) / dot(direction,direction)   for p in wire ]
+
+def deinterlace(ref, matched, interlace=1, samples=None):
+	''' remove intermediate points when they are closer than the interlace fraction of the smalles edge between i and i-1 
+	
+		Returns a new list
+	
+		Parameters:
+		
+			ref:         original wire
+			matched:     the wire after matching, hence suvdivided at random places
+			interlace:   the minimum interlacement proportion allowed (the maximum value is 0.5)
+			samples:     the minimum number of points to keep, overriding the interlace ratio
+	'''
+	# search interlacements
+	priority = [1] * len(matched)
+	altered = deepcopy(matched)
+	k = 1
+	for j in range(1, len(matched)-1):
+		if ref[k] != matched[j]:
+			fraction = distance(matched[j-1], ref[k]) / distance(ref[k], ref[k-1])
+			if fraction < interlace:
+				altered[j] = matched[j-1]
+				priority[j] = fraction
+			elif 1-fraction < interlace:
+				altered[j] = matched[j+1]
+				priority[j] = 1-fraction
+		else:
+			k += 1
+	# ensure a certain amount of samples, despite interlacing
+	keep = max(0, len(matched) - samples or 0)
+	if keep:
+		for i in sorted(range(len(matched)), key=priority.__getitem__)[keep:]:
+			altered[i] = matched[i]
+	return altered
+	
+def remove_doubles_zip(matched):
+	''' make a zip iterator with matched, each time the tuple formed is the same as the previous one, itremove indices of each matched list 
+	
+		This is an in-place operation
+	'''
+	it = zip(matched)
+	last = next(it)
+	k = 1
+	for current in it:
+		if current != last:
+			for i, v in enumerate(current):
+				matched[i][k] = v
+			k += 1
+	for m in matched:
+		del matched[k:]
+	
+from .primitives import Interpolated
+	
+def swipe(wires: list, primitive:type=Interpolated, interlace=0.3, resolution=None) -> Mesh:
+	
+	# propagate interlacement forward
+	result = Mesh()
+	interlaced = list(wires)
+	for i in range(1, len(interlaced)):
+		interlaced[i] = deinterlace(
+					interlaced[i], 
+					match_length(wire(interlaced[i-1]), wire(interlaced[i]))[1],
+					interlace,
+					len(interlaced[i-1]),
+					)
+	# propagate interlacement backward			
+	for i in reversed(range(1, len(interlaced))):
+		interlaced[i-1] = deinterlace(
+					interlaced[i-1], 
+					match_length(wire(interlaced[i]), wire(interlaced[i-1]))[1],
+					interlace,
+					len(interlaced[i]),
+					)
+	remove_doubles_zip(interlaced)
+	
+	# generate profiles and join them
+	steps = len(interlaced[0])
+	last = primitive([ curve[0]  for curve in interlaced]) .mesh(resolution=resolution)
+	for i in range(1,steps):
+		new = primitive([ curve[i]  for curve in interlaced]) .mesh(resolution=resolution)
+		result += linkpair(last, new, match='length')
+	return result .finish()
+	
+def linkpair(line1, line2, match='distance'):
+	result = Mesh()
+	matched = globals()['match_'+match](line1, line2)
+	matched = (
+		deinterlace(line1, matched[0], 1),
+		deinterlace(line2, matched[1], 1),
+		)
+	remove_doubles_zip(matched)
+	
+	for i in range(1, len(matched[0])):
+		l = len(result.points)
+		if matched[0][i] != matched[0][i-1] and matched[1][i] != matched[1][i-1]:
+			sides[0].append(matched[0][i])
+			sides[1].append(matched[1][i])
+			mkquad(result, (side[0][-2], side[1][-2], side[1][-1], side[0][-1]))
+		if matched[0][i] == matched[0][i-1]:
+			sides[1].append(l)
+			result.points.append(matched[1][i])
+			mktri(result, (side[0][-1], side[1][-2], side[1][-1]))
+		elif matched[0][i] == matched[0][i-1]:
+			sides[0].append(l)
+			result.points.append(matched[0][i])
+			mktri(result, (side[1][-1], side[0][-1], side[0][-2]))
+	return result
+	
+def blendpair(line1, line2, match='length', tangents='straight', weight=1.):
+	indev
+	
+	
+def blendloop(loop, tangents='normal', weight=1., top=None, normal=None, homogenize=True):
+	indev
+
+		
+def match_length(line1, line2, interlace1=True, interlace2=True) -> '[vec3], [vec3]':
+	''' yield couples of point indices where the curved absciss are the closest '''
+	match1 = typedlist([line1[0]])
+	match2 = typedlist([line2[0]])
+	l1, l2 = line1.length(), line2.length()
+	i1, i2 = 1, 1
+	x1, x2 = 0, 0
+	while i1 < len(line1) and i2 < len(line2):
+		p1 = distance(line1[i1-1], line1[i1]) / l1
+		p2 = distance(line2[i2-1], line2[i2]) / l2
+		x1p = x1+p1
+		x2p = x2+p2
+		if abs(x1p-x2p) < NUMPREC:
+			match1.append(line1[i1])
+			match2.append(line2[i2])
+			i1 += 1
+			i2 += 1
+		if x1p < x2p and interlace1:
+			match1.append(line1[i1])
+			match2.append(interpol1(line2[i2-1], line2[i2], (x1p-x2)/p2))
+			x1 = x1p
+			i1 += 1
+		elif x1p > x2p and interlace2:
+			match1.append(interpol1(line1[i1-1], line1[i1], (x2p-x1)/p1))
+			match2.append(line2[i2])
+			x2 = x2p
+			i2 += 1
+	return match1, match2
+
+def match_distance(line1, line2, interlace=True) -> '[vec3, vec3]':
+	''' yield couples of points by cutting each line at the curvilign absciss of the points of the other '''
+	#match1 = typedlist([line1[0]])
+	#match2 = typedlist([line2[0]])
+	l1, l2 = line1.length(), line2.length()
+	p1, p2 = line1[0], line2[0]
+	x = 0
+	i1, i2 = 1, 1
+	yield (p1, p2)
+	while i1 < len(line1.indices) and i2 < len(line2.indices):
+		n1 = line1[i1]
+		n2 = line2[i2]
+		dx1 = distance(p1, n1) / l1
+		dx2 = distance(p2, n2) / l2
+		if dx1 > dx2:
+			x += dx2
+			p1 = interpol1(p1, n1, dx2/dx1)
+			p2 = n2
+			i2 += 1
+		else:
+			x += dx1
+			p1 = n1
+			p2 = interpol1(p2, n2, dx1/dx2)
+			i1 += 1
+		yield (p1, p2)
