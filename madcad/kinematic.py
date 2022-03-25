@@ -141,9 +141,12 @@ class Solid:
 			>>> s['whatever'] = vec3(5,2,1)
 	'''
 	def __init__(self, pose=None, **content):
-		if pose:
+		if isinstance(pose, tuple):
 			self.position = pose[0]
 			self.orientation = quat(pose[1])
+		elif isinstance(pose, mat4):
+			self.position = pose[3].xyz
+			self.orientation = quat(mat3(pose))
 		else:
 			self.position = vec3(0)
 			self.orientation = quat()
