@@ -60,7 +60,7 @@ Rendering system
 
 .. autoclass:: Display
 	
-	- Mendatory part for the scene
+	- Mendatory interface for the scene
 	
 		.. automethod:: display
 		.. automethod:: stack
@@ -69,7 +69,7 @@ Rendering system
 		.. automethod:: __getitem__
 		.. automethod:: update
 	
-	- Optional part for Qt interaction
+	- Optional interface, only for Qt interaction
 	
 		:selected (bool):  flag set to True by left-clicking on the object
 		
@@ -106,6 +106,27 @@ Rendering system
 	
 		.. automethod:: refreshmaps
 		.. automethod:: identstep
+		
+.. autoclass:: Offscreen
+
+	* Methods to get items on the screen
+	
+		.. automethod:: somenear
+		.. automethod:: ptat
+		.. automethod:: ptfrom
+		.. automethod:: itemat
+	
+	* Methods to move camera
+	
+		.. automethod:: look
+		.. automethod:: adjust
+		.. automethod:: center
+	
+	* Rendering system
+	
+		.. automethod:: refreshmaps
+		.. automethod:: identstep
+
 
 view settings/interaction methods
 ---------------------------------
@@ -126,9 +147,7 @@ helpers to trick into the pipeline
 	.. autoproperty:: box
 
 .. autoclass:: Step
-	:members: stack
 
 .. autoclass:: Displayable
-	:members: display
 
 .. autofunction:: displayable
