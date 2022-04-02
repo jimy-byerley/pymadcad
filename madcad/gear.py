@@ -225,7 +225,7 @@ def angle(p):
 def repeat_circular(profile, n: int) -> Wire:
 	''' Repeat n times the given Wire by rotation around (O,Z) '''
 	result = repeat(profile, n, rotatearound(
-		anglebt(noproject(profile[0],Z), noproject(profile[-1],Z)), 
+		anglebt(noproject(profile[0],Z), noproject(profile[-1],Z)),
 		(O,Z),
 		))
 	result.mergeclose()
@@ -403,12 +403,12 @@ def create_pattern_rect(
 
 	# Multiply the pattern of reference
 	if rounded:  # rounded case
-		bevel(	pattern_ref, 
-				pattern_ref.frontiers(0,1,2), 
+		bevel(	pattern_ref,
+				pattern_ref.frontiers(0,1,2),
 				('radius', min(0.3*(r_ext - r_int), r_int*(angle_step/2-theta_1))),
 				)
-		bevel(	pattern_ref, 
-				pattern_ref.frontiers(2,3,0), 
+		bevel(	pattern_ref,
+				pattern_ref.frontiers(2,3,0),
 				('radius', min(0.3*(r_ext - r_int), r_ext*(angle_step/2-theta_2))),
 				)
 		pattern_ref.mergeclose()
@@ -537,7 +537,7 @@ def gearexterior(
 
 	half_depth = depth / 2
 	footer, header = minmax_radius(profile.points)
-	
+
 	# Internal circles
 	circle_ref = wire(Circle((O,Z), footer - 0.3*(header-footer)))
 	top_circle = circle_ref.transform(vec3(0, 0, half_depth))
@@ -553,7 +553,7 @@ def gearexterior(
 		for i, point in enumerate(profile.points):
 			# truncate points that overlap the primitive
 			r = length2(point)
-			if r > start**2:  
+			if r > start**2:
 				r = sqrt(r)
 				profile.points[i] = point - vec3(0, 0, (r - start) * k)
 				truncated.points[i] = point * start / r
@@ -847,8 +847,8 @@ def spherical_involute(cone_angle:float, t0:float, t:float) -> vec3:
 		t0 (float): 			the difference phase
 		cone_angle (float): 	the cone angle
 
-	Return:	
-	
+	Return:
+
 		a normalized `vec3`
 	"""
 	cos_g, sin_g = cos(cone_angle), sin(cone_angle)
@@ -870,8 +870,8 @@ def spherical_involuteof(pitch_cone_angle:float, t0:float, alpha:float, t:float)
 		pitch_cone_angle (float):	the pitch cone angle
 		alpha(float): 				the height angle offset of the rack
 
-	Return:	
-	
+	Return:
+
 		a normalized `vec3`
 	"""
 	cos_p, sin_p = cos(pitch_cone_angle), sin(pitch_cone_angle)
@@ -921,7 +921,7 @@ def spherical_rack_tools(z:float, pressure_angle:float=pi / 9, ka:float=1, kd:fl
 	"""
 	Return a list of all information useful to generate a spherical rack.
 	Five elements :
-	
+
 		1) the minimum abscissa for the function (fifth element)
 		2) the maximum abscissa for the function (fifth element)
 		3) the phase of a tooth
@@ -931,10 +931,10 @@ def spherical_rack_tools(z:float, pressure_angle:float=pi / 9, ka:float=1, kd:fl
 	Parameters :
 
 		z (float):
-			
+
 			number of tooth of the rack equal to `z_pinion / sin(pitch_cone_angle)`
 			or `z_wheel / sin(shaft_angle - pitch_cone_angle)`
-		
+
 		pressure_angle (float): the pressure angle of the gear
 		ka (float): 			the addendum coefficient
 		kd (float): 			the dedendum coefficient
@@ -967,10 +967,10 @@ def spherical_rackprofile(z:float, pressure_angle:float=pi / 9, ka:float=1, kd:f
 	Parameters:
 
 		z (float):
-		
+
 			number of tooth of the rack equal to `z_pinion / sin(pitch_cone_angle)`
 			or `z_wheel / sin(shaft_angle - pitch_cone_angle)`
-		
+
 		pressure_angle (float): 	the pressure angle of the gear
 		ka (float): 				the addendum coefficient
 		kd (float): 				the dedendum coefficient
@@ -1083,7 +1083,7 @@ def bevelgear(step:float, z:int, pitch_cone_angle:float, pressure_angle:float=pi
 			the primitive perimeter is `step * z` and radius is `step * z / (2 * pi)`
 
 		z (int):		 			number of teeth
-		pitch_cone_angle (float):	   		pitch cone angle
+		pitch_cone_angle (float):	pitch cone angle
 		pressure_angle (flaot):		the pressure angle of the tooth
 		bore_radius (float):   		radius of the main bore
 		bore_height (float):   		height of the main bore
@@ -1092,12 +1092,13 @@ def bevelgear(step:float, z:int, pitch_cone_angle:float, pressure_angle:float=pi
 	# Initialization of parameters
 	gamma_p = pitch_cone_angle # for convenience
 	gamma_b = asin(cos(pressure_angle) * sin(gamma_p))
-	sin_b = cos(pressure_angle) * sin(gamma_p)
-	rp = z*step / (2*pi)
+	cos_b, sin_b = cos(gamma_b), sin(gamma_b)
+	rp = z * step / (2 * pi)
 	rho1 = rp / sin(gamma_p)
 	rho0 = 2 * rho1 / 3
 	k = sin(gamma_p) / z
 	gamma_r = gamma_p - 2 * kd * k
+	gamma_f = gamma_p + 2 * ka * k
 	phi_p = acos(tan(gamma_b) / tan(gamma_p))
 	theta_p = atan2(sin_b * tan(phi_p), 1) / sin_b - phi_p
 	phase_diff = pi / z + 2 * theta_p
@@ -1112,7 +1113,8 @@ def bevelgear(step:float, z:int, pitch_cone_angle:float, pressure_angle:float=pi
 
 	# Common values
 	v = vec3(1, 1, 0)
-	angle1tooth = anglebt(spherical_profile[0] * v, spherical_profile[-1] * v)
+	# angle1tooth = anglebt(spherical_profile[0] * v, spherical_profile[-1] * v)
+	angle1tooth = 2 * pi / z
 	gamma_l = gamma_p + 2 * (ka + 0.25) * k # offset : 0.25 for boolean operation
 	A = vec3(rho1 * sin(gamma_r), 0, rho1 * cos(gamma_r))
 	B = vec3(rho1 * sin(gamma_l), 0, rho1 * cos(gamma_l))
@@ -1148,9 +1150,41 @@ def bevelgear(step:float, z:int, pitch_cone_angle:float, pressure_angle:float=pi
 		F = vec3(0, 0, rho0 * cos(gamma_r))
 		wire = Wire([A, B, D, C, F, E, A]).segmented()
 
-	axis = (O,Z)
+	axis = (O, Z)
 	body = revolution(angle1tooth, axis, wire)
-	one_tooth = intersection(body, teeth_border.transform(angleAxis(phase_tooth_body, axis[1])))
+	one_tooth = intersection(body.transform(angleAxis(-phase_tooth_body, Z)), teeth_border)
 	all_teeth = repeat(one_tooth, z, rotatearound(angle1tooth, axis))
 	all_teeth.finish()
-	return all_teeth
+
+	# For better orientation : the first tooth is placed centered in the plane (O, Y)
+	# try `show([mybevelgear, square((O, Y), size_of_mybevelgear)])`
+	involute = lambda t, t0: spherical_involute(gamma_b, t0, t)
+	t_max = acos(cos(gamma_f) / cos_b) / sin_b
+	middle_tooth = 0.5 * (involute(t_max, 0) + involute(-t_max, phase_diff))
+	phase = anglebt(X, middle_tooth * v)
+	return all_teeth.transform(angleAxis(-phase, Z))
+
+def orientate_bevelgear(bgear:Mesh, z:int, shaft_angle:float) -> Mesh:
+	"""
+	Return a correctly orientated bevel gear.
+
+	Parameters:
+
+		bgear (Mesh): 		the bevel gear
+		z (int):				number of tooth on the gear
+		shaft_angle (float): 	the shaft angle
+
+	Example:
+
+		```python
+		pinion = bevelgear(step, z_pinion, ...)
+		wheel = bevelgear(step, z_wheel, ...)
+		ot_pinion = orientate_bevelgear(pinion, z_pinion, shaft_angle)
+		show([wheel, ot_pinion])
+		# or
+		# ot_wheel = orientate_bevelgear(wheel, z_wheel, shaft_angle)
+		# show([ot_wheel, pinion])
+		```
+	"""
+	matrix = mat4(angleAxis(shaft_angle, Y)) * mat4(angleAxis(pi + pi / z, Z))
+	return bgear.transform(matrix)
