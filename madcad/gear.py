@@ -1166,7 +1166,7 @@ def bevelgear(step:float, z:int, pitch_cone_angle:float, pressure_angle:float=pi
 
 def orientate_bevelgear(bgear:Mesh, z:int, shaft_angle:float) -> Mesh:
 	"""
-	Return a correctly orientated bevel gear.
+	Return a correctly oriented bevel gear.
 
 	Parameters:
 
