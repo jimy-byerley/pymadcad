@@ -1164,13 +1164,13 @@ def bevelgear(step:float, z:int, pitch_cone_angle:float, pressure_angle:float=pi
 	phase = anglebt(X, middle_tooth * v)
 	return all_teeth.transform(angleAxis(-phase, Z))
 
-def orientate_bevelgear(bgear:Mesh, z:int, shaft_angle:float) -> Mesh:
+def matrix4placement(z:int, shaft_angle:float) -> mat4x4:
 	"""
-	Return a correctly oriented bevel gear.
+	Return a matrix of transformation given initial state (Z is the initial axis of revolution).
+	This matrix is helpful when you want to place bevel gears.
 
 	Parameters:
 
-		bgear (Mesh): 		the bevel gear
 		z (int):				number of tooth on the gear
 		shaft_angle (float): 	the shaft angle
 
@@ -1179,12 +1179,9 @@ def orientate_bevelgear(bgear:Mesh, z:int, shaft_angle:float) -> Mesh:
 		```python
 		pinion = bevelgear(step, z_pinion, ...)
 		wheel = bevelgear(step, z_wheel, ...)
-		ot_pinion = orientate_bevelgear(pinion, z_pinion, shaft_angle)
-		show([wheel, ot_pinion])
-		# or
-		# ot_wheel = orientate_bevelgear(wheel, z_wheel, shaft_angle)
-		# show([ot_wheel, pinion])
+		myparts = Solid(pinion=pinion, ...)
+		matrix = matrix4placement(z_pinion, shaft_angle)
+		show([wheel, myparts.transform(matrix)])
 		```
 	"""
-	matrix = mat4(angleAxis(shaft_angle, Y)) * mat4(angleAxis(pi + pi / z, Z))
-	return bgear.transform(matrix)
+	return mat4(angleAxis(shaft_angle, Y)) * mat4(angleAxis(pi + pi / z, Z))
