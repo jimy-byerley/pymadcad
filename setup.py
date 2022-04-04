@@ -40,6 +40,7 @@ setup(
 			'*.py', 
 			'*.pyx', 
 			'*.c', 
+			'*.ttf',
 			],
 		'': ['COPYING', 'COPYING.LESSER', 'README.md', 'requirements.txt'],
 		},
