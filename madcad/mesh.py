@@ -1266,10 +1266,8 @@ def web(*arg):
 				)
 	elif hasattr(arg, 'mesh'):
 		return web(arg.mesh())
-	elif isinstance(arg, list) and isinstance(arg[0], vec3):
+	elif isinstance(arg, (list,tuple,typedlist)) and isinstance(arg[0], vec3):
 		return Web(arg, [(i,i+1) for i in range(len(arg)-1)])
-	elif isinstance(arg, tuple) and isinstance(arg[0], vec3):
-		return Web(list(arg), [(i,i+1) for i in range(len(arg)-1)])
 	elif hasattr(arg, '__iter__'):
 		pool = Web()
 		for primitive in arg:
@@ -1561,10 +1559,8 @@ def wire(*arg):
 		return Wire(arg.points, indices[0], groups=[None])	# TODO: find a way to get the groups from the Web edges through suites or not
 	elif hasattr(arg, 'mesh'):
 		return wire(arg.mesh())
-	elif isinstance(arg, list) and isinstance(arg[0], vec3):
+	elif isinstance(arg, (list,tuple,typedlist)) and isinstance(arg[0], vec3):
 		return Wire(arg)
-	elif isinstance(arg, tuple) and isinstance(arg[0], vec3):
-		return Wire(list(arg))
 	elif hasattr(arg, '__iter__'):
 		pool = Wire()
 		for primitive in arg:
