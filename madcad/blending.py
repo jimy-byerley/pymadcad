@@ -577,11 +577,11 @@ def mapcurve(wire: Wire, a: vec3, b: vec3, rotate=True, scale=True, match='lengt
 	
 def absciss_length(wire) -> '[float]':
 	# create an influence index depending on the matching
-	total = length(wire)
+	total = wire.length()
 	absciss = [0] * len(wire)
 	path = 0
 	for i in range(1,len(wire)):
-		path += distance(wire[i]-wire[i-1])
+		path += distance(wire[i], wire[i-1])
 		absciss[i] = path/total
 	return absciss
 	
@@ -599,36 +599,111 @@ def deinterlace(ref, matched, interlace=1, samples=None):
 			ref:         original wire
 			matched:     the wire after matching, hence suvdivided at random places
 			interlace:   the minimum interlacement proportion allowed (the maximum value is 0.5)
-			samples:     the minimum number of points to keep, overriding the interlace ratio
+			samples:     the minimum number of points to keep, overriding the interlacing ratio
 	'''
 	# search interlacements
 	priority = [1] * len(matched)
 	altered = deepcopy(matched)
 	k = 1
 	for j in range(1, len(matched)-1):
-		if ref[k] != matched[j]:
-			fraction = distance(matched[j-1], ref[k]) / distance(ref[k], ref[k-1])
-			if fraction < interlace:
+		while distance2(ref[k], ref[k-1]) <= 1e-10:
+			k += 1
+		
+		if distance2(ref[k], matched[j]) > 1e-10:	# NOTE mauvaise facon de desentralacer car on peut inverser les points
+			fraction = distance(matched[j], ref[k-1]) / distance(ref[k], ref[k-1])
+			if fraction <= interlace and fraction <= 0.5:
 				altered[j] = matched[j-1]
 				priority[j] = fraction
-			elif 1-fraction < interlace:
+			elif 1-fraction <= interlace:
 				altered[j] = matched[j+1]
 				priority[j] = 1-fraction
+			else:
+				print('keep intact', j)
 		else:
 			k += 1
+			
+	nprint('priority', priority)
+	if interlace == 1:
+		print('special')
+		assert all(p <= interlace  for p in priority)
+	
 	# ensure a certain amount of samples, despite interlacing
-	keep = max(0, len(matched) - samples or 0)
-	if keep:
-		for i in sorted(range(len(matched)), key=priority.__getitem__)[keep:]:
-			altered[i] = matched[i]
+	keep = max(0, len(matched) - (samples or 0))
+	#keep = samples or 0
+	for i in sorted(range(len(matched)), key=priority.__getitem__)[keep:]:	# NOTE mauvaise facon de desentralacer car on peut inverser les points et aussi en garder plus que prevu
+		altered[i] = matched[i]
+	
+	k = 0
+	for j in range(1,len(altered)):
+		if distance2(altered[k], altered[j]) > 1e-10:
+			k += 1
+			altered[k] = altered[j]
+			print(k, altered[j])
+	altered = altered[:k]
+	
+	print('keep', 'in', len(matched), '  ', keep, samples, k)
+	
+	#print('samples', samples, len(ref), len(matched), len(altered))
+	assert samples <= len(altered)
+	
+	return altered
+	
+def deinterlace(ref, matched, interlace=1, samples=None, preserve=True):
+	# collect segments priority due to interlacement
+	priority = [1] * (len(matched)-1)
+	originals = [False] * len(matched)
+	originals[0] = True
+	j = 0
+	for i in range(1,len(ref)):
+		if distance2(ref[i], ref[i-1]) <= 1e-10:	continue
+		while True:
+			j += 1
+			interlacement = distance(matched[j], matched[j-1]) / distance(ref[i], ref[i-1])
+			#print(i,j, interlacement)
+			#assert 0 <= interlacement <= 1, interlacement
+			priority[j-1] = interlacement
+			
+			if distance2(ref[i], matched[j]) <= 1e-10:
+				break
+		originals[j] = True
+			
+	# select highest priority separations to keep
+	keep = samples-1 if samples else 0
+	mendatory = set(sorted(range(len(priority)), key=priority.__getitem__, reverse=True)[:keep])
+	mendatory.add(0)
+	mendatory.add(len(matched)-1)
+	
+	# merge from a fresh start
+	altered = []
+	original = True
+	batch = matched[0]
+	weight = 1
+	for i in range(len(priority)):
+		# case where link must not be merged
+		if priority[i] > interlace or i in mendatory:	
+			altered.append(batch / weight)
+			original = originals[i+1] or not preserve
+			batch = matched[i+1]
+			weight = 1
+		# merge in case of same priority
+		elif not (original ^ originals[i+1]):
+			batch += matched[i+1]
+			weight += 1
+		# merge in case of higher priority
+		elif originals[i+1]:
+			original = True
+			batch = matched[i+1]
+			weight = 1
+	altered.append(batch / weight)
+	
 	return altered
 	
 def remove_doubles_zip(matched):
-	''' make a zip iterator with matched, each time the tuple formed is the same as the previous one, itremove indices of each matched list 
+	''' make a zip iterator with matched, each time the tuple formed is the same as the previous one, it remove indices of each matched list 
 	
 		This is an in-place operation
 	'''
-	it = zip(matched)
+	it = zip(*matched)
 	last = next(it)
 	k = 1
 	for current in it:
@@ -637,11 +712,80 @@ def remove_doubles_zip(matched):
 				matched[i][k] = v
 			k += 1
 	for m in matched:
-		del matched[k:]
+		del m[k:]
+		
+def interpolate_matched(ref, values, matched):
+	interpolated = []
+	k = 1
+	for i in range(len(matched)):
+		if ref[k] == matched[i]:
+			k += 1
+		interpolated.append(mix(values[k-1], values[k], matched[i]-ref[k-1]))
+	return interpolated
 	
 from .primitives import Interpolated
+from . import mesh
+
+class Interpolated2(object):
+	''' interpolated curve passing through the given points (3rd degree bezier spline) 
+
+		the tangent in each point is determined by the direction between adjacent points
+		the point weights is how flattened is the curve close to the point tangents
+	'''
+	__slots__ = 'points', 'weights', 'resolution'
+	def __init__(self, points, weights=None, resolution=None):
+		self.points = points
+		self.weights = weights or [1] * len(self.points)
+		self.resolution = resolution
+		
+	def mesh(self, resolution=None):
+		pts = self.points
+		if not pts:		return Wire()
+		
+		# get tangent to each point
+		tas = [self.weights[i-1] * 0.5 * (pts[i]-pts[i-2])
+					for i in range(2,len(pts))]
+		tbs = [self.weights[i-1] * 0.5 * (pts[i-2]-pts[i])	
+					for i in range(2,len(pts))]
+		tas.insert(0, tbs[0] - 2*project(tbs[0], pts[1]-pts[0]))
+		tbs.append(tas[-1] - 2*project(tas[-1], pts[-2]-pts[-1]))
+		
+		# stack points to curve
+		curve = []
+		for i in range(len(pts)-1):
+			a,b = pts[i], pts[i+1]
+			#ta,tb = tas[i], tbs[i]
+			ta = pts[i+1]-pts[max(0,i-1)]
+			tb = pts[i]-pts[min(len(pts)-1, i+2)]
+			# tangent to the curve in its inflexion point
+			mid = 0.75*(b-a) + 0.25*(ta-tb)
+			# get resolution
+			div = 1 + 2*max(settings.curve_resolution(
+							length(ta), 
+							anglebt(ta, mid),
+							self.resolution or resolution),
+						settings.curve_resolution(
+							length(tb), 
+							anglebt(tb, -mid),
+							self.resolution or resolution) )
+			
+			# append the points for this segment
+			for i in range(div+1):
+				curve.append(interpol2((a,ta), (b,tb), i/(div+1)))
+		
+		curve.append(b)
+		return mesh.Wire(curve, groups=['spline'])
+		
+	def box(self):
+		return boundingbox(self.points)
+		
+	def __repr__(self):
+		return 'Interpolated({}, {})'.format(self.points, self.weights)
+
+	def display(self, scene):
+		return displays.SplineDisplay(scene, glmarray(self.points), glmarray(self.mesh().points))
 	
-def swipe(wires: list, primitive:type=Interpolated, interlace=0.3, resolution=None) -> Mesh:
+def swipe(wires: list, primitive:type=Interpolated, interlace=0.01, resolution=None) -> Mesh:
 	
 	# propagate interlacement forward
 	result = Mesh()
@@ -653,48 +797,73 @@ def swipe(wires: list, primitive:type=Interpolated, interlace=0.3, resolution=No
 					interlace,
 					len(interlaced[i-1]),
 					)
+		print('got', len(interlaced[i]), '<-', len(interlaced[i-1]))
+	print('second pass')
 	# propagate interlacement backward			
 	for i in reversed(range(1, len(interlaced))):
 		interlaced[i-1] = deinterlace(
 					interlaced[i-1], 
 					match_length(wire(interlaced[i]), wire(interlaced[i-1]))[1],
-					interlace,
+					1,
 					len(interlaced[i]),
 					)
+		print('got', len(interlaced[i-1]), '<-', len(interlaced[i]))
+		
+	# note:
+	# propagate interlacement forward and keep each time the interlaced points below the threshold
+	# propagate backward and keep each time the exact amount by keeping the less interlaced
+	
+	print('interlacements')
+	for i in interlaced:
+		print(len(i))
+		assert len(i) == len(interlaced[0])
+		
 	remove_doubles_zip(interlaced)
 	
 	# generate profiles and join them
 	steps = len(interlaced[0])
+	resolution = ('div',8)
 	last = primitive([ curve[0]  for curve in interlaced]) .mesh(resolution=resolution)
 	for i in range(1,steps):
 		new = primitive([ curve[i]  for curve in interlaced]) .mesh(resolution=resolution)
 		result += linkpair(last, new, match='length')
+		last = new
+	
+	result.mergegroups()
 	return result .finish()
 	
-def linkpair(line1, line2, match='distance'):
-	result = Mesh()
+def linkpair(line1, line2, match='length'):
+	result = Mesh(groups=[None])
 	matched = globals()['match_'+match](line1, line2)
+	divs = max(len(line1), len(line2))
 	matched = (
-		deinterlace(line1, matched[0], 1),
-		deinterlace(line2, matched[1], 1),
+		deinterlace(line1, matched[0], 1, divs),
+		deinterlace(line2, matched[1], 1, divs),
 		)
 	remove_doubles_zip(matched)
 	
+	result.points.append(matched[0][0])
+	result.points.append(matched[1][0])
+	a, b = 0, 1
+	
 	for i in range(1, len(matched[0])):
 		l = len(result.points)
-		if matched[0][i] != matched[0][i-1] and matched[1][i] != matched[1][i-1]:
-			sides[0].append(matched[0][i])
-			sides[1].append(matched[1][i])
-			mkquad(result, (side[0][-2], side[1][-2], side[1][-1], side[0][-1]))
 		if matched[0][i] == matched[0][i-1]:
-			sides[1].append(l)
 			result.points.append(matched[1][i])
-			mktri(result, (side[0][-1], side[1][-2], side[1][-1]))
-		elif matched[0][i] == matched[0][i-1]:
-			sides[0].append(l)
+			mktri(result, (a, b, l))
+			a, b = a, l
+		elif matched[1][i] == matched[1][i-1]:
 			result.points.append(matched[0][i])
-			mktri(result, (side[1][-1], side[0][-1], side[0][-2]))
+			mktri(result, (a, b, l))
+			a, b = l, b
+		else:
+			result.points.append(matched[0][i])
+			result.points.append(matched[1][i])
+			mkquad(result, (a, b, l+1, l))
+			a, b = l, l+1
 	return result
+	
+from .mesh import mktri, mkquad
 	
 def blendpair(line1, line2, match='length', tangents='straight', weight=1.):
 	indev
@@ -714,47 +883,65 @@ def match_length(line1, line2, interlace1=True, interlace2=True) -> '[vec3], [ve
 	while i1 < len(line1) and i2 < len(line2):
 		p1 = distance(line1[i1-1], line1[i1]) / l1
 		p2 = distance(line2[i2-1], line2[i2]) / l2
+		
+		#if p1/l1 <= NUMPREC:
+			#i1 += 1
+			#continue
+		#if p2/l2 <= NUMPREC:
+			#i2 += 1
+			#continue
+		
 		x1p = x1+p1
 		x2p = x2+p2
-		if abs(x1p-x2p) < NUMPREC:
-			match1.append(line1[i1])
-			match2.append(line2[i2])
+		#print('  ', x1p, x2p)
+		if abs(x1p-x2p) <= 8*NUMPREC:
+			if interlace1 or interlace2:
+				match1.append(line1[i1])
+				match2.append(line2[i2])
+			x1, x2 = x1p, x2p
 			i1 += 1
 			i2 += 1
-		if x1p < x2p and interlace1:
-			match1.append(line1[i1])
-			match2.append(interpol1(line2[i2-1], line2[i2], (x1p-x2)/p2))
+		elif x1p < x2p:
+			if interlace1:
+				match1.append(line1[i1])
+				match2.append(mix(line2[i2-1], line2[i2], (x1p-x2)/p2))
 			x1 = x1p
 			i1 += 1
-		elif x1p > x2p and interlace2:
-			match1.append(interpol1(line1[i1-1], line1[i1], (x2p-x1)/p1))
-			match2.append(line2[i2])
+		elif x1p > x2p:
+			if interlace2:
+				match1.append(mix(line1[i1-1], line1[i1], (x2p-x1)/p1))
+				match2.append(line2[i2])
 			x2 = x2p
 			i2 += 1
+		else:
+			raise AssertionError('this case should not happend')
 	return match1, match2
 
-def match_distance(line1, line2, interlace=True) -> '[vec3, vec3]':
+def match_distance(line1, line2, interlace1=True, interlace2=True) -> '[vec3], [vec3]':
 	''' yield couples of points by cutting each line at the curvilign absciss of the points of the other '''
-	#match1 = typedlist([line1[0]])
-	#match2 = typedlist([line2[0]])
-	l1, l2 = line1.length(), line2.length()
-	p1, p2 = line1[0], line2[0]
-	x = 0
+	match1 = typedlist([line1[0]])
+	match2 = typedlist([line2[0]])
+	d1 = line1[1]-line1[0]
+	d2 = line2[1]-line2[0]
 	i1, i2 = 1, 1
-	yield (p1, p2)
-	while i1 < len(line1.indices) and i2 < len(line2.indices):
-		n1 = line1[i1]
-		n2 = line2[i2]
-		dx1 = distance(p1, n1) / l1
-		dx2 = distance(p2, n2) / l2
-		if dx1 > dx2:
-			x += dx2
-			p1 = interpol1(p1, n1, dx2/dx1)
-			p2 = n2
+	while i1 < len(line1) and i2 < len(line2):
+		x1 = dot(line1[i1]-line2[i2-1], line2[i2]-line2[i2-1]) / length2(line2[i2]-line2[i2-1])
+		x2 = dot(line2[i2]-line1[i1-1], line1[i1]-line1[i1-1]) / length2(line1[i1]-line1[i1-1])
+		if x1 < 0 and x2 < 0  or  x1 > 1 and x2 > 1:
+			match1.append(line1[i1])
+			match2.append(line2[i2])
+			i1 += 1
+			i2 += 1
+		if x1 <= 1:
+			if interlace1:
+				match1.append(line1[i1])
+				match2.append(mix(line2[i2-1], line2[i2], x1))
+			i1 += 1
+		elif x2 <= 1:
+			if interlace2:
+				match1.append(mix(line1[i1-1], line1[i1], x2))
+				match2.append(line2[i2])
 			i2 += 1
 		else:
-			x += dx1
-			p1 = n1
-			p2 = interpol1(p2, n2, dx1/dx2)
-			i1 += 1
-		yield (p1, p2)
+			raise AssertionError('this case should not happend')
+	return match1, match2
