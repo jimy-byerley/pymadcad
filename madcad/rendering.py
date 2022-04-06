@@ -43,7 +43,7 @@ import moderngl as mgl
 import numpy.core as np
 
 from PyQt5.QtCore import Qt, QPoint, QEvent
-from PyQt5.QtWidgets import QOpenGLWidget, QApplication
+from PyQt5.QtWidgets import QApplication, QWidget, QOpenGLWidget
 from PyQt5.QtGui import QSurfaceFormat, QMouseEvent, QInputEvent, QKeyEvent, QTouchEvent
 
 from PIL import Image
@@ -439,7 +439,7 @@ class Scene:
 		for stack in self.stacks.values():
 			for i in reversed(range(len(stack))):
 				if stack[i][0][0] == key:
-					self.stacks.pop(i)
+					stack.pop(i)
 					
 	def item(self, key):
 		''' get the Display associated with the given key, descending the parenting tree 
@@ -677,7 +677,6 @@ class ViewCommon:
 		# interaction methods
 		self.projection = projection or globals()[settings.scene['projection']]()
 		self.navigation = navigation or globals()[settings.controls['navigation']]()
-		self.tool = [Tool(self.navigation.tool, self)] # tool stack, the last tool is used for input events, until it is removed 
 
 		# render parameters
 		self.scene = scene if isinstance(scene, Scene) else Scene(scene)
@@ -802,7 +801,7 @@ class ViewCommon:
 			view = self.uniforms['view']
 			proj = self.uniforms['proj']
 			a,b = proj[2][2], proj[3][2]
-			depth = b/(depthred + a) * 0.53	# TODO get the true depth  (can't get why there is a strange factor ... opengl trick)
+			depth = b/(depthred + a) * 0.5	# TODO get the true depth  (can't get why there is a strange factor ... opengl trick)
 			#near, far = self.projection.limits  or settings.display['view_limits']
 			#depth = 2 * near / (far + near - depthred * (far - near))
 			#print('depth', depth, depthred)
@@ -893,7 +892,6 @@ class ViewCommon:
 
 		self.navigation.center = center
 
-		
 
 class Offscreen(ViewCommon):
 	''' object allowing to perform offscreen rendering, navigate and get informations from screen as for a normal window 
@@ -903,7 +901,10 @@ class Offscreen(ViewCommon):
 		
 		super().__init__(scene, projection=projection, navigation=navigation)
 		
-		self.scene.ctx = global_context = mgl.create_standalone_context(requires=opengl_version)
+		if global_context:
+			self.scene.ctx = global_context
+		else:
+			self.scene.ctx = global_context = mgl.create_standalone_context(requires=opengl_version)
 		self.scene.ctx.line_width = settings.display["line_width"]
 
 		self.init(size)
@@ -917,7 +918,7 @@ class Offscreen(ViewCommon):
 
 		# self.fb_frame is already created and sized by Qt
 		self.fb_screen = ctx.simple_framebuffer(size)
-		self.fb_ident = ctx.simple_framebuffer((w, h), components=3, dtype='f1')
+		self.fb_ident = ctx.simple_framebuffer(size, components=3, dtype='f1')
 		self.targets = [ ('screen', self.fb_screen, self.setup_screen),
 						 ('ident', self.fb_ident, self.setup_ident)]
 		self.map_ident = np.empty((h,w), dtype='u2')
@@ -926,6 +927,12 @@ class Offscreen(ViewCommon):
 	@property
 	def size(self):		
 		return self.fb_screen.size
+		
+	def width(self):
+		return self.fb_screen.size[0]
+		
+	def height(self):
+		return self.fb_screen.size[1]
 	
 	def resize(self, size):
 		if size != self.fb_screen.size:
@@ -961,10 +968,15 @@ class View(ViewCommon, QOpenGLWidget):
 		fmt.setProfile(QSurfaceFormat.CoreProfile)
 		fmt.setSamples(4)
 		self.setFormat(fmt)
-		self.setFocusPolicy(Qt.StrongFocus)
-		self.setAttribute(Qt.WA_AcceptTouchEvents, True)
+		
+		# ugly trick to receive interaction events in a different function than QOpenGLWidget.event (that one is locking the GIL during the whole rendering, killing any possibility of having a computing thread aside)
+		# that event reception should be in the current widget ...
+		self.handler = GhostWidget(self)
+		self.handler.setFocusPolicy(Qt.StrongFocus)
+		self.handler.setAttribute(Qt.WA_AcceptTouchEvents, True)
 
 		ViewCommon.__init__(self, scene, projection=None, navigation=None)
+		self.tool = [Tool(self.navigation.tool, self)] # tool stack, the last tool is used for input events, until it is removed 
 
 	def init(self):
 		w, h = self.width(), self.height()
@@ -1016,20 +1028,6 @@ class View(ViewCommon, QOpenGLWidget):
 	
 
 	# -- event system --
-
-	def event(self, evt):
-		''' Qt event handler
-			In addition to the usual subhandlers, inputEvent is called first to handle every InputEvent.
-
-			The usual subhandlers are used to implement the navigation through the scene (that is considered to be intrinsic to the scene widget).
-		'''
-		if isinstance(evt, QInputEvent):
-			# set the opengl current context from Qt (doing it only from moderngl interferes with Qt)
-			self.makeCurrent()
-			evt.ignore()
-			self.inputEvent(evt)
-			if evt.isAccepted():	return True
-		return QOpenGLWidget.event(self, evt)
 
 	def inputEvent(self, evt):
 		''' Default handler for every input event (mouse move, press, release, keyboard, ...)
@@ -1089,6 +1087,7 @@ class View(ViewCommon, QOpenGLWidget):
 	def initializeGL(self):
 		# retrieve global shared context if available
 		global global_context
+		
 		if QApplication.testAttribute(Qt.AA_ShareOpenGLContexts):
 			if not global_context:
 				global_context = mgl.create_context()
@@ -1105,6 +1104,7 @@ class View(ViewCommon, QOpenGLWidget):
 
 	def resizeEvent(self, evt):
 		QOpenGLWidget.resizeEvent(self, evt)
+		self.handler.resize(self.size())
 		self.init()
 		self.update()
 
@@ -1114,6 +1114,18 @@ class View(ViewCommon, QOpenGLWidget):
 			settings.use_qt_colors()
 		return QOpenGLWidget.changeEvent(self, evt)
 
+class GhostWidget(QWidget):
+	def __init__(self, parent):
+		super().__init__(parent)
+		
+	def event(self, evt):
+		if isinstance(evt, QInputEvent):
+			# set the opengl current context from Qt (doing it only from moderngl interferes with Qt)
+			#self.makeCurrent()
+			evt.ignore()
+			self.parent().inputEvent(evt)
+			if evt.isAccepted():	return True
+		return super().event(evt)
 
 
 def snail(radius):
