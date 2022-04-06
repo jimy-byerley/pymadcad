@@ -41,10 +41,11 @@ specification format:
 
 	.. code-block:: python
 		
-		('fixed', 16)   # fixed amount of 16 subdivisions
-		('rad', 0.6)    # max polygon angle is 0.6 rad
-		('radm', 0.6)
-		('radm2', 0.6)
+		('div', 16)   # fixed amount of 16 subdivisions
+		('m', 0.1)     # divide every 0.1 distance unit
+		('rad', 0.6)    # divide such that the max edge angle is 0.6 rad
+		('radm', 0.6)	# divide such that max (edge angle)*(triangle height) is 0.6 rad.m
+		('sqradm', 0.6)  # divide such that max (edge angle)*sqrt(triangle height) is 0.6 rad.m
 
 		
 
