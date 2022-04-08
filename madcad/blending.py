@@ -648,7 +648,7 @@ def deinterlace(ref, matched, interlace=1, samples=None):
 	
 	return altered
 	
-def deinterlace(ref, matched, interlace=1, samples=None, preserve=True):
+def deinterlace(ref, matched, interlace=1, samples=None, preserve=True, merge=True):
 	# collect segments priority due to interlacement
 	priority = [1] * (len(matched)-1)
 	originals = [False] * len(matched)
@@ -678,13 +678,17 @@ def deinterlace(ref, matched, interlace=1, samples=None, preserve=True):
 	original = True
 	batch = matched[0]
 	weight = 1
+	merged = 1
 	for i in range(len(priority)):
+		if not merge:	merged += 1
 		# case where link must not be merged
 		if priority[i] > interlace or i in mendatory:	
-			altered.append(batch / weight)
+			for j in range(merged):
+				altered.append(batch / weight)
 			original = originals[i+1] or not preserve
 			batch = matched[i+1]
 			weight = 1
+			merged = 1
 		# merge in case of same priority
 		elif not (original ^ originals[i+1]):
 			batch += matched[i+1]
@@ -694,7 +698,8 @@ def deinterlace(ref, matched, interlace=1, samples=None, preserve=True):
 			original = True
 			batch = matched[i+1]
 			weight = 1
-	altered.append(batch / weight)
+	for j in range(merged):
+		altered.append(batch / weight)
 	
 	return altered
 	
@@ -822,7 +827,7 @@ def swipe(wires: list, primitive:type=Interpolated, interlace=0.01, resolution=N
 	
 	# generate profiles and join them
 	steps = len(interlaced[0])
-	resolution = ('div',8)
+	#resolution = ('div',8)
 	last = primitive([ curve[0]  for curve in interlaced]) .mesh(resolution=resolution)
 	for i in range(1,steps):
 		new = primitive([ curve[i]  for curve in interlaced]) .mesh(resolution=resolution)
@@ -835,10 +840,9 @@ def swipe(wires: list, primitive:type=Interpolated, interlace=0.01, resolution=N
 def linkpair(line1, line2, match='length'):
 	result = Mesh(groups=[None])
 	matched = globals()['match_'+match](line1, line2)
-	divs = max(len(line1), len(line2))
 	matched = (
-		deinterlace(line1, matched[0], 1, divs),
-		deinterlace(line2, matched[1], 1, divs),
+		deinterlace(line1, matched[0], 1, len(line1), merge=False),
+		deinterlace(line2, matched[1], 1, len(line2), merge=False),
 		)
 	remove_doubles_zip(matched)
 	
@@ -848,6 +852,8 @@ def linkpair(line1, line2, match='length'):
 	
 	for i in range(1, len(matched[0])):
 		l = len(result.points)
+		if matched[0][i] == matched[0][i-1] and matched[1][i] == matched[1][i-1]:
+			pass
 		if matched[0][i] == matched[0][i-1]:
 			result.points.append(matched[1][i])
 			mktri(result, (a, b, l))
