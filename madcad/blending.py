@@ -589,7 +589,8 @@ def absciss_distance(wire) -> '[float]':
 	origin, direction = wire[0], wire[-1]-wire[0]
 	return [ dot(p-origin, direction) / dot(direction,direction)   for p in wire ]
 
-def deinterlace(ref, matched, interlace=1, samples=None):
+	
+def deinterlace(ref, matched, interlace=1, samples=None, preserve=True, merge=True):
 	''' remove intermediate points when they are closer than the interlace fraction of the smalles edge between i and i-1 
 	
 		Returns a new list
@@ -600,55 +601,9 @@ def deinterlace(ref, matched, interlace=1, samples=None):
 			matched:     the wire after matching, hence suvdivided at random places
 			interlace:   the minimum interlacement proportion allowed (the maximum value is 0.5)
 			samples:     the minimum number of points to keep, overriding the interlacing ratio
+			preserve:    if True, will prefer to keep the original points of `ref` instead of an intermediate and closest point to the matched curve
+			merge:       if False, deinterlace will keep the orignal amount of points, juste replacing those to merge by the value of the merge target
 	'''
-	# search interlacements
-	priority = [1] * len(matched)
-	altered = deepcopy(matched)
-	k = 1
-	for j in range(1, len(matched)-1):
-		while distance2(ref[k], ref[k-1]) <= 1e-10:
-			k += 1
-		
-		if distance2(ref[k], matched[j]) > 1e-10:	# NOTE mauvaise facon de desentralacer car on peut inverser les points
-			fraction = distance(matched[j], ref[k-1]) / distance(ref[k], ref[k-1])
-			if fraction <= interlace and fraction <= 0.5:
-				altered[j] = matched[j-1]
-				priority[j] = fraction
-			elif 1-fraction <= interlace:
-				altered[j] = matched[j+1]
-				priority[j] = 1-fraction
-			else:
-				print('keep intact', j)
-		else:
-			k += 1
-			
-	nprint('priority', priority)
-	if interlace == 1:
-		print('special')
-		assert all(p <= interlace  for p in priority)
-	
-	# ensure a certain amount of samples, despite interlacing
-	keep = max(0, len(matched) - (samples or 0))
-	#keep = samples or 0
-	for i in sorted(range(len(matched)), key=priority.__getitem__)[keep:]:	# NOTE mauvaise facon de desentralacer car on peut inverser les points et aussi en garder plus que prevu
-		altered[i] = matched[i]
-	
-	k = 0
-	for j in range(1,len(altered)):
-		if distance2(altered[k], altered[j]) > 1e-10:
-			k += 1
-			altered[k] = altered[j]
-			print(k, altered[j])
-	altered = altered[:k]
-	
-	print('keep', 'in', len(matched), '  ', keep, samples, k)
-	
-	#print('samples', samples, len(ref), len(matched), len(altered))
-	assert samples <= len(altered)
-	
-	return altered
-	
-def deinterlace(ref, matched, interlace=1, samples=None, preserve=True, merge=True):
 	# collect segments priority due to interlacement
 	priority = [1] * (len(matched)-1)
 	originals = [False] * len(matched)
@@ -659,8 +614,6 @@ def deinterlace(ref, matched, interlace=1, samples=None, preserve=True, merge=Tr
 		while True:
 			j += 1
 			interlacement = distance(matched[j], matched[j-1]) / distance(ref[i], ref[i-1])
-			#print(i,j, interlacement)
-			#assert 0 <= interlacement <= 1, interlacement
 			priority[j-1] = interlacement
 			
 			if distance2(ref[i], matched[j]) <= 1e-10:
@@ -680,7 +633,6 @@ def deinterlace(ref, matched, interlace=1, samples=None, preserve=True, merge=Tr
 	weight = 1
 	merged = 1
 	for i in range(len(priority)):
-		if not merge:	merged += 1
 		# case where link must not be merged
 		if priority[i] > interlace or i in mendatory:	
 			for j in range(merged):
@@ -689,15 +641,17 @@ def deinterlace(ref, matched, interlace=1, samples=None, preserve=True, merge=Tr
 			batch = matched[i+1]
 			weight = 1
 			merged = 1
-		# merge in case of same priority
-		elif not (original ^ originals[i+1]):
-			batch += matched[i+1]
-			weight += 1
-		# merge in case of higher priority
-		elif originals[i+1]:
-			original = True
-			batch = matched[i+1]
-			weight = 1
+		else:
+			if not merge:	merged += 1
+			# merge in case of same priority
+			if not (original ^ originals[i+1]):
+				batch += matched[i+1]
+				weight += 1
+			# merge in case of higher priority
+			elif originals[i+1]:
+				original = True
+				batch = matched[i+1]
+				weight = 1
 	for j in range(merged):
 		altered.append(batch / weight)
 	
@@ -789,8 +743,37 @@ class Interpolated2(object):
 
 	def display(self, scene):
 		return displays.SplineDisplay(scene, glmarray(self.points), glmarray(self.mesh().points))
+		
+from .generation import subdivide
+		
+class Wire2(object):	
+	__slots__ = 'points'
+	def __init__(self, points=()):
+		self.points = points
+		
+	def mesh(self, resolution=None):
+		if resolution[0] == 'div':
+			return subdivide(wire(self.points), resolution[1])
+		else:
+			return wire(self.points)
 	
-def swipe(wires: list, primitive:type=Interpolated, interlace=0.01, resolution=None) -> Mesh:
+def swipe(wires: list, primitive:type=Wire2, interlace=0.4, resolution=None) -> Mesh:
+	''' create a blended surface between the given curves.
+	
+		This function uses `match_length()` to build successive tuples of points each for building a primitive.
+		The result is a blended surface whose:
+		- regularity accross wires depend on the specified primitive
+		- regularity accross matched tuples depend on the specified primitive and input wire regularities
+		
+		The resulting surface can therefore be derivable in the 'across wire' direction, but not in the wire proper direction.
+		
+		Parameters:
+		
+			wires:	            a list of wires accross which the surface will be blended. Those wires will bo sort of iso lines in the resulting surface.
+			primitive (type):   the `Primitive` type used to blend the surface. It must accept a list of points as unique argument.
+			interlace (float):  interlacing ratio threashold as definied in `deinterlace()`
+			resolution:         surface resolution. this parameter is passed to each primitive
+	'''
 	
 	# propagate interlacement forward
 	result = Mesh()
@@ -802,8 +785,6 @@ def swipe(wires: list, primitive:type=Interpolated, interlace=0.01, resolution=N
 					interlace,
 					len(interlaced[i-1]),
 					)
-		print('got', len(interlaced[i]), '<-', len(interlaced[i-1]))
-	print('second pass')
 	# propagate interlacement backward			
 	for i in reversed(range(1, len(interlaced))):
 		interlaced[i-1] = deinterlace(
@@ -812,16 +793,6 @@ def swipe(wires: list, primitive:type=Interpolated, interlace=0.01, resolution=N
 					1,
 					len(interlaced[i]),
 					)
-		print('got', len(interlaced[i-1]), '<-', len(interlaced[i]))
-		
-	# note:
-	# propagate interlacement forward and keep each time the interlaced points below the threshold
-	# propagate backward and keep each time the exact amount by keeping the less interlaced
-	
-	print('interlacements')
-	for i in interlaced:
-		print(len(i))
-		assert len(i) == len(interlaced[0])
 		
 	remove_doubles_zip(interlaced)
 	
@@ -838,6 +809,7 @@ def swipe(wires: list, primitive:type=Interpolated, interlace=0.01, resolution=N
 	return result .finish()
 	
 def linkpair(line1, line2, match='length'):
+	''' create triangles between the two curves, with no interpolation nor smoothing '''
 	result = Mesh(groups=[None])
 	matched = globals()['match_'+match](line1, line2)
 	matched = (
