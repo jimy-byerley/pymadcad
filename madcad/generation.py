@@ -348,8 +348,14 @@ def dividedtriangle(placement, div=1) -> 'Mesh':
 
 	return mesh
 
+	
+def subdivide(mesh, div=1):
+	if isinstance(mesh, Mesh):		return subdivide_mesh(mesh, div)
+	elif isinstance(mesh, Wire):	return subdivide_wire(mesh, div)
+	else:
+		raise TypeError('excpected Mesh, Web, Wire')
 
-def subdivide(mesh, div=1) -> 'Mesh':
+def subdivide_mesh(mesh, div=1) -> 'Mesh':
 	''' subdivide all faces by the number of cuts '''
 	n = div+2
 	pts = typedlist(dtype=vec3)
@@ -378,9 +384,45 @@ def subdivide(mesh, div=1) -> 'Mesh':
 			c += i
 		tracks.extend([t] * (len(faces)-len(tracks)))
 	
-	new = Mesh(pts, faces, tracks)
+	new = Mesh(pts, faces, tracks, mesh.groups)
 	new.mergeclose()
 	return new
+	
+def subdivide_web(web, div=1):
+	result = Web(groups=web.groups)
+	
+	c = 0
+	for e,t in enumerate(web.Tracks):
+		a,b = web.edgepoints(e)
+		for x in linrange(0,1, div):
+			result.points.append(mix(a,b, x))
+		for i in range(1, div+2):
+			results.edges.append(uvec2(c+i-1, c+i))
+			results.tracks.append(t)
+		c += div+2
+		
+	result.mergeclose()
+	return result
+	
+	
+def subdivide_wire(wire, div=1) -> 'Wire':
+	result = Wire(groups=wire.groups)
+	
+	result.points.append(wire.points[0])
+	for i in range(1, len(wire)):
+		for j in range(1, div+1):
+			result.points.append(mix(wire[i-1], wire[i], j/(div+1)))
+		result.points.append(wire.points[i])
+	
+	result.indices = typedlist(range(len(result.points)), dtype='I')
+	
+	if wire.tracks:
+		result.tracks.append(wire.tracks[0])
+		for i in range(1, len(wire)):
+			for j in range(div+1):
+				result.tracks.append(wire.tracks[i])
+	return result
+	
 
 
 # --- standard shapes ---
