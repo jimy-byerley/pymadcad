@@ -1079,7 +1079,7 @@ class View(ViewCommon, QOpenGLWidget):
 			if evt.isAccepted(): return
 			stack.append(disp)
 
-		if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
+		if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
 			disp = stack[-1]
 			# select what is under cursor
 			if type(disp).__name__ in ('SolidDisplay', 'WebDisplay'):
@@ -1178,10 +1178,15 @@ class Dispatcher(object):
 	'''
 	__slots__ = 'generator', 'value'
 	def __init__(self, func=None, *args, **kwargs):
+		self.func = func
 		self.generator = self._run(func, *args, **kwargs)
-		next(self.generator)
+		# run the generator until the first yield
+		next(self.generator, None)
 	def _run(self, func, *args, **kwargs):
 		self.value = yield from func(self, *args, **kwargs)
+		
+	def __repr__(self):
+		return '<{} on {}>'.format(type(self).__name__, self.func)
 		
 	def send(self, value):	return self.generator.send(value)
 	def __iter__(self):		return self.generator
@@ -1194,7 +1199,10 @@ class Tool(Dispatcher):
 			self.value = yield from func(self, *args, **kwargs)
 		except StopTool:
 			pass
-		args[0].tool.remove(self)
+		try:	
+			args[0].tool.remove(self)
+		except ValueError:	
+			pass
 	
 	def __call__(self, evt):
 		try:	return self.send(evt)
