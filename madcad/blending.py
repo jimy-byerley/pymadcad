@@ -554,136 +554,6 @@ def trijoin(pts, ptgts, div):
 	
 	
 	
-def mapcurve(wire: Wire, a: vec3, b: vec3, rotate=True, scale=True, match='length') -> Wire:
-	absciss = globals()['absciss_'+match](wire)
-	c, d = wire[0], wire[-1]
-	
-	if rotate and scale:
-		transform = quat(d-c, b-a)
-	elif rotate:
-		transform = quat(normalize(d-c), normalize(b-a))
-	elif scale:
-		transform = length(b-a) / (length(d-c) or nan)
-	else:
-		transform = 1
-	
-	return Wire(
-				points=( mix(a, b, x) + transform * (p - mix(c, d, x))
-						for p,x in zip(wire, absciss)),
-				tracks=wire.tracks,
-				groups=wire.groups,
-				)
-
-	
-def absciss_length(wire) -> '[float]':
-	# create an influence index depending on the matching
-	total = wire.length()
-	absciss = [0] * len(wire)
-	path = 0
-	for i in range(1,len(wire)):
-		path += distance(wire[i], wire[i-1])
-		absciss[i] = path/total
-	return absciss
-	
-def absciss_distance(wire) -> '[float]':
-	origin, direction = wire[0], wire[-1]-wire[0]
-	return [ dot(p-origin, direction) / dot(direction,direction)   for p in wire ]
-
-	
-def deinterlace(ref, matched, interlace=1, samples=None, preserve=True, merge=True):
-	''' remove intermediate points when they are closer than the interlace fraction of the smalles edge between i and i-1 
-	
-		Returns a new list
-	
-		Parameters:
-		
-			ref:         original wire
-			matched:     the wire after matching, hence suvdivided at random places
-			interlace:   the minimum interlacement proportion allowed (the maximum value is 0.5)
-			samples:     the minimum number of points to keep, overriding the interlacing ratio
-			preserve:    if True, will prefer to keep the original points of `ref` instead of an intermediate and closest point to the matched curve
-			merge:       if False, deinterlace will keep the orignal amount of points, juste replacing those to merge by the value of the merge target
-	'''
-	# collect segments priority due to interlacement
-	priority = [1] * (len(matched)-1)
-	originals = [False] * len(matched)
-	originals[0] = True
-	j = 0
-	for i in range(1,len(ref)):
-		if distance2(ref[i], ref[i-1]) <= 1e-10:	continue
-		while True:
-			j += 1
-			interlacement = distance(matched[j], matched[j-1]) / distance(ref[i], ref[i-1])
-			priority[j-1] = interlacement
-			
-			if distance2(ref[i], matched[j]) <= 1e-10:
-				break
-		originals[j] = True
-			
-	# select highest priority separations to keep
-	keep = samples-1 if samples else 0
-	mendatory = set(sorted(range(len(priority)), key=priority.__getitem__, reverse=True)[:keep])
-	mendatory.add(0)
-	mendatory.add(len(matched)-1)
-	
-	# merge from a fresh start
-	altered = []
-	original = True
-	batch = matched[0]
-	weight = 1
-	merged = 1
-	for i in range(len(priority)):
-		# case where link must not be merged
-		if priority[i] > interlace or i in mendatory:	
-			for j in range(merged):
-				altered.append(batch / weight)
-			original = originals[i+1] or not preserve
-			batch = matched[i+1]
-			weight = 1
-			merged = 1
-		else:
-			if not merge:	merged += 1
-			# merge in case of same priority
-			if not (original ^ originals[i+1]):
-				batch += matched[i+1]
-				weight += 1
-			# merge in case of higher priority
-			elif originals[i+1]:
-				original = True
-				batch = matched[i+1]
-				weight = 1
-	for j in range(merged):
-		altered.append(batch / weight)
-	
-	return altered
-	
-def remove_doubles_zip(matched):
-	''' make a zip iterator with matched, each time the tuple formed is the same as the previous one, it remove indices of each matched list 
-	
-		This is an in-place operation
-	'''
-	it = zip(*matched)
-	last = next(it)
-	k = 1
-	for current in it:
-		if current != last:
-			for i, v in enumerate(current):
-				matched[i][k] = v
-			k += 1
-	for m in matched:
-		del m[k:]
-		
-def interpolate_matched(ref, values, matched):
-	interpolated = []
-	k = 1
-	for i in range(len(matched)):
-		if ref[k] == matched[i]:
-			k += 1
-		interpolated.append(mix(values[k-1], values[k], matched[i]-ref[k-1]))
-	return interpolated
-	
-from .primitives import Interpolated
-from . import mesh
 
 class Interpolated2(object):
 	''' interpolated curve passing through the given points (3rd degree bezier spline) 
@@ -752,10 +622,71 @@ class Wire2(object):
 		self.points = points
 		
 	def mesh(self, resolution=None):
+		if not resolution: 
+			resolution = settings.primitives['curve_resolution']
 		if resolution[0] == 'div':
 			return subdivide(wire(self.points), resolution[1])
 		else:
 			return wire(self.points)
+	
+	
+def mapcurve(wire: Wire, a: vec3, b: vec3, rotate=True, scale=True, match='length') -> Wire:
+	''' remap the given wire from its original ending points to the new points `a` and `b`
+		
+		- The original wire extremities provide the *original line*
+		- The given points `a` and `b` provide the *new line*
+		
+		This functions works on the difference of each point to its match on the original line.
+		
+		Parameters:
+			rotate:   if True, the differences will be rotated by the angle between the original line and the new one
+			scale:    if True, the difference will be scaled by the length ratio between the original line and the new one
+			match:    method to match the wire onto the line between its extremities
+	'''
+	absciss = globals()['absciss_'+match](wire)
+	c, d = wire[0], wire[-1]
+	
+	if rotate and scale:
+		transform = quat(d-c, b-a)
+	elif rotate:
+		transform = quat(normalize(d-c), normalize(b-a))
+	elif scale:
+		transform = length(b-a) / (length(d-c) or nan)
+	else:
+		transform = 1
+	
+	return Wire(
+				points=( mix(a, b, x) + transform * (p - mix(c, d, x))
+						for p,x in zip(wire, absciss)),
+				tracks=wire.tracks,
+				groups=wire.groups,
+				)
+
+	
+def absciss_length(wire) -> '[float]':
+	''' create an influence index depending on the curvilign absciss '''
+	total = wire.length()
+	absciss = [0] * len(wire)
+	path = 0
+	for i in range(1,len(wire)):
+		path += distance(wire[i], wire[i-1])
+		absciss[i] = path/total
+	return absciss
+	
+def absciss_distance(wire) -> '[float]':
+	''' create an influence index depending on the distance to the line between the wire extremities '''
+	origin, direction = wire[0], wire[-1]-wire[0]
+	return [ dot(p-origin, direction) / dot(direction,direction)   for p in wire ]
+
+def absciss_index(wire) -> '[float]':
+	''' create an influence index depending on the index in the wire '''
+	return [ i/(len(wire)-1)   for i in range(len(wire)) ]
+
+
+from .primitives import Interpolated
+from . import mesh
+from . import settings
+
 	
 def swipe(wires: list, primitive:type=Wire2, interlace=0.4, resolution=None) -> Mesh:
 	''' create a blended surface between the given curves.
@@ -780,28 +711,80 @@ def swipe(wires: list, primitive:type=Wire2, interlace=0.4, resolution=None) -> 
 	interlaced = list(wires)
 	for i in range(1, len(interlaced)):
 		interlaced[i] = deinterlace(
-					interlaced[i], 
-					match_length(wire(interlaced[i-1]), wire(interlaced[i]))[1],
+					wires[i], 
+					match_length(wire(interlaced[i-1]), wire(wires[i])) [1],
 					interlace,
 					len(interlaced[i-1]),
 					)
 	# propagate interlacement backward			
 	for i in reversed(range(1, len(interlaced))):
 		interlaced[i-1] = deinterlace(
-					interlaced[i-1], 
-					match_length(wire(interlaced[i]), wire(interlaced[i-1]))[1],
+					wires[i-1], 
+					match_length(wire(interlaced[i]), wire(wires[i-1])) [1],
 					1,
 					len(interlaced[i]),
 					)
 		
 	remove_doubles_zip(interlaced)
 	
+	# compute subdivisions where the surface torsion is too important
+	steps = len(interlaced[0])
+	div_across = [0] * (steps-1)
+	div_along = [0] * (steps-1)
+	for i in range(1, len(interlaced)):
+		for j in range(1, steps):
+			acrossv = mix(
+					interlaced[i][j] - interlaced[i-1][j], 
+					interlaced[i][j-1] - interlaced[i-1][j-1],
+					0.5)
+			across = settings.curve_resolution(
+				length(acrossv),
+				anglebt(
+					normalize(noproject(interlaced[i-1][j] - interlaced[i-1][j-1], acrossv)),
+					normalize(noproject(interlaced[i][j] - interlaced[i][j-1], acrossv)),
+					),
+				resolution,
+				)
+			alongv = mix(
+					interlaced[i-1][j] - interlaced[i-1][j-1], 
+					interlaced[i][j] - interlaced[i][j-1],
+					0.5)
+			along = settings.curve_resolution(
+				length(alongv),
+				anglebt(
+					normalize(noproject(interlaced[i][j] - interlaced[i-1][j], alongv)), 
+					normalize(noproject(interlaced[i][j-1] - interlaced[i-1][j-1], alongv)),
+					),
+				resolution,
+				)
+			div_across[j-1] = max(div_across[j-1], across)
+			div_along[j-1] = max(div_along[j-1], along)
+	print('div_across', div_across)
+	print('div_along', div_along)
+	
+	# subdivide the input curves
+	for i,div in enumerate(div_along):
+		for curve in interlaced:
+			curve[i+1:i+1] = [
+				mix(curve[i], curve[i+1],  j/(div+1))
+				for j in range(1,div)]
+			div_across[i+1:i+1] = [div_across[i]] * div
+	
 	# generate profiles and join them
 	steps = len(interlaced[0])
-	#resolution = ('div',8)
-	last = primitive([ curve[0]  for curve in interlaced]) .mesh(resolution=resolution)
+	
+	#resolution = ('div',3)
+	def generate(i): 
+		prim = primitive([ curve[i]  for curve in interlaced])
+		profile = wire(prim .mesh(resolution=resolution))
+		requested = max(div_across[max(0,i-1)], div_across[min(steps-2,i)])
+		if len(profile) < (requested+1)*len(interlaced):
+			profile = wire(prim .mesh(resolution=('div',div_across[i-1])))
+		return profile
+	
+	last = generate(0)
 	for i in range(1,steps):
-		new = primitive([ curve[i]  for curve in interlaced]) .mesh(resolution=resolution)
+		new = generate(i)
 		result += linkpair(last, new, match='length')
 		last = new
 	
@@ -811,12 +794,33 @@ def swipe(wires: list, primitive:type=Wire2, interlace=0.4, resolution=None) -> 
 def linkpair(line1, line2, match='length'):
 	''' create triangles between the two curves, with no interpolation nor smoothing '''
 	result = Mesh(groups=[None])
-	matched = globals()['match_'+match](line1, line2)
+	_matched = globals()['match_'+match](line1, line2)
 	matched = (
-		deinterlace(line1, matched[0], 1, len(line1), merge=False),
-		deinterlace(line2, matched[1], 1, len(line2), merge=False),
+		deinterlace(line1, _matched[0], 1, len(line1), merge=False),
+		deinterlace(line2, _matched[1], 1, len(line2), merge=False),
 		)
-	remove_doubles_zip(matched)
+	assert len(matched[0]) == len(matched[1])
+	#remove_doubles_zip(matched)
+	#assert len(matched[0]) == len(matched[1])
+	
+	prec = 1e-10
+	
+	#if not distance(matched[1][-1], line2[-1]) <= prec:
+		#from .rendering import show
+		#show([line1, line2, matched[0], matched[1]], options={'display_points':True})
+		#show([line1, line2, _matched[0], _matched[1]], options={'display_points':True})
+	
+	#print(len(line1), len(line2))
+	
+	#assert distance(_matched[0][0], line1[0]) <= prec
+	#assert distance(_matched[0][-1], line1[-1]) <= prec
+	#assert distance(_matched[1][0], line2[0]) <= prec
+	#assert distance(_matched[1][-1], line2[-1]) <= prec
+	
+	#assert distance(matched[0][0], line1[0]) <= prec
+	#assert distance(matched[0][-1], line1[-1]) <= prec
+	#assert distance(matched[1][0], line2[0]) <= prec
+	#assert distance(matched[1][-1], line2[-1]) <= prec
 	
 	result.points.append(matched[0][0])
 	result.points.append(matched[1][0])
@@ -840,6 +844,150 @@ def linkpair(line1, line2, match='length'):
 			mkquad(result, (a, b, l+1, l))
 			a, b = l, l+1
 	return result
+	
+def deinterlace(ref, matched, interlace=1, samples=None, preserve=True, merge=True):
+	''' remove intermediate points when they are closer than the interlace fraction of the smalles edge between i and i-1 
+	
+		Returns a new list
+	
+		Parameters:
+		
+			ref:         original wire
+			matched:     the wire after matching, hence suvdivided at random places
+			interlace:   the minimum interlacement proportion allowed (the maximum value is 0.5)
+			samples:     the minimum number of points to keep, overriding the interlacing ratio
+			preserve:    if True, will prefer to keep the original points of `ref` instead of an intermediate and closest point to the matched curve
+			merge:       if False, deinterlace will keep the orignal amount of points, juste replacing those to merge by the value of the merge target
+	'''
+	print('deinterlace')
+	prec = ref.precision()
+	
+	# collect segments priority due to interlacement
+	priority = [1] * (len(matched)-1)
+	originals = [False] * len(matched)
+	originals[0] = originals[-1] = True
+	j = 0
+	for i in range(1,len(ref)):
+		if distance2(ref[i], ref[i-1]) <= prec:	continue
+		while True:
+			j += 1
+			interlacement = distance(matched[j], matched[j-1]) / distance(ref[i], ref[i-1])
+			priority[j-1] = interlacement
+			
+			if distance2(ref[i], matched[j]) <= prec:
+				break
+		originals[j] = True
+			
+	# select highest priority separations to keep
+	keep = samples-1 if samples else 0
+	mendatory = set(sorted(range(len(priority)), key=priority.__getitem__, reverse=True)[:keep])
+	print('  priority', priority)
+	print('  originals', originals)
+	print('  mendatory', mendatory)
+	
+	# merge from a fresh start
+	altered = []
+	original = originals[0]
+	batch = matched[0]
+	weight = 1
+	merged = 1
+	dist = 0
+	for i in range(len(priority)):
+		dist += priority[i]
+		# case where link must not be merged
+		if dist > interlace or i in mendatory:	
+			for j in range(merged):
+				altered.append(batch / weight)
+			original = originals[i+1] or not preserve
+			batch = matched[i+1]
+			weight = 1
+			merged = 1
+			dist = 0
+		else:
+			if not merge:	merged += 1
+			# merge in case of same priority
+			if original == originals[i+1]:
+				batch += matched[i+1]
+				weight += 1
+			# merge in case of higher priority
+			elif originals[i+1]:
+				original = True
+				batch = matched[i+1]
+				weight = 1
+	for j in range(merged):
+		altered.append(batch / weight)
+	#altered[0] = matched[0]
+	#altered[-1] = matched[-1]
+		
+	print('  altered', len(altered))
+	
+	return altered
+	
+def deinterlace(ref, matched, interlace=1, samples=None, preserve=True, merge=True):
+	''' remove intermediate points when they are closer than the interlace fraction of the smalles edge between i and i-1 
+	
+		Returns a new list
+	
+		Parameters:
+		
+			ref:         original wire
+			matched:     the wire after matching, hence suvdivided at random places
+			interlace:   the minimum interlacement proportion allowed (the maximum value is 0.5)
+			samples:     the minimum number of points to keep, overriding the interlacing ratio
+			preserve:    if True, will prefer to keep the original points of `ref` instead of an intermediate and closest point to the matched curve
+			merge:       if False, deinterlace will keep the orignal amount of points, juste replacing those to merge by the value of the merge target
+	'''
+	prec = ref.precision()
+	
+	# collect segments priority due to interlacement
+	priority = [1] * (len(matched)-1)
+	originals = [False] * len(matched)
+	originals[0] = originals[-1] = True
+	j = 0
+	for i in range(1,len(ref)):
+		if distance2(ref[i], ref[i-1]) <= prec:	continue
+		while True:
+			j += 1
+			interlacement = distance(matched[j], matched[j-1]) / distance(ref[i], ref[i-1])
+			priority[j-1] = interlacement
+			
+			if distance2(ref[i], matched[j]) <= prec:
+				break
+		originals[j] = True
+		
+	# fusionner les segments par ordre de priorité jusqu'a tomber sur des couples d'originaux
+	indev
+	
+		
+	
+	
+def remove_doubles_zip(matched):
+	''' make a zip iterator with matched, each time the tuple formed is the same as the previous one, it remove indices of each matched list 
+	
+		This is an in-place operation
+	'''
+	it = zip(*matched)
+	last = next(it)
+	k = 1
+	for current in it:
+		if current != last:
+			for i, v in enumerate(current):
+				matched[i][k] = v
+			k += 1
+	for m in matched:
+		del m[k:]
+		
+def interpolate_matched(ref, values, matched):
+	interpolated = []
+	k = 1
+	for i in range(len(matched)):
+		if ref[k] == matched[i]:
+			k += 1
+		interpolated.append(mix(values[k-1], values[k], matched[i]-ref[k-1]))
+	return interpolated
+	
+
+
 	
 from .mesh import mktri, mkquad
 	
@@ -923,3 +1071,6 @@ def match_distance(line1, line2, interlace1=True, interlace2=True) -> '[vec3], [
 		else:
 			raise AssertionError('this case should not happend')
 	return match1, match2
+	
+def match_index(line1, line2, interlace1, interlace2):
+	indev
