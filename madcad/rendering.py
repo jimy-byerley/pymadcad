@@ -663,6 +663,7 @@ class Group(Display):
 
 # dictionnary to store procedures to override default object displays
 overrides = {
+	typedlist: Group,
 	list: Group,
 	dict: Group,
 	}

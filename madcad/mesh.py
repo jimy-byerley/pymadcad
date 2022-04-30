@@ -56,6 +56,9 @@ class Container:
 	
 	# --- basic transformations of points ---
 	
+	def mesh(self, resolution):
+		return self
+	
 	def transform(self, trans):
 		''' apply the transform to the points of the mesh, returning the new transformed mesh'''
 		trans = transformer(trans)
