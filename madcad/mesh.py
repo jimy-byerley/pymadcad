@@ -28,7 +28,7 @@ from random import random
 import numpy as np
 import numpy.lib.recfunctions as rfn
 from array import array
-from collections import OrderedDict
+from collections import OrderedDict, Counter
 from numbers import Integral, Real
 import math
 
@@ -37,6 +37,7 @@ from . import displays
 from . import text
 from . import hashing
 from .asso import Asso
+from . import settings
 
 __all__ = [
 		'Mesh', 'Web', 'Wire', 'MeshError', 'web', 'wire', 
@@ -589,6 +590,40 @@ class Mesh(Container):
 		self.faces = faces
 		return idents
 		
+	def split(self, edges):
+		''' split the mesh around the given edges. 
+			The points in common with two or more designated edges will be dupliated once or more, and the face indices will be reassigned so that faces each side of the given edges will own a duplicate of that point each.
+		'''
+		# get connectivity and set of edges to manage
+		conn = connef(self.faces)
+		edges = set(edgekey(*edge)   for edge in edges)
+		# collect the points to multiply
+		ranks = Counter(p  for e in edges for p in e)
+		separations = set(p  for p, count in ranks.items() if count > 1)
+		newfaces = deepcopy(self.faces)
+		# for each edge, reassign neighboring faces to the proper points
+		duplicates = {}
+		for edge in edges:
+			for pivot in edge:
+				if edge in conn and pivot in newfaces[conn[edge]]:
+					dupli = len(self.points)
+					self.points.append(self.points[pivot])
+					# change the point index in every neighbooring face
+					front = edge
+					while front in conn:
+						fi = conn[front]
+						f = arrangeface(self.faces[fi], pivot)
+						fm = arrangeface(newfaces[fi], pivot)
+						newfaces[fi] = uvec3(dupli, fm[1], fm[2])
+						if pivot == front[0]:	front = (pivot, f[2])
+						elif pivot == front[1]:	front = (f[1], pivot)
+						else:
+							raise AssertionError('error in connectivity')
+						if edgekey(*front) in edges:
+							break
+		self.faces = newfaces
+					
+		
 	# NOTE: splitfaces(self) ?
 		
 	def islands(self, conn=None) -> '[Mesh]':
@@ -830,8 +865,29 @@ class Mesh(Container):
 	
 	def display(self, scene):
 		m = copy(self)
-		idents = m.splitgroups()
+		
+		m.split(m.frontiers().edges)
 		edges = m.outlines().edges
+		
+		# select edges above a threshold
+		tosplit = []
+		thresh = cos(settings.display['sharp_angle'])
+		conn = connef(m.faces)
+		for edge, f1 in conn.items():
+			if edge[1] > edge[0]:	continue
+			f2 = conn.get((edge[1],edge[0]))
+			if f2 is None:	continue
+			if m.tracks[f1] != m.tracks[f2] or dot(m.facenormal(f1), m.facenormal(f2)) <= thresh:
+				tosplit.append(edge)
+		
+		m.split(tosplit)
+		
+		# get the group each point belong to
+		idents = [0] * len(m.points)
+		for face, track in zip(m.faces, m.tracks):
+			for p in face:
+				idents[p] = track
+		
 		normals = m.vertexnormals()
 		
 		if not m.points or not m.faces:	
@@ -1909,8 +1965,8 @@ def mktri(mesh, pts, track=0):
 
 def mkquad(mesh, pts, track=0):
 	''' append a quad, choosing the best diagonal '''
-	if (	distance(mesh.points[pts[0]], mesh.points[pts[2]]) 
-		<=	distance(mesh.points[pts[1]], mesh.points[pts[3]]) ):
+	if (	distance2(mesh.points[pts[0]], mesh.points[pts[2]]) 
+		<=	distance2(mesh.points[pts[1]], mesh.points[pts[3]]) ):
 		mesh.faces.append((pts[:-1]))
 		mesh.faces.append((pts[3], pts[0], pts[2]))
 	else:
