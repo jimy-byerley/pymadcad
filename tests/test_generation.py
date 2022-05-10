@@ -78,4 +78,18 @@ corner = Mesh(
 corner.options['color'] = (1, 0.5, 0.1)
 m8 = thicken(corner, 0.1, 0.5)
 
-show([m1, m2, m3, m4, m6, m7, corner, m8])
+m9 = pyramid(vec3(-3,-2,3), flatsurface(regon(Axis(vec3(-3,-3,0), Z), 2, 5)))
+m9.check()
+assert m9.isenvelope()
+
+m10 = cone(vec3(3,0,2), vec3(3,0,0), 1)
+m10.check()
+assert m10.isenvelope()
+
+m11 = cylinder(vec3(3,-3,2), vec3(3,-3,0), 1)
+m11.check()
+assert m11.isenvelope()
+
+
+
+show([m1, m2, m3, m4, m6, m7, corner, m8, m9, m10, m11])

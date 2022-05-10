@@ -108,17 +108,14 @@ else:
 		mesh = Mesh()
 		
 		data = PlyData.read(file)
-		index = {}
-		for i,e in enumerate(data.elements):
-			index[e.name] = i
-		if 'vertex' not in index:	raise FileFormatError('file must have a vertex buffer')
-		if 'face' not in index:		raise FileFormatError('file must have a face buffer')
+		if 'vertex' not in data:	raise FileFormatError('file must have a vertex buffer')
+		if 'face' not in data:		raise FileFormatError('file must have a face buffer')
 		
 		# collect points
-		mesh.points = typedlist(data.elements[index['vertex']].data.astype('f8, f8, f8'), dtype=vec3)
+		mesh.points = typedlist(data['vertex'].data.astype('f8, f8, f8'), dtype=vec3)
 		
 		# collect faces
-		faces = data.elements[index['face']].data
+		faces = data['face'].data
 		if faces.dtype.names[0] == 'vertex_indices':
 			for face in faces['vertex_indices']:
 				#print('  ', type(face), face, face.dtype, face.strides)
@@ -127,7 +124,7 @@ else:
 				elif len(face) > 3:	# quad or other extended face
 					mesh += triangulation.triangulation_outline(Wire(mesh.points, face))
 		else:
-			mesh.faces = numpy_to_typedlist(faces.astype('u4', copy=False), dtype=uvec4)
+			mesh.faces = numpy_to_typedlist(faces.astype('u4'), dtype=uvec3)
 
 		# collect tracks
 		if 'group' in faces.dtype.names:

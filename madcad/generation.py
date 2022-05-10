@@ -14,7 +14,7 @@ __all__ = [
 	'extrans', 'extrusion', 'revolution', 'saddle', 'tube', 
 	'repeat', 'thicken', 'inflate', 'inflateoffsets',
 	'flatsurface', 'icosurface', 'subdivide',
-	'square', 'brick', 'icosahedron', 'icosphere', 'uvsphere', 'regon', 
+	'square', 'brick', 'cylinder', 'cone', 'pyramid', 'icosahedron', 'icosphere', 'uvsphere', 'regon', 
 	]
 
 	
@@ -428,7 +428,59 @@ def brick(*args, **kwargs) -> 'Mesh':
 		mesh.points[i] = mesh.points[i]*box.width + box.min
 	return mesh
 	
-def square(axis, width:float) -> 'Mesh':
+def cylinder(bottom:vec3, top:vec3, radius:float, fill=True) -> 'Mesh':
+	''' create a revolution cylinder, with the given radius 
+	
+		Parameters:
+		
+			bottom, top (vec3): the cylinder extremities centers
+			fill (bool):        whether to put faces at both extremities
+	'''
+	direction = top-bottom
+	base = wire(primitives.Circle((bottom,normalize(direction)), radius))
+	if fill:	base = flatsurface(base).flip()
+	return extrusion(direction, base)
+
+def cone(summit:vec3, base:vec3, radius:float, fill=True) -> 'Mesh':
+	''' create a revolution cone, with a base of the given radius 
+	
+		Parameters:
+			
+			summit (vec3):  The point at the top of the cone
+			base (vec3):    the center point of the base
+			fill (bool):    whether to put a face at the base
+	'''
+	base = wire(primitives.Circle((base, normalize(summit-base)), radius))
+	if fill:	base = flatsurface(base)
+	return pyramid(summit, base)
+		
+def pyramid(summit:vec3, base) -> 'Mesh':
+	''' create a pyramid with the given summit point and the given base 
+	
+		Parameters:
+			summit (vec3):   the top (summit) of the cone, not necessarity in the center of the shape
+			base: (Mesh,Web,Wire):  the base shape
+	'''
+	if isinstance(base, Mesh):
+		outline = base.outlines().flip()
+		outline.stripgroups()
+		result = Mesh(base.points, groups=outline.groups)
+	else:
+		outline = web(base)
+		result = Mesh(points=outline.points, groups=outline.groups)
+	
+	p = len(result.points)
+	result.points.append(summit)
+	for edge, track in zip(outline.edges, outline.tracks):
+		result.faces.append(uvec3(edge, p))
+		result.tracks.append(track)
+	
+	if isinstance(base, Mesh):
+		result += base.flip()
+
+	return result
+
+def square(axis:primitives.Axis, width:float) -> 'Mesh':
 	''' return a simple square with the given normal axis and square width.
 		Useful to quickly create a cutplane
 	'''
@@ -439,7 +491,7 @@ def square(axis, width:float) -> 'Mesh':
 		groups=['flat'],
 		)
 
-def icosahedron(center, radius) -> 'Mesh':
+def icosahedron(center:vec3, radius:float) -> 'Mesh':
 	''' a simple icosahedron (see https://en.wikipedia.org/wiki/Icosahedron) '''
 	phi = (1+ sqrt(5)) /2	# golden ratio
 	m = Mesh(
@@ -469,7 +521,7 @@ def icosahedron(center, radius) -> 'Mesh':
 		m.points[i] = f*p + center
 	return m
 
-def icosphere(center, radius, resolution=None) -> 'Mesh':
+def icosphere(center:vec3, radius:float, resolution=None) -> 'Mesh':
 	''' a simple icosphere with an arbitrary resolution (see https://en.wikipedia.org/wiki/Geodesic_polyhedron).
 	
 		Points are obtained from a subdivided icosahedron and reprojected on the desired radius.
@@ -481,7 +533,7 @@ def icosphere(center, radius, resolution=None) -> 'Mesh':
 		ico.points[i] = center + radius * normalize(p-center)
 	return ico
 
-def uvsphere(center, radius, alignment=vec3(0,0,1), resolution=None) -> 'Mesh':
+def uvsphere(center:vec3, radius:float, alignment=vec3(0,0,1), resolution=None) -> 'Mesh':
 	''' a simple uvsphere (simple sphere obtained with a revolution of an arc) '''
 	x,y,z = dirbase(alignment)
 	mesh = revolution(2*pi, 
@@ -495,14 +547,14 @@ def uvsphere(center, radius, alignment=vec3(0,0,1), resolution=None) -> 'Mesh':
 	mesh.mergeclose()
 	return mesh
 
-def regon(axis, radius, n, alignment=None) -> 'Wire':
+def regon(axis:primitives.Axis, radius, n, alignment=None) -> 'Wire':
 	''' create a regular n-gon `Wire`, the same way we create a `Circle` '''
 	return primitives.Circle(axis, radius, 
 				resolution=('div',n), 
 				alignment=alignment or vec3(1,0,0),
 				).mesh() .segmented()
 
-def repeat(pattern, n, trans):
+def repeat(pattern, n:int, transform):
 	''' create a mesh duplicating n times the given pattern, each time applying the given transform.
 		
 		Parameters:
@@ -510,13 +562,13 @@ def repeat(pattern, n, trans):
 			pattern:   can either be a `Mesh`, `Web` or `Wire`   
 						the return type will depend on the input type
 			n:         the number of repetitions
-			trans:     is the transformation between each duplicate
+			transform:     is the transformation between each duplicate
 	'''
 	current = pattern
 	pool = type(pattern)(groups=pattern.groups)
 	if n:	pool += current
 	for i in range(1,n):
-		current = current.transform(trans)
+		current = current.transform(transform)
 		pool += current
 	return pool
 
