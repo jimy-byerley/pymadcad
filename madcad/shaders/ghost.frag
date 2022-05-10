@@ -16,8 +16,8 @@ void main() {
 	vec3 nsight = normalize(sight);
 	vec3 nnormal = normalize(normal);
 	float side;
-	if (dot(nsight, nnormal) < 0)	side = 0;
-	else							side = min(0.7, pow(1 - dot(nsight, nnormal), 3));
+	if (gl_FrontFacing)				side = min(0.7, pow(1 - dot(nsight, nnormal), 3));
+	else							side = 0;
 	
 	if ((flags & 1) != 0)	color = vec4(select_color, min(1,side+0.08));
 	else					color = vec4(normal_color, side);

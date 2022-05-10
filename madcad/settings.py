@@ -36,6 +36,7 @@ display = {
 	'line_width': 1.0,
 	'solver_error_color': fvec3(1, 0.3, 0.2),
 	'annotation_color': fvec3(0.2, 0.7, 1),
+	'sharp_angle': pi/6,
 	
 	'system_theme': True,
 	}
