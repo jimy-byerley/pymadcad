@@ -1185,3 +1185,134 @@ def matrix4placement(z:int, shaft_angle:float) -> mat4x4:
 		```
 	"""
 	return mat4(angleAxis(shaft_angle, Y)) * mat4(angleAxis(pi + pi / z, Z))
+
+def helical_bevel_gear(step:float, z:int, pitch_cone_angle:float, pressure_angle:float=pi/9, ka:float=1, kd:float=1.25, helix_angle:float = pi/5, bore_radius:float=None, bore_height:float=None):
+	# Initialization of parameters
+    gamma_p = pitch_cone_angle  # for convenience
+    gamma_b = asin(cos(pressure_angle) * sin(gamma_p))
+    cos_b, sin_b = cos(gamma_b), sin(gamma_b)
+    rp = z * step / (2 * pi)
+    rho1 = rp / sin(gamma_p)
+    rho0 = 2 * rho1 / 3
+    k = sin(gamma_p) / z
+    gamma_r = gamma_p - 2 * kd * k # dedendum angle
+    gamma_f = gamma_p + 2 * ka * k # addendum angle
+    gamma_l = gamma_p + 2 * (ka + 0.25) * k # offset : 0.25 for boolean operation
+    phi_p = acos(tan(gamma_b) / tan(gamma_p))
+    theta_p = atan2(sin_b * tan(phi_p), 1) / sin_b - phi_p
+    phase_diff = pi / z + 2 * theta_p
+    angle1tooth = 2 * pi / z
+
+    v = vec3(1, 1, 0) # useful for computation
+
+    # Generate spherical profiles
+    tooth = spherical_gearprofile(z, gamma_p, pressure_angle, ka, kd)  # one tooth
+
+    # One helical tooth
+    # General parameters
+    cosp = cos(gamma_p)
+    z0 = rho0 * cosp
+    z1 = rho1 * cosp
+    delta = sin(gamma_p) / tan(helix_angle)  # parameter of the conical helix
+    angle_step = lambda z: (log(z) - log(z0)) / delta
+
+    # Compute the number of steps for discretization
+    _helix_angle = (log(z1) - log(z0)) / delta  # Angle of the conical helix
+    _helix_length = (z1 - z0) / (cos(helix_angle) * cosp)  # Length of the conical helix
+    step = settings.curve_resolution(_helix_length, _helix_angle)
+
+    # Parameters for scaling and rotation
+    scale_step = (rho1 - rho0) / (step + 1)
+    z_step = (z1 - z0) / (step + 1)
+
+    # The transformation aims to generate a conical helix.
+    _scale = lambda x : scale(vec3(x))
+    _rotate = lambda x: transform(angleAxis(angle_step(x), Z))
+    transformations = (
+        _scale(i * scale_step + rho0) * _rotate(z_step * i + z0)
+        for i in range(-1, step + 2 + 1)
+    )
+
+    links = ((i, i + 1, 0) for i in range(step + 1 + 2))
+    gear_surface = extrans(tooth, transformations, links)
+
+    # Get angle between the initial body and tooth
+    body_point = vec3(sin(gamma_r), 0, cos(gamma_r))
+    tooth_point = tooth[0]
+    v1 = body_point * v
+    v2 = tooth_point * v
+    phase_tooth_body = anglebt(v1, v2)
+    phase_tooth_body = -phase_tooth_body if cross(v1, v2).z > 0 else phase_tooth_body
+
+    # Initialization of first points of `body`
+    # A is the first point of the spherical profile with the transformation at step `-1`
+    # B is the first point of spherical profile with the transformation at step `0`
+    # C is the first point of body on the dedendum radius of the spherical profile
+    # D is the first point of body on the adendum radius of the spherical profile
+    # Note: due to discretization, there is an issue of imperfection
+    # A new point E must be computed to solve this problem
+
+    quat_t2b = angleAxis(-phase_tooth_body, Z)
+
+    def get_body_points(rho, z, angle):
+        """
+        Return two points of body according to the radius of sphere
+        and the height. They are useful to build the body correctly
+        for the boolean operation
+        """
+        mat4_scale_rot = _scale(rho) * _rotate(z)
+        gear_surface_point_A = _scale(rho - scale_step) * _rotate(z - z_step) * tooth_point
+        gear_surface_point_B = _scale(rho) * transform(angleAxis(angle, Z)) * tooth_point
+        body_C = vec3(sin(gamma_r), 0, cos(gamma_r))
+        body_C = mat4_scale_rot * body_C
+        body_C = quat_t2b * body_C
+        body_D = vec3(sin(gamma_l), 0, cos(gamma_l))
+        body_D = mat4_scale_rot * body_D
+        body_D = quat_t2b * body_D
+
+        # Compute intersection and get E
+        t_rho = _get_intersection(gear_surface_point_A, gear_surface_point_B, body_C, body_D)
+        I = gear_surface_point_A + t_rho * (gear_surface_point_B - gear_surface_point_A)
+        E = body_C + normalize(I - body_C) * length(body_D - body_C)
+        return body_C, E
+
+    C_rho0, E_rho0 = get_body_points(rho0, z0, 0)
+    C_rho1, E_rho1 = get_body_points(rho1, z1, _helix_angle)
+
+    seg1 = Segment(E_rho0, C_rho0)
+    seg2 = Segment(C_rho1, E_rho1)
+    step_circle = settings.curve_resolution(rho1 * sin(gamma_p), 2 * pi)
+    body = revolution(angle1tooth, (O, Z), web([seg1, seg2])) #  resolution=("div", 4 * step_circle // z)
+    return intersection(gear_surface, body)
+
+def _get_intersection(A: vec3, B: vec3, C: vec3, D: vec3) -> float:
+    """
+    Return the intersection parameter between the straight line AB
+    and the straight line CE given:
+    - `xE * xE + yE * yE = xD * xD + yD * yD`
+    - `zE = zD`
+
+    Example :
+    ```
+    t = _get_intersection(A, B, C, D)
+    AB = B - A
+    I = A + t * AB # intersection point
+    ```
+    """
+    AB = B - A
+    CD = D - C
+    AC = C - A
+
+    cA = AB.z / CD.z
+    cB = -AC.z / CD.z
+
+    m1 = AB.x + cA * C.x
+    m2 = AB.y + cA * C.y
+    p1 = -AC.x + cB * C.x
+    p2 = -AC.y + cB * C.y
+    R2 = D.x * D.x + D.y * D.y
+    a = m1 * m1 + m2 * m2 - cA * cA * R2
+    b = 2 * (m1 * p1 + m2 * p2 - R2 * cA * cB)
+    c = p1 * p1 + p2 * p2 - cB * cB * R2
+    delta = b * b - 4 * a * c
+    return (-b + sqrt(delta)) / (2 * a)
