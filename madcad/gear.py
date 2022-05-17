@@ -1070,8 +1070,17 @@ def cone_projection(profile: Wire, pitch_cone_angle:float) -> Wire:
 	new_points = [1 / dot(ref(atan2(point.y, point.x)), point) * point for point in profile.points]
 	return Wire(new_points, indices=profile.indices)
 
-
-def bevelgear(step:float, z:int, pitch_cone_angle:float, pressure_angle:float=pi/9, ka:float=1, kd:float=1.25, bore_radius:float=None, bore_height:float=None):
+def bevelgear(
+	step:float,
+	z:int,
+	pitch_cone_angle:float,
+	pressure_angle:float=pi/9,
+	ka:float=1,
+	kd:float=1.25,
+	helix_angle:float=None,
+	bore_radius:float=None,
+	bore_height:float=None,
+):
 	"""
 	Generate a bevel gear.
 
@@ -1084,7 +1093,48 @@ def bevelgear(step:float, z:int, pitch_cone_angle:float, pressure_angle:float=pi
 
 		z (int):		 			number of teeth
 		pitch_cone_angle (float):	pitch cone angle
+		pressure_angle (float):		the pressure angle of the tooth
+		ka (float) :				addendum coefficient
+		kd (float) :				dedendum coefficient
+		helix_angle (float):		helix angle of the tooth
+		bore_radius (float):   		radius of the main bore
+		bore_height (float):   		height of the main bore
+	"""
+	if helix_angle is None:
+		return straight_bevel_gear(
+			step, z, pitch_cone_angle, pressure_angle, ka, kd, bore_radius, bore_height,
+		)
+	else:
+		return helical_bevel_gear(
+			step, z, pitch_cone_angle, pressure_angle, ka, kd, helix_angle, bore_radius, bore_height,
+		)
+
+
+def straight_bevel_gear(
+	step:float,
+	z:int,
+	pitch_cone_angle:float,
+	pressure_angle:float=pi/9,
+	ka:float=1,
+	kd:float=1.25,
+	bore_radius:float=None,
+	bore_height:float=None,
+):
+	"""
+	Generate a bevel gear where teeth are straight.
+
+	Parameters:
+
+		step (float):
+
+			tooth step over the primitive curve, same as the matching rack step
+			the primitive perimeter is `step * z` and radius is `step * z / (2 * pi)`
+
+		z (int):		 			number of teeth
+		pitch_cone_angle (float):	pitch cone angle
 		pressure_angle (flaot):		the pressure angle of the tooth
+		ka (float) :				addendum coefficient
+		kd (float) :				dedendum coefficient
 		bore_radius (float):   		radius of the main bore
 		bore_height (float):   		height of the main bore
 	"""
@@ -1137,18 +1187,18 @@ def bevelgear(step:float, z:int, pitch_cone_angle:float, pressure_angle:float=pi
 			F = vec3(bore_radius, 0, rho0 * cos(gamma_r))
 			G = vec3(1.5 * bore_radius, 0, rho1 * cos(gamma_r) + bore_height) # top of the bore
 			H = vec3(bore_radius, 0, rho1 * cos(gamma_r) + bore_height) # top of the bore
-			wire = Wire([A, B, D, C, F, H, G, E, A]).segmented()
-			chamfer(wire, [4, 5, 6], ("distance", bore_radius * 0.05))
-			bevel(wire, [7], ("distance", bore_height * 0.1))
+			wire = Wire([D, C, F, H, G, E, A, B]).segmented()
+			chamfer(wire, [2, 3, 4], ("distance", bore_radius * 0.05))
+			bevel(wire, [5], ("distance", bore_height * 0.1))
 		else:
 			E = vec3(bore_radius, 0, rho1 * cos(gamma_r))
 			F = vec3(bore_radius, 0, rho0 * cos(gamma_r))
-			wire = Wire([A, B, D, C, F, E, A]).segmented()
-			chamfer(wire, [4, 5], ("distance", bore_radius * 0.05))
+			wire = Wire([D, C, F, E, A, B]).segmented()
+			chamfer(wire, [2, 3], ("distance", bore_radius * 0.05))
 	else:
 		E = vec3(0, 0, rho1 * cos(gamma_r))
 		F = vec3(0, 0, rho0 * cos(gamma_r))
-		wire = Wire([A, B, D, C, F, E, A]).segmented()
+		wire = Wire([D, C, F, E, A, B]).segmented()
 
 	axis = (O, Z)
 	body = revolution(angle1tooth, axis, wire)
@@ -1164,28 +1214,6 @@ def bevelgear(step:float, z:int, pitch_cone_angle:float, pressure_angle:float=pi
 	phase = anglebt(X, middle_tooth * v)
 	return all_teeth.transform(angleAxis(-phase, Z))
 
-def matrix4placement(z:int, shaft_angle:float) -> mat4x4:
-	"""
-	Return a matrix of transformation given initial state (Z is the initial axis of revolution).
-	This matrix is helpful when you want to place bevel gears.
-
-	Parameters:
-
-		z (int):				number of tooth on the gear
-		shaft_angle (float): 	the shaft angle
-
-	Example:
-
-		```python
-		pinion = bevelgear(step, z_pinion, ...)
-		wheel = bevelgear(step, z_wheel, ...)
-		myparts = Solid(pinion=pinion, ...)
-		matrix = matrix4placement(z_pinion, shaft_angle)
-		show([wheel, myparts.transform(matrix)])
-		```
-	"""
-	return mat4(angleAxis(shaft_angle, Y)) * mat4(angleAxis(pi + pi / z, Z))
-
 def helical_bevel_gear(
 	step:float,
 	z:int,
@@ -1197,6 +1225,25 @@ def helical_bevel_gear(
 	bore_radius:float=None,
 	bore_height:float=None,
 ):
+	"""
+	Generate a bevel gear where teeth are helical.
+
+	Parameters:
+
+		step (float):
+
+			tooth step over the primitive curve, same as the matching rack step
+			the primitive perimeter is `step * z` and radius is `step * z / (2 * pi)`
+
+		z (int):		 			number of teeth
+		pitch_cone_angle (float):	pitch cone angle
+		pressure_angle (float):		the pressure angle of the tooth
+		ka (float) :				addendum coefficient
+		kd (float) :				dedendum coefficient
+		helix_angle (float):		helix angle of the tooth
+		bore_radius (float):   		radius of the main bore
+		bore_height (float):   		height of the main bore
+	"""
 	# Initialization of parameters
 	gamma_p = pitch_cone_angle	# for convenience
 	gamma_b = asin(cos(pressure_angle) * sin(gamma_p))
@@ -1288,6 +1335,7 @@ def helical_bevel_gear(
 
 	C, D = get_body_points(rho0, z0, 0)
 	A, B = get_body_points(rho1, z1, _helix_angle)
+	# raise
 
 	# Generate points for a section
 	if bore_radius is None:
@@ -1315,9 +1363,14 @@ def helical_bevel_gear(
 
 	body = revolution(angle1tooth, (O, Z), wire)
 	onetooth = intersection(gear_surface, body)
-	mesh = repeat(onetooth, z, rotatearound(angle1tooth, (O, Z)))
-	mesh.finish()
-	return mesh
+	all_teeth = repeat(onetooth, z, rotatearound(angle1tooth, (O, Z)))
+	all_teeth.finish()
+
+	involute = lambda t, t0: spherical_involute(gamma_b, t0, t)
+	t_max = acos(cos(gamma_f) / cos_b) / sin_b
+	middle_tooth = 0.5 * (involute(t_max, 0) + involute(-t_max, phase_diff))
+	phase = anglebt(X, middle_tooth * v)
+	return all_teeth.transform(angleAxis(-phase, Z))
 
 def _get_intersection(A: vec3, B: vec3, C: vec3, D: vec3) -> float:
     """
@@ -1326,7 +1379,13 @@ def _get_intersection(A: vec3, B: vec3, C: vec3, D: vec3) -> float:
     - `xE * xE + yE * yE = xD * xD + yD * yD`
     - `zE = zD`
 
-    Example :
+	Parameters:
+		A (vec3):	Point
+		B (vec3):	Point
+		C (vec3):	Point
+		D (vec3):	Point
+
+    Example:
     ```
     t = _get_intersection(A, B, C, D)
     AB = B - A
@@ -1350,3 +1409,25 @@ def _get_intersection(A: vec3, B: vec3, C: vec3, D: vec3) -> float:
     c = p1 * p1 + p2 * p2 - cB * cB * R2
     delta = b * b - 4 * a * c
     return (-b + sqrt(delta)) / (2 * a)
+
+def matrix4placement(z:int, shaft_angle:float) -> mat4x4:
+	"""
+	Return a matrix of transformation given initial state (Z is the initial axis of revolution).
+	This matrix is helpful when you want to place bevel gears.
+
+	Parameters:
+
+		z (int):				number of tooth on the gear
+		shaft_angle (float): 	the shaft angle
+
+	Example:
+
+		```python
+		pinion = bevelgear(step, z_pinion, ...)
+		wheel = bevelgear(step, z_wheel, ...)
+		myparts = Solid(pinion=pinion, ...)
+		matrix = matrix4placement(z_pinion, shaft_angle)
+		show([wheel, myparts.transform(matrix)])
+		```
+	"""
+	return mat4(angleAxis(shaft_angle, Y)) * mat4(angleAxis(pi + pi / z, Z))
