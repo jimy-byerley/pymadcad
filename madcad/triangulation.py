@@ -270,8 +270,10 @@ def triangulation_outline(outline: Wire, normal=None, prec=None) -> Mesh:
 			for j in nonconvex:
 				if j not in triangle:
 					for k in range(3):
-						o = proj[triangle[k]]
-						if perpdot(o-proj[triangle[k-1]], proj[j]-o) <= prec:
+						a,b = proj[triangle[k]], proj[triangle[k-1]]
+						s = perpdot(a-b, proj[j]-a)
+						if k == 1:	s -= 2*prec
+						if s <= -prec:
 							break
 					else:
 						return -inf
@@ -287,6 +289,8 @@ def triangulation_outline(outline: Wire, normal=None, prec=None) -> Mesh:
 		i = imax(scores)
 		if scores[i] == -inf:
 			raise TriangulationError("no more feasible triangles (algorithm failure or bad input outline)", [outline.indices[i] for i in hole])
+			#print('warning: no more feasible triangles', hole)
+			#break
 		
 		triangles.append(uvec3(
 			outline.indices[hole[(i-1)%l]], 
@@ -752,12 +756,26 @@ def flat_loops(lines: Web, normal=None) -> '[Wire]':
 	for i,e in enumerate(lines.edges):
 		conn.add(e[0], i)
 	
-	used = [False]*len(lines.edges)	# edges used and so no to use anymore
+	used = [False]*len(lines.edges)	# edges used and so no to use anymore	
+	# the start point for loop assembly must be in priority on an edge that has no double, because double edges that are not on a bridge would create independent loops out of an empty surface
+	# create lists of edges that have a double and edges that have not
+	doubled = []
+	nondoubled = []
+	for i, e in enumerate(lines.edges):
+		double = False
+		for j in conn[e[1]]:
+			if lines.edges[j][1] == e[0]:
+				double = True
+		if double:	doubled.append(i)
+		else:		nondoubled.append(i)
+	# iterator of start points
+	choice = (i  for i in (nondoubled + doubled)  if not used[i])
+	
 	loops = []
 	
 	while True:
 		# find an unused edge
-		end = next((i  for i,u in enumerate(used) if not u), None)
+		end = next(choice, None)
 		if end is None:
 			break
 		
@@ -780,21 +798,23 @@ def flat_loops(lines: Web, normal=None) -> '[Wire]':
 				if pi-angle <= pi*NUMPREC:	angle -= 2*pi
 				if angle > score:
 					score, best = angle, edge
+					
 			
 			# progress on the selected edge
 			if best is None:
 				raise TriangulationError("there is not only loops in that web", loop)
 			used[best] = True
 			if best == end:
-				#print('best == end', loop)
 				break
 			
+			# continue the loops
 			loop.append(lines.edges[best][1])
+			
 			# the very particular case of loops with null surface, or with straight return to origin might intruduce serveral loops in the same suite, the following condition prevents it
 			if loop[0] == loop[-1]:
 				prev = normalize(pts[loop[-2]] - pts[loop[-1]])
 				dir = normalize(pts[loop[1]] - pts[loop[0]])
-				if atan2(dot(cross(prev,dir),z), dot(prev,dir)) <= pi*NUMPREC:
+				if acos(dot(prev,dir)) <= pi*NUMPREC:
 					used[end] = True
 					break
 			

@@ -888,7 +888,6 @@ def wire_multicut(wire, points, cutter):
 		# get point location in the wire
 		if origin == wire.indices[0] or origin == wire.indices[-1]:
 			raise MeshError('a chamfer cannot have only one side')
-		print(origin, wire.indices)
 		index = wire.indices.index(origin)
 		
 		# compute cut plane
