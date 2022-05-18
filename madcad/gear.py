@@ -652,11 +652,11 @@ def gearhub(
 
 	Parameters:
 
-		bore_radius (float):	 radius of the central bore
-		depth (float):		   face width; same parameter for `gearexterior` and `gearstructure`
-		int_height (float):	  only useful for no hub case, checkout the function `gearstructure` for more information
-		hub_height (float):	  height of the hub
-		hub_radius (float):	  external radius of the hub
+		bore_radius (float):	radius of the central bore
+		depth (float):			face width; same parameter for `gearexterior` and `gearstructure`
+		int_height (float):		only useful for no hub case, checkout the function `gearstructure` for more information
+		hub_height (float):		height of the hub
+		hub_radius (float):		external radius of the hub
 
 	Note:
 
@@ -771,30 +771,30 @@ def gear(
 		depth (float):			extrusion eight - width of the gear along its axis
 		bore_radius (float):	radius of the main bore
 		int_height (float):		if you want a pinion with a structure thinner than the value of `depth`,
-							   	the total height will be `total_height = depth - 2 * int_height`
+								the total height will be `total_height = depth - 2 * int_height`
 		pattern:
 			determine the structure between exterior (tooth) and hub
 			This argument specifies the use a a function named `'pattern_'+pattern` in this module.
 
 	* Extra parameters for `gearprofile`
 
-		offset (float):   offset of tooth (as a distance)
-		alpha (float):	pressure angle in radian
+		offset (float):		offset of tooth (as a distance)
+		alpha (float): 		pressure angle in radian
 
 	* Extra parameters for `gearexterior`
 
-		helix_angle (float):   helix angle to get a helical pinion in radian
-		chamfer (float):	   chamfer angle - only for straight pinion
+		helix_angle (float):	helix angle to get a helical pinion in radian
+		chamfer (float):		chamfer angle - only for straight pinion
 
 	* Extra parameters for `gearstructure`
 
-		ratio (float):	   influence the proportion of dimensions of the structure
+		ratio (float):	influence the proportion of dimensions of the structure
 
 		Note: `int_height` impacts the thickness of the structure unless specified
 
 	* Extra parameters for `gearhub`
 
-		hub_height (float):   height of the hub shoulder
+		hub_height (float):		height of the hub shoulder
 
 	Note:
 
