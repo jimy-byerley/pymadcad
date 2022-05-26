@@ -602,18 +602,23 @@ class Mesh(Container):
 		separations = set(p  for p, count in ranks.items() if count > 1)
 		newfaces = deepcopy(self.faces)
 		# for each edge, reassign neighboring faces to the proper points
-		duplicates = {}
 		for edge in edges:
 			for pivot in edge:
 				if edge in conn and pivot in newfaces[conn[edge]]:
 					dupli = len(self.points)
 					self.points.append(self.points[pivot])
+					
 					# change the point index in every neighbooring face
 					front = edge
 					while front in conn:
 						fi = conn[front]
 						f = arrangeface(self.faces[fi], pivot)
 						fm = arrangeface(newfaces[fi], pivot)
+						
+						assert f[0] == pivot
+						if fm[0] != pivot: 
+							break
+						
 						newfaces[fi] = uvec3(dupli, fm[1], fm[2])
 						if pivot == front[0]:	front = (pivot, f[2])
 						elif pivot == front[1]:	front = (f[1], pivot)
@@ -621,6 +626,7 @@ class Mesh(Container):
 							raise AssertionError('error in connectivity')
 						if edgekey(*front) in edges:
 							break
+		
 		self.faces = newfaces
 					
 		

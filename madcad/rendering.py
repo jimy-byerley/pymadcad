@@ -207,6 +207,7 @@ def navigation_tool(dispatcher, view):
 	ctrl = alt = slow = False
 	nav = curr = None
 	moving = False
+	hastouched = False
 	while True:
 		evt = yield
 		evt.ignore()	# ignore the keys to pass shortcuts to parents
@@ -228,6 +229,9 @@ def navigation_tool(dispatcher, view):
 				nav = 'rotate'
 			else:
 				nav = curr
+			# prevent any scene interaction
+			if nav:
+				evt.accept()
 		elif evt.type() == QEvent.MouseMove:
 			if nav:
 				moving = True
@@ -257,6 +261,7 @@ def navigation_tool(dispatcher, view):
 		elif isinstance(evt, QTouchEvent):
 			nav = None
 			pts = evt.touchPoints()
+			# view rotation
 			if len(pts) == 2:
 				startlength = (pts[0].lastPos()-pts[1].lastPos()).manhattanLength()
 				zoom = startlength / (pts[0].pos()-pts[1].pos()).manhattanLength()
@@ -267,8 +272,10 @@ def navigation_tool(dispatcher, view):
 				rot = atan2(dc.y(), dc.x()) - atan2(dl.y(), dl.x())
 				view.navigation.zoom(zoom)
 				view.navigation.rotate(displt.x(), displt.y(), rot)
+				hastouched = True
 				view.update()
 				evt.accept()
+			# view translation
 			elif len(pts) == 3:
 				lc = (	pts[0].lastPos() 
 					+	pts[1].lastPos() 
@@ -290,7 +297,11 @@ def navigation_tool(dispatcher, view):
 				displt = (cc - lc)  /view.height()
 				view.navigation.zoom(zoom)
 				view.navigation.pan(displt.x(), displt.y())
+				hastouched = True
 				view.update()
+				evt.accept()
+			# finish a gesture
+			elif evt.type() in (QEvent.TouchEnd, QEvent.TouchUpdate):
 				evt.accept()
 				
 
@@ -701,7 +712,7 @@ class ViewCommon:
 		'''
 		if 'fb_ident' not in self.fresh:
 			with self.scene.ctx as ctx:
-				ctx.finish()
+				#ctx.finish()
 				self.makeCurrent()	# set the scene context as current opengl context
 				self.fb_ident.read_into(self.map_ident, viewport=self.fb_ident.viewport, components=2)
 				self.fb_ident.read_into(self.map_depth, viewport=self.fb_ident.viewport, components=1, attachment=-1, dtype='f4')
@@ -1068,7 +1079,7 @@ class View(ViewCommon, QOpenGLWidget):
 			if evt.isAccepted(): return
 			stack.append(disp)
 
-		if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
+		if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
 			disp = stack[-1]
 			# select what is under cursor
 			if type(disp).__name__ in ('SolidDisplay', 'WebDisplay'):
@@ -1167,10 +1178,15 @@ class Dispatcher(object):
 	'''
 	__slots__ = 'generator', 'value'
 	def __init__(self, func=None, *args, **kwargs):
+		self.func = func
 		self.generator = self._run(func, *args, **kwargs)
-		next(self.generator)
+		# run the generator until the first yield
+		next(self.generator, None)
 	def _run(self, func, *args, **kwargs):
 		self.value = yield from func(self, *args, **kwargs)
+		
+	def __repr__(self):
+		return '<{} on {}>'.format(type(self).__name__, self.func)
 		
 	def send(self, value):	return self.generator.send(value)
 	def __iter__(self):		return self.generator
@@ -1183,7 +1199,10 @@ class Tool(Dispatcher):
 			self.value = yield from func(self, *args, **kwargs)
 		except StopTool:
 			pass
-		args[0].tool.remove(self)
+		try:	
+			args[0].tool.remove(self)
+		except ValueError:	
+			pass
 	
 	def __call__(self, evt):
 		try:	return self.send(evt)
