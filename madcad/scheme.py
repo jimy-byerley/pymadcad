@@ -276,6 +276,18 @@ class Scheme:
 			if ident_triangles:	self.vai_triangles	= ctx.vertex_array(self.shader_ident, verticesdef, ctx.buffer(np.array(ident_triangles, 'u4')), skip_errors=True)
 			if ident_lines:		self.vai_lines 		= ctx.vertex_array(self.shader_ident, verticesdef, ctx.buffer(np.array(ident_lines, 'u4')), skip_errors=True)
 			
+		def __del__(self):
+			for va in self.vas.values():
+				va.release()
+			self.vas.clear()
+			if self.vai_triangles:
+				self.vai_triangles.release()
+			if self.vai_lines:
+				self.vai_lines.release()
+			if self.vb_vertices:
+				self.vb_vertices.release()
+				self.vb_vertices = None
+			
 		def load(self, scene):
 			''' load shaders and all static data for the current opengl context '''
 			vert = open(ressourcedir+'/shaders/scheme.vert').read()

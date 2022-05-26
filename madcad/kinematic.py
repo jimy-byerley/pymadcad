@@ -1021,6 +1021,20 @@ class WireDisplay(rendering.Display):
 					)
 		else:
 			self.vb_lines = None
+			
+	def __del__(self):
+		if self.vb_transpfaces:
+			self.va_transpfaces.release()
+			self.va_ident_faces.release()
+			self.vb_transpfaces.release()
+		if self.vb_opaqfaces:
+			self.va_opaqfaces.release()
+			self.vb_opaqfaces.release()
+		if self.vb_lines:
+			self.va_lines.release()
+			self.va_ident_lines.release()
+			self.vb_lines.release()
+		self.fb_vertices.release()
 	
 	def render(self, view):		
 		viewmat = view.uniforms['view'] * self.world
