@@ -238,9 +238,10 @@ class Solid:
 			return True
 				
 		def control(self, view, key, sub, evt):
-			if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
+			if not view.scene.options['lock_solids'] and evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
+				evt.accept()
 				start = view.ptat(view.somenear(evt.pos()))
-				offset = self.solid.position - vec3(affineInverse(mat4(self.world)) * vec4(start,1))
+				offset = self.solid.position - affineInverse(mat4(self.world)) * start
 				view.tool.append(rendering.Tool(self.move, view, start, offset))
 				
 		def move(self, dispatcher, view, pt, offset):
@@ -251,7 +252,8 @@ class Solid:
 				if evt.type() == QEvent.MouseMove:
 					evt.accept()
 					moved = True
-					pt = vec3(affineInverse(mat4(self.world)) * vec4(view.ptfrom(evt.pos(), pt),1))
+					world = mat4(self.world)
+					pt = affineInverse(world) * view.ptfrom(evt.pos(), world * pt)
 					self.solid.position = pt + offset
 					self.apply_pose()
 					view.update()
