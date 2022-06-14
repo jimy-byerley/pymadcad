@@ -117,7 +117,7 @@ def scaledir(dir, factor=None) -> mat3:
 	'''
 	if factor is None:
 		factor = length(dir)
-		dir /= factor
+		dir = dir / factor
 	return mat3(1) + (factor-1)*mat3(dir[0]*dir, dir[1]*dir, dir[2]*dir)
 	
 def rotatearound(angle, *args) -> mat4:
