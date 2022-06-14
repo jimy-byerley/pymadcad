@@ -270,14 +270,14 @@ class Scheme:
 				prim, shader = self.shaders[shname]
 				vb_indices = ctx.buffer(np.array(batch, 'u4'))
 				self.vas[shname] = (prim, ctx.vertex_array(shader, verticesdef, vb_indices, skip_errors=True))
-				if prim == mgl.LINES:			ident_triangles.extend(batch)
-				elif prim == mgl.TRIANGLES:		ident_lines.extend(batch)
+				if prim == mgl.LINES:			ident_lines.extend(batch)
+				elif prim == mgl.TRIANGLES:		ident_triangles.extend(batch)
 			
 			if ident_triangles:	self.vai_triangles	= ctx.vertex_array(self.shader_ident, verticesdef, ctx.buffer(np.array(ident_triangles, 'u4')), skip_errors=True)
 			if ident_lines:		self.vai_lines 		= ctx.vertex_array(self.shader_ident, verticesdef, ctx.buffer(np.array(ident_lines, 'u4')), skip_errors=True)
 			
 		def __del__(self):
-			for va in self.vas.values():
+			for prim, va in self.vas.values():
 				va.release()
 			self.vas.clear()
 			if self.vai_triangles:
@@ -331,6 +331,7 @@ class Scheme:
 				prim, va = self.vas[name]
 				shader['spaces'].write(self.spaces)
 				shader['proj'].write(view.uniforms['proj'])
+				shader['highlight'].write( fvec4(fvec3(settings.display['select_color_line']), 0.5) if self.selected else fvec4(0) )
 				va.render(prim)
 		
 		def identify(self, view):
@@ -472,6 +473,14 @@ class note_leading_display(Display):
 			return scene.display(sch)
 		self.disp = build(1), build(-1)
 		
+	@property
+	def selected(self):
+		return self.disp[0].selected
+	@selected.setter
+	def selected(self, value):
+		for disp in self.disp:
+			disp.selected = value
+		
 	def side(self, view):
 		return int((fmat3(view.uniforms['view']) * (fmat3(self.world) * self.offset))[0] > 0)
 		
@@ -519,6 +528,9 @@ def mesh_placement(mesh) -> '(pos,normal)':
 				)
 		normal = dirbase(normalize(mesh.points[e[0]]-mesh.points[e[1]]))[0]
 		pos = mix(mesh.points[e[0]], mesh.points[e[1]], 0.5)
+		
+	elif isinstance(mesh, Wire):
+		return mesh_placement(web(mesh))
 		
 	elif isaxis(mesh):
 		pos, normal = mesh

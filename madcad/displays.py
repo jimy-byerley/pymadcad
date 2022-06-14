@@ -250,7 +250,7 @@ class SolidDisplay(Display):
 		self.options = scene.options
 		color = fvec3(color or settings.display['solid_color'])
 		setting = settings.display['line_color']
-		line = length(setting) * normalize(mix(color, setting, 0.4))	if max(color) else setting
+		line = length(setting) * normalize(mix(color, setting, 0.2))	if max(color) else setting
 		reflect = normalize(color) * settings.display['solid_reflectivity']
 		self.vertices = Vertices(scene.ctx, positions, idents)
 		self.disp_faces = FacesDisplay(scene, self.vertices, normals, faces, color=color, reflect=reflect, layer=0)
@@ -378,7 +378,6 @@ class FacesDisplay:
 						)
 			# setup some uniforms
 			shader['reflectmap'] = 0
-			shader['select_color'].write(settings.display['select_color_face'])
 			return shader
 		self.shader = scene.ressource('shader_solid', load)
 		self.ident_shader = scene.ressource('shader_subident')
@@ -413,6 +412,7 @@ class FacesDisplay:
 	def render(self, view):
 		if self.va:
 			# setup uniforms
+			self.shader['select_color'].write(settings.display['select_color_face'])
 			self.shader['min_color'].write(self.color * settings.display['solid_color_side'])
 			self.shader['max_color'].write(self.color * settings.display['solid_color_front'])
 			self.shader['refl_color'].write(self.reflect)
@@ -446,7 +446,6 @@ class GhostDisplay:
 						fragment_shader=open(ressourcedir+'/shaders/ghost.frag').read(),
 						)
 			# setup some uniforms
-			shader['select_color'].write(settings.display['select_color_line'])
 			return shader
 		self.shader = scene.ressource('shader_ghost', load)
 		self.ident_shader = scene.ressource('shader_subident')
@@ -481,6 +480,7 @@ class GhostDisplay:
 	def render(self, view):
 		if self.va:
 			# setup uniforms
+			self.shader['select_color'].write(settings.display['select_color_line'])
 			self.shader['normal_color'].write(self.color)
 			self.shader['world'].write(self.vertices.world)
 			self.shader['view'].write(view.uniforms['view'])
