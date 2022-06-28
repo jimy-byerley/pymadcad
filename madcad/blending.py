@@ -940,26 +940,68 @@ def deinterlace(ref, matched, interlace=1, samples=None, preserve=True, merge=Tr
 	prec = ref.precision()
 	
 	# collect segments priority due to interlacement
-	priority = [1] * (len(matched)-1)
+	priority = [0] * (len(matched)-1)
 	originals = [False] * len(matched)
 	originals[0] = originals[-1] = True
 	j = 0
 	for i in range(1,len(ref)):
-		if distance2(ref[i], ref[i-1]) <= prec:	continue
+		if distance2(ref[i], ref[i-1]) <= prec:	
+			continue
 		while True:
 			j += 1
-			interlacement = distance(matched[j], matched[j-1]) / distance(ref[i], ref[i-1])
-			priority[j-1] = interlacement
-			
+			priority[j-1] = distance(matched[j], matched[j-1]) / distance(ref[i], ref[i-1])
 			if distance2(ref[i], matched[j]) <= prec:
 				break
 		originals[j] = True
 		
+	assert sum(originals) == len(ref)
+	
 	# fusionner les segments par ordre de priorité jusqu'a tomber sur des couples d'originaux
-	indev
+	order = SortedList(range(len(priority)), key=priority.__getitem__)	# order the points by their priority
+	moved = deepcopy(matched)
+	amount = [1]*len(matched)
+	merges = list(range(len(matched)))
 	
+	c = 0
+	while order:
+		i = order.pop(0)
+		print(priority[i])
+		if priority[i] >= interlace or c+samples >= len(matched):
+			break
+		src, dst = i+1, merges[i]
+		if originals[dst] and originals[src] and preserve:
+			continue
+		c += 1
 		
+		# select merge coefficient
+		if   originals[dst]:	x = 0
+		elif originals[src]:	x = 1
+		else:					x = amount[src] / (amount[src] + amount[dst])
+		# apply merge
+		merges[src] = dst
+		moved[dst] = mix(moved[dst], moved[src], x)
+		amount[dst] += amount[src]
+		# update the order
+		if i+1 < len(priority) and i+1 in order:
+			order.remove(i+1)
+			priority[i+1] += priority[i]/2
+			order.add(i+1)
+		if i-1 >= 0 and i-1 in order:
+			order.remove(i-1)
+			priority[i-1] += priority[i]/2
+			order.add(i-1)
+		
+	print('remain', order)
+		
+	if merge:
+		return [moved[i]  for i in range(len(matched)) if merges[i] == i]
+	else:
+		for i in range(len(merges)):
+			while merges[merges[i]] != merges[i]:
+				merges[i] = merges[merges[i]]
+		return [moved[i]  for i in merges]
 	
+from sortedcontainers import SortedList
 	
 def remove_doubles_zip(matched):
 	''' make a zip iterator with matched, each time the tuple formed is the same as the previous one, it remove indices of each matched list 
