@@ -85,8 +85,8 @@
 	background: #161c20;
 }
 
-.wy-nav-content-wrap {
-	background: none;
+.wy-nav-content-wrap, .wy-body-for-nav {
+	background: #0e1215;
 }
 
 .wy-side-nav-search {
@@ -161,10 +161,6 @@
 
 a:visited { /* links visited */
     color: #479da2;
-}
-
-.wy-body-for-nav { /* zone rezied to screen */
-	background: #0e1215;
 }
 
 .wy-nav-content {
