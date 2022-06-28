@@ -28,15 +28,20 @@ needs_sphinx = '3.2'
 # sphinx extensions
 extensions = [
     'sphinx.ext.autodoc',
-    #'sphinx.ext.mathjax',
     'sphinx.ext.githubpages',
     'sphinx.ext.napoleon',
-    'recommonmark',
+    'sphinx.ext.autosectionlabel',
     'sphinx_rtd_theme',
+	'sphinxcontrib.mermaid',
+    'myst_parser',
 ]
+myst_enable_extensions = [
+	'dollarmath',
+	'smartquotes',
+	'tasklist',
+	]
+myst_heading_anchors = 3
 
-# use a more recent version of mathjax, that can render ASCIIMATH
-#mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/startup.js"
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
