@@ -24,7 +24,7 @@ from PyQt5.QtCore import Qt, QEvent
 
 from .common import ressourcedir
 from .mathutils import *
-from .mesh import Mesh, Web, Wire, npcast, striplist, distance2_pm
+from .mesh import Mesh, Web, Wire, npcast, striplist, distance2_pm, typedlist_to_numpy
 from . import settings
 from . import constraints
 from . import text
@@ -679,7 +679,7 @@ class Kinematic:
 			solid.orientation = quat_cast(mat3(pose))
 			
 	def __copy__(self):
-		memo = {id(s): copy(s)}
+		memo = {id(s): copy(s)  for s in self.solids}
 		joints = []
 		for joint in self.joints:
 			newjoint = copy(joint)
@@ -704,7 +704,7 @@ class Kinematic:
 	def itransform(self, trans):
 		for solid in self.solids:
 			solid.itransform(trans)
-	def transform(self):
+	def transform(self, trans):
 		new = copy(self)
 		new.itransform(trans)
 		return new
@@ -911,16 +911,17 @@ def makescheme(joints, color=None):
 	for cst in joints:
 		for solid, pos in zip(cst.solids, cst.position):
 			if id(solid) not in solids:
-				solids[id(solid)] = info = [solid, [], vec3(0), 0]
+				solids[id(solid)] = info = [solid, [], vec3(0), 0, Box()]
 			else:
 				info = solids[id(solid)]
 			info[1].append(cst)
 			if pos:
 				info[2] += pos
 				info[3] += 1
-				diag = glm.max(diag, glm.abs(pos))
+				info[4].union_update(pos)
 	# get the junction size
-	size = (max(diag) or 1) / len(joints)
+	#size = (max(diag) or 1) / (len(joints)+1)
+	size=  0.5 * max(max(info[4].width) / info[3] for info in solids.values())
 	
 	for info in solids.values():
 		info[0]['scheme'] = scheme = Scheme([], [], [], [], color)
@@ -985,7 +986,7 @@ class WireDisplay(rendering.Display):
 				np.array([tuple(v) for v in normals], dtype='f4'),
 				)))
 		if transpfaces:
-			self.vb_transpfaces = ctx.buffer(np.array(transpfaces, dtype='u4', copy=False))
+			self.vb_transpfaces = ctx.buffer(typedlist_to_numpy(transpfaces, dtype='u4'))
 			self.va_transpfaces = ctx.vertex_array(
 					self.transpshader,
 					[(self.vb_vertices, '3f4 3f4', 'v_position', 'v_normal')],
@@ -999,7 +1000,7 @@ class WireDisplay(rendering.Display):
 		else:
 			self.vb_transpfaces = None
 		if opaqfaces:
-			self.vb_opaqfaces = ctx.buffer(np.array(opaqfaces, dtype='u4', copy=False))
+			self.vb_opaqfaces = ctx.buffer(typedlist_to_numpy(opaqfaces, dtype='u4'))
 			self.va_opaqfaces = ctx.vertex_array(
 					self.uniformshader,
 					[(self.vb_vertices, '3f4 12x', 'v_position')],
@@ -1008,7 +1009,7 @@ class WireDisplay(rendering.Display):
 		else:
 			self.vb_opaqfaces = None
 		if lines:
-			self.vb_lines = ctx.buffer(np.array(lines, dtype='u4', copy=False))
+			self.vb_lines = ctx.buffer(typedlist_to_numpy(lines, dtype='u4'))
 			self.va_lines = ctx.vertex_array(
 					self.uniformshader,
 					[(self.vb_vertices, '3f4 12x', 'v_position')],
@@ -1034,7 +1035,7 @@ class WireDisplay(rendering.Display):
 			self.va_lines.release()
 			self.va_ident_lines.release()
 			self.vb_lines.release()
-		self.fb_vertices.release()
+		self.vb_vertices.release()
 	
 	def render(self, view):		
 		viewmat = view.uniforms['view'] * self.world
