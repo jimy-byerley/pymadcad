@@ -238,7 +238,8 @@ class ArcTangent(object):
 
 def mkarc(axis, start, end, resolution=None):
 	center, z = axis
-	v = noproject(start-center, z)
+	center = center + dot(z, (start+end)/2-center) * z
+	v = start-center
 	r = length(v)
 	x = v/r
 	y = cross(z, x)
@@ -285,7 +286,7 @@ class TangentEllipsis(object):
 		for i in range(div+1):
 			t = pi/2 * i/(div+1)
 			pts.append(x*sin(t) + y*cos(t) + origin-x-y)
-		pts.append(self.b)
+		pts.append(self.c)
 		return mesh.Wire(pts, groups=['ellipsis'])
 		
 	def __repr__(self):
@@ -376,16 +377,12 @@ class Interpolated(object):
 			a,b = pts[i], pts[i+1]
 			ta,tb = tas[i], tbs[i]
 			# tangent to the curve in its inflexion point
-			mid = 0.75*(b-a) + 0.25*(ta-tb)
+			mid = 1.25*(b-a) + 0.25*(tb-ta)
 			# get resolution
-			div = 1 + 2*max(settings.curve_resolution(
-							length(ta), 
-							anglebt(ta, mid),
-							self.resolution or resolution),
-						settings.curve_resolution(
-							length(tb), 
-							anglebt(tb, -mid),
-							self.resolution or resolution) )
+			div = 1 + settings.curve_resolution(
+							length(ta) + length(tb), 
+							anglebt(-tb, mid) + anglebt(ta, mid),
+							self.resolution or resolution)
 			
 			# append the points for this segment
 			for i in range(div+1):

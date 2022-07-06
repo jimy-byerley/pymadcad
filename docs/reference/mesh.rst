@@ -42,6 +42,7 @@ classes
 	
 	**extraction methods**
 	
+		.. automethod:: facepoints
 		.. automethod:: facenormal
 		.. automethod:: facenormals
 		.. automethod:: edgenormals
@@ -97,6 +98,9 @@ classes
 	
 	**extraction methods**
 	
+		.. automethod:: edgepoints
+		.. automethod:: edgedirection
+		
 		.. automethod:: extremities
 		.. automethod:: groupextremities
 		.. automethod:: frontiers
@@ -134,6 +138,7 @@ classes
 	
 	**extraction methods**
 	
+		.. automethod:: edgedirection
 		.. automethod:: edges
 		.. automethod:: edge
 		.. automethod:: vertexnormals

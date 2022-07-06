@@ -175,9 +175,14 @@ class AnnotationDisplay(Display):
 						)
 		self.shader = scene.ressource('shader_annotation', load)
 		# allocate buffers
-		vb_pts = scene.ctx.buffer(points)
-		self.va = scene.ctx.vertex_array(self.shader, [(vb_pts, '3f f', 'v_position', 'v_alpha')])
-		self.va_ident = scene.ctx.vertex_array(scene.ressource('shader_ident'), [(vb_pts, '3f 4x', 'v_position')])
+		self.vb_pts = scene.ctx.buffer(points)
+		self.va = scene.ctx.vertex_array(self.shader, [(self.vb_pts, '3f f', 'v_position', 'v_alpha')])
+		self.va_ident = scene.ctx.vertex_array(scene.ressource('shader_ident'), [(self.vb_pts, '3f 4x', 'v_position')])
+		
+	def __del__(self):
+		self.va.release()
+		self.va_ident.release()
+		self.vb_pts.release()
 	
 	@staticmethod
 	def buff_ptsalpha(points, alpha):
@@ -245,7 +250,7 @@ class SolidDisplay(Display):
 		self.options = scene.options
 		color = fvec3(color or settings.display['solid_color'])
 		setting = settings.display['line_color']
-		line = length(setting) * normalize(mix(color, setting, 0.4))	if max(color) else setting
+		line = length(setting) * normalize(mix(color, setting, 0.2))	if max(color) else setting
 		reflect = normalize(color) * settings.display['solid_reflectivity']
 		self.vertices = Vertices(scene.ctx, positions, idents)
 		self.disp_faces = FacesDisplay(scene, self.vertices, normals, faces, color=color, reflect=reflect, layer=0)
@@ -335,6 +340,11 @@ class Vertices(object):
 		self.vb_flags = self.vb_flags = ctx.buffer(self.flags, dynamic=True)
 		self.world = fmat4(1)
 		
+	def __del__(self):
+		self.vb_positions.release()
+		self.vb_idents.release()
+		self.vb_flags.release()
+		
 	def prerender(self, view):
 		if self.flags_updated:
 			self.vb_flags.write(self.flags)
@@ -368,34 +378,41 @@ class FacesDisplay:
 						)
 			# setup some uniforms
 			shader['reflectmap'] = 0
-			shader['select_color'].write(settings.display['select_color_face'])
 			return shader
 		self.shader = scene.ressource('shader_solid', load)
 		self.ident_shader = scene.ressource('shader_subident')
 		# allocate buffers
 		if faces is not None and len(faces) and vertices.vb_positions:
-			vb_faces = scene.ctx.buffer(np.array(faces, 'u4', copy=False))
-			vb_normals = scene.ctx.buffer(np.array(normals, 'f4', copy=False))
+			self.vb_faces = scene.ctx.buffer(np.array(faces, 'u4', copy=False))
+			self.vb_normals = scene.ctx.buffer(np.array(normals, 'f4', copy=False))
 			self.va = scene.ctx.vertex_array(
 					self.shader, 
 					[	(vertices.vb_positions, '3f', 'v_position'), 
-						(vb_normals, '3f', 'v_normal'),
+						(self.vb_normals, '3f', 'v_normal'),
 						(vertices.vb_flags, 'u1', 'v_flags')],
-					vb_faces,
+					self.vb_faces,
 					)
 			
 			self.va_ident = scene.ctx.vertex_array(
 					self.ident_shader, 
 					[	(vertices.vb_positions, '3f', 'v_position'),
 						(vertices.vb_idents, 'u2', 'item_ident')], 
-					vb_faces,
+					self.vb_faces,
 					)
 		else:
 			self.va = None
+			
+	def __del__(self):
+		if self.va:
+			self.va.release()
+			self.va_ident.release()
+			self.vb_faces.release()
+			self.vb_normals.release()
 	
 	def render(self, view):
 		if self.va:
 			# setup uniforms
+			self.shader['select_color'].write(settings.display['select_color_face'])
 			self.shader['min_color'].write(self.color * settings.display['solid_color_side'])
 			self.shader['max_color'].write(self.color * settings.display['solid_color_front'])
 			self.shader['refl_color'].write(self.reflect)
@@ -429,34 +446,41 @@ class GhostDisplay:
 						fragment_shader=open(ressourcedir+'/shaders/ghost.frag').read(),
 						)
 			# setup some uniforms
-			shader['select_color'].write(settings.display['select_color_line'])
 			return shader
 		self.shader = scene.ressource('shader_ghost', load)
 		self.ident_shader = scene.ressource('shader_subident')
 		# allocate buffers
 		if faces is not None and len(faces) and vertices.vb_positions:
-			vb_faces = scene.ctx.buffer(np.array(faces, 'u4', copy=False))
-			vb_normals = scene.ctx.buffer(np.array(normals, 'f4', copy=False))
+			self.vb_faces = scene.ctx.buffer(np.array(faces, 'u4', copy=False))
+			self.vb_normals = scene.ctx.buffer(np.array(normals, 'f4', copy=False))
 			self.va = scene.ctx.vertex_array(
 					self.shader, 
 					[	(vertices.vb_positions, '3f', 'v_position'), 
-						(vb_normals, '3f', 'v_normal'),
+						(self.vb_normals, '3f', 'v_normal'),
 						(vertices.vb_flags, 'u1', 'v_flags')],
-					vb_faces,
+					self.vb_faces,
 					)
 			
 			self.va_ident = scene.ctx.vertex_array(
 					self.ident_shader, 
 					[	(vertices.vb_positions, '3f', 'v_position'),
 						(vertices.vb_idents, 'u2', 'item_ident')], 
-					vb_faces,
+					self.vb_faces,
 					)
 		else:
 			self.va = None
+			
+	def __del__(self):
+		if self.va:
+			self.va.release()
+			self.va_ident.release()
+			self.vb_faces.release()
+			self.vb_normals.release()
 	
 	def render(self, view):
 		if self.va:
 			# setup uniforms
+			self.shader['select_color'].write(settings.display['select_color_line'])
 			self.shader['normal_color'].write(self.color)
 			self.shader['world'].write(self.vertices.world)
 			self.shader['view'].write(view.uniforms['view'])
@@ -488,21 +512,27 @@ class LinesDisplay:
 		self.ident_shader = scene.ressource('shader_subident')
 		if lines is not None and len(lines) and vertices.vb_positions:
 			# allocate buffers
-			vb_lines = scene.ctx.buffer(np.array(lines, dtype='u4', copy=False))
+			self.vb_lines = scene.ctx.buffer(np.array(lines, dtype='u4', copy=False))
 			self.va = scene.ctx.vertex_array(
 						self.shader,
 						[	(vertices.vb_positions, '3f', 'v_position'),
 							(vertices.vb_flags, 'u1', 'v_flags')],
-						vb_lines,
+						self.vb_lines,
 						)
 			self.va_ident = scene.ctx.vertex_array(
 					self.ident_shader, 
 					[	(vertices.vb_positions, '3f', 'v_position'),
 						(vertices.vb_idents, 'u2', 'item_ident')], 
-					vb_lines,
+					self.vb_lines,
 					)
 		else:
 			self.va = None
+			
+	def __del__(self):
+		if self.va:
+			self.va.release()
+			self.va_ident.release()
+			self.vb_lines.release()
 	
 	def render(self, view):
 		if self.va:
@@ -534,21 +564,28 @@ class PointsDisplay:
 		self.ident_shader = scene.ressource('shader_subident')
 		# allocate GPU objects
 		if indices and vertices.vb_positions:
-			vb_indices = scene.ctx.buffer(np.array(indices, dtype='u4', copy=False))
+			self.vb_indices = scene.ctx.buffer(np.array(indices, dtype='u4', copy=False))
 			self.va = scene.ctx.vertex_array(
 						self.shader,
 						[	(vertices.vb_positions, '3f', 'v_position'),
 							(vertices.vb_flags, 'u1', 'v_flags')],
-						vb_indices,
+						self.vb_indices,
 						)
 			self.va_ident = scene.ctx.vertex_array(
 					self.ident_shader, 
 					[	(vertices.vb_positions, '3f', 'v_position'),
 						(vertices.vb_idents, 'u2', 'item_ident')], 
-					vb_indices,
+					self.vb_indices,
 					)
 		else:
 			self.va = None
+			
+	def __del__(self):
+		if self.va:
+			self.va.release()
+			self.va_ident.release()
+			self.vb_indices.release()
+	
 	def render(self, view):
 		if self.va:
 			self.shader['layer'] = self.layer
@@ -634,15 +671,22 @@ class SplineDisplay(Display):
 		self.color_handles = fvec4(settings.display['annotation_color'], 0.6)
 		self.box = npboundingbox(handles)
 		ctx = scene.ctx
-		vb_handles = ctx.buffer(handles)
-		vb_curve = ctx.buffer(curve)
+		self.vb_handles = ctx.buffer(handles)
+		self.vb_curve = ctx.buffer(curve)
 		
 		self.shader = scene.ressource('shader_uniformcolor', shader_uniformcolor)
-		self.va_handles = ctx.vertex_array(self.shader, [(vb_handles, '3f4', 'v_position')])
-		self.va_curve = ctx.vertex_array(self.shader, [(vb_curve, '3f4', 'v_position')])
+		self.va_handles = ctx.vertex_array(self.shader, [(self.vb_handles, '3f4', 'v_position')])
+		self.va_curve = ctx.vertex_array(self.shader, [(self.vb_curve, '3f4', 'v_position')])
 		
 		self.shader_ident = scene.ressource('shader_ident')
-		self.va_ident = ctx.vertex_array(self.shader_ident, [(vb_curve, '3f4', 'v_position')])
+		self.va_ident = ctx.vertex_array(self.shader_ident, [(self.vb_curve, '3f4', 'v_position')])
+		
+	def __del__(self):
+		self.va_handles.release()
+		self.va_curve.release()
+		self.va_ident.release()
+		self.vb_handles.release()
+		self.vb_curve.release()
 		
 	def render(self, view):
 		self.shader['view'].write(view.uniforms['view'] * self.world)
@@ -750,6 +794,10 @@ class VoxelDisplay(Display):
 				self.shader,
 				[(self.vb, '3f', 'v_position')],
 				)
+				
+	def __del__(self):
+		self.va.release()
+		self.voxel.release()
 
 	def render(self, view):
 		view.scene.ctx.enable(mgl.DEPTH_TEST | mgl.CULL_FACE)

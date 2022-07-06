@@ -117,7 +117,7 @@ def scaledir(dir, factor=None) -> mat3:
 	'''
 	if factor is None:
 		factor = length(dir)
-		dir /= factor
+		dir = dir / factor
 	return mat3(1) + (factor-1)*mat3(dir[0]*dir, dir[1]*dir, dir[2]*dir)
 	
 def rotatearound(angle, *args) -> mat4:
@@ -269,13 +269,13 @@ def distance_pa(pt, axis):
 def distance_pe(pt, edge):
 	''' point - edge distance '''
 	dir = edge[1]-edge[0]
-	l = length(dir)
+	l = length2(dir)
 	if not l:	return 0
-	x = dot(pt-edge[0], dir)/l**2
+	x = dot(pt-edge[0], dir)/l
 	if   x < 0:	return distance(pt,edge[0])
 	elif x > 1:	return distance(pt,edge[1])
 	else:
-		return length(noproject(pt-edge[0], dir/l))
+		return length(noproject(pt-edge[0], dir))
 
 def distance_aa(a1, a2):
 	''' axis - axis distance '''
