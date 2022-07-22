@@ -300,7 +300,7 @@ class Mesh(Container):
 					self.groups)
 		
 	def issurface(self):
-		''' return True if the mesh is a well defined surface (an edge has 2 connected triangles at maximum, with coherent normals)
+		''' return True if the mesh is a well defined surface (an edge has 2 connected triangles at maximum, with consistent normals)
 			such meshes are usually called 'manifold'
 		''' 
 		reached = set()
@@ -309,6 +309,7 @@ class Mesh(Container):
 				if e in reached:	return False
 				else:				reached.add(e)
 		return True
+	
 	def isenvelope(self):
 		''' return True if the surfaces are a closed envelope (the outline is empty)
 		'''
@@ -416,11 +417,14 @@ class Mesh(Container):
 		# cross neighbooring normals
 		tangents = {}
 		for loop in suites(edges, cut=False):
-			assert loop[0] == loop[-1], "an outline is not a loop"
+			assert loop[-1] == loop[0],  "non-manifold mesh"
 			loop.pop()
 			for i in range(len(loop)):
-				tangents[loop[i-1]] = normalize(cross(	edges[(loop[i-2],loop[i-1])], 
-														edges[(loop[i-1],loop[i])] ))
+				c = cross(	edges[(loop[i-2],loop[i-1])], 
+							edges[(loop[i-1],loop[i])] )
+				o = cross(  self.points[loop[i-2]] - self.points[loop[i]],
+				            edges[(loop[i-2],loop[i-1])] + edges[(loop[i-1],loop[i])] )
+				tangents[loop[i-1]] = normalize(mix(o, c, clamp(length2(c)/length2(o)/NUMPREC, 0, 1) ))
 		return tangents
 	
 	
@@ -1097,7 +1101,7 @@ class Web(Container):
 	
 	def isloop(self):
 		''' true if the wire form a loop '''
-		return len(self.extremities) == 0
+		return len(self.extremities()) == 0
 	
 	def check(self):
 		''' check that the internal data references are good (indices and list lengths) '''
@@ -1190,15 +1194,12 @@ class Web(Container):
 				tracks.append(t)
 		return Web(self.points, edges, tracks, self.groups)
 		
-	def islands(self) -> '[Web]':
-		''' return the unconnected parts of the mesh as several meshes '''
-		conn = Asso(	[(e[0],i)  for i,e in enumerate(self.edges)]
-					+	[(e[1],i)  for i,e in enumerate(self.edges)])
-		# propagation
-		islands = []
-		reached = [False] * len(self.edges)	# edges reached
+	def assignislands(self) -> 'Web':
+		conn = connpe(self.edges)
+		reached = [False] * len(self.edges)
 		stack = []
 		start = 0
+		group = 0
 		while True:
 			# search start point
 			for start in range(start,len(reached)):
@@ -1213,11 +1214,29 @@ class Web(Container):
 				i = stack.pop()
 				if reached[i]:	continue	# make sure this face has not been stacked twice
 				reached[i] = True
-				island.edges.append(self.edges[i])
-				island.tracks.append(self.tracks[i])
+				yield i, group
 				for p in self.edges[i]:
 					stack.extend(n	for n in conn[p] if not reached[n])
-			islands.append(island)
+			group += 1
+	
+	def groupislands(self) -> 'Web':
+		tracks = typedlist.full(0, len(self.edges), dtype='I')
+		track = 0
+		for edge, track in self.edgeislands():
+			tracks[edge] = track
+		return Web(self.points, self.edges, tracks, [None]*(track+1))
+		
+	def islands(self) -> '[Web]':
+		''' return the unconnected parts of the mesh as several meshes '''
+		islands = []
+		island = Web(points=self.points, groups=self.groups)
+		for edge, group in self.assignislands():
+			if group > len(islands):
+				islands.append(island)
+				island = Web(points=self.points, groups=self.groups)
+			else:
+				island.edges.append(self.edges[edge])
+				island.tracks.append(self.tracks[edge])
 		return islands
 	
 	def length(self):

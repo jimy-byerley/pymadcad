@@ -711,9 +711,9 @@ class ViewCommon:
 			- When it is dumped to the RAM we call it 'map' in this library
 		'''
 		if 'fb_ident' not in self.fresh:
+			self.makeCurrent()	# set the scene context as current opengl context
 			with self.scene.ctx as ctx:
 				#ctx.finish()
-				self.makeCurrent()	# set the scene context as current opengl context
 				self.fb_ident.read_into(self.map_ident, viewport=self.fb_ident.viewport, components=2)
 				self.fb_ident.read_into(self.map_depth, viewport=self.fb_ident.viewport, components=1, attachment=-1, dtype='f4')
 			self.fresh.add('fb_ident')
@@ -843,13 +843,19 @@ class ViewCommon:
 		self.refreshmaps()
 		point = uvec2(point)
 		ident = int(self.map_ident[-point.y, point.x])
-		if ident:
+		if ident and 'ident' in self.scene.stacks:
 			rdri = bisect(self.steps, ident)
 			if rdri == len(self.steps):
 				print('internal error: object ident points out of idents list')
 			while rdri > 0 and self.steps[rdri-1] == ident:	rdri -= 1
 			if rdri > 0:	subi = ident - self.steps[rdri-1] - 1
 			else:			subi = ident - 1
+			
+			if rdri >= len(self.scene.stacks['ident']):
+				print('wrong identification index', ident, self.scene.stacks['ident'][-1])
+				nprint(self.scene.stacks['ident'])
+				return
+			
 			return (*self.scene.stacks['ident'][rdri][0], subi)
 
 	# -- view stuff --
@@ -1057,8 +1063,9 @@ class View(ViewCommon, QOpenGLWidget):
 			pos = self.somenear(evt.pos())
 			if pos:
 				key = self.itemat(pos)
-				self.control(key, evt)
-				if evt.isAccepted():	return
+				if key:
+					self.control(key, evt)
+					if evt.isAccepted():	return
 
 			# if clicks are not accepted, then some following keyboard events may not come to the widget
 			# NOTE this also discarding the ability to move the window from empty areas

@@ -418,7 +418,6 @@ def intersect_triangles(f0, f1, precision):
 		# M edge of A crosses face B and P edge of B crosses face A
 		return (0, eIA[miA], c2glm(vaffine(pA1, d, xIA[miA]))), (1, eIB[piB], c2glm(vaffine(pA1, d, xIB[piB])))
 	
-	print("error in intersect_triangles: unexpected case : ", fA, fB)
-	return None
+	raise Exception("unexpected case: {} {}".format(repr(fA), repr(fB)))
 
 

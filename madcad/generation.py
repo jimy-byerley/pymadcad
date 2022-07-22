@@ -126,7 +126,7 @@ def extrans(section, transformations, links) -> 'Mesh':
 	if isinstance(section, Mesh):
 		face = copy(section)
 		face.strippoints()
-		section = section.outlines()
+		section = face.outlines()
 	else:
 		section = web(section)
 	section = copy(section)
@@ -180,6 +180,7 @@ def extrans(section, transformations, links) -> 'Mesh':
 			mesh += end if extremities[k] else end.flip()
 		mesh.mergepoints(merges)
 	
+	mesh.check()
 	return mesh
 	
 def linstep(start, stop, x):

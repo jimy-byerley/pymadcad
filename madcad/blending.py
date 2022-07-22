@@ -306,7 +306,7 @@ def convexhull(pts):
 		return Mesh(pts, [(0,1,2),(0,2,1)])
 	else:
 		hull = scipy.spatial.ConvexHull(glmarray(pts))
-		return Mesh(pts, [tuple(v) for v in hull.simplices])
+		return Mesh(pts, (vec3(v) for v in hull.simplices))
 	
 
 
