@@ -21,17 +21,27 @@ def expand(surface: Mesh, offset: float) -> Mesh:
 			if e in edges:	del edges[e]
 			else:			edges[(e[1], e[0])] = self.facenormal(face)
 	
+	#def tangent(e0, e1):
+		#''' find tangent between the given edges '''
+		#c = cross(	edges[e0], 
+					#edges[e1] )
+		#o = cross(  pts[e0[0]] - pts[e1[1]],
+					#edges[e0] + edges[e1] )
+		#return normalize(mix(o, c, clamp(length2(c)/length2(o)/NUMPREC, 0, 1) ))
+		
 	def tangent(e0, e1):
-		''' find tangent between the given edges '''
-		c = cross(	edges[e0], 
-					edges[e1] )
-		o = cross(  pts[e0[0]] - pts[e1[1]],
-					edges[e0] + edges[e1] )
-		return normalize(mix(o, c, clamp(length2(c)/length2(o)/NUMPREC, 0, 1) ))
+		d = cross(edges[e0], edges[e1])
+		v = pts[e1[0]] - pts[e0[1]]
+		return mix(  
+		          pts[e0[1]] + unproject(project(v, edges[e1]), cross(edges[e0], n))
+				+ pts[e1[0]] + unproject(project(-v, edges[e0]), cross(edges[e1], n)),
+				0.5)
 	
 	# cross neighbooring normals
 	for loop in suites(edges, cut=False):
 		assert loop[-1] == loop[0],  "non-manifold mesh"
+		# compute the offsets, and remove anticipated overlapping geometries
+		extended = [None]*len(loop)
 		for i in range(len(loop)):
 			ei0 = (loop[i-2], loop[i-1])
 			ei1 = (loop[i-1], loop[i])
@@ -42,10 +52,24 @@ def expand(surface: Mesh, offset: float) -> Mesh:
 				tj = tangent(ej0, ej1) * offset
 				if dot(ti - tj, pts[ei1[0]] - pts[ej0[1]]) < 0:
 					tj = tangent(ej0, ei1) * offset
+				else:
+					break
 			for j in range(j, i):
 				extended[j] = tj
-				
 		
+		# insert the new points
+		for i in range(len(extended)):
+			if extended[i] != extended[i-1]:
+				pts.append(extended[i])
+				
+		# create the faces
+		for i in range(len(extended)):
+			if extended[i] != extended[i-1]:
+				mkquad(surface, loop[i-1], loop[i], j-1, j)
+			else:
+				mktri(surface, loop[i-1], loop[i], j)
+	
+	return surface
 		
 	
 def simple_convexhull(points: '[vec3]') -> '[uvec3]':
