@@ -161,7 +161,7 @@ def cut_mesh(m1, m2, prec=None) -> '(Mesh, Web)':
 	return mn, frontier
 
 
-def pierce_mesh(m1, m2, side=False, prec=None, strict=False) -> set:
+def pierce_mesh(m1, m2, side=False, prec=None, strict=False) -> Mesh:
 
 	if not prec:	prec = m1.precision()
 	m1, frontier = cut_mesh(m1, m2, prec)
@@ -238,8 +238,8 @@ def pierce_mesh(m1, m2, side=False, prec=None, strict=False) -> set:
 	# filter mesh content to keep
 	return Mesh(
 			m1.points,
-			[f for u,f in zip(used, m1.faces) if u > 0],
-			[t for u,t in zip(used, m1.tracks) if u > 0],
+			(f for u,f in zip(used, m1.faces) if u > 0),
+			(t for u,t in zip(used, m1.tracks) if u > 0),
 			m1.groups,
 			)
 
@@ -329,7 +329,7 @@ def cut_web(w1: Web, ref: Web, prec=None) -> '(Web, Wire)':
 
 from .nprint import nprint
 	
-def pierce_web(web, ref, side=False, prec=None):
+def pierce_web(web, ref, side=False, prec=None) -> Web:
 
 	if not prec:	prec = web.precision()
 	web, frontier = cut_web(web, ref, prec)
@@ -367,7 +367,7 @@ def pierce_web(web, ref, side=False, prec=None):
 				web.groups,
 				)
 				
-def boolean_web(w1, w2, sides, prec=None):
+def boolean_web(w1, w2, sides, prec=None) -> Web:
 
 	if not prec:	prec = max(w1.precision(), w2.precision())
 	

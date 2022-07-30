@@ -5,11 +5,17 @@ from madcad.generation import *
 
 
 # test extrusion
+nprint(Web(
+		[vec3(1,1,0), vec3(-1,1,0), vec3(-1,-1,0), vec3(1,-1,0)],
+		[(0,1), (1,2), (2,3), (3,0)],
+		[0,1,2,3],
+		))
 m1 = extrusion(vec3(0,0,0.5), Web(
 		[vec3(1,1,0), vec3(-1,1,0), vec3(-1,-1,0), vec3(1,-1,0)],
 		[(0,1), (1,2), (2,3), (3,0)],
 		[0,1,2,3],
 		))
+nprint(m1)
 m1.check()
 assert m1.issurface()
 	

@@ -563,7 +563,7 @@ class PointsDisplay:
 		self.shader = scene.ressource('shader_wire', shader_wire)
 		self.ident_shader = scene.ressource('shader_subident')
 		# allocate GPU objects
-		if indices and vertices.vb_positions:
+		if indices is not None and vertices.vb_positions:
 			self.vb_indices = scene.ctx.buffer(np.array(indices, dtype='u4', copy=False))
 			self.va = scene.ctx.vertex_array(
 						self.shader,

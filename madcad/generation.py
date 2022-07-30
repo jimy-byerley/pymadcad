@@ -122,14 +122,13 @@ def extrans(section, transformations, links) -> 'Mesh':
 								`t` the group number of that link, to combine with the section groups		
 	'''
 	# prepare
-	face = None
 	if isinstance(section, Mesh):
 		face = copy(section)
 		face.strippoints()
 		section = face.outlines()
 	else:
-		section = web(section)
-	section = copy(section)
+		face = None
+		section = copy(web(section))
 	reindex = section.strippoints()
 	
 	mesh = Mesh()	  # result mesh

@@ -86,7 +86,7 @@ def unproject(vec, dir) -> vec3:
 	
 		the result is not sensitive to the length of `dir`
 	'''
-	if not dot(vec,vec	):		return vec3(0)
+	if not dot(vec,vec):		return vec3(0)
 	try:						return dot(vec,vec) / dot(vec,dir) * dir
 	except ZeroDivisionError:	return vec3(nan)
 

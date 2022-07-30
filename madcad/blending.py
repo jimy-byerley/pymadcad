@@ -47,7 +47,7 @@ to come in a next version
 			)
 '''
 
-from .mesh import Mesh, Wire, Web, wire, connef, edgekey, glmarray, suites, arrangeface, mkquad
+from .mesh import Mesh, Wire, Web, wire, connef, edgekey, suites, arrangeface, mkquad
 from .mathutils import *
 from . import settings
 from . import generation
@@ -305,8 +305,11 @@ def convexhull(pts):
 	if len(pts) == 3:
 		return Mesh(pts, [(0,1,2),(0,2,1)])
 	else:
-		hull = scipy.spatial.ConvexHull(glmarray(pts))
-		return Mesh(pts, (vec3(v) for v in hull.simplices))
+		return Mesh(pts, numpy_to_typedlist(
+			scipy.spatial.ConvexHull(
+				typedlist_to_numpy(points, 'f8'), 
+				qhull_options='QJ Pp',
+				).simplices, uvec3))
 	
 
 
