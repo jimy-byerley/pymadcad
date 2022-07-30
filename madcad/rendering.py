@@ -87,7 +87,7 @@ def show(scene, options=None, interest:Box=None, size=uvec2(400,400)):
 		settings.use_qt_colors()
 
 	# create the scene as a window
-	view = View(scene, size)
+	view = View(scene)
 	view.resize(*size)
 	view.show()
 
@@ -876,6 +876,8 @@ class ViewCommon:
 		elif isinstance(self.navigation, Orbit):
 			focal = self.orient * fvec3(0,0,1)
 			self.navigation.orient = quat(dir, focal) * self.navigation.orient
+			self.navigation.center = position
+			self.navigation.distance = length(dir)
 		else:
 			raise TypeError("navigation {} is not supported by 'look'".format(type(self.navigation)))
 
@@ -992,7 +994,7 @@ class View(ViewCommon, QOpenGLWidget):
 		self.handler.setFocusPolicy(Qt.StrongFocus)
 		self.handler.setAttribute(Qt.WA_AcceptTouchEvents, True)
 
-		ViewCommon.__init__(self, scene, projection=None, navigation=None)
+		ViewCommon.__init__(self, scene, projection=projection, navigation=navigation)
 		self.tool = [Tool(self.navigation.tool, self)] # tool stack, the last tool is used for input events, until it is removed 
 
 	def init(self):
