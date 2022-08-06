@@ -6,6 +6,7 @@ from .mesh import Mesh, Web, Wire, MeshError, connpe, web
 from .asso import Asso
 from .nprint import nformat, nprint
 
+from copy import copy
 from operator import itemgetter
 
 
@@ -751,7 +752,7 @@ def triangulation_closest(outline, normal=None, prec=None):
 	if isinstance(outline, Wire):
 		return triangulation_outline(outline, normal, prec)
 	else:
-		outline = web(outline)
+		outline = copy(web(outline)).mergegroups()
 	x,y,z = dirbase(normal or convex_normal(outline))
 	result = Mesh(outline.points)
 	for loop in flat_loops(outline + line_bridges(outline), z):

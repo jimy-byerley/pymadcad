@@ -20,8 +20,8 @@ class Wire(NMesh):
 	def __init__(self, points=None, indices=None, tracks=None, groups=None, options=None):
 		self.points = ensure_typedlist(points, vec3)
 		self.indices = ensure_typedlist(indices if indices is not None else range(len(self.points)), 'I')
-		self.tracks = tracks or None
-		self.groups = groups or [None]
+		self.tracks = tracks if tracks is not None else None
+		self.groups = groups if groups is not None else [None]
 		self.options = options or {}
 	
 	def __len__(self):	return len(self.indices)
@@ -219,14 +219,22 @@ class Wire(NMesh):
 		''' list of successive edges of the wire '''
 		return typedlist((self.edge(i)  for i in range(len(self.indices)-1)), dtype=uvec2)
 	
-	def length(self):
+	def length(self) -> float:
 		''' curviform length of the wire (sum of all edges length) '''
 		s = 0
 		for i in range(1,len(self.indices)):
 			s += distance(self[i-1], self[i])
 		return s
 		
-	def barycenter(self):
+	def surface(self) -> float:
+		''' return the surface enclosed by the web if planar and is a loop (else it has no meaning) '''
+		s = vec3(0)
+		o = self.barycenter()
+		for i in range(1, len(self)):
+			area += cross(self[i-1]-o, self[i]-o)
+		return length(area)
+		
+	def barycenter(self) -> vec3:
 		''' curve barycenter '''
 		if not self.indices:	return vec3(0)
 		if len(self.indices) == 1:	return self.points[self.indices[0]]
@@ -239,19 +247,15 @@ class Wire(NMesh):
 			acc += weight*(a+b)
 		return acc / (2*tot)
 			
-	def normal(self):
+	def normal(self) -> vec3:
 		''' return an approximated normal to the curve as if it was the outline of a flat surface.
 			if this is not a loop the result is undefined.
 		'''
 		area = vec3(0)
-		c = self[0]
-		for i in range(len(self)):
+		c = self.barycenter()
+		for i in range(1, len(self)):
 			area += cross(self[i-1]-c, self[i]-c)
 		return normalize(area)
-		
-	def barycenter_points(self):
-		''' barycenter of points used '''
-		return sum(self.points[i]	for i in self.indices) / len(self.indices)
 	
 	def vertexnormals(self, loop=False):
 		''' return the opposed direction to the curvature in each point 

@@ -62,7 +62,7 @@ def cut_mesh(m1, m2, prec=None) -> '(Mesh, Web)':
 		The algorithm is using ngon intersections and retriangulation, in order to avoid infinite loops and intermediate triangles.
 	'''
 	if not prec:	prec = m1.precision()
-	frontier = Web(m1.points, groups=list(m2.faces))	# cut points for each face from m2
+	frontier = Web(m1.points, groups=m2.faces)	# cut points for each face from m2
 	
 	# topology informations for optimization
 	points = hashing.PointSet(prec, manage=m1.points)
@@ -144,7 +144,6 @@ def cut_mesh(m1, m2, prec=None) -> '(Mesh, Web)':
 			# retriangulate the cutted surface
 			segts.edges.extend(uvec2(b,a) for a,b in segts.edges[:])
 			segts.edges.extend(outline)
-			segts.tracks = typedlist.full(0, len(segts.edges), 'I')
 			flat = triangulation.triangulation_closest(segts, normal, prec)
 			# append the triangulated face, in association with the original track
 			flat.tracks = typedlist.full(track, len(flat.faces), 'I')
@@ -191,6 +190,7 @@ def pierce_mesh(m1, m2, side=False, prec=None, strict=False) -> Mesh:
 							front.append((f[i], f[i-1]))
 							front.append((f[i-2], f[i]))
 						break
+	
 	if not front:
 		if side:
 			m1.faces = typedlist(dtype=uvec3)
@@ -198,15 +198,16 @@ def pierce_mesh(m1, m2, side=False, prec=None, strict=False) -> Mesh:
 		return m1
 	
 	## display frontier
-	#from . import text
-	#for edge in stops:
-		#p = (m1.points[edge[0]] + m1.points[edge[1]]) /2
-		#scn3D.add(text.Text(p, str(edge), 9, (1, 1, 0)))
 	#if debug_propagation:
+		#from . import text
+		#for edge in stops:
+			#p = (m1.points[edge[0]] + m1.points[edge[1]]) /2
+			#scn3D.append(text.Text(p, str(edge), 9, (1, 1, 0)))
 		#from .mesh import Web
 		#w = Web([1.01*p for p in m1.points], frontier.edges)
 		#w.options['color'] = (1,0.9,0.2)
-		#scn3D.add(w)
+		#scn3D.append(w)
+		#scn3D.append([text.Text(p, str(i))  for i,p in enumerate(m1.points)])
 	
 	# propagation
 	front = [e for e in front if edgekey(*e) not in stops]
@@ -233,7 +234,7 @@ def pierce_mesh(m1, m2, side=False, prec=None, strict=False) -> Mesh:
 		#for i,u in enumerate(used):
 			#if u:
 				#p = m1.facepoints(i)
-				#scn3D.add(text.Text((p[0]+p[1]+p[2])/3, str(u), 9, (1,0,1), align=('center', 'center')))
+				#scn3D.append(text.Text((p[0]+p[1]+p[2])/3, str(u), 9, (1,0,1), align=('center', 'center')))
 	
 	# filter mesh content to keep
 	return Mesh(
@@ -243,6 +244,9 @@ def pierce_mesh(m1, m2, side=False, prec=None, strict=False) -> Mesh:
 			m1.groups,
 			)
 
+#debug_propagation = True
+#scn3D = []
+			
 def boolean_mesh(m1, m2, sides=(False,True), prec=None) -> Mesh:
 
 	if not prec:	prec = max(m1.precision(), m2.precision())

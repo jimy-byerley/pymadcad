@@ -21,7 +21,7 @@ class Web(NMesh):
 		self.points = ensure_typedlist(points, vec3)
 		self.edges = ensure_typedlist(edges, uvec2)
 		self.tracks = ensure_typedlist(tracks or typedlist.full(0, len(self.edges), 'I'), 'I')
-		self.groups = groups or [None] * (max(self.tracks, default=-1)+1)
+		self.groups = groups if groups is not None else [None] * (max(self.tracks, default=-1)+1)
 		self.options = options or {}
 		
 	def __add__(self, other):
@@ -74,7 +74,7 @@ class Web(NMesh):
 		'''
 		j = 0
 		for i,f in enumerate(self.edges):
-			f = (
+			f = uvec2(
 				merges.get(f[0], f[0]),
 				merges.get(f[1], f[1]),
 				)
@@ -83,6 +83,7 @@ class Web(NMesh):
 				self.tracks[j] = self.tracks[i]
 				j += 1
 		del self.edges[j:]
+		del self.tracks[j:]
 		return self
 			
 	
@@ -275,14 +276,22 @@ class Web(NMesh):
 		
 		
 	
-	def length(self):
+	def length(self) -> float:
 		''' total length of edges '''
 		s = 0
-		for a,b in lineedges(self):
-			s += distance(self.points[a], self.points[b])
+		for e in self.edges:
+			s += distance(self.points[e[1]], self.points[e[0]])
 		return s
 	
-	def barycenter(self):
+	def surface(self) -> float:
+		''' return the surface enclosed by the web if planar and is composed of loops (else it has no meaning) '''
+		o = self.barycenter()
+		s = vec3(0)
+		for e in self.edges:
+			s += cross(self.points[e[1]] - o, self.points[e[0]] - o)
+		return length(s)
+	
+	def barycenter(self) -> vec3:
 		''' curve barycenter of the mesh '''
 		if not self.edges:	return vec3(0)
 		acc = vec3(0)
@@ -293,7 +302,6 @@ class Web(NMesh):
 			tot += weight
 			acc += weight*(a+b)
 		return acc / (2*tot)
-	
 		
 	def assignislands(self) -> 'Web':
 		conn = connpe(self.edges)

@@ -267,6 +267,10 @@ class NMesh(object):
 				if   pt[i] < min[i]:	min[i] = pt[i]
 				elif pt[i] > max[i]:	max[i] = pt[i]
 		return Box(min, max)
+	
+	def barycenter_points(self) -> vec3:
+		''' barycenter of points used '''
+		return sum(self.points[i]	for i in self.indices) / len(self.indices)
 		
 	# END
 
@@ -424,7 +428,7 @@ def striplist(points, indices):
 				used[p] = True
 	optimized = typedlist(dtype=points.dtype)  if isinstance(points, typedlist) else []
 	reindices = typedlist(dtype=indices.dtype)
-	reindex = typedlist(dtype='I', reserve=len(points))
+	reindex = typedlist(dtype='i', reserve=len(points))
 	for p, u in zip(points, used):
 		if u:
 			reindex.append(len(optimized))

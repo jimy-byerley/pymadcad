@@ -22,7 +22,7 @@ class Mesh(NMesh):
 		self.points = ensure_typedlist(points, vec3)
 		self.faces = ensure_typedlist(faces, uvec3)
 		self.tracks = ensure_typedlist(tracks if tracks is not None else typedlist.full(0, len(self.faces), 'I'), 'I')
-		self.groups = groups or [None] * (max(self.tracks, default=-1)+1)
+		self.groups = groups if groups is not None else [None] * (max(self.tracks, default=-1)+1)
 		self.options = options or {}
 	
 	def __add__(self, other):
@@ -75,7 +75,7 @@ class Mesh(NMesh):
 		'''
 		j = 0
 		for i,f in enumerate(self.faces):
-			f = (
+			f = uvec3(
 				merges.get(f[0], f[0]),
 				merges.get(f[1], f[1]),
 				merges.get(f[2], f[2]),
@@ -85,6 +85,7 @@ class Mesh(NMesh):
 				self.tracks[j] = self.tracks[i]
 				j += 1
 		del self.faces[j:]
+		del self.tracks[j:]
 		return self
 					
 					
@@ -367,6 +368,14 @@ class Mesh(NMesh):
 		for f in self.faces:
 			a,b,c = self.facepoints(f)
 			s += length(cross(a-b, a,c))/2
+		return s
+		
+	def volume(self) -> float:
+		''' return the volume enclosed by the mesh if composed of envelopes (else it has no meaning) '''
+		o = self.barycenter()
+		s = vec3(0)
+		for f in self.faces:
+			s += glm.determinant(mat3(self.points[f[0]] - o, self.points[f[1]] - o, self.points[f[2]] - o))
 		return s
 	
 	def barycenter(self) -> vec3:
