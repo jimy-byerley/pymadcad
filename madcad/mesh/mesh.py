@@ -26,7 +26,7 @@ class Mesh(NMesh):
 		self.options = options or {}
 	
 	def __add__(self, other):
-		''' append the faces and points of the other mesh '''
+		''' return a new mesh concatenating the faces and points of both meshes '''
 		if isinstance(other, Mesh):
 			r = Mesh(
 				self.points if self.points is other.points else self.points[:], 

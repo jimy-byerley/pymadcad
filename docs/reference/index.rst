@@ -14,7 +14,7 @@ submodules
 	:maxdepth: 1
 
 	mathutils.rst
-	mesh.rst
+	mesh/index.rst
 	
 	kinematic.rst
 	joints.rst

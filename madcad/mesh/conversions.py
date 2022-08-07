@@ -5,7 +5,7 @@ from .web import Web
 from .wire import Wire
 
 
-def mesh(*arg):
+def mesh(*arg) -> Mesh:
 	''' Build a Mesh object from supported objects:
 	
 		:mesh:              return it with no copy
@@ -29,7 +29,7 @@ def mesh(*arg):
 	else:
 		raise TypeError('incompatible data type for Web creation')
 
-def web(*arg):
+def web(*arg) -> Web:
 	''' Build a Web object from supported objects:
 	
 		:web:               return it with no copy
@@ -65,7 +65,7 @@ def web(*arg):
 	else:
 		raise TypeError('incompatible data type for Web creation')
 
-def wire(*arg):
+def wire(*arg) -> Wire:
 	''' Build a Wire object from the other compatible types.
 		Supported types are:
 		

@@ -130,12 +130,6 @@ class Wire(NMesh):
 		
 	# END BEGIN ----- mesh checks -----
 	
-	def isvalid(self):
-		''' return True if the internal data are consistent '''
-		try:				self.check()
-		except MeshError:	return False
-		else:				return True
-	
 	def check(self):
 		''' raise if the internal data are not consistent '''
 		if not (isinstance(self.points, typedlist) and self.points.dtype == vec3):	raise MeshError("points must be a typedlist(dtype=vec3)")

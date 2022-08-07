@@ -1,28 +1,5 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
-'''	
-	This module defines triangular meshes and edges webs.
-	
-	
-	containers
-	----------
-	
-	The classes defined here are 'points containers' it means that they are storing a list of points (as a member `point`), a list of groups (member `group`) and index points and groups for other purpose (faces and edges).
-	All of these follow this line:
-	
-	- storages are using basic types, no object inter-referencing, making it easy to copy it
-	
-	- storages (points, groups, faces, edges, ...) are used as shared ressources
-	
-		python objects are ref-counted, allowing multiple Mesh instance to have the same point buffer. The user is responsible to ensure that there will be no conflict in making one mesh modifying the buffer in a way that makes it invalid for an other mesh referencing it.
-		
-		To avoid conflicts, operations that are changing each point (or the most of them) reallocate a new list. Then operations like `mergeclose` or `stripgroups` won't affect other Meshes that shared the same buffers initially.
-		
-	- as build from shared ressources, these classes can be build from existing parts at a nearly zero cost (few verifications, no computation)
-	
-	- the user is allowed to hack into the internal data, ensure that the Mesh is still consistent after.
-'''
-
 from copy import copy, deepcopy
 from random import random
 import numpy as np
@@ -56,7 +33,7 @@ class NMesh(object):
 				>>> b = a.own(points=True, faces=False)
 				>>> b.points is a.points
 				False
-				>>> b.faces is a.points
+				>>> b.faces is a.faces
 				True
 		'''
 		new = copy(self)
@@ -193,9 +170,9 @@ class NMesh(object):
 	def qualified_indices(self, quals):
 		''' yield the faces indices when their associated group are matching the requirements '''
 		if isinstance(quals, int):
-			yield from self.qualified_faces({quals})
+			yield from self.qualified_indices({quals})
 		elif isinstance(quals, str):
-			yield from self.qualified_faces([quals])
+			yield from self.qualified_indices([quals])
 		
 		elif not quals:
 			yield from range(len(self.tracks))

@@ -1,3 +1,76 @@
+# This file is part of pymadcad,  distributed under license LGPL v3
+
+'''	
+	This module defines meshes composed of triangles or of edges.
+	
+	Architecture
+	------------
+	
+	The data structures defined here are just containers, they do not intend a specific usage of the geometries as it can be with halfedges, binary trees, etc. The data structures here intend to store efficiently the mesh information and allow basic data operation like concatenation, find-replace, and so.
+	
+	The following considerations are common to the classes here:
+	
+	- the classes are just wrapping references to data buffers
+	
+		they do not own exclusively their content, nor it is forbidden to hack into their content (it is just lists, you can append, insert, copy, etc what you want).
+		As so, it is almost no cost to shallow-copy a mesh, or to create it from existing buffers without computation nor data copy. It is very common that several meshes are sharing the same buffer of points, faces, groups ...
+		
+	- the management of the container's data ownership is left to the user
+	
+		the user has to copy the data explicitely when necessary to unlink containers sharing the same buffers. To allow the user to do so, the madcad functions observe the following rules:
+		
+		+ the container's methods that modify a small portion of its data does so in-place. when they do not return a particular value, they do return 'self' (lowercase, meaning the current container instance)
+		
+		+ the container's methods that modify a big amount of its data do return a new container instance, sharing the untouched buffers with the current one and duplicating the altered data. They do return a new instance of 'Self' (uppercase, meaning it is the current container type)
+		
+	- the methods defined for containers are only simple and very general operations. 
+	
+		The more complex operations are left to separated functions.
+		Most of the time, container methods are for data/buffers management, connectivity operations, and mathematical caracteristics extractions (like normals, surface, volume, etc)
+		
+	See `Mesh.own()` for instance.
+		
+		
+	Classes defined here
+	--------------------
+	
+		:Mesh:	mesh of triangles
+		:Web:	mesh of edges
+		:Wire:	mesh of points, often used as a curve/polygon defined by a suite of points
+		
+	Topology
+	--------
+		
+	A lot of similarities exists between these classes, because many of their methods are topologically generic to every dimension. They are often implemented for specific mesh
+	For convenience, there is aliases to these classes highlighting their topology genericity
+	
+		:Mesh0:	(alias to `Wire`) mesh with inner dimension 0 (simplices are points)
+		:Mesh1:	(alias to `Web`) mesh with inner dimension 1 (simplices are edges)
+		:Mesh2:	(alias to `Mesh`) mesh with inner dimension 2 (simplices are triangles)
+		
+	Inner identification
+	--------------------
+	
+	The containers are provided with an inner-identification system allowing to keep track of portion of geometries in the mesh across operations applies on. This is permitted by their field `tracks` and `groups`. Each simplex (point, edge or face depending of the mesh inner dimension) in meshes is associated to an identification number referencing a group definition in the group list. So faces can be filtered at any moment depedning on their group attributes or their group number.
+	
+	Groups definitions can be anything, but more often is a dictionnary (containing the group attributes we can filter on), or simply `None`
+	
+	See `Mesh.group()` for more details.
+'''
+
+from ..mathutils import *
+
+
+__all__ = [
+		'Mesh', 'Web', 'Wire', 'MeshError', 'web', 'wire', 
+		'connpp', 'connpp', 'connpe', 'connef',
+		'edgekey', 'facekeyo', 'arrangeface', 'arrangeedge', 
+		'suites', 'line_simplification', 'mesh_distance', 'striplist',
+		'typedlist_to_numpy', 'numpy_to_typedlist',
+		]
+
+
+# submodules content exposed
 from .mesh import Mesh, mkquad, mktri
 from .web import Web
 from .wire import Wire
@@ -10,19 +83,10 @@ from .container import (
 	typedlist_to_numpy, numpy_to_typedlist,
 	)
 
-Mesh2 = Web
-Mesh3 = Mesh
-
-__all__ = [
-		'Mesh', 'Web', 'Wire', 'MeshError', 'web', 'wire', 
-		'connpp', 'connpp', 'connpe', 'connef',
-		'edgekey', 'facekeyo', 'arrangeface', 'arrangeedge', 
-		'suites', 'line_simplification', 'mesh_distance', 'striplist',
-		'typedlist_to_numpy', 'numpy_to_typedlist',
-		]
-
-		
-from ..mathutils import *
+# topological genericity definitions
+Mesh0 = Wire
+Mesh1 = Web
+Mesh2 = Mesh
 
 
 def line_simplification(web, prec=None):
