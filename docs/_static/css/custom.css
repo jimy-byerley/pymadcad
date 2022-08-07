@@ -76,9 +76,9 @@
 
 /* side navigation bar */
 
-.wy-body-for-nav {
+/*.wy-body-for-nav {
     background: none;
-}
+}*/
 
 .wy-nav-side {
 	color: #cecccc;
@@ -86,7 +86,7 @@
 }
 
 .wy-nav-content-wrap {
-	background: none;
+	background: #0e1215;
 }
 
 .wy-side-nav-search {
@@ -161,10 +161,6 @@
 
 a:visited { /* links visited */
     color: #479da2;
-}
-
-.wy-body-for-nav { /* zone rezied to screen */
-	background: #0e1215;
 }
 
 .wy-nav-content {
@@ -397,6 +393,14 @@ h1, h2, h3 {
 h2 {
 	margin-top: 15%;
 }*/
+
+.sphinx_collapse__icon {
+	border-top-color: #479da2;
+}
+.sphinx_collapse__label {
+	color: #479da2;
+	font-size: 100%;
+}
 
 
 /* ugly stuff to correct other colors from readthedocs */
