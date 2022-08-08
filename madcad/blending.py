@@ -47,7 +47,7 @@ to come in a next version
 			)
 '''
 
-from .mesh import Mesh, Wire, Web, wire, connef, edgekey, suites, arrangeface, mkquad
+from .mesh import Mesh, Wire, Web, wire, connef, edgekey, suites, arrangeface, mkquad, numpy_to_typedlist, typedlist_to_numpy
 from .mathutils import *
 from . import settings
 from . import generation
@@ -307,7 +307,7 @@ def convexhull(pts):
 	else:
 		return Mesh(pts, numpy_to_typedlist(
 			scipy.spatial.ConvexHull(
-				typedlist_to_numpy(points, 'f8'), 
+				typedlist_to_numpy(pts, 'f8'), 
 				qhull_options='QJ Pp',
 				).simplices, uvec3))
 	
