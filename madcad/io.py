@@ -115,6 +115,7 @@ try:
 	from plyfile import PlyData, PlyElement
 except ImportError:	pass
 else:
+	from . import triangulation
 
 	def ply_read(file, **opts):
 		mesh = Mesh()

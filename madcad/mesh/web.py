@@ -129,7 +129,7 @@ class Web(NMesh):
 		return min( range(len(self.edges)),
 					lambda i: distance_pe(point, self.edgepoints(i)) )
 	
-	def group(self, groups) -> 'Self':
+	def group(self, quals) -> 'Self':
 		''' extract a part of the mesh corresponding to the designated groups.
 			
 			Groups can be be given in either the following ways:
