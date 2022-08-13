@@ -174,6 +174,7 @@ class Web(NMesh):
 				self.tracks[j] = t
 				j += 1
 		del self.edges[j:]
+		del self.tracks[j:]
 		self += mesh
 		return self
 	
