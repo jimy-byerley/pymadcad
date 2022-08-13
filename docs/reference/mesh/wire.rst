@@ -1,6 +1,8 @@
 Wire
 ====
 
+.. image:: /screenshots/mesh-wire.png
+
 .. autoclass:: madcad.Wire
 
 	.. collapse:: special methods

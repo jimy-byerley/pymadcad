@@ -1,6 +1,8 @@
 Web
 ===
 
+.. image:: /screenshots/mesh-web.png
+
 .. autoclass:: madcad.Web
 
 	.. collapse:: special methods
@@ -54,7 +56,7 @@ Web
 		.. automethod:: edgedirection
 		
 		.. automethod:: extremities
-		.. automethod:: groupextremtities
+		.. automethod:: groupextremities
 		.. automethod:: frontiers
 		.. automethod:: arcs
 		

@@ -1,6 +1,8 @@
 Mesh
 ====
 
+.. image:: /screenshots/mesh-mesh.png
+
 .. autoclass:: madcad.Mesh
 
 	.. collapse:: special methods
@@ -44,7 +46,7 @@ Mesh
 	
 		.. automethod:: maxnum
 		.. automethod:: precision
-		.. automethod:: surfaces
+		.. automethod:: surface
 		.. automethod:: barycenter
 		.. automethod:: barycenter_points
 		.. automethod:: box
@@ -59,8 +61,9 @@ Mesh
 		
 		.. automethod:: edges
 		.. automethod:: edges_oriented
-		.. automethod:: edges_unoriented
 		.. automethod:: outlines
+		.. automethod:: outlines_oriented
+		.. automethod:: outlines_unoriented
 		.. automethod:: groupoutlines
 		.. automethod:: frontiers
 		
