@@ -339,28 +339,52 @@ class Mesh(NMesh):
 	def frontiers(self, *args) -> 'Web':
 		''' return a Web of UNORIENTED edges that split the given groups appart.
 		
-			if groups is None, then return the frontiers between any groups
+			The arguments are groups indices or lists of group qualifiers (as set in `qualify()`). If there is one only argument it is considered as as list of arguments.
+		
+			- if no argument is given, then return the frontiers between every groups
+			- to include the groups edges that are on the group border but not at the frontier with an other group, add `None` to the group set
+			
+			Example:
+			
+				>>> m = Mesh([...], [uvec3(0,1,2), uvec3(2,1,3)], [0, 1], [...])
+				>>> m.frontiers(0,1).edges
+				[uvec2(1,2)]
+				
+				>>> # equivalent to
+				>>> m.frontiers({0,1}).edges
+				[uvec2(1,2)]
+				
+				>>> m.frontiers(0,None)
+				[uvec2(0,1), uvec2(0,2)]
 		'''
-		if len(args) == 1 and hasattr(args[0], '__iter__'):
-			args = args[0]
-		groups = set(args)
+		if args:
+			if len(args) == 1 and hasattr(args[0], '__iter__'):
+				args = args[0]
+			groups = set()
+			for arg in args:
+				if arg is None:		groups.add(None)
+				else:				groups.update(self.qualified_groups(arg))
+		else:
+			groups = None
+		
 		edges = typedlist(dtype=uvec2)
 		tracks = typedlist(dtype='I')
 		couples = OrderedDict()
 		belong = {}
 		for i,face in enumerate(self.faces):
-			if groups and self.tracks[i] not in groups:	
-				continue
-			for edge in ((face[0],face[1]),(face[1],face[2]),(face[2],face[0])):
-				e = edgekey(*edge)
-				if e in belong:
-					if belong[e] != self.tracks[i]:
-						g = edgekey(belong[e],self.tracks[i])
-						edges.append(e)
-						tracks.append(couples.setdefault(g, len(couples)))
-					del belong[e]
-				else:
-					belong[e] = self.tracks[i]
+			if groups is None or self.tracks[i] in groups:	
+				for edge in ((face[0],face[1]),(face[1],face[2]),(face[2],face[0])):
+					e = edgekey(*edge)
+					if e in belong:
+						if belong[e] != self.tracks[i]:
+							g = edgekey(belong[e],self.tracks[i])
+							edges.append(e)
+							tracks.append(couples.setdefault(g, len(couples)))
+						del belong[e]
+					else:
+						belong[e] = self.tracks[i]
+		if groups and None in groups:
+			edges.extend(belong.keys())
 		return Web(self.points, edges, tracks, list(couples))
 	
 	def surface(self) -> float:

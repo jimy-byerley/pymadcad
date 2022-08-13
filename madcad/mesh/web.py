@@ -252,11 +252,34 @@ class Web(NMesh):
 	def frontiers(self, *args) -> 'Wire':
 		''' return a Wire of points that split the given groups appart.
 		
-			if groups is None, then return the frontiers between any groups
+			The arguments are groups indices or lists of group qualifiers (as set in `qualify()`). If there is one only argument it is considered as as list of arguments.
+		
+			- if no argument is given, then return the frontiers between every groups
+			- to include the groups extremities that are on the group border but not at the frontier with an other group, add `None` to the group set
+			
+			Example:
+			
+				>>> w = Web([...], [uvec2(0,1), uvec2(1,2)], [0, 1], [...])
+				>>> w.frontiers(0,1).indices
+				[1]
+				
+				>>> # equivalent to
+				>>> w.frontiers({0,1}).indices
+				[1]
+				
+				>>> w.frontiers(0,None).indices
+				[0]
 		'''
-		if len(args) == 1 and hasattr(args[0], '__iter__'):
-			args = args[0]
-		groups = set(args)
+		if args:
+			if len(args) == 1 and hasattr(args[0], '__iter__'):
+				args = args[0]
+			groups = set()
+			for arg in args:
+				if arg is None:		groups.add(None)
+				else:				groups.update(self.qualified_groups(arg))
+		else:
+			groups = None
+		
 		indices = typedlist(dtype='I')
 		tracks = typedlist(dtype='I')
 		couples = OrderedDict()
@@ -273,6 +296,8 @@ class Web(NMesh):
 					del belong[p]
 				else:
 					belong[p] = track
+		if groups and None in groups:
+			indices.extend(belong.keys())
 		return Wire(self.points, indices, tracks, list(couples))
 		
 		
@@ -351,7 +376,7 @@ class Web(NMesh):
 		islands.append(island)
 		return islands
 	
-	def arcs(self):
+	def arcs(self) -> '[Wire]':
 		''' return the contiguous portions of this web '''
 		return [	Wire(self.points, typedlist(loop, dtype=uvec2))		
 					for loop in suites(self.edges, oriented=False)]
