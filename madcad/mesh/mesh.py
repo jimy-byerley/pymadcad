@@ -177,6 +177,7 @@ class Mesh(NMesh):
 				self.tracks[j] = t
 				j += 1
 		del self.faces[j:]
+		del self.tracks[j:]
 		self += mesh
 		return self
 	
