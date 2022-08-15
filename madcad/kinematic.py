@@ -24,7 +24,7 @@ from PyQt5.QtCore import Qt, QEvent
 
 from .common import ressourcedir
 from .mathutils import *
-from .mesh import Mesh, Web, Wire, npcast, striplist, distance2_pm, typedlist_to_numpy
+from .mesh import Mesh, Web, Wire, striplist, distance2_pm, typedlist_to_numpy
 from . import settings
 from . import constraints
 from . import text
@@ -174,8 +174,9 @@ class Solid:
 		s.content = self.content
 		return s
 	
-	def itransform(self, trans):
+	def transform(self, trans) -> 'Solid':
 		''' displace the solid by the transformation '''
+		s = copy(self)
 		if isinstance(trans, mat4):
 			rot, trans = quat_cast(mat3(trans)), vec3(trans[3])
 		elif isinstance(trans, mat3):
@@ -186,15 +187,10 @@ class Solid:
 			rot, trans = 1, trans
 		else:
 			raise TypeError('Screw.transform() expect mat4, mat3 or vec3')
-		self.orientation = rot*self.orientation
-		self.position = trans + rot*self.position
-		
-	def transform(self, trans) -> 'Solid':
-		''' create a new Solid moved by the given transformation, with the same content '''
-		s = copy(self)
-		s.itransform(trans)
+		s.orientation = rot*self.orientation
+		s.position = trans + rot*self.position
 		return s
-		
+	
 	def place(self, *args, **kwargs) -> 'Solid': 
 		''' strictly equivalent to `.transform(placement(...))`, see `placement` for parameters specifications. '''
 		s = copy(self)
@@ -307,7 +303,7 @@ def convexhull(pts):
 		return Mesh(pts, [(0,1,2),(0,2,1)])
 	elif len(pts) > 3:
 		print(0.1)
-		hull = scipy.spatial.ConvexHull(npcast(pts))
+		hull = scipy.spatial.ConvexHull(typedlist_to_numpy(pts, 'f8'))
 		print(0.5)
 		m = Mesh(pts, hull.simplices.tolist())
 		print(0.8)
@@ -322,15 +318,8 @@ def extract_used(obj):
 	elif isinstance(obj, Wire):	links = [obj.indices]
 	else:
 		raise TypeError('obj must be a mesh of any kind')
-		
-	used = [False] * len(obj.points)
-	for link in links:
-		for p in link:
-			used[p] = True
 	
-	buff = obj.points[:]
-	striplist(buff, used)
-	return buff
+	return striplist(obj.points[:], links)[0]
 
 	
 def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)]':

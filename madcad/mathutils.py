@@ -86,7 +86,7 @@ def unproject(vec, dir) -> vec3:
 	
 		the result is not sensitive to the length of `dir`
 	'''
-	if not dot(vec,vec	):		return vec3(0)
+	if not dot(vec,vec):		return vec3(0)
 	try:						return dot(vec,vec) / dot(vec,dir) * dir
 	except ZeroDivisionError:	return vec3(nan)
 
@@ -183,12 +183,9 @@ def transformer(trans):
 			:mat4:  affine transform (rotate then translate)
 	'''
 	if isinstance(trans, (dquat, fquat)):		trans = mat3_cast(trans)
-	if callable(trans):							return trans
-	if isinstance(trans, (dvec3, fvec3)):		return lambda v: v + trans
-	if isinstance(trans, (dmat3, fmat3)):		return lambda v: trans * v
-	if isinstance(trans, (int, float)):			return lambda v: trans * v
-	if isinstance(trans, dmat4):				return lambda v: dvec3(trans * dvec4(v,1))
-	if isinstance(trans, fmat4):				return lambda v: fvec3(trans * fvec4(v,1))
+	if callable(trans):													return trans
+	if isinstance(trans, (dvec3, fvec3)):								return lambda v: v + trans
+	if isinstance(trans, (dmat3, fmat3, dmat4, fmat4, int, float)):		return lambda v: trans * v
 	raise TypeError('a transformer must be a  vec3, quat, mat3, mat4 or callable, not {}'.format(trans))
 
 

@@ -33,6 +33,7 @@ extensions = [
     'sphinx.ext.napoleon',
     'recommonmark',
     'sphinx_rtd_theme',
+    'sphinx_collapse',
 ]
 
 # use a more recent version of mathjax, that can render ASCIIMATH

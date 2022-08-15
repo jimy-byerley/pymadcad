@@ -87,7 +87,7 @@ def show(scene, options=None, interest:Box=None, size=uvec2(400,400)):
 		settings.use_qt_colors()
 
 	# create the scene as a window
-	view = View(scene, size)
+	view = View(scene)
 	view.resize(*size)
 	view.show()
 
@@ -711,9 +711,9 @@ class ViewCommon:
 			- When it is dumped to the RAM we call it 'map' in this library
 		'''
 		if 'fb_ident' not in self.fresh:
+			self.makeCurrent()	# set the scene context as current opengl context
 			with self.scene.ctx as ctx:
 				#ctx.finish()
-				self.makeCurrent()	# set the scene context as current opengl context
 				self.fb_ident.read_into(self.map_ident, viewport=self.fb_ident.viewport, components=2)
 				self.fb_ident.read_into(self.map_depth, viewport=self.fb_ident.viewport, components=1, attachment=-1, dtype='f4')
 			self.fresh.add('fb_ident')
@@ -843,13 +843,19 @@ class ViewCommon:
 		self.refreshmaps()
 		point = uvec2(point)
 		ident = int(self.map_ident[-point.y, point.x])
-		if ident:
+		if ident and 'ident' in self.scene.stacks:
 			rdri = bisect(self.steps, ident)
 			if rdri == len(self.steps):
 				print('internal error: object ident points out of idents list')
 			while rdri > 0 and self.steps[rdri-1] == ident:	rdri -= 1
 			if rdri > 0:	subi = ident - self.steps[rdri-1] - 1
 			else:			subi = ident - 1
+			
+			if rdri >= len(self.scene.stacks['ident']):
+				print('wrong identification index', ident, self.scene.stacks['ident'][-1])
+				nprint(self.scene.stacks['ident'])
+				return
+			
 			return (*self.scene.stacks['ident'][rdri][0], subi)
 
 	# -- view stuff --
@@ -870,6 +876,8 @@ class ViewCommon:
 		elif isinstance(self.navigation, Orbit):
 			focal = self.orient * fvec3(0,0,1)
 			self.navigation.orient = quat(dir, focal) * self.navigation.orient
+			self.navigation.center = position
+			self.navigation.distance = length(dir)
 		else:
 			raise TypeError("navigation {} is not supported by 'look'".format(type(self.navigation)))
 
@@ -986,7 +994,7 @@ class View(ViewCommon, QOpenGLWidget):
 		self.handler.setFocusPolicy(Qt.StrongFocus)
 		self.handler.setAttribute(Qt.WA_AcceptTouchEvents, True)
 
-		ViewCommon.__init__(self, scene, projection=None, navigation=None)
+		ViewCommon.__init__(self, scene, projection=projection, navigation=navigation)
 		self.tool = [Tool(self.navigation.tool, self)] # tool stack, the last tool is used for input events, until it is removed 
 
 	def init(self):
@@ -1057,8 +1065,9 @@ class View(ViewCommon, QOpenGLWidget):
 			pos = self.somenear(evt.pos())
 			if pos:
 				key = self.itemat(pos)
-				self.control(key, evt)
-				if evt.isAccepted():	return
+				if key:
+					self.control(key, evt)
+					if evt.isAccepted():	return
 
 			# if clicks are not accepted, then some following keyboard events may not come to the widget
 			# NOTE this also discarding the ability to move the window from empty areas
