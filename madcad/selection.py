@@ -2,7 +2,8 @@
 
 import math
 from .mathutils import (
-		vec3, anglebt, cross, dot, length, distance, normalize, noproject,
+		vec3, uvec2,
+		anglebt, cross, dot, length, distance, normalize, noproject,
 		distance_pp, distance_pa, distance_pe, distance_aa, distance_ae,
 		)
 from .mesh import Mesh, Web, edgekey, connpp, connef
@@ -42,26 +43,26 @@ def select(mesh, edge, stopleft=None, stopright=False, conn=None, web=None) -> W
 
 def selectside(shared, edge, stop, seen=None, revert=None):
 	''' selection by propagation until stop criterion '''
-	front = [edge if not revert else (edge[1],edge[0])]
-	if seen is None:	seen = set()
-	else:				seen.discard(edge)
+	front = [edge if not revert else uvec2(edge[1],edge[0])]
+	if seen is None:	
+		seen = set()
+	else:				
+		seen.discard(edge)
+		seen.discard(uvec2(edge[1], edge[0]))
 	conn = shared['conn']
 	while front:
 		last,curr = front.pop()
-		#e = edgekey(*edge)
-		#if e in seen:	continue
-		#seen.add(e)
-		if   (last,curr) in seen:	continue
-		elif (curr,last) in seen:	continue
-		if revert:	seen.add((curr,last))
-		else:		seen.add((last,curr))
+		if   uvec2(last,curr) in seen:		continue
+		elif uvec2(curr,last) in seen:		continue
+		if revert:	seen.add(uvec2(curr,last))
+		else:		seen.add(uvec2(last,curr))
 		connected = conn[curr]
 		if len(connected) > 1:
 			for next in connected:
 				if not stop(shared,last,curr,next):
-					front.append((curr,next))
+					front.append(uvec2(curr,next))
 		else:
-			front.append((curr,connected[0]))
+			front.append(uvec2(curr,connected[0]))
 	return seen
 
 
