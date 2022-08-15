@@ -59,10 +59,28 @@ class Axis(object):
 	def __init__(self, origin, direction, interval=None):
 		self.origin, self.direction = origin, direction
 		self.interval = interval
+	
 	def __getitem__(self, i):
+		''' behave like the axis was a tuple (origin, direction) '''
 		if i==0:	return self.origin
 		elif i==1:	return self.direction
 		else:		raise IndexError('an axis has only 2 components')
+		
+	def flip(self) -> 'Axis':
+		''' switch the axis direction '''
+		return Axis(self.origin, -self.direction, self.interval)
+	
+	def offset(self, increment) -> 'Axis':
+		''' move the axis origin along its direction '''
+		return Axis(self.origin + self.direction*increment, self.direction, self.interval)
+		
+	def transform(self, transform) -> 'Axis':
+		''' move the axis by the given transformation '''
+		if isinstance(transform, (float,int)):		return Axis(transform*self.origin, self.direction, self.interval)
+		elif isinstance(transform, vec3):			return Axis(transform+self.origin, self.direction, self.interval)
+		elif isinstance(transform, (mat3, quat)):	return Axis(transform*self.origin, normalize(transform*self.direction), self.interval)
+		elif isinstance(transform, (mat4)):			return Axis(transform*self.origin, normalize(mat3(transform)*self.direction), self.interval)
+		raise TypeError('transform must be one of float, vec3, mat3, quat, mat4')
 	
 	slvvars = ('origin', 'direction')
 	def slv_tangent(self, pt):
