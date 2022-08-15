@@ -174,8 +174,9 @@ class Solid:
 		s.content = self.content
 		return s
 	
-	def itransform(self, trans):
+	def transform(self, trans) -> 'Solid':
 		''' displace the solid by the transformation '''
+		s = copy(self)
 		if isinstance(trans, mat4):
 			rot, trans = quat_cast(mat3(trans)), vec3(trans[3])
 		elif isinstance(trans, mat3):
@@ -186,15 +187,10 @@ class Solid:
 			rot, trans = 1, trans
 		else:
 			raise TypeError('Screw.transform() expect mat4, mat3 or vec3')
-		self.orientation = rot*self.orientation
-		self.position = trans + rot*self.position
-		
-	def transform(self, trans) -> 'Solid':
-		''' create a new Solid moved by the given transformation, with the same content '''
-		s = copy(self)
-		s.itransform(trans)
+		s.orientation = rot*self.orientation
+		s.position = trans + rot*self.position
 		return s
-		
+	
 	def place(self, *args, **kwargs) -> 'Solid': 
 		''' strictly equivalent to `.transform(placement(...))`, see `placement` for parameters specifications. '''
 		s = copy(self)
