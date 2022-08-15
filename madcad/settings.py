@@ -52,6 +52,8 @@ scene = {
 	'display_annotations': True,
 	'surface_shading': True,
 	
+	'lock_solids': True,
+	
 	'debug_points': False,
 	'debug_faces': False,
 	'debug_groups': False,

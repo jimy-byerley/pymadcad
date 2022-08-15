@@ -232,7 +232,9 @@ def triangulation_outline(outline: Wire, normal=None, prec=None) -> Mesh:
 	'''
 	# get a normal in the right direction for loop winding
 	if not normal:		normal = outline.normal()
-	if prec is None:	prec = outline.precision() **2
+	if prec is None:	prec = outline.precision()
+	# the precision we will use in this function is a surface precision:  maximum edge length * minimum edge length
+	prec = prec**2/NUMPREC 
 	# project all points in the plane
 	try:				proj = planeproject(outline, normal)
 	except ValueError:	return Mesh()
@@ -289,8 +291,9 @@ def triangulation_outline(outline: Wire, normal=None, prec=None) -> Mesh:
 		i = imax(scores)
 		if scores[i] == -inf:
 			raise TriangulationError("no more feasible triangles (algorithm failure or bad input outline)", [outline.indices[i] for i in hole])
-			#print('warning: no more feasible triangles', hole)
-			#break
+			#print('warning: no more feasible triangles', [outline.indices[i] for i in hole])
+			#a, b, c, *_ = hole
+			#print('area', prec, perpdot(proj[a]-proj[b], proj[c]-proj[b]), dot(proj[a]-proj[b], proj[c]-proj[b]))
 		
 		triangles.append(uvec3(
 			outline.indices[hole[(i-1)%l]], 
@@ -823,15 +826,15 @@ def flat_loops(lines: Web, normal=None) -> '[Wire]':
 	return loops
 
 	
-def triangulation_closest(outline, normal=None):
+def triangulation_closest(outline, normal=None, prec=None):
 	if isinstance(outline, Wire):
-		return triangulation_outline(outline, normal)
+		return triangulation_outline(outline, normal, prec)
 	else:
 		outline = web(outline)
 	x,y,z = dirbase(normal or convex_normal(outline))
 	result = Mesh(outline.points)
 	for loop in flat_loops(outline + line_bridges(outline), z):
-		result += triangulation_outline(loop, z)
+		result += triangulation_outline(loop, z, prec)
 	return result
 
 	

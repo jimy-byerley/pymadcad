@@ -79,11 +79,12 @@ def cachefunc(f):
 	def repl(*args, **kwargs):
 		if not os.path.exists(cachedir):
 			os.makedirs(cachedir)
-		key = '{}/{}.ply'.format(
+		key = '{}/{}{}-{}.pickle'.format(
 			cachedir,
+			f.__module__.__name__ + '.' if f.__module__ else '',
+			f.__name__,
 			hex(int.from_bytes(
 				md5(repr((
-					f.__name__, 
 					*args, 
 					sorted(list(kwargs.items()))
 					)).encode())
@@ -93,6 +94,17 @@ def cachefunc(f):
 		return cache(key, lambda: f(*args, **kwargs))
 	return repl
 
+	
+'''
+	pickle files are the standard python serialized files, they are absolutely not secure ! so do not use it for something else than your own caching.
+'''
+import pickle
+
+def pickle_read(file, **opts):
+	return pickle.load(open(file, 'rb'))
+	
+def pickle_write(obj, file, **opts):
+	return pickle.dump(obj, open(file, 'wb'))
 
 '''
 	PLY is loaded using plyfile module 	https://github.com/dranjan/python-plyfile

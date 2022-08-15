@@ -602,18 +602,23 @@ class Mesh(Container):
 		separations = set(p  for p, count in ranks.items() if count > 1)
 		newfaces = deepcopy(self.faces)
 		# for each edge, reassign neighboring faces to the proper points
-		duplicates = {}
 		for edge in edges:
 			for pivot in edge:
 				if edge in conn and pivot in newfaces[conn[edge]]:
 					dupli = len(self.points)
 					self.points.append(self.points[pivot])
+					
 					# change the point index in every neighbooring face
 					front = edge
 					while front in conn:
 						fi = conn[front]
 						f = arrangeface(self.faces[fi], pivot)
 						fm = arrangeface(newfaces[fi], pivot)
+						
+						assert f[0] == pivot
+						if fm[0] != pivot: 
+							break
+						
 						newfaces[fi] = uvec3(dupli, fm[1], fm[2])
 						if pivot == front[0]:	front = (pivot, f[2])
 						elif pivot == front[1]:	front = (f[1], pivot)
@@ -621,6 +626,7 @@ class Mesh(Container):
 							raise AssertionError('error in connectivity')
 						if edgekey(*front) in edges:
 							break
+		
 		self.faces = newfaces
 					
 		
@@ -1242,6 +1248,7 @@ class Web(Container):
 		return self.points[e[0]], self.points[e[1]]
 	
 	def edgedirection(self, e):
+		''' direction of edge e '''
 		if isinstance(e, Integral):	e = self.edges[e]
 		return normalize(self.points[e[1]] - self.points[e[0]])
 	
@@ -1377,9 +1384,10 @@ class Wire(Container):
 		return Wire(self.points, indices, tracks, self.groups, self.options)
 		
 	def close(self):
-		self.indices.append(self.indices[0])
-		if self.tracks:
-			self.tracks.append(self.tracks[0])
+		if self.indices[-1] != self.indices[0]:
+			self.indices.append(self.indices[0])
+			if self.tracks:
+				self.tracks.append(self.tracks[0])
 		return self
 		
 	def segmented(self, group=None):
@@ -1438,7 +1446,27 @@ class Wire(Container):
 	def edges(self):
 		''' list of successive edges of the wire '''
 		return typedlist((self.edge(i)  for i in range(len(self.indices)-1)), dtype=uvec2)
+		
+	def edgedirection(self, e):
+		''' direction of edge e '''
+		if isinstance(e, Integral):	e = self.indices[e], self.indices[e+1]
+		return normalize(self.points[e[1]] - self.points[e[0]])
 	
+	def group(self, groups):
+		''' return a new mesh Wire with this one, containing only the indices belonging to the given groups '''
+		if not self.tracks:
+			return self
+		if isinstance(groups, set):			pass
+		elif hasattr(groups, '__iter__'):	groups = set(groups)
+		else:								groups = (groups,)
+		indices = typedlist(dtype=self.indices.dtype)
+		tracks = typedlist(dtype=self.tracks.dtype)
+		for i,t in zip(self.indices, self.tracks):
+			if t in groups:
+				indices.append(i)
+				tracks.append(t)
+		return Wire(self.points, indices, tracks, self.groups, self.options)
+		
 	
 	def length(self):
 		''' curviform length of the wire (sum of all edges length) '''

@@ -129,12 +129,13 @@ def cut_mesh(m1, m2, prec=None) -> '(Mesh, Web)':
 							if o not in original:	continue
 							# find the place where the outline is cutted
 							p = m1.points[seg[i]]
-							e = find(outline, lambda e: distance_pe(p, (m1.points[e[0]], m1.points[e[1]])) <= prec)
-							if seg[i] not in e:	# NOTE maybe not necessary
+							e = min(outline, key=lambda e: distance_pe(p, (m1.points[e[0]], m1.points[e[1]])))  # this perfect minimul should not be needed as the first below the precision should be unique, but for precision robustness ...
+							if seg[i] not in e:
+								#print('  cross', i, e)
 								outline.remove(e)
 								outline.add((e[0],seg[i]))
 								outline.add((seg[i],e[1]))
-			
+										
 			# simplify the intersection lines
 			segts = Web(m1.points, segts.keys(), segts.values(), frontier.groups)
 			segts.mergepoints(line_simplification(segts, prec))
@@ -144,7 +145,7 @@ def cut_mesh(m1, m2, prec=None) -> '(Mesh, Web)':
 			segts.edges.extend(uvec2(b,a) for a,b in segts.edges[:])
 			segts.edges.extend(outline)
 			segts.tracks = typedlist.full(0, len(segts.edges), 'I')
-			flat = triangulation.triangulation_closest(segts, normal)
+			flat = triangulation.triangulation_closest(segts, normal, prec)
 			# append the triangulated face, in association with the original track
 			flat.tracks = typedlist.full(track, len(flat.faces), 'I')
 			flat.groups = m1.groups

@@ -6,8 +6,9 @@
 
 Simple yet powerful CAD (Computer Aided Design) library, written with Python.
 
+- [Official website](https://madcad.netlify.app)
 - [Installation](https://pymadcad.readthedocs.io/en/latest/installation.html)
-- [Documentation](https://pymadcad.readthedocs.io/en/latest/?)
+- [Documentation](https://pymadcad.readthedocs.io/)
 - [Repository](https://github.com/jimy-byerley/pymadcad)
 
 [![support-version](https://img.shields.io/pypi/pyversions/pymadcad.svg)](https://img.shields.io/pypi/pyversions/pymadcad)
