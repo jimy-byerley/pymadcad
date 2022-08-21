@@ -192,7 +192,7 @@ class Solid:
 		return s
 	
 	def place(self, *args, **kwargs) -> 'Solid': 
-		''' strictly equivalent to `.transform(placement(...))`, see `placement` for parameters specifications. '''
+		''' strictly equivalent to `self.pose = placement(...)`, see `placement` for parameters specifications. '''
 		s = copy(self)
 		s.pose = placement(*args, **kwargs)
 		return s
@@ -268,7 +268,11 @@ def placement(*pairs, precision=1e-3):
 	
 		Parameters:
 		
-			pairs:	a list of surface pairs to convert to kinematic joints using `guessjoint`
+			pairs:	a list of pairs to convert to kinematic joints
+					
+					- items can be couples of surfaces to convert to joints using `guessjoint`
+					- tuples (joint_type, a, b)  to build joints `joint_type(solida, solidb, a, b)`
+			
 			precision: surface guessing and kinematic solving precision (distance)
 		
 		each pair define a joint between the two assumed solids (a solid for the left members of the pairs, and a solid for the right members of the pairs). placement will return the pose of the first relatively to the second, satisfying the constraints.
@@ -288,11 +292,20 @@ def placement(*pairs, precision=1e-3):
 			...		(screw['part'].group(0), other['part'].group(44)),
 			...		(screw['part'].group(4), other['part'].group(25)),
 			...		)
+			
+			>>> screw.place(
+			...		(Pivot, screw['axis'], other['screw_place']),
+			...		)
 	'''
 	from .reverse import guessjoint
 	
 	a, b = Solid(), Solid()
-	joints = [guessjoint(a, b, *pair, precision*0.25)   for pair in pairs]  # a better precision is aked for the joint definition, so that solvekin is not disturbed by inconsistent data
+	joints = []
+	for pair in pairs:
+		if len(pair) == 2:		joints.append(guessjoint(a, b, *pair, precision*0.25))
+		elif len(pair) == 3:	joints.append(pair[0](a, b, *pair[1:]))
+		else:
+			raise TypeError('incorrect pair definition', pair)
 	solvekin(joints, fixed=[b], precision=precision, maxiter=1000)
 	return a.pose
 
