@@ -622,7 +622,7 @@ def coilspring_compression(length, d=None, thickness=None, solid=True) -> Solid:
 	for t in linrange(t0, t0 + 4*pi, step):
 		bot.append( vec3(r*cos(t), r*sin(t), z0 + (t-t0)/(2*pi) * thickness) )
 		
-	path = Wire(top, groups=['coil']) + Wire(coil, groups=['spring']) + Wire(bot, groups=['coil'])
+	path = Wire(top) + Wire(coil).qualify('spring') + Wire(bot)
 	
 	if not solid:
 		return path
@@ -666,8 +666,7 @@ def coilspring_tension(length, d=None, thickness=None, solid=True) -> Solid:
 	step = 2*pi/(div+1)
 	z0 = -0.5 * ncoil * thickness
 	coil = Wire([	vec3(r*cos(t), r*sin(t), z0 + t/(2*pi) * thickness)
-					for t in linrange(0, 2*pi * ncoil, step) ], 
-				groups=['spring'])
+					for t in linrange(0, 2*pi * ncoil, step) ]) .qualify('spring')
 	# create path with hooks
 	path = wire([
 				ArcCentered((-0.5*length*Z, X), vec3(0, -r, -0.5*length), -hold*Z),
@@ -727,8 +726,7 @@ def coilspring_torsion(arm,
 	step = 2*pi/(div+1)
 	z0 = -0.5 * ncoil * thickness
 	coil = Wire([	vec3(-r*sin(t), r*cos(t), z0 + t/(2*pi) * thickness)
-					for t in linrange(0, 2*pi * ncoil, step) ], 
-				groups=['spring'])
+					for t in linrange(0, 2*pi * ncoil, step) ]) .qualify('spring')
 				
 	# create hooks
 	c = thickness * sign(hook)

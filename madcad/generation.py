@@ -267,7 +267,7 @@ def thicken(surf, thickness, alignment=0, method='face') -> 'Mesh':
 		)
 	t = len(m.groups)
 	l = len(surf.points)
-	m.groups.append('junction')
+	m.groups.append(None)
 	for e in surf.outlines_oriented():
 		mkquad(m, (e[0], e[1], e[1]+l, e[0]+l), t)
 	return m
@@ -327,7 +327,7 @@ def dividedtriangle(placement, div=1) -> 'Mesh':
 	'''
 	segts = div+2
 	# place points
-	mesh = Mesh(groups=['blend'])
+	mesh = Mesh(groups=[None])
 	for i in range(segts):
 		u = i/(segts-1)				
 		for j in range(segts-i):
@@ -488,7 +488,7 @@ def square(axis:primitives.Axis, width:float) -> 'Mesh':
 	return Mesh(
 		typedlist([axis[0]+0.6*width*p   for p in ((x+y), (y-x), (-y-x), (-y+x))]),
 		typedlist([uvec3(0,1,2), uvec3(2,3,0)]),
-		groups=['flat'],
+		groups=[None],
 		)
 
 def icosahedron(center:vec3, radius:float) -> 'Mesh':
