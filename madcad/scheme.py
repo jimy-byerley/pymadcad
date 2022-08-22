@@ -55,15 +55,15 @@ class Scheme:
 		
 		Attributes:
 		
-			spaces(list):       a space is any function giving a mat4 to position a point on the screen (openGL convensions as used)
+			spaces (list):       a space is any function giving a mat4 to position a point on the screen (openGL convensions as used)
 			
-			vertices(list):	    
+			vertices (list):	    
 			
 				a vertex is a tuple
 				
 				`(space id, position, normal, color, layer, track, flags)`
 			
-			primitives(list):   
+			primitives (list):   
 			
 				list of buffers (of point indices, edges, triangles, depending on the exact primitive type), associaded to each supported shader in the scheem
 				
@@ -73,11 +73,11 @@ class Scheme:
 				- `'fill'`  uniform opaque/transparent triangles
 				- `'ghost'` triangles of surface that fade when its normal is close to the view
 			
-			components(list):   objects to display setting their local space to one of the spaces
+			components (list):   objects to display setting their local space to one of the spaces
 				
-			annotation(bool):     whether this object must be considered as an annotation (and hidden with others when requested)
+			annotation (bool):     whether this object must be considered as an annotation (and hidden with others when requested)
 			
-			current(dict):     last vertex definition, implicitely reused for convenience
+			current (dict):     last vertex definition, implicitely reused for convenience
 	'''
 	def __init__(self, vertices=None, spaces=None, primitives=None, annotation=True, **kwargs):
 		self.vertices = vertices or [] # list of vertices
@@ -393,7 +393,17 @@ def screen(view):
 				0,0,-1,1)
 
 def ubiquity(view):
-	return translate(fvec3(0,0,-1)) * fmat4(fmat3(view.uniforms['view']) * fmat3(view.uniforms['world']))
+	#return translate(fvec3(0,0,-1)) * fmat4(fmat3(view.uniforms['view']) * fmat3(view.uniforms['world']))
+	proj = view.uniforms['proj']
+	f = - (proj[3][2]-proj[3][3]) / (proj[2][2] - proj[2][3])
+	n = - (proj[3][2]+proj[3][3]) / (proj[2][2] + proj[2][3])
+	d = 3*n
+	e = proj * fvec4(1,1,d,1)
+	e /= e[3]
+	return translate(fvec3(0,0,d)) * fmat4(
+				fmat3(1/e[1]) 
+				* fmat3(view.uniforms['view']) 
+				* fmat3(view.uniforms['world']))
 
 def world(view):
 	return view.uniforms['view'] * view.uniforms['world']
@@ -411,36 +421,37 @@ def halo_view(position):
 	def mat(view):
 		center = view.uniforms['view'] * (view.uniforms['world'] * position)
 		proj = view.uniforms['proj']
-		m = fmat4(1)
+		e = proj * fvec4(1,1,center.z,1)
+		e /= e[3]
+		m = fmat4(1/e[1])
 		m[3] = center
-		m[0][0] = center.z/proj[0][0]
-		m[1][1] = center.z/proj[1][1]
 		return m
 	return mat
 def halo_screen(position):
 	position = fvec4(position,1)
 	def mat(view):
 		center = view.uniforms['view'] * (view.uniforms['world'] * position)
-		m = fmat4(1)
+		e = view.uniforms['proj'] * fvec4(1,1,center.z,1)
+		e /= e[3]
+		m = fmat4(2/(e[1]*view.target.height))
 		m[3] = center
-		d = center.z/view.target.height
-		m[0][0] = d
-		m[1][1] = d
 		return m
 	return mat
 
 def scale_screen(center):
 	def mat(view):
 		m = view.uniforms['view'] * view.uniforms['world']
-		d = -(m*fvec4(center,1)).z /view.target.height
-		return scale(translate(m, center), fvec3(d))
+		e = view.uniforms['proj'] * fvec4(1,1,(m*center).z,1)
+		e /= e[3]
+		return m * translate(center) * scale(fvec3(2 / (e[1]*view.target.height)))
 	return mat
 
 def scale_view(center):
 	def mat(view):
 		m = view.uniforms['view'] * view.uniforms['world']
-		d = -(m*fvec4(center,1)).z
-		return scale(translate(m, center), fvec3(d))
+		e = view.uniforms['proj'] * fvec4(1,1,(m*center).z,1)
+		e /= e[3]
+		return m * translate(center) * scale(fvec3(1 / e[1]))
 	return mat
 
 
@@ -460,18 +471,19 @@ class note_leading_display(Display):
 			x,y,z = dirbase(normalize(vec3(self.offset)))
 			sch.add(
 				gt.revolution(2*pi, (vec3(0), z), 
-					web([vec3(0), 8*z+2*x]), 
+					web([vec3(0), 16*z+4*x]), 
 					resolution=('div',8),
 					), 
 				shader='fill',
 				space=scale_screen(self.origin),
 				)
 			sch.set(space=halo_screen(self.origin+self.offset))
-			sch.add([vec3(0), vec3(side*(20 - 9*0.4), 0, 0)], shader='line')
-			sch.add(txt.Text(vec3(side*20, 0, 0), self.comment, align=('right' if side>0 else 'left', 0.5), color=fvec4(color,1), size=9))
+			font = settings.display['view_font_size']
+			sch.add([vec3(0), vec3(side*font*2, 0, 0)], shader='line')
+			sch.add(txt.Text(vec3(side*font*3, 0, 0), self.comment, align=('left' if side>0 else 'right', 0.5), color=fvec4(color,1), size=font))
 			
 			return scene.display(sch)
-		self.disp = build(1), build(-1)
+		self.disp = build(-1), build(1)
 		
 	@property
 	def selected(self):
@@ -563,7 +575,7 @@ def note_leading(placement, offset=None, text='here'):
 
 def note_floating(position, text):
 	''' place a floating note at given position '''
-	return txt.Text(position, text, align=(0,0), color=settings.display['annotation_color'], size=9)
+	return txt.Text(position, text, align=(0,0), color=settings.display['annotation_color'], size=settings.display['view_font_size'])
 
 def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None, side=False):
 	''' place a distance quotation between 2 points, 
@@ -598,19 +610,19 @@ def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None, sid
 				mix(ao,bo,0.5), 
 				text, 
 				align=('center', 0.5), 
-				size=9, 
+				size=settings.display['view_font_size'], 
 				color=fvec4(color,1)))
 	sch.set(shader='fill')
 	sch.add(gt.revolution(
 				2*pi, 
 				(vec3(0),project), 
-				web([vec3(0), 1.5*x-6*z]), 
+				web([vec3(0), 3*x-12*z]), 
 				resolution=('div',8)), 
 			space=scale_screen(fvec3(ao)))
 	sch.add(gt.revolution(
 				2*pi, 
 				(vec3(0),project), 
-				web([vec3(0), 1.5*x+6*z]), 
+				web([vec3(0), 3*x+12*z]), 
 				resolution=('div',8)), 
 			space=scale_screen(fvec3(bo)))
 	return sch
@@ -695,19 +707,19 @@ def note_angle(a0, a1, offset=0, d=None, tol=None, text=None, unit='deg', side=F
 				arc[len(arc)//2], 
 				text, 
 				align=('center', 0.5), 
-				size=9, 
+				size=settings.display['view_font_size'], 
 				color=fvec4(color,1)))
 	sch.set(shader='fill')
 	sch.add(gt.revolution(
 				2*pi, 
 				(vec3(0),x0), 
-				web([vec3(0), 1.5*d0+6*x0]), 
+				web([vec3(0), 3*d0+12*x0]), 
 				resolution=('div',8)), 
 			space=scale_screen(fvec3(p0)))
 	sch.add(gt.revolution(
 				2*pi, 
 				(vec3(0),x1), 
-				web([vec3(0), 1.5*d1-6*x1]), 
+				web([vec3(0), 3*d1-12*x1]), 
 				resolution=('div',8)), 
 			space=scale_screen(fvec3(p1)))
 	return sch
@@ -1007,12 +1019,14 @@ def note_label(placement, offset=None, text='!', style='rect'):
 	sch.add(gt.revolution(
 				2*pi,
 				(vec3(0),z),
-				web([3*x, 5*z]),
+				web([6*x, 10*z]),
 				resolution=('div',8),
 				),
 			space=scale_screen(fvec3(p)), shader='fill')
 	sch.add([p, p+offset], space=world, shader='line', layer=2e-4)
-	r = 5
+	font = int(settings.display['view_font_size'] * 1.2)
+	r = font*0.8
+	print(font, r)
 	if style == 'circle':	outline = web(Circle((vec3(0),vec3(0,0,1)), r))
 	elif style == 'rect':	outline = [vec3(r,r,0), vec3(-r,r,0), vec3(-r,-r,0), vec3(r,-r,0), vec3(r,r,0)]
 	else:
@@ -1020,7 +1034,7 @@ def note_label(placement, offset=None, text='!', style='rect'):
 	sch.set(space=halo_screen(fvec3(p+offset)))
 	sch.add(outline, shader='line', layer=0)
 	sch.add(gt.flatsurface(wire(outline)), color=fvec4(settings.display['background_color'],0), shader='fill', layer=1e-3)
-	sch.add(txt.Text(p+offset, text, align=('center','center'), size=10, color=color), space=world)
+	sch.add(txt.Text(p+offset, text, align=('center','center'), size=font, color=color), space=world)
 	return sch
 	
 
@@ -1068,7 +1082,7 @@ def note_iso(p, offset, type, text, refs=(), label=None):
 	#def stack(self, scene):
 		#yield from self.disp.stack(scene)
 		
-def note_base(matrix, color=None, labels=('X', 'Y', 'Z'), name=None, size=0.1):
+def note_base(matrix, color=None, labels=('X', 'Y', 'Z'), name=None, size=0.4):
 	if not color:	color = settings.display['annotation_color']
 	if not name:	name = ''
 	if not labels:	labels = [None]*3
@@ -1097,7 +1111,7 @@ def note_base(matrix, color=None, labels=('X', 'Y', 'Z'), name=None, size=0.1):
 			color=fvec4(color,1), 
 			shader='line',
 			)
-		sch.add(gt.revolution(2*pi, (o,z), web([o, -7*z+1.8*x])), 
+		sch.add(gt.revolution(2*pi, (o,z), web([o, -14*z+3.6*x])), 
 			space=scale_screen_scale_view(fvec3(center), fvec3(size*direction)) if center else scale_screen_ubiquity(fvec3(size*direction)), 
 			color=fvec4(color,0.8), 
 			shader='fill',
@@ -1107,7 +1121,7 @@ def note_base(matrix, color=None, labels=('X', 'Y', 'Z'), name=None, size=0.1):
 	
 	return sch
 	
-def note_rotation(quaternion, color=None, size=0.1):
+def note_rotation(quaternion, color=None, size=0.4):
 	if not color:	color = settings.display['annotation_color']
 	
 	direction = vec3(glm.axis(quaternion))
@@ -1126,7 +1140,7 @@ def note_rotation(quaternion, color=None, size=0.1):
 	sch.add([-size*direction, -0.2*size*direction])
 	sch.add([-0.1*size*direction, 0.1*size*direction])
 	sch.add([0.2*size*direction, size*direction])
-	sch.add(gt.revolution(2*pi, (o,z), web([o, -7*z+1.8*x])), 
+	sch.add(gt.revolution(2*pi, (o,z), web([o, -14*z+3.6*x])), 
 		space=scale_screen_ubiquity(fvec3(size*direction)), 
 		color=fvec4(color,0.6), 
 		shader='fill',
@@ -1139,7 +1153,7 @@ def note_rotation(quaternion, color=None, size=0.1):
 		)
 	sch.add([size*cos(t)*x + size*sin(t)*y  for t in linrange(0, angle, step=0.1)])
 	sch.add([size*cos(t)*x + size*sin(t)*y  for t in linrange(0, 2*pi, step=0.1)], color=fvec4(color,0.2))
-	sch.add(gt.revolution(2*pi, (size*rend, tend), web([size*tend, size*tend-7*tend+1.8*rend])), 
+	sch.add(gt.revolution(2*pi, (size*rend, tend), web([size*tend, size*tend-14*tend+3.6*rend])), 
 		space=scale_screen_ubiquity(fvec3(size*rend)), 
 		color=fvec4(color,0.8), 
 		shader='fill',
@@ -1162,16 +1176,24 @@ transforms = [
 def scale_screen_scale_view(center, offset):
 	def mat(view):
 		m = view.uniforms['view'] * view.uniforms['world']
-		d1 = -(m*fvec4(center,1)).z
-		d2 = 1/view.target.height
-		return scale(translate(scale(translate(m, center), fvec3(d1)), offset), fvec3(d2))
+		e = view.uniforms['proj'] * fvec4(1,1,(m*center).z,1)
+		e /= e[3]
+		return m * translate(center) * scale(fvec3(1/e[1])) * translate(offset) * scale(fvec3(2/view.target.height))
 	return mat
 	
 def scale_screen_ubiquity(offset):
 	def mat(view):
-		m = fmat3(view.uniforms['view']) * fmat3(view.uniforms['world'])
-		d2 = 1/view.target.height
-		return scale(translate(translate(fvec3(0,0,-1)) * fmat4(m), offset), fvec3(d2))
+		proj = view.uniforms['proj']
+		f = - (proj[3][2]-proj[3][3]) / (proj[2][2] - proj[2][3])
+		n = - (proj[3][2]+proj[3][3]) / (proj[2][2] + proj[2][3])
+		d = 3*n
+		e = proj * fvec4(1,1,d,1)
+		e /= e[3]
+		d2 = 2/view.target.height
+		return translate(fvec3(0,0,d)) * fmat4(
+					fmat3(1/e[1]) 
+					* fmat3(view.uniforms['view']) 
+					* fmat3(view.uniforms['world'])) * translate(offset) * scale(fvec3(d2))
 	return mat
 	
 def base_display(scene, mat):

@@ -44,7 +44,7 @@ import numpy.core as np
 
 from PyQt5.QtCore import Qt, QPoint, QEvent
 from PyQt5.QtWidgets import QApplication, QWidget, QOpenGLWidget
-from PyQt5.QtGui import QSurfaceFormat, QMouseEvent, QInputEvent, QKeyEvent, QTouchEvent
+from PyQt5.QtGui import QSurfaceFormat, QMouseEvent, QInputEvent, QKeyEvent, QTouchEvent, QFocusEvent
 
 from PIL import Image
 
@@ -364,7 +364,8 @@ class Orbit:
 class Perspective:
 	''' object used as `View.projection` 
 	
-		:fov:	field of view (rad)
+		Attributes:
+			fov (float):	field of view (rad), defaulting to `settings.display['field_of_view']`
 	'''
 	def __init__(self, fov=None):
 		self.fov = fov or settings.display['field_of_view']
@@ -372,12 +373,21 @@ class Perspective:
 		return perspective(self.fov, ratio, distance*1e-2, distance*1e4)
 
 class Orthographic:
-	''' object used as `View.projection` '''
+	''' object used as `View.projection` 
+	
+		Attributes:
+			size (float):  
+			
+				factor between the distance from camera to navigation center and the zone size to display
+				defaulting to `tan(settings.display['field_of_view']/2)`
+	'''
+	def __init__(self, size=None):
+		self.size = size or tan(settings.display['field_of_view']/2)
 	def matrix(self, ratio, distance) -> fmat4:
-		return fmat4(1/ratio/distance, 0, 0, 0,
-		            0,       1/distance, 0, 0,
-		            0,       0,          1, 0,
-		            0,       0,          0, 1)
+		return fmat4(1/(ratio*distance*self.size), 0, 0, 0,
+		            0,       1/(distance*self.size), 0, 0,
+		            0,       0,          -2/(distance*(1e3-1e-2)), 0,
+		            0,       0,          -(1e3+1e-2)/(1e3-1e-2), 1)
 
 
 class Scene:
@@ -487,12 +497,11 @@ class Scene:
 				self.ctx.finish()
 				# update displays
 				for key,displayable in self.queue.items():
-					if key not in self.displays or not self.displays[key].update(self, displayable):
-						try:	
-							self.displays[key] = self.display(displayable)
-						except:
-							print('\ntried to display', object.__repr__(displayable))
-							traceback.print_exc()
+					try:	
+						self.displays[key] = self.display(displayable, self.displays.get(key))
+					except:
+						print('\ntried to display', object.__repr__(displayable))
+						traceback.print_exc()
 				self.touched = True
 				self.queue.clear()
 		
@@ -549,12 +558,14 @@ class Scene:
 		else:
 			raise KeyError("ressource {} doesn't exist or is not loaded".format(repr(name)))
 					
-	def display(self, obj):
+	def display(self, obj, former=None):
 		''' create a display for the given object for the current scene.
 		
 			this is the actual function converting objects into displays.
 			you don't need to call this method if you just want to add an object to the scene, use add() instead
 		'''
+		if former and former.update(self, obj):
+			return former
 		if type(obj) in overrides:
 			disp = overrides[type(obj)](self, obj)
 		elif hasattr(obj, 'display'):
@@ -584,7 +595,7 @@ class Step(Display):
 	'''
 	__slots__ = 'step',
 	def __init__(self, target, priority, callable):	self.step = ((), target, priority, callable)
-	def __repr__(self):		return '{}({}, {}, {})'.format(self.step[1], self.step[2], self.step[3])
+	def __repr__(self):		return '{}({}, {}, {})'.format(type(self).__name__, self.step[1], self.step[2], self.step[3])
 	def stack(self, scene):		return self.step,
 
 class Displayable:
@@ -634,12 +645,11 @@ class Group(Display):
 			scene.ctx.finish()
 			for key, obj in items:
 				if not displayable(obj):	continue
-				if key not in self.displays or not self.displays[key].update(scene, obj):
-					try:
-						self.displays[key] = scene.display(obj)
-					except:
-						print('tried to display', object.__repr__(obj))
-						traceback.print_exc()
+				try:
+					self.displays[key] = scene.display(obj, self.displays.get(key))
+				except:
+					print('tried to display', object.__repr__(obj))
+					traceback.print_exc()
 		scene.touch()
 		return True
 	dequeue = update
@@ -898,7 +908,7 @@ class ViewCommon:
 		if isinstance(self.projection, Perspective):
 			self.navigation.distance = dist / tan(self.projection.fov/2)
 		elif isinstance(self.projection, Orthographic):
-			self.navigation.distance = dist
+			self.navigation.distance = dist / self.projection.size
 		else:
 			raise TypeError('projection {} not supported'.format(type(self.projection)))
 
@@ -993,6 +1003,7 @@ class View(ViewCommon, QOpenGLWidget):
 		self.handler = GhostWidget(self)
 		self.handler.setFocusPolicy(Qt.StrongFocus)
 		self.handler.setAttribute(Qt.WA_AcceptTouchEvents, True)
+		self.setFocusProxy(self.handler)
 
 		ViewCommon.__init__(self, scene, projection=projection, navigation=navigation)
 		self.tool = [Tool(self.navigation.tool, self)] # tool stack, the last tool is used for input events, until it is removed 
@@ -1145,6 +1156,8 @@ class GhostWidget(QWidget):
 			evt.ignore()
 			self.parent().inputEvent(evt)
 			if evt.isAccepted():	return True
+		elif isinstance(evt, QFocusEvent):
+			self.parent().event(evt)
 		return super().event(evt)
 
 
