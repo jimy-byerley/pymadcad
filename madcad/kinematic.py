@@ -132,10 +132,9 @@ class Solid:
 			>>> mypart = icosphere(vec3(0), 1)
 			>>> s = Solid(content=mypart)   # create a solid with whatever inside
 			
-			>>> s.itransform(vec3(1,2,3))	# translate the solid, keeping the content untouched
 			>>> s.transform(vec3(1,2,3))   # make a new translated solid, keeping the same content without copy
 			
-			>>> # put any content is in a dict
+			>>> # put any content in it
 			>>> s['content']
 			<Mesh ...>
 			>>> s['whatever'] = vec3(5,2,1)
@@ -315,11 +314,8 @@ def convexhull(pts):
 	if len(pts) == 3:
 		return Mesh(pts, [(0,1,2),(0,2,1)])
 	elif len(pts) > 3:
-		print(0.1)
 		hull = scipy.spatial.ConvexHull(typedlist_to_numpy(pts, 'f8'))
-		print(0.5)
 		m = Mesh(pts, hull.simplices.tolist())
-		print(0.8)
 		return m
 	else:
 		return Mesh(pts)
@@ -364,11 +360,9 @@ def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)
 			
 	for i,solid in enumerate(solids):
 		process(i,solid)
-		
-	print('collect')
+	
 	# create convex hulls and prepare for parenting
 	hulls = [convexhull(pts).orient()  for pts in points]
-	print(1)
 	boxes = [hull.box()  for hull in hulls]
 	normals = [hull.vertexnormals()  for hull in hulls]
 	barycenters = [hull.barycenter()  for hull in hulls]
@@ -378,7 +372,6 @@ def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)
 	offsets = [vec3(0)] * len(solids)
 	
 	# build a graph of connected things (distance from center to convex hulls)
-	print('build graph')
 	for i in range(len(solids)):
 		center = barycenters[i]	
 		for j in range(len(solids)):
@@ -418,7 +411,6 @@ def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)
 				if dot(offsets[i], normal) < 0:
 					offsets[i] = -offsets[i]
 	
-	print('resolve')
 	# resolve dependencies to output the offsets in the resolution order
 	order = []
 	reached = [False] * len(solids)
@@ -433,8 +425,7 @@ def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)
 				j = parents[j]
 			order.extend(reversed(chain))
 		i += 1
-		
-	print('finish')
+	
 	# move more parents that have children on their way out				
 	blob = [deepcopy(box) 	for box in boxes]
 	for i in reversed(range(len(solids))):
@@ -477,13 +468,6 @@ def explode(solids, factor=1, offsets=None) -> '(solids:list, graph:Mesh)':
 	if not offsets:
 		offsets = explode_offsets(solids)
 	
-	print('move')
-	#graph = Web([o[3]  for o in offsets], groups=[None])
-	#for i, j in enumerate(parents):
-		#if j:
-			#graph.edges.append((i,j))
-			#graph.tracks.append(0)
-			
 	graph = Web(groups=[None])
 	shifts = [	(solids[solid].position - solids[parent].position)
 				if parent else vec3(0)
@@ -491,7 +475,6 @@ def explode(solids, factor=1, offsets=None) -> '(solids:list, graph:Mesh)':
 	for solid, parent, offset, center in offsets:
 		if parent:
 			solids[solid].position = solids[parent].position + shifts[solid] + offset * factor
-			#graph.points[solid] += solids[solid].position
 			
 			graph.edges.append((len(graph.points), len(graph.points)+1))
 			graph.tracks.append(0)
