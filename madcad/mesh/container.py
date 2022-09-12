@@ -158,6 +158,8 @@ class NMesh(object):
 			group = self.groups[i]
 			if group is None:
 				self.groups[i] = group = {}
+			if not hasattr(group, '__setitem__'):
+				raise TypeError('cannot qualify a group that is not a dictionnary')
 			if replace:
 				for key in select:
 					if key in group:
