@@ -26,13 +26,13 @@ __all__ = [
 # --- extrusion things ---
 
 
-def extrusion(trans, line, alignment=0):
+def extrusion(trans, line: Web, alignment:float=0) -> Mesh:
 	''' create a surface by extruding the given outline by a transformation
 		
-		parameters:
-			:line:         a line (Web or Wire) or a surface (Mesh) to extrude
-			:trans:        any transformation object accepted by `mathutils.transform`
-			:alignment:	   when > 0 the line is extruded both sides (the transformation is linearly interpoled)
+		Parameters:
+			line:         a line (Web or Wire) or a surface (Mesh) to extrude
+			trans:        any transformation object accepted by `mathutils.transform`
+			alignment:	   when > 0 the line is extruded both sides (the transformation is linearly interpoled)
 	'''
 	trans = transform(trans)
 	neutral = mat4()
@@ -42,9 +42,15 @@ def extrusion(trans, line, alignment=0):
 				],
 				[(0,1,0)])
 
-def revolution(angle, axis, profile, resolution=None):
+def revolution(angle: float, axis: Axis, profile: Web, resolution=None) -> Mesh:
 	''' create a revolution surface by extruding the given outline
 		`steps` is the number of steps between the start and the end of the extrusion
+		
+		Parameters:
+			angle:    angle of rotation between the given profile and the final produced profile
+			axis:     the axis to rotate around
+			profile:  the shape to extrude
+			resolution:   resolution setting for the biggest produced circle, such as for primitives
 	'''
 	if not isinstance(profile, (Mesh,Web,Wire)):	
 		profile = web(profile)
@@ -65,7 +71,7 @@ def revolution(angle, axis, profile, resolution=None):
 		else:                             yield (steps-2, steps-1, 0)
 	return extrans(profile, trans(), links())
 
-def saddle(web1, web2):
+def saddle(web1: Web, web2: Web) -> Mesh:
 	''' create a surface by extruding outine1 translating each instance to the next point of outline2
 	'''
 	web1, web2 = web(web1), web(web2)
@@ -75,9 +81,9 @@ def saddle(web1, web2):
 			yield translate(mat4(1), p-s)
 	return extrans(web1, trans(), ((*e,t)  for e,t in zip(web2.edges, web2.tracks)))
 
-def tube(outline, path, end=True, section=True):
+def tube(outline: Web, path: Wire, end=True, section=True) -> Mesh:
 	''' create a tube surface by extrusing the outline along the path
-		if section is True, there is a correction of the segments to keep the section undeformed by the curve
+		if `section` is True, there is a correction of the segments to keep the section undeformed by the curve
 	'''
 	path = wire(path)
 	def trans():
@@ -118,13 +124,15 @@ def tube(outline, path, end=True, section=True):
 	return extrans(outline, trans, links)
 
 
-def extrans(section, transformations, links) -> 'Mesh':
+def extrans(section, transformations, links) -> Mesh:
 	''' create a surface by extruding and transforming the given outline.
 		
-		:transformations:   iterable of mat4, one each section
-		:link:              iterable of tuples (a,b,t)  with:
-								`(a,b)` the sections to link (indices of values returned by `transformation`).
-								`t` the group number of that link, to combine with the section groups		
+		Parameters:
+			section:           a `Web` or a `Mesh`
+			transformations:   iterable of mat4, one each section
+			link:              iterable of tuples (a,b,t)  with:
+									`(a,b)` the sections to link (indices of values returned by `transformation`).
+									`t` the group number of that link, to combine with the section groups		
 	'''
 	# prepare
 	if isinstance(section, Mesh):
