@@ -371,10 +371,10 @@ code {
 }
 
 /* tables */
-.rst-content table.docutils td {
+.rst-content table.docutils:not(.field-list) td {
 	border: 1px solid #20484a !important;
 }
-.rst-content table.docutils th {
+.rst-content table.docutils:not(.field-list) th {
 	border: 1px solid #173233 !important;
     border-bottom: 1px solid #5b8891 !important;
 }

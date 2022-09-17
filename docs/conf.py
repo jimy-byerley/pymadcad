@@ -30,7 +30,6 @@ extensions = [
     'sphinx.ext.autodoc',  # documentation for docstrings
     'sphinx.ext.intersphinx',  # for external links
     'sphinx.ext.viewcode',  # for links to source code
-    #'sphinx.ext.githubpages',
     'sphinx.ext.napoleon',   # docstring format parser
     'sphinx.ext.autosectionlabel',  # generate links to functions and sections
     'sphinx_collapse',        # allow to collapse portions of text
@@ -50,7 +49,7 @@ master_doc = 'index' # The master toctree document
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = 'github-dark'
+#pygments_style = 'github-dark'  # alternative to the highlight defined in custom.css
 add_module_names = False	# remove module names from function docs
 default_role = 'code'
 primary_domain = 'py'
@@ -60,9 +59,11 @@ primary_domain = 'py'
 html_logo = 'logo.png'
 html_favicon = "logo.ico"
 html_static_path = ['static']	# path to custom static files, such as images and stylesheets
-html4_writer = True
 
-#html_theme = 'sphinx_rtd_theme'
+html_theme = 'sphinx_rtd_theme'
+
+napoleon_numpy_docstring = False
+napoleon_google_docstring = True
 
 
 # -- Options for HTMLHelp output ---------------------------------------------
