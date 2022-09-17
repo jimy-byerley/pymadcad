@@ -48,7 +48,7 @@ master_doc = 'index' # The master toctree document
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = None
+#pygments_style = None
 add_module_names = False	# remove module names from function docs
 default_role = 'code'
 primary_domain = 'py'
@@ -57,7 +57,7 @@ primary_domain = 'py'
 # -- Options for HTML output -------------------------------------------------
 html_logo = 'logo.png'
 html_favicon = "logo.ico"
-html_static_path = ['_static']	# path to custom static files, such as images and stylesheets
+html_static_path = ['static']	# path to custom static files, such as images and stylesheets
 
 html_theme = 'sphinx_rtd_theme'
 
@@ -76,4 +76,4 @@ epub_exclude_files = ['search.html']
 
 
 def setup(app):
-    app.add_css_file('css/custom.css')
+    app.add_css_file('custom.css')
