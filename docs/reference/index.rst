@@ -27,6 +27,7 @@ submodules
 	cut.rst
 	boolean.rst
 	reverse.rst
+	hull.rst
 	
 	io.rst
 	settings.rst
