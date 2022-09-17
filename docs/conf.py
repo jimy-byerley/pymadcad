@@ -27,14 +27,16 @@ release = 'v'+version	# The full version, including alpha/beta/rc tags
 needs_sphinx = '5.1'
 # sphinx extensions
 extensions = [
-    'sphinx_rtd_theme',
     'sphinx.ext.autodoc',
+    'sphinx.ext.intersphinx',
+    'sphinx.ext.viewcode',
     'sphinx.ext.githubpages',
     'sphinx.ext.napoleon',
     'sphinx.ext.autosectionlabel',
     'sphinx_collapse',
 	'sphinxcontrib.mermaid',
     'myst_parser',
+    'sphinx_rtd_theme',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -48,7 +50,7 @@ master_doc = 'index' # The master toctree document
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 # The name of the Pygments (syntax highlighting) style to use.
-#pygments_style = None
+pygments_style = 'github-dark'
 add_module_names = False	# remove module names from function docs
 default_role = 'code'
 primary_domain = 'py'
@@ -59,7 +61,7 @@ html_logo = 'logo.png'
 html_favicon = "logo.ico"
 html_static_path = ['static']	# path to custom static files, such as images and stylesheets
 
-html_theme = 'sphinx_rtd_theme'
+#html_theme = 'sphinx_rtd_theme'
 
 
 # -- Options for HTMLHelp output ---------------------------------------------
