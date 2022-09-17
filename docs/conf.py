@@ -59,6 +59,7 @@ primary_domain = 'py'
 html_logo = 'logo.png'
 html_favicon = "logo.ico"
 html_static_path = ['static']	# path to custom static files, such as images and stylesheets
+html4_writer = True
 
 html_theme = 'sphinx_rtd_theme'
 
