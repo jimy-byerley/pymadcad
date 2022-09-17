@@ -161,6 +161,7 @@ from .reverse import segmentation
 from .selection import select
 from .io import read, write, cache, cachefunc
 from .triangulation import TriangulationError
+from .hull import convexhull, convexoutline, horizon
 
 from .scheme import *
 from .text import Text
