@@ -72,7 +72,10 @@ def project(vec, dir) -> vec3:
 		the result is not sensitive to the length of `dir`
 	'''
 	try:	return dot(vec,dir) / dot(dir,dir) * dir
-	except ZeroDivisionError:	return vec3(nan)
+	except ZeroDivisionError:	
+		if dot(vec,vec):		return vec3(nan)
+		else:					return vec3(0)
+		
 	
 def noproject(vec, dir) -> vec3:
 	''' components of `vec` not along `dir`, equivalent to :code:`vec - project(vec,dir)` 
@@ -86,9 +89,10 @@ def unproject(vec, dir) -> vec3:
 	
 		the result is not sensitive to the length of `dir`
 	'''
-	if not dot(vec,vec):		return vec3(0)
-	try:						return dot(vec,vec) / dot(vec,dir) * dir
-	except ZeroDivisionError:	return vec3(nan)
+	try:	return dot(vec,vec) / dot(vec,dir) * dir
+	except ZeroDivisionError:	
+		if dot(vec,vec):		return vec3(nan)
+		else:					return vec3(0)
 
 def perpdot(a:vec2, b:vec2) -> float:
 	''' dot product of a with perpendicular vector to b, equivalent to `dot(a, prep(b))` '''
