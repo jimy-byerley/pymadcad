@@ -130,13 +130,12 @@ class Solid:
 		Example:
 			
 			>>> mypart = icosphere(vec3(0), 1)
-			>>> s = Solid(content=mypart)   # create a solid with whatever inside
+			>>> s = Solid(part=mypart, anything=vec3(0))   # create a solid with whatever inside
 			
-			>>> s.itransform(vec3(1,2,3))	# translate the solid, keeping the content untouched
 			>>> s.transform(vec3(1,2,3))   # make a new translated solid, keeping the same content without copy
 			
-			>>> # put any content is in a dict
-			>>> s['content']
+			>>> # put any content in as a dict
+			>>> s['part']
 			<Mesh ...>
 			>>> s['whatever'] = vec3(5,2,1)
 	'''
@@ -200,9 +199,11 @@ class Solid:
 
 	# convenient content access
 	def __getitem__(self, key):
+		''' shorthand to `self.content` '''
 		return self.content[key]
 		
 	def __setitem__(self, key, value):
+		''' shorthand to `self.content` '''
 		self.content[key] = value
 	
 	def add(self, value):
@@ -221,6 +222,7 @@ class Solid:
 	
 	
 	class display(rendering.Group):
+		''' movable `Group` for the rendering pipeline '''
 		def __init__(self, scene, solid):
 			super().__init__(scene, solid.content)
 			self.solid = solid
@@ -315,11 +317,8 @@ def convexhull(pts):
 	if len(pts) == 3:
 		return Mesh(pts, [(0,1,2),(0,2,1)])
 	elif len(pts) > 3:
-		print(0.1)
 		hull = scipy.spatial.ConvexHull(typedlist_to_numpy(pts, 'f8'))
-		print(0.5)
 		m = Mesh(pts, hull.simplices.tolist())
-		print(0.8)
 		return m
 	else:
 		return Mesh(pts)
@@ -364,11 +363,9 @@ def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)
 			
 	for i,solid in enumerate(solids):
 		process(i,solid)
-		
-	print('collect')
+	
 	# create convex hulls and prepare for parenting
 	hulls = [convexhull(pts).orient()  for pts in points]
-	print(1)
 	boxes = [hull.box()  for hull in hulls]
 	normals = [hull.vertexnormals()  for hull in hulls]
 	barycenters = [hull.barycenter()  for hull in hulls]
@@ -378,7 +375,6 @@ def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)
 	offsets = [vec3(0)] * len(solids)
 	
 	# build a graph of connected things (distance from center to convex hulls)
-	print('build graph')
 	for i in range(len(solids)):
 		center = barycenters[i]	
 		for j in range(len(solids)):
@@ -418,7 +414,6 @@ def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)
 				if dot(offsets[i], normal) < 0:
 					offsets[i] = -offsets[i]
 	
-	print('resolve')
 	# resolve dependencies to output the offsets in the resolution order
 	order = []
 	reached = [False] * len(solids)
@@ -433,8 +428,7 @@ def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)
 				j = parents[j]
 			order.extend(reversed(chain))
 		i += 1
-		
-	print('finish')
+	
 	# move more parents that have children on their way out				
 	blob = [deepcopy(box) 	for box in boxes]
 	for i in reversed(range(len(solids))):
@@ -477,13 +471,6 @@ def explode(solids, factor=1, offsets=None) -> '(solids:list, graph:Mesh)':
 	if not offsets:
 		offsets = explode_offsets(solids)
 	
-	print('move')
-	#graph = Web([o[3]  for o in offsets], groups=[None])
-	#for i, j in enumerate(parents):
-		#if j:
-			#graph.edges.append((i,j))
-			#graph.tracks.append(0)
-			
 	graph = Web(groups=[None])
 	shifts = [	(solids[solid].position - solids[parent].position)
 				if parent else vec3(0)
@@ -491,7 +478,6 @@ def explode(solids, factor=1, offsets=None) -> '(solids:list, graph:Mesh)':
 	for solid, parent, offset, center in offsets:
 		if parent:
 			solids[solid].position = solids[parent].position + shifts[solid] + offset * factor
-			#graph.points[solid] += solids[solid].position
 			
 			graph.edges.append((len(graph.points), len(graph.points)+1))
 			graph.tracks.append(0)
@@ -610,6 +596,7 @@ def isjoint(obj):
 	return hasattr(obj, 'solids') and hasattr(obj, 'corrections')
 
 class Joint:
+	''' possible base class for a joint, providing some default implementations '''
 	class display(rendering.Display):
 		def __init__(self, scene, joint):
 			self.schemes = [scene.display(joint.scheme(s, 1, joint.position[i]))
@@ -655,15 +642,14 @@ class Kinematic:
 		self.options = {}
 		
 	def solve(self, *args, **kwargs):
+		''' move the solids to satisfy the joint constraints. This is using `solvekin()` '''
 		return solvekin(self.joints, self.fixed, *args, **kwargs)
+	
 	def forces(self, applied) -> '[junction forces], [solid resulting]':
 		''' return the forces in each junction and the resulting on each solid, induces by the given applied forces '''
 		indev
 	def jacobian(self):
 		''' return the numerical jacobian for the current kinematic position '''
-		indev
-	def exploded(self) -> '[pose]':
-		''' poses for an exploded view of the kinematic '''
 		indev
 	def path(self, func:'f(t)', pts) -> '[Wire]':
 		''' path followed by points when the kinematic is moved by the function
@@ -673,6 +659,7 @@ class Kinematic:
 	
 	@property
 	def pose(self) -> '[mat4]':
+		''' the pose matrices of each solid in the same order as ` self.solids` '''
 		return [solid.pose 	for solid in self.solids]
 	@pose.setter
 	def pose(self, value):
@@ -681,6 +668,7 @@ class Kinematic:
 			solid.orientation = quat_cast(mat3(pose))
 			
 	def __copy__(self):
+		''' return a new Kinematic with copies of the solids '''
 		memo = {id(s): copy(s)  for s in self.solids}
 		joints = []
 		for joint in self.joints:
@@ -695,20 +683,24 @@ class Kinematic:
 					)
 	
 	def __add__(self, other):
+		''' concatenate the two kinematics in a new one '''
 		return Kinematic(self.joints+other.joints, self.fixed|other.fixed, self.solids+other.solids)
 		
 	def __iadd__(self, other):
+		''' append the soldids of the other kinematic '''
 		self.joints.extend(other.joints)
 		self.solids.extend(other.solids)
 		self.fixed.update(other.fixed)
 		return self
 	
-	def itransform(self, trans):
+	def itransform(self, transform):
+		''' move all solids of the given transform '''
 		for solid in self.solids:
-			solid.itransform(trans)
-	def transform(self, trans):
+			solid.itransform(transform)
+	def transform(self, transform):
+		''' copy all solids and transform all solids '''
 		new = copy(self)
-		new.itransform(trans)
+		new.itransform(transform)
 		return new
 		
 	def graph(self) -> 'Graph':

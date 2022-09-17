@@ -1,8 +1,6 @@
 mesh    - meshes and discretised objects
 ========================================
 
-.. automodule:: madcad.mesh
-
 .. toctree::
 	:maxdepth: 0
 
@@ -10,7 +8,7 @@ mesh    - meshes and discretised objects
 	web.rst
 	wire.rst
 
-.. autoclass:: madcad.MeshError
+.. automodule:: madcad.mesh
 
 Conversions
 -----------
@@ -39,6 +37,7 @@ Connectivity
 Misc
 ----
 
+.. autoclass:: madcad.MeshError
 .. autofunction:: madcad.mesh.line_simplification
 .. autofunction:: madcad.mesh.mesh_distance
 .. autofunction:: madcad.mesh.distance2_pm
