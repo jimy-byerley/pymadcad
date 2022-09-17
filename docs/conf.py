@@ -27,11 +27,11 @@ release = 'v'+version	# The full version, including alpha/beta/rc tags
 needs_sphinx = '5.1'
 # sphinx extensions
 extensions = [
+    'sphinx_rtd_theme',
     'sphinx.ext.autodoc',
     'sphinx.ext.githubpages',
     'sphinx.ext.napoleon',
     'sphinx.ext.autosectionlabel',
-    'sphinx_rtd_theme',
     'sphinx_collapse',
 	'sphinxcontrib.mermaid',
     'myst_parser',
