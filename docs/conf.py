@@ -27,16 +27,16 @@ release = 'v'+version	# The full version, including alpha/beta/rc tags
 needs_sphinx = '5.1'
 # sphinx extensions
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.intersphinx',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.githubpages',
-    'sphinx.ext.napoleon',
-    'sphinx.ext.autosectionlabel',
-    'sphinx_collapse',
-	'sphinxcontrib.mermaid',
-    'myst_parser',
-    'sphinx_rtd_theme',
+    'sphinx.ext.autodoc',  # documentation for docstrings
+    'sphinx.ext.intersphinx',  # for external links
+    'sphinx.ext.viewcode',  # for links to source code
+    #'sphinx.ext.githubpages',
+    'sphinx.ext.napoleon',   # docstring format parser
+    'sphinx.ext.autosectionlabel',  # generate links to functions and sections
+    'sphinx_collapse',        # allow to collapse portions of text
+	'sphinxcontrib.mermaid',  # support for simple markdown schematics
+    'myst_parser',            # support for markdown
+    'sphinx_rtd_theme',       # page theme
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -60,6 +60,7 @@ primary_domain = 'py'
 html_logo = 'logo.png'
 html_favicon = "logo.ico"
 html_static_path = ['static']	# path to custom static files, such as images and stylesheets
+html4_writer = True
 
 #html_theme = 'sphinx_rtd_theme'
 
