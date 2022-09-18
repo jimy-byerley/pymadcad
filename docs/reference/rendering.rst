@@ -2,8 +2,8 @@
 
 .. currentmodule:: madcad.rendering
 
-rendering   - 3D interface
-==========================
+rendering   - 3D user interface
+===============================
 
 This module provides a render pipeline system featuring:
 

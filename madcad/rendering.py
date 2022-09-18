@@ -67,11 +67,17 @@ opengl_version = (3,3)
 global_context = None
 
 
-def show(scene, interest:Box=None, size=uvec2(400,400), **options):
+def show(scene:dict, interest:Box=None, size=uvec2(400,400), **options):
 	''' 
 		easy and convenient way to create a window containing a `View` on a created `Scene`
 		
 		If a Qt app is not already running, the functions returns when the window has been closed and all GUI destroyed
+		
+		Parameters:
+			scene:     a mapping (dict or list) giving the objects to render in the scene
+			interest:  the region of interest to zoom on at the window initialization
+			size:      the window size (pixel)
+			options:   options to set in `Scene.options`
 		
 		Tip:
 			For integration in a Qt window or to manipulate the view, you should directly use `View`
