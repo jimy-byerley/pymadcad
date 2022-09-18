@@ -187,7 +187,8 @@ def extrans(section, transformations, links) -> Mesh:
 		
 		for k, orient in extremities.items():
 			for src,dst in enumerate(reindex):
-				merges[src + len(mesh.points)] = dst + l*k
+				if dst >= 0:
+					merges[src + len(mesh.points)] = dst + l*k
 			end = face .transform(kept[k])
 			mesh += end if extremities[k] else end.flip()
 		mesh.mergepoints(merges)
