@@ -2,8 +2,14 @@
 
 '''	Display module of pymadcad
 	
-	This module provides a render pipeline system centered around class 'Scene' and a Qt widget 'View' for window integration and user interaction. 'Scene' is only to manage the objects to render (almost every madcad object). Most of the time you won't need to deal with it directly. The widget is what actually displays it on the screen.
-	The objects displayed can be of any type but must implement the display protocol
+	This module provides a render pipeline system featuring:
+
+	- class `Scene` to gather the data to render
+	- widget `View` that actually renders the scene 
+	- the display protocol, that allows any object to define its `Display` subclass to be rendered in a scene.
+
+	The view is for window integration and user interaction. `Scene` is only to manage the objects to render . Almost all madcad data types can be rendered to scenes being converted into an appropriate subclass of `Display`. Since the conversion from madcad data types into display instance is automatically handled via the *display protocol*, you usually don't need to deal with displays directly.
+
 	
 	display protocol
 	----------------
@@ -13,12 +19,12 @@
 				box (Box)                      # delimiting the display, can be an empty or invalid box
 				world (fmat4)                  # local transformation
 				
-				stack(scene)                   # rendering routines (can be methods, or any callable)
-				duplicate(src,dst)             # copy the display object for an other scene if possible
-				upgrade(scene,displayable)     # upgrade the current display to represent the given displayable
-				control(...)                   # handle events
-				
 				__getitem__                    # access to subdisplays if there is
+				stack(scene)                   # rendering routines (can be methods, or any callable)
+				
+				duplicate(src,dst)             # copy the display object for an other scene if possible
+				update(scene,displayable)     # upgrade the current display to represent the given displayable
+				control(...)                   # handle events
 		
 		For more details, see class Display below
 		
@@ -55,18 +61,20 @@ from . import settings
 from .nprint import nprint
 
 
-# minimum opengl required version
+# minimum opengl version required by the rendering pipeline
 opengl_version = (3,3)
 # shared open gl context, None if not yet initialized
 global_context = None
 
 
-def show(scene, options=None, interest:Box=None, size=uvec2(400,400)):
-	''' shortcut to create a QApplication showing only one view with the given objects inside.
+def show(scene, interest:Box=None, size=uvec2(400,400), **options):
+	''' 
+		easy and convenient way to create a window containing a `View` on a created `Scene`
 		
 		If a Qt app is not already running, the functions returns when the window has been closed and all GUI destroyed
 		
-		For integration in a Qt window or to manipulate the view, you should directly use `View`
+		Tip:
+			For integration in a Qt window or to manipulate the view, you should directly use `View`
 	'''
 	global global_context
 
@@ -395,24 +403,20 @@ class Scene:
 		
 		This class is gui-agnostic, it only relys on opengl, and the context has to be created by te user.
 		
-		Attributes defined here:
-		
-		- scene stuff
-			
-			:ctx:           moderngl Context (must be the same for all views using this scene)
-			:ressources:    dictionnary of scene ressources (like textures, shaders, etc) index by name
-			:options:       dictionnary of options for rendering, innitialized with a copy of `settings.scene`
-			
-		- rendering pipeline stuff
-			
-			:displays:      dictionnary of items in the scheme `{'name': Display}`
-			:stacks:        lists of callables to render each target `{'target': [(key, priority, callable(view))]}`
-			:setup:         callable for setup of each rendering target
-			
-			:touched:       flag set to True if the stack must be recomputed at the next render time (there is a change in a Display or in one of its children)
-			
 		When an object is added to the scene, a Display is not immediately created for it, the object is put into the queue and the Display is created at the next render.
 		If the object is removed from the scene before the next render, it is dequeued.
+		
+		Attributes:
+		
+			ctx:           moderngl Context (must be the same for all views using this scene)
+			ressources (dict):    dictionnary of scene ressources (like textures, shaders, etc) index by name
+			options (dict):       dictionnary of options for rendering, initialized with a copy of `settings.scene`
+			
+			displays (dict):      dictionnary of items in the scheme `{'name': Display}`
+			stacks (list):        lists of callables to render each target `{'target': [(key, priority, callable(view))]}`
+			setup (dict):         setup of each rendering target `{'target': callable}`
+			
+			touched (bool):       flag set to True if the stack must be recomputed at the next render time (there is a change in a Display or in one of its children)
 	'''
 	
 	def __init__(self, objs=(), options=None, ctx=None, setup=None):
