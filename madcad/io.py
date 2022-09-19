@@ -6,7 +6,7 @@ import os, tempfile
 from functools import wraps
 from hashlib import md5
 
-from .mathutils import vec3, glm, inf
+from .mathutils import vec3, glm, inf, typedlist
 from .mesh import Mesh, Wire
 
 class FileFormatError(Exception):	pass
@@ -79,11 +79,12 @@ def cachefunc(f):
 	def repl(*args, **kwargs):
 		if not os.path.exists(cachedir):
 			os.makedirs(cachedir)
-		key = '{}/{}.ply'.format(
+		key = '{}/{}{}-{}.pickle'.format(
 			cachedir,
+			f.__module__ + '.' if f.__module__ else '',
+			f.__name__,
 			hex(int.from_bytes(
 				md5(repr((
-					f.__name__, 
 					*args, 
 					sorted(list(kwargs.items()))
 					)).encode())
@@ -93,6 +94,17 @@ def cachefunc(f):
 		return cache(key, lambda: f(*args, **kwargs))
 	return repl
 
+	
+'''
+	pickle files are the standard python serialized files, they are absolutely not secure ! so do not use it for something else than your own caching.
+'''
+import pickle
+
+def pickle_read(file, **opts):
+	return pickle.load(open(file, 'rb'))
+	
+def pickle_write(obj, file, **opts):
+	return pickle.dump(obj, open(file, 'wb'))
 
 '''
 	PLY is loaded using plyfile module 	https://github.com/dranjan/python-plyfile
@@ -103,22 +115,20 @@ try:
 	from plyfile import PlyData, PlyElement
 except ImportError:	pass
 else:
+	from . import triangulation
 
 	def ply_read(file, **opts):
 		mesh = Mesh()
 		
 		data = PlyData.read(file)
-		index = {}
-		for i,e in enumerate(data.elements):
-			index[e.name] = i
-		if 'vertex' not in index:	raise FileFormatError('file must have a vertex buffer')
-		if 'face' not in index:		raise FileFormatError('file must have a face buffer')
+		if 'vertex' not in data:	raise FileFormatError('file must have a vertex buffer')
+		if 'face' not in data:		raise FileFormatError('file must have a face buffer')
 		
 		# collect points
-		mesh.points = typedlist(data.elements[index['vertex']].data.astype('f8, f8, f8'), dtype=vec3)
+		mesh.points = typedlist(data['vertex'].data.astype('f8, f8, f8'), dtype=vec3)
 		
 		# collect faces
-		faces = data.elements[index['face']].data
+		faces = data['face'].data
 		if faces.dtype.names[0] == 'vertex_indices':
 			for face in faces['vertex_indices']:
 				#print('  ', type(face), face, face.dtype, face.strides)
@@ -127,7 +137,7 @@ else:
 				elif len(face) > 3:	# quad or other extended face
 					mesh += triangulation.triangulation_outline(Wire(mesh.points, face))
 		else:
-			mesh.faces = numpy_to_typedlist(faces.astype('u4', copy=False), dtype=uvec4)
+			mesh.faces = numpy_to_typedlist(faces.astype('u4'), dtype=uvec3)
 
 		# collect tracks
 		if 'group' in faces.dtype.names:

@@ -59,10 +59,28 @@ class Axis(object):
 	def __init__(self, origin, direction, interval=None):
 		self.origin, self.direction = origin, direction
 		self.interval = interval
+	
 	def __getitem__(self, i):
+		''' behave like the axis was a tuple (origin, direction) '''
 		if i==0:	return self.origin
 		elif i==1:	return self.direction
 		else:		raise IndexError('an axis has only 2 components')
+		
+	def flip(self) -> 'Axis':
+		''' switch the axis direction '''
+		return Axis(self.origin, -self.direction, self.interval)
+	
+	def offset(self, increment) -> 'Axis':
+		''' move the axis origin along its direction '''
+		return Axis(self.origin + self.direction*increment, self.direction, self.interval)
+		
+	def transform(self, transform) -> 'Axis':
+		''' move the axis by the given transformation '''
+		if isinstance(transform, (float,int)):		return Axis(transform*self.origin, self.direction, self.interval)
+		elif isinstance(transform, vec3):			return Axis(transform+self.origin, self.direction, self.interval)
+		elif isinstance(transform, (mat3, quat)):	return Axis(transform*self.origin, normalize(transform*self.direction), self.interval)
+		elif isinstance(transform, (mat4)):			return Axis(transform*self.origin, normalize(mat3(transform)*self.direction), self.interval)
+		raise TypeError('transform must be one of float, vec3, mat3, quat, mat4')
 	
 	slvvars = ('origin', 'direction')
 	def slv_tangent(self, pt):
@@ -100,7 +118,7 @@ class Segment(object):
 		return self.direction
 	
 	def mesh(self):
-		return mesh.Wire([self.a, self.b], groups=['flat'])
+		return mesh.Wire([self.a, self.b], groups=[None])
 		
 	def __repr__(self):
 		return 'Segment({}, {})'.format(self.a, self.b)
@@ -238,7 +256,8 @@ class ArcTangent(object):
 
 def mkarc(axis, start, end, resolution=None):
 	center, z = axis
-	v = noproject(start-center, z)
+	center = center + dot(z, (start+end)/2-center) * z
+	v = start-center
 	r = length(v)
 	x = v/r
 	y = cross(z, x)
@@ -249,7 +268,7 @@ def mkarc(axis, start, end, resolution=None):
 		a = angle * i/(div+1)
 		pts.append(x*r*cos(a) + y*r*sin(a) + center)
 	pts.append(end)
-	return mesh.Wire(pts, groups=['arc'])
+	return mesh.Wire(pts, groups=[None])
 
 class TangentEllipsis(object):
 	''' An quater of ellipsis always tangent to `Segment(a,b)` and `Segment(c,b)`. The solution is unique.
@@ -285,8 +304,8 @@ class TangentEllipsis(object):
 		for i in range(div+1):
 			t = pi/2 * i/(div+1)
 			pts.append(x*sin(t) + y*cos(t) + origin-x-y)
-		pts.append(self.b)
-		return mesh.Wire(pts, groups=['ellipsis'])
+		pts.append(self.c)
+		return mesh.Wire(pts, groups=[None])
 		
 	def __repr__(self):
 		return 'TangentEllipsis({}, {}, {})'.format(self.c, self.b, self.c)
@@ -328,7 +347,7 @@ class Circle(object):
 			pts.append(x*r*cos(a) + y*r*sin(a) + center)
 		indices = list(range(div))
 		indices.append(0)
-		return mesh.Wire(pts, indices, groups=['arc'])
+		return mesh.Wire(pts, indices, groups=[None])
 		
 	def __repr__(self):
 		return 'Circle({}, {})'.format(self.axis, self.radius)
@@ -376,23 +395,19 @@ class Interpolated(object):
 			a,b = pts[i], pts[i+1]
 			ta,tb = tas[i], tbs[i]
 			# tangent to the curve in its inflexion point
-			mid = 0.75*(b-a) + 0.25*(ta-tb)
+			mid = 1.25*(b-a) + 0.25*(tb-ta)
 			# get resolution
-			div = 1 + 2*max(settings.curve_resolution(
-							length(ta), 
-							anglebt(ta, mid),
-							self.resolution or resolution),
-						settings.curve_resolution(
-							length(tb), 
-							anglebt(tb, -mid),
-							self.resolution or resolution) )
+			div = 1 + settings.curve_resolution(
+							length(ta) + length(tb), 
+							anglebt(-tb, mid) + anglebt(ta, mid),
+							self.resolution or resolution)
 			
 			# append the points for this segment
 			for i in range(div+1):
 				curve.append(interpol2((a,ta), (b,tb), i/(div+1)))
 		
 		curve.append(b)
-		return mesh.Wire(curve, groups=['spline'])
+		return mesh.Wire(curve, groups=[None])
 		
 	def box(self):
 		return boundingbox(self.points)
@@ -441,7 +456,7 @@ class Softened(object):
 				curve.append(interpol2((a,ta), (b,tb), i/(div+1)))
 		
 		curve.append(b)
-		return mesh.Wire(curve, groups=['spline'])
+		return mesh.Wire(curve, groups=[None])
 		
 	def box(self):
 		return boundingbox(self.points)

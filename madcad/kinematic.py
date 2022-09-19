@@ -24,7 +24,7 @@ from PyQt5.QtCore import Qt, QEvent
 
 from .common import ressourcedir
 from .mathutils import *
-from .mesh import Mesh, Web, Wire, npcast, striplist, distance2_pm
+from .mesh import Mesh, Web, Wire, striplist, distance2_pm, typedlist_to_numpy
 from . import settings
 from . import constraints
 from . import text
@@ -130,13 +130,12 @@ class Solid:
 		Example:
 			
 			>>> mypart = icosphere(vec3(0), 1)
-			>>> s = Solid(content=mypart)   # create a solid with whatever inside
+			>>> s = Solid(part=mypart, anything=vec3(0))   # create a solid with whatever inside
 			
-			>>> s.itransform(vec3(1,2,3))	# translate the solid, keeping the content untouched
 			>>> s.transform(vec3(1,2,3))   # make a new translated solid, keeping the same content without copy
 			
-			>>> # put any content is in a dict
-			>>> s['content']
+			>>> # put any content in as a dict
+			>>> s['part']
 			<Mesh ...>
 			>>> s['whatever'] = vec3(5,2,1)
 	'''
@@ -174,8 +173,9 @@ class Solid:
 		s.content = self.content
 		return s
 	
-	def itransform(self, trans):
+	def transform(self, trans) -> 'Solid':
 		''' displace the solid by the transformation '''
+		s = copy(self)
 		if isinstance(trans, mat4):
 			rot, trans = quat_cast(mat3(trans)), vec3(trans[3])
 		elif isinstance(trans, mat3):
@@ -186,17 +186,12 @@ class Solid:
 			rot, trans = 1, trans
 		else:
 			raise TypeError('Screw.transform() expect mat4, mat3 or vec3')
-		self.orientation = rot*self.orientation
-		self.position = trans + rot*self.position
-		
-	def transform(self, trans) -> 'Solid':
-		''' create a new Solid moved by the given transformation, with the same content '''
-		s = copy(self)
-		s.itransform(trans)
+		s.orientation = rot*self.orientation
+		s.position = trans + rot*self.position
 		return s
-		
+	
 	def place(self, *args, **kwargs) -> 'Solid': 
-		''' strictly equivalent to `.transform(placement(...))`, see `placement` for parameters specifications. '''
+		''' strictly equivalent to `self.pose = placement(...)`, see `placement` for parameters specifications. '''
 		s = copy(self)
 		s.pose = placement(*args, **kwargs)
 		return s
@@ -204,9 +199,11 @@ class Solid:
 
 	# convenient content access
 	def __getitem__(self, key):
+		''' shorthand to `self.content` '''
 		return self.content[key]
 		
 	def __setitem__(self, key, value):
+		''' shorthand to `self.content` '''
 		self.content[key] = value
 	
 	def add(self, value):
@@ -225,6 +222,7 @@ class Solid:
 	
 	
 	class display(rendering.Group):
+		''' movable `Group` for the rendering pipeline '''
 		def __init__(self, scene, solid):
 			super().__init__(scene, solid.content)
 			self.solid = solid
@@ -238,9 +236,10 @@ class Solid:
 			return True
 				
 		def control(self, view, key, sub, evt):
-			if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
+			if not view.scene.options['lock_solids'] and evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
+				evt.accept()
 				start = view.ptat(view.somenear(evt.pos()))
-				offset = self.solid.position - vec3(affineInverse(mat4(self.world)) * vec4(start,1))
+				offset = self.solid.position - affineInverse(mat4(self.world)) * start
 				view.tool.append(rendering.Tool(self.move, view, start, offset))
 				
 		def move(self, dispatcher, view, pt, offset):
@@ -251,7 +250,8 @@ class Solid:
 				if evt.type() == QEvent.MouseMove:
 					evt.accept()
 					moved = True
-					pt = vec3(affineInverse(mat4(self.world)) * vec4(view.ptfrom(evt.pos(), pt),1))
+					world = mat4(self.world)
+					pt = affineInverse(world) * view.ptfrom(evt.pos(), world * pt)
 					self.solid.position = pt + offset
 					self.apply_pose()
 					view.update()
@@ -270,7 +270,11 @@ def placement(*pairs, precision=1e-3):
 	
 		Parameters:
 		
-			pairs:	a list of surface pairs to convert to kinematic joints using `guessjoint`
+			pairs:	a list of pairs to convert to kinematic joints
+					
+					- items can be couples of surfaces to convert to joints using `guessjoint`
+					- tuples (joint_type, a, b)  to build joints `joint_type(solida, solidb, a, b)`
+			
 			precision: surface guessing and kinematic solving precision (distance)
 		
 		each pair define a joint between the two assumed solids (a solid for the left members of the pairs, and a solid for the right members of the pairs). placement will return the pose of the first relatively to the second, satisfying the constraints.
@@ -290,11 +294,20 @@ def placement(*pairs, precision=1e-3):
 			...		(screw['part'].group(0), other['part'].group(44)),
 			...		(screw['part'].group(4), other['part'].group(25)),
 			...		)
+			
+			>>> screw.place(
+			...		(Pivot, screw['axis'], other['screw_place']),
+			...		)
 	'''
 	from .reverse import guessjoint
 	
 	a, b = Solid(), Solid()
-	joints = [guessjoint(a, b, *pair, precision*0.25)   for pair in pairs]  # a better precision is aked for the joint definition, so that solvekin is not disturbed by inconsistent data
+	joints = []
+	for pair in pairs:
+		if len(pair) == 2:		joints.append(guessjoint(a, b, *pair, precision*0.25))
+		elif len(pair) == 3:	joints.append(pair[0](a, b, *pair[1:]))
+		else:
+			raise TypeError('incorrect pair definition', pair)
 	solvekin(joints, fixed=[b], precision=precision, maxiter=1000)
 	return a.pose
 
@@ -304,11 +317,8 @@ def convexhull(pts):
 	if len(pts) == 3:
 		return Mesh(pts, [(0,1,2),(0,2,1)])
 	elif len(pts) > 3:
-		print(0.1)
-		hull = scipy.spatial.ConvexHull(npcast(pts))
-		print(0.5)
+		hull = scipy.spatial.ConvexHull(typedlist_to_numpy(pts, 'f8'))
 		m = Mesh(pts, hull.simplices.tolist())
-		print(0.8)
 		return m
 	else:
 		return Mesh(pts)
@@ -320,15 +330,8 @@ def extract_used(obj):
 	elif isinstance(obj, Wire):	links = [obj.indices]
 	else:
 		raise TypeError('obj must be a mesh of any kind')
-		
-	used = [False] * len(obj.points)
-	for link in links:
-		for p in link:
-			used[p] = True
 	
-	buff = obj.points[:]
-	striplist(buff, used)
-	return buff
+	return striplist(obj.points[:], links)[0]
 
 	
 def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)]':
@@ -360,11 +363,9 @@ def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)
 			
 	for i,solid in enumerate(solids):
 		process(i,solid)
-		
-	print('collect')
+	
 	# create convex hulls and prepare for parenting
 	hulls = [convexhull(pts).orient()  for pts in points]
-	print(1)
 	boxes = [hull.box()  for hull in hulls]
 	normals = [hull.vertexnormals()  for hull in hulls]
 	barycenters = [hull.barycenter()  for hull in hulls]
@@ -374,7 +375,6 @@ def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)
 	offsets = [vec3(0)] * len(solids)
 	
 	# build a graph of connected things (distance from center to convex hulls)
-	print('build graph')
 	for i in range(len(solids)):
 		center = barycenters[i]	
 		for j in range(len(solids)):
@@ -414,7 +414,6 @@ def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)
 				if dot(offsets[i], normal) < 0:
 					offsets[i] = -offsets[i]
 	
-	print('resolve')
 	# resolve dependencies to output the offsets in the resolution order
 	order = []
 	reached = [False] * len(solids)
@@ -429,8 +428,7 @@ def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)
 				j = parents[j]
 			order.extend(reversed(chain))
 		i += 1
-		
-	print('finish')
+	
 	# move more parents that have children on their way out				
 	blob = [deepcopy(box) 	for box in boxes]
 	for i in reversed(range(len(solids))):
@@ -473,13 +471,6 @@ def explode(solids, factor=1, offsets=None) -> '(solids:list, graph:Mesh)':
 	if not offsets:
 		offsets = explode_offsets(solids)
 	
-	print('move')
-	#graph = Web([o[3]  for o in offsets], groups=[None])
-	#for i, j in enumerate(parents):
-		#if j:
-			#graph.edges.append((i,j))
-			#graph.tracks.append(0)
-			
 	graph = Web(groups=[None])
 	shifts = [	(solids[solid].position - solids[parent].position)
 				if parent else vec3(0)
@@ -487,7 +478,6 @@ def explode(solids, factor=1, offsets=None) -> '(solids:list, graph:Mesh)':
 	for solid, parent, offset, center in offsets:
 		if parent:
 			solids[solid].position = solids[parent].position + shifts[solid] + offset * factor
-			#graph.points[solid] += solids[solid].position
 			
 			graph.edges.append((len(graph.points), len(graph.points)+1))
 			graph.tracks.append(0)
@@ -606,6 +596,7 @@ def isjoint(obj):
 	return hasattr(obj, 'solids') and hasattr(obj, 'corrections')
 
 class Joint:
+	''' possible base class for a joint, providing some default implementations '''
 	class display(rendering.Display):
 		def __init__(self, scene, joint):
 			self.schemes = [scene.display(joint.scheme(s, 1, joint.position[i]))
@@ -651,15 +642,14 @@ class Kinematic:
 		self.options = {}
 		
 	def solve(self, *args, **kwargs):
+		''' move the solids to satisfy the joint constraints. This is using `solvekin()` '''
 		return solvekin(self.joints, self.fixed, *args, **kwargs)
+	
 	def forces(self, applied) -> '[junction forces], [solid resulting]':
 		''' return the forces in each junction and the resulting on each solid, induces by the given applied forces '''
 		indev
 	def jacobian(self):
 		''' return the numerical jacobian for the current kinematic position '''
-		indev
-	def exploded(self) -> '[pose]':
-		''' poses for an exploded view of the kinematic '''
 		indev
 	def path(self, func:'f(t)', pts) -> '[Wire]':
 		''' path followed by points when the kinematic is moved by the function
@@ -669,6 +659,7 @@ class Kinematic:
 	
 	@property
 	def pose(self) -> '[mat4]':
+		''' the pose matrices of each solid in the same order as ` self.solids` '''
 		return [solid.pose 	for solid in self.solids]
 	@pose.setter
 	def pose(self, value):
@@ -677,7 +668,8 @@ class Kinematic:
 			solid.orientation = quat_cast(mat3(pose))
 			
 	def __copy__(self):
-		memo = {id(s): copy(s)}
+		''' return a new Kinematic with copies of the solids '''
+		memo = {id(s): copy(s)  for s in self.solids}
 		joints = []
 		for joint in self.joints:
 			newjoint = copy(joint)
@@ -691,20 +683,24 @@ class Kinematic:
 					)
 	
 	def __add__(self, other):
+		''' concatenate the two kinematics in a new one '''
 		return Kinematic(self.joints+other.joints, self.fixed|other.fixed, self.solids+other.solids)
 		
 	def __iadd__(self, other):
+		''' append the soldids of the other kinematic '''
 		self.joints.extend(other.joints)
 		self.solids.extend(other.solids)
 		self.fixed.update(other.fixed)
 		return self
 	
-	def itransform(self, trans):
+	def itransform(self, transform):
+		''' move all solids of the given transform '''
 		for solid in self.solids:
-			solid.itransform(trans)
-	def transform(self):
+			solid.itransform(transform)
+	def transform(self, transform):
+		''' copy all solids and transform all solids '''
 		new = copy(self)
-		new.itransform(trans)
+		new.itransform(transform)
 		return new
 		
 	def graph(self) -> 'Graph':
@@ -909,16 +905,17 @@ def makescheme(joints, color=None):
 	for cst in joints:
 		for solid, pos in zip(cst.solids, cst.position):
 			if id(solid) not in solids:
-				solids[id(solid)] = info = [solid, [], vec3(0), 0]
+				solids[id(solid)] = info = [solid, [], vec3(0), 0, Box()]
 			else:
 				info = solids[id(solid)]
 			info[1].append(cst)
 			if pos:
 				info[2] += pos
 				info[3] += 1
-				diag = glm.max(diag, glm.abs(pos))
+				info[4].union_update(pos)
 	# get the junction size
-	size = (max(diag) or 1) / len(joints)
+	#size = (max(diag) or 1) / (len(joints)+1)
+	size=  0.5 * max(max(info[4].width) / info[3] for info in solids.values())
 	
 	for info in solids.values():
 		info[0]['scheme'] = scheme = Scheme([], [], [], [], color)
@@ -983,7 +980,7 @@ class WireDisplay(rendering.Display):
 				np.array([tuple(v) for v in normals], dtype='f4'),
 				)))
 		if transpfaces:
-			self.vb_transpfaces = ctx.buffer(np.array(transpfaces, dtype='u4', copy=False))
+			self.vb_transpfaces = ctx.buffer(typedlist_to_numpy(transpfaces, dtype='u4'))
 			self.va_transpfaces = ctx.vertex_array(
 					self.transpshader,
 					[(self.vb_vertices, '3f4 3f4', 'v_position', 'v_normal')],
@@ -997,7 +994,7 @@ class WireDisplay(rendering.Display):
 		else:
 			self.vb_transpfaces = None
 		if opaqfaces:
-			self.vb_opaqfaces = ctx.buffer(np.array(opaqfaces, dtype='u4', copy=False))
+			self.vb_opaqfaces = ctx.buffer(typedlist_to_numpy(opaqfaces, dtype='u4'))
 			self.va_opaqfaces = ctx.vertex_array(
 					self.uniformshader,
 					[(self.vb_vertices, '3f4 12x', 'v_position')],
@@ -1006,7 +1003,7 @@ class WireDisplay(rendering.Display):
 		else:
 			self.vb_opaqfaces = None
 		if lines:
-			self.vb_lines = ctx.buffer(np.array(lines, dtype='u4', copy=False))
+			self.vb_lines = ctx.buffer(typedlist_to_numpy(lines, dtype='u4'))
 			self.va_lines = ctx.vertex_array(
 					self.uniformshader,
 					[(self.vb_vertices, '3f4 12x', 'v_position')],
@@ -1019,6 +1016,20 @@ class WireDisplay(rendering.Display):
 					)
 		else:
 			self.vb_lines = None
+			
+	def __del__(self):
+		if self.vb_transpfaces:
+			self.va_transpfaces.release()
+			self.va_ident_faces.release()
+			self.vb_transpfaces.release()
+		if self.vb_opaqfaces:
+			self.va_opaqfaces.release()
+			self.vb_opaqfaces.release()
+		if self.vb_lines:
+			self.va_lines.release()
+			self.va_ident_lines.release()
+			self.vb_lines.release()
+		self.vb_vertices.release()
 	
 	def render(self, view):		
 		viewmat = view.uniforms['view'] * self.world

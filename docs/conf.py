@@ -19,22 +19,24 @@ project = 'pymadcad'
 copyright = '2019-2021, jimy byerley'
 author = 'jimy byerley'
 
-version = '0.11'			# The short X.Y version
+version = '0.13'			# The short X.Y version
 release = 'v'+version	# The full version, including alpha/beta/rc tags
 
 
 # -- General configuration ---------------------------------------------------
-needs_sphinx = '3.2'
+needs_sphinx = '5.1'
 # sphinx extensions
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.githubpages',
-    'sphinx.ext.napoleon',
-    'sphinx.ext.autosectionlabel',
-    'sphinx_rtd_theme',
-	'sphinxcontrib.mermaid',
-    'myst_parser',
-]
+    'sphinx.ext.autodoc',  # documentation for docstrings
+    'sphinx.ext.intersphinx',  # for external links
+    'sphinx.ext.viewcode',  # for links to source code
+    'sphinx.ext.napoleon',   # docstring format parser
+    'sphinx.ext.autosectionlabel',  # generate links to functions and sections
+    'sphinx_collapse',        # allow to collapse portions of text
+	'sphinxcontrib.mermaid',  # support for simple markdown schematics
+    'myst_parser',            # support for markdown
+    'sphinx_rtd_theme',       # page theme
+	]
 myst_enable_extensions = [
 	'dollarmath',
 	'smartquotes',
@@ -54,7 +56,7 @@ master_doc = 'index' # The master toctree document
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = None
+#pygments_style = 'github-dark'  # alternative to the highlight defined in custom.css
 add_module_names = False	# remove module names from function docs
 default_role = 'code'
 primary_domain = 'py'
@@ -63,9 +65,13 @@ primary_domain = 'py'
 # -- Options for HTML output -------------------------------------------------
 html_logo = 'logo.png'
 html_favicon = "logo.ico"
-html_static_path = ['_static']	# path to custom static files, such as images and stylesheets
+html_static_path = ['static']	# path to custom static files, such as images and stylesheets
+html4_writer = True
 
 html_theme = 'sphinx_rtd_theme'
+
+napoleon_numpy_docstring = False
+napoleon_google_docstring = True
 
 
 # -- Options for HTMLHelp output ---------------------------------------------
@@ -82,4 +88,4 @@ epub_exclude_files = ['search.html']
 
 
 def setup(app):
-    app.add_css_file('css/custom.css')
+    app.add_css_file('custom.css')

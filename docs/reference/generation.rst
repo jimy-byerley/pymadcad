@@ -28,6 +28,10 @@ based on extrusion/transformation of a Web
 
 generation of common meshes
 ---------------------------
+	
+.. autofunction:: regon
+
+	.. image:: /screenshots/generation-regon.png
 
 .. autofunction:: square
 
@@ -36,6 +40,18 @@ generation of common meshes
 .. autofunction:: brick
 
 	.. image:: /screenshots/generation-brick.png
+	
+.. autofunction:: cylinder
+
+	.. image:: /screenshots/generation-cylinder.png
+
+.. autofunction:: cone
+
+	.. image:: /screenshots/generation-cone.png
+
+.. autofunction:: pyramid
+
+	.. image:: /screenshots/generation-pyramid.png
 	
 .. autofunction:: icosahedron
 
@@ -49,15 +65,11 @@ generation of common meshes
 
 	.. image:: /screenshots/generation-uvsphere.png
 	
-.. autofunction:: regon
-
-	.. image:: /screenshots/generation-regon.png
-	
 
 offseting
 ---------
 
-.. autofunction:: inflateoffsets
+.. autofunction:: inflate_offsets
 .. autofunction:: inflate
 
 	.. image:: /screenshots/generation-inflate.png
@@ -65,6 +77,10 @@ offseting
 .. autofunction:: thicken
 
 	.. image:: /screenshots/generation-thicken.png
+	
+.. autofunction:: expand
+
+	.. image:: /screenshots/generation-expand.png
 	
 
 others

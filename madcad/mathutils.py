@@ -72,7 +72,10 @@ def project(vec, dir) -> vec3:
 		the result is not sensitive to the length of `dir`
 	'''
 	try:	return dot(vec,dir) / dot(dir,dir) * dir
-	except ZeroDivisionError:	return vec3(nan)
+	except ZeroDivisionError:	
+		if dot(vec,vec):		return vec3(nan)
+		else:					return vec3(0)
+		
 	
 def noproject(vec, dir) -> vec3:
 	''' components of `vec` not along `dir`, equivalent to :code:`vec - project(vec,dir)` 
@@ -86,9 +89,10 @@ def unproject(vec, dir) -> vec3:
 	
 		the result is not sensitive to the length of `dir`
 	'''
-	if not dot(vec,vec	):		return vec3(0)
-	try:						return dot(vec,vec) / dot(vec,dir) * dir
-	except ZeroDivisionError:	return vec3(nan)
+	try:	return dot(vec,vec) / dot(vec,dir) * dir
+	except ZeroDivisionError:	
+		if dot(vec,vec):		return vec3(nan)
+		else:					return vec3(0)
 
 def perpdot(a:vec2, b:vec2) -> float:
 	''' dot product of a with perpendicular vector to b, equivalent to `dot(a, prep(b))` '''
@@ -117,7 +121,7 @@ def scaledir(dir, factor=None) -> mat3:
 	'''
 	if factor is None:
 		factor = length(dir)
-		dir /= factor
+		dir = dir / factor
 	return mat3(1) + (factor-1)*mat3(dir[0]*dir, dir[1]*dir, dir[2]*dir)
 	
 def rotatearound(angle, *args) -> mat4:
@@ -183,12 +187,9 @@ def transformer(trans):
 			:mat4:  affine transform (rotate then translate)
 	'''
 	if isinstance(trans, (dquat, fquat)):		trans = mat3_cast(trans)
-	if callable(trans):							return trans
-	if isinstance(trans, (dvec3, fvec3)):		return lambda v: v + trans
-	if isinstance(trans, (dmat3, fmat3)):		return lambda v: trans * v
-	if isinstance(trans, (int, float)):			return lambda v: trans * v
-	if isinstance(trans, dmat4):				return lambda v: dvec3(trans * dvec4(v,1))
-	if isinstance(trans, fmat4):				return lambda v: fvec3(trans * fvec4(v,1))
+	if callable(trans):													return trans
+	if isinstance(trans, (dvec3, fvec3)):								return lambda v: v + trans
+	if isinstance(trans, (dmat3, fmat3, dmat4, fmat4, int, float)):		return lambda v: trans * v
 	raise TypeError('a transformer must be a  vec3, quat, mat3, mat4 or callable, not {}'.format(trans))
 
 
@@ -269,13 +270,13 @@ def distance_pa(pt, axis):
 def distance_pe(pt, edge):
 	''' point - edge distance '''
 	dir = edge[1]-edge[0]
-	l = length(dir)
+	l = length2(dir)
 	if not l:	return 0
-	x = dot(pt-edge[0], dir)/l**2
+	x = dot(pt-edge[0], dir)/l
 	if   x < 0:	return distance(pt,edge[0])
 	elif x > 1:	return distance(pt,edge[1])
 	else:
-		return length(noproject(pt-edge[0], dir/l))
+		return length(noproject(pt-edge[0], dir))
 
 def distance_aa(a1, a2):
 	''' axis - axis distance '''

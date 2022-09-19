@@ -36,6 +36,7 @@ display = {
 	'line_width': 1.0,
 	'solver_error_color': fvec3(1, 0.3, 0.2),
 	'annotation_color': fvec3(0.2, 0.7, 1),
+	'sharp_angle': pi/6,
 	
 	'system_theme': True,
 	}
@@ -50,6 +51,8 @@ scene = {
 	'display_grid': True,
 	'display_annotations': True,
 	'surface_shading': True,
+	
+	'lock_solids': True,
 	
 	'debug_points': False,
 	'debug_faces': False,
@@ -164,7 +167,7 @@ def use_qt_colors():
 		'select_color_line': selection * 1.1,
 		'line_color': qtc(palette.Text),
 		'point_color': qtc(palette.Text),
-		'solid_color': mix(qtc(palette.Midlight), qtc(palette.Base), 0.5),
+		'solid_color': mix(qtc(palette.Text), qtc(palette.Window), 0.7),
 		'schematics_color': qtc(palette.Link),
 		'annotation_color': mix(qtc(palette.Highlight), qtc(palette.Text), 0.5),
 		})

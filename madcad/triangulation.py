@@ -6,6 +6,7 @@ from .mesh import Mesh, Web, Wire, MeshError, connpe, web
 from .asso import Asso
 from .nprint import nformat, nprint
 
+from copy import copy
 from operator import itemgetter
 
 
@@ -232,7 +233,9 @@ def triangulation_outline(outline: Wire, normal=None, prec=None) -> Mesh:
 	'''
 	# get a normal in the right direction for loop winding
 	if not normal:		normal = outline.normal()
-	if prec is None:	prec = outline.precision() **2
+	if prec is None:	prec = outline.precision()
+	# the precision we will use in this function is a surface precision:  maximum edge length * minimum edge length
+	prec = prec**2/NUMPREC 
 	# project all points in the plane
 	try:				proj = planeproject(outline, normal)
 	except ValueError:	return Mesh()
@@ -270,8 +273,10 @@ def triangulation_outline(outline: Wire, normal=None, prec=None) -> Mesh:
 			for j in nonconvex:
 				if j not in triangle:
 					for k in range(3):
-						o = proj[triangle[k]]
-						if perpdot(o-proj[triangle[k-1]], proj[j]-o) <= prec:
+						a,b = proj[triangle[k]], proj[triangle[k-1]]
+						s = perpdot(a-b, proj[j]-a)
+						if k == 1:	s -= 2*prec
+						if s <= -prec:
 							break
 					else:
 						return -inf
@@ -287,6 +292,9 @@ def triangulation_outline(outline: Wire, normal=None, prec=None) -> Mesh:
 		i = imax(scores)
 		if scores[i] == -inf:
 			raise TriangulationError("no more feasible triangles (algorithm failure or bad input outline)", [outline.indices[i] for i in hole])
+			#print('warning: no more feasible triangles', [outline.indices[i] for i in hole])
+			#a, b, c, *_ = hole
+			#print('area', prec, perpdot(proj[a]-proj[b], proj[c]-proj[b]), dot(proj[a]-proj[b], proj[c]-proj[b]))
 		
 		triangles.append(uvec3(
 			outline.indices[hole[(i-1)%l]], 
@@ -567,89 +575,6 @@ def triangulation_sweepline(outline: Web, normal=None, prec=0) -> Mesh:
 	return m
 	
 
-'''
-	triangulation_closest
-	---------------------
-	loop holes briding based on the distance to the other holes
-'''
-
-def line_bridges(lines: Web, conn=None):
-	''' find what edges to insert in the given mesh to make all its loops connex.
-		returns a Web of the bridging edges.
-		
-		complexity: O(n**2 * n/k)
-		with
-			n = number of points in the lines
-			k = average number of points per loop
-			
-		could easily be improved to  O(n**2 + n*k)
-	'''
-	if conn is None:	conn = connpe(lines.edges)
-	pts = lines.points
-	
-	bridges = []	# edges created
-	# reached and remaining parts, both as edge indices and point indices
-	reached_points = set()
-	reached_edges = set()
-	remain_points = set(p 	 for e in lines.edges for p in e)
-	remain_edges = set(range(len(lines.edges)))
-	
-	def propagate(start):
-		''' propagate from the given start point to make connex points and edges as reached '''
-		front = [start]
-		while front:
-			s = front.pop()
-			if s in reached_points:	continue
-			reached_points.add(s)
-			remain_points.discard(s)
-			for e in conn[s]:
-				reached_edges.add(e)
-				remain_edges.discard(e)
-				front.extend(lines.edges[e])
-	
-	def find_closest():
-		''' find the next edge to create, 
-			so with the closest remaining element to the reached ones
-			distance is edge to edge
-		'''
-		best = None
-		score = inf
-		# minimum from edges to points
-		for ac in reached_edges:
-			ep = lines.edgepoints(ac)
-			for ma in remain_points:
-				d = distance_pe(pts[ma], ep)
-				if d < score:
-					e = lines.edges[ac]
-					if distance2(pts[ma], pts[e[0]]) < distance2(pts[ma], pts[e[1]]):
-						score, best = d, (ma, e[0])
-					else:
-						score, best = d, (ma, e[1])
-		# minimum from points to edges
-		for ma in remain_edges:
-			ep = lines.edgepoints(ma)
-			for ac in reached_points:
-				d = distance_pe(pts[ac], ep)
-				if d < score:
-					e = lines.edges[ma]
-					if distance2(pts[ac], pts[e[0]]) < distance2(pts[ac], pts[e[1]]):
-						score, best = d, (e[0], ac)
-					else:
-						score, best = d, (e[1], ac)
-						
-		return best
-	
-	# main loop
-	propagate(lines.edges[0][0])
-	while True:
-		closest = find_closest()
-		if not closest:	break
-		bridges.append(closest)
-		bridges.append(tuple(reversed(closest)))
-		propagate(closest[0])
-		
-	return Web(lines.points, bridges)
-	
 def line_bridges(lines: Web, conn=None) -> 'Web':
 	''' find what edges to insert in the given mesh to make all its loops connex.
 		returns a Web of the bridging edges.
@@ -742,6 +667,10 @@ def line_bridges(lines: Web, conn=None) -> 'Web':
 		
 	return Web(lines.points, bridges)
 	
+
+	
+	
+	
 def flat_loops(lines: Web, normal=None) -> '[Wire]':
 	''' collect the closed loops present in the given web, so that no loop overlap on the other ones.
 	'''
@@ -752,12 +681,26 @@ def flat_loops(lines: Web, normal=None) -> '[Wire]':
 	for i,e in enumerate(lines.edges):
 		conn.add(e[0], i)
 	
-	used = [False]*len(lines.edges)	# edges used and so no to use anymore
+	used = [False]*len(lines.edges)	# edges used and so no to use anymore	
+	# the start point for loop assembly must be in priority on an edge that has no double, because double edges that are not on a bridge would create independent loops out of an empty surface
+	# create lists of edges that have a double and edges that have not
+	doubled = []
+	nondoubled = []
+	for i, e in enumerate(lines.edges):
+		double = False
+		for j in conn[e[1]]:
+			if lines.edges[j][1] == e[0]:
+				double = True
+		if double:	doubled.append(i)
+		else:		nondoubled.append(i)
+	# iterator of start points
+	choice = (i  for i in (nondoubled + doubled)  if not used[i])
+	
 	loops = []
 	
 	while True:
 		# find an unused edge
-		end = next((i  for i,u in enumerate(used) if not u), None)
+		end = next(choice, None)
 		if end is None:
 			break
 		
@@ -780,21 +723,23 @@ def flat_loops(lines: Web, normal=None) -> '[Wire]':
 				if pi-angle <= pi*NUMPREC:	angle -= 2*pi
 				if angle > score:
 					score, best = angle, edge
+					
 			
 			# progress on the selected edge
 			if best is None:
 				raise TriangulationError("there is not only loops in that web", loop)
 			used[best] = True
 			if best == end:
-				#print('best == end', loop)
 				break
 			
+			# continue the loops
 			loop.append(lines.edges[best][1])
+			
 			# the very particular case of loops with null surface, or with straight return to origin might intruduce serveral loops in the same suite, the following condition prevents it
 			if loop[0] == loop[-1]:
 				prev = normalize(pts[loop[-2]] - pts[loop[-1]])
 				dir = normalize(pts[loop[1]] - pts[loop[0]])
-				if atan2(dot(cross(prev,dir),z), dot(prev,dir)) <= pi*NUMPREC:
+				if acos(dot(prev,dir)) <= pi*NUMPREC:
 					used[end] = True
 					break
 			
@@ -803,15 +748,15 @@ def flat_loops(lines: Web, normal=None) -> '[Wire]':
 	return loops
 
 	
-def triangulation_closest(outline, normal=None):
+def triangulation_closest(outline, normal=None, prec=None):
 	if isinstance(outline, Wire):
-		return triangulation_outline(outline, normal)
+		return triangulation_outline(outline, normal, prec)
 	else:
-		outline = web(outline)
+		outline = copy(web(outline)).mergegroups()
 	x,y,z = dirbase(normal or convex_normal(outline))
 	result = Mesh(outline.points)
 	for loop in flat_loops(outline + line_bridges(outline), z):
-		result += triangulation_outline(loop, z)
+		result += triangulation_outline(loop, z, prec)
 	return result
 
 	
@@ -824,23 +769,6 @@ def triangulation_closest(outline, normal=None):
 	other misc stuff, in development
 '''
 
-
-def vmaxi(v):
-	''' index of maximum coordinate of a vec3 '''
-	i = 0
-	if v[1] > v[i]:	i = 1
-	if v[2] > v[i]:	i = 2
-	return i
-
-def vsorti(v):
-	''' coordinates sort indices for a vec3, decreasing order'''
-	i = 0
-	if v[1] > v[i]:	i = 1
-	if v[2] > v[i]:	i = 2
-	if v[(i+1)%3] > v[(i-1)%3]:		j,k = (i+1)%3, (i-1)%3
-	else:							j,k = (i-1)%3, (i+1)%3
-	return (i,j,k)
-	
 	
 from .mesh import connef, arrangeface
 
@@ -885,40 +813,8 @@ def retriangulate(mesh):
 		update_scures((a,c))
 		update_scores((c,d))
 	
-def cloud_normal(pts: '[vec3]', start=None) -> vec3:
-	if not start:	start = vec3(1)
-	center = sum(pts) / len(pts)
-	return normalize(sum(noproject(start, p-center)	for p in pts))
-
 from .mesh import suites
 from .nprint import nprint
-	
-def planenormals(web: 'Web', z) -> '[vec3]':
-	pts = web.points
-	normals = [vec3(0)	for _ in range(len(pts))]
-	for edge in web.edges:
-		normal = normalize(cross(pts[edge[1]]-pts[edge[0]], z))
-		for p in edge:
-			normals[p] += normal
-	for i in range(len(pts)):
-		normals[i] = normalize(normals[i])
-	return normals
-	
-
-
-def discretise_from(func: 'f(float) -> vec', start, end, initial=1e-3) -> '[(x, f(x)]':
-	''' discretise the function in the [start, end] interval, the step is increasing with the parameter.
-		Its suited for monoton functions.
-	'''
-	step = (end-start)*initial
-	pts = []
-	x = start
-	while x < end:
-		y = func(x)
-		pts.append((x, y))
-		x += max(step, length(y))
-	pts.append((end, func(end)))
-	return pts
 
 from .mathutils import atan, mix
 from . import settings
@@ -977,18 +873,7 @@ def discretise_refine(curve: '[(x, f(x))]', func: 'f(float) -> float', resolutio
 			i += 1
 	
 	return pts
-		
-def convexhull_2d(points):
-	envelope = points + list(reversed(points))
-	i = 0
-	while i < len(envelope):
-		if dot(perp(envelope[i-2]-envelope[i-1]), envelope[i]-envelope[i-1]) < 0:
-			i += 1
-		else:
-			envelope.pop(i-1)
-			i -= 1
-	return envelope
-	
+
 	
 def loop_closer(lines: Web, ending=0) -> 'Web':
 	''' generate closing lines to create a loop.

@@ -14,7 +14,7 @@ submodules
 	:maxdepth: 1
 
 	mathutils.rst
-	mesh.rst
+	mesh/index.rst
 	
 	kinematic.rst
 	joints.rst
@@ -27,6 +27,7 @@ submodules
 	cut.rst
 	boolean.rst
 	reverse.rst
+	hull.rst
 	
 	io.rst
 	settings.rst

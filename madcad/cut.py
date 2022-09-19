@@ -538,7 +538,7 @@ def mesh_chamfer(mesh, edges, cutter):
 	
 	# create junctions
 	group = len(mesh.groups)
-	mesh.groups.append('junction')
+	mesh.groups.append(None)
 	pts = mesh.points
 	# edges for corners surfaces
 	corners = {}
@@ -705,7 +705,7 @@ def mesh_bevel(mesh, edges, cutter, resolution=None):
 		# put a junction
 		new += tangentjunction(pts, match, normals, div)
 	
-	new.groups = ['junction']
+	new.groups = [None]
 	new.tracks = typedlist.full(0, len(new.faces), 'I')
 	mesh += new
 	mesh.mergeclose()
@@ -803,7 +803,7 @@ def web_chamfer(web, points, cutter):
 	holes = web_multicut(web, points, cutter)
 
 	g = len(web.groups)
-	web.groups.append('chamfer')
+	web.groups.append(None)
 	
 	conn = connpe(web.edges)
 	def link(e):
@@ -829,7 +829,7 @@ def web_bevel(obj, points, cutter, resolution=None):
 	div = 6
 	
 	g = len(obj.groups)
-	obj.groups.append('bevel')
+	obj.groups.append(None)
 	
 	def tangentat(p):
 		''' find the tangent axis to the given cut point, 
@@ -880,7 +880,7 @@ def wire_multicut(wire, points, cutter):
 	if not wire.tracks:
 		wire.tracks = typedlist.full(0, len(wire.indices), 'I')
 	g = len(wire.groups)
-	wire.groups.append('chamfer')
+	wire.groups.append(None)
 	
 	cuts = []
 	
@@ -888,7 +888,6 @@ def wire_multicut(wire, points, cutter):
 		# get point location in the wire
 		if origin == wire.indices[0] or origin == wire.indices[-1]:
 			raise MeshError('a chamfer cannot have only one side')
-		print(origin, wire.indices)
 		index = wire.indices.index(origin)
 		
 		# compute cut plane
@@ -939,7 +938,7 @@ def wire_chamfer(wire, points, cutter):
 def wire_bevel(wire, points, cutter, resolution=None):
 	cuts = set(wire_multicut(wire, points, cutter))
 	g = len(wire.groups)-1
-	wire.groups[g] = 'bevel'
+	wire.groups[g] = None
 	
 	i = 0
 	while i < len(wire.indices)-2:

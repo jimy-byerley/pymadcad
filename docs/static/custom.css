@@ -76,16 +76,16 @@
 
 /* side navigation bar */
 
-.wy-body-for-nav {
+/*.wy-body-for-nav {
     background: none;
-}
+}*/
 
 .wy-nav-side {
 	color: #cecccc;
 	background: #161c20;
 }
 
-.wy-nav-content-wrap, .wy-body-for-nav {
+.wy-nav-content-wrap {
 	background: #0e1215;
 }
 
@@ -322,8 +322,9 @@ a:visited { /* links visited */
 .rst-content dl.exception > dt {
     background: #6ab0de12 !important;
     color: #319ADF !important; 
-    border-top: solid 3px #254d66 !important;
-	border-left: none !important;
+    border-top: none !important;
+    border-left: solid 1em #254d66 !important;
+	padding-left: 0.7em !important;
 }
 .rst-content dl.method > dt,
 .rst-content dl.attribute > dt,
@@ -332,6 +333,7 @@ a:visited { /* links visited */
 	border-top: none !important;
 	background: #1d2626 !important;
     color: #578676 !important;
+	padding-left: 1em !important;
 }
 
 /* text ident headers */
@@ -347,13 +349,14 @@ a:visited { /* links visited */
 .rst-content tt, 
 code {
     color: #fff;
-    background: #000;
-    border: 1px solid #77cdea30;
+    background: transparent;
+    border: 1px solid #172122;
     font-family: SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,Courier,monospace;
+	font-size: 0.9em;
 }
 .rst-content code.literal, 
 .rst-content tt.literal {
-    color: #88bedf;
+    color: #65a9d2;
 }
 .rst-content div[class^="highlight"], .rst-content pre.literal-block {
     border: 1px solid #1c343c;
@@ -368,10 +371,10 @@ code {
 }
 
 /* tables */
-.rst-content table.docutils td {
+.rst-content table.docutils:not(.field-list) td {
 	border: 1px solid #20484a !important;
 }
-.rst-content table.docutils th {
+.rst-content table.docutils:not(.field-list) th {
 	border: 1px solid #173233 !important;
     border-bottom: 1px solid #5b8891 !important;
 }
@@ -393,6 +396,14 @@ h1, h2, h3 {
 h2 {
 	margin-top: 15%;
 }*/
+
+.sphinx_collapse__icon {
+	border-top-color: #479da2;
+}
+.sphinx_collapse__label {
+	color: #479da2;
+	font-size: 100%;
+}
 
 
 /* ugly stuff to correct other colors from readthedocs */

@@ -16,6 +16,7 @@ from operator import itemgetter
 
 from .mathutils import *
 from .primitives import *
+from .kinematic import Solid
 from .mesh import Mesh, Web, Wire, web, wire
 from .generation import *
 from .blending import *
@@ -23,7 +24,7 @@ from .boolean import pierce, union, difference, intersection
 from .cut import *
 from .io import cachefunc
 
-cachefunc = lambda x:x	# debug purpose
+#cachefunc = lambda x:x	# debug purpose
 
 
 __all__ = [	'nut', 'screw', 'washer', 
@@ -37,7 +38,7 @@ __all__ = [	'nut', 'screw', 'washer',
 	
 	
 @cachefunc
-def screw(d, length, filet_length=None, head='SH', drive=None, detail=False):
+def screw(d, length, filet_length=None, head='SH', drive=None, detail=False) -> Solid:
 	''' create a standard screw using the given drive and head shapes
 	
 	Parameters:
@@ -82,16 +83,16 @@ def screw(d, length, filet_length=None, head='SH', drive=None, detail=False):
 		head = intersection(head, drive)
 		
 	r = 0.5*d
-	body = revolution(2*pi, (vec3(0),vec3(0,0,1)), wire([
+	axis = Axis(O, Z, interval=(-length,r))
+	body = revolution(2*pi, axis, wire([
 					-vec3(r, 0, 0.05*d),
 					-vec3(r, 0, length-filet_length),
 					-vec3(r, 0, length-r*0.2),
 					-vec3(r*0.8, 0, length),
 					-vec3(0, 0, length),
 					]) .segmented())
-	screw = body + head
-	screw.finish()
-	return screw
+	screw = (body + head).finish()
+	return Solid(part=screw, axis=axis)
 
 def screwdrive_torx(d):
 	indev
@@ -269,7 +270,7 @@ def screw_spec(head, drive=None):
 # ------------------- nut stuff ----------------------
 
 @cachefunc
-def nut(d, type='hex', detail=False) -> Mesh:
+def nut(d, type='hex', detail=False) -> Solid:
 	''' create a standard nut model using the given shape type 
 	
 		Parameters:
@@ -287,7 +288,7 @@ def nut(d, type='hex', detail=False) -> Mesh:
 	return hexnut(*args)
 
 	
-def hexnut(d, w, h):
+def hexnut(d, w, h) -> Solid:
 	''' create an hexagon nut with custom dimensions '''
 	# revolution profile
 	w *= 0.5
@@ -300,7 +301,7 @@ def hexnut(d, w, h):
 		vec3(0.95*w,	0,	-0.5*h),
 		vec3(0.5*d,	0,	-0.5*h),
 		]) .close() .segmented()
-	base = revolution(2*pi, (O,Z), web(profile))
+	base = revolution(2*pi, Axis(O,Z), web(profile))
 	
 	# exterior hexagon shape
 	hexagon = regon((-h*Z,Z),  w/cos(radians(30)), 6)
@@ -311,7 +312,11 @@ def hexnut(d, w, h):
 	chamfer(nut, nut.frontiers(4,5) + nut.frontiers(0,5), ('width', d*0.1))
 
 	nut.finish()
-	return nut
+	return Solid(
+				part=nut, 
+				bottom=Axis(-0.5*h*Z, -Z, interval=(0,h)), 
+				top=Axis(0.5*h*Z, Z, interval=(0,h)),
+				)
 
 ''' iso hexagon nuts according to [EN ISO 4032](https://www.fasteners.eu/standards/ISO/4032/)
 	columns:
@@ -355,7 +360,7 @@ standard_hexnuts = [
 # -------------- washer stuff ----------------------
 	
 @cachefunc
-def washer(d, e=None, h=None) -> Mesh:
+def washer(d, e=None, h=None) -> Solid:
 	''' create a standard washer.
 		Washers are useful to offset screws and avoid them to scratch the mount part
 		
@@ -377,13 +382,17 @@ def washer(d, e=None, h=None) -> Mesh:
 		d *= 1.1
 		if e is None:	e = d*2
 		if h is None:	h = d*0.1
-	o = vec3(0)
+	
 	surf = blendpair(
-			Circle((o,vec3(0,0,-1)), d/2), 
-			Circle((o,vec3(0,0,1)), e/2),
+			Circle((O,-Z), d/2), 
+			Circle((O,Z), e/2),
 			tangents='straight',
 			)
-	return extrusion(vec3(0,0,h), surf)
+	return Solid(
+				part=extrusion(h*Z, surf), 
+				top=Axis(h*Z, Z, interval=(0,h)), 
+				bottom=Axis(O, -Z, interval=(0,h)),
+				)
 
 
 ''' metric washers according to https://www.engineersedge.com/iso_flat_washer.htm
@@ -580,7 +589,7 @@ standard_ipn = [
 # --------------------- coilspring stuff ------------------------
 
 @cachefunc
-def coilspring_compression(length, d=None, thickness=None, solid=True):
+def coilspring_compression(length, d=None, thickness=None, solid=True) -> Solid:
 	''' return a Mesh model of a croilspring meant for use in compression
 	
 		Parameters:
@@ -613,22 +622,27 @@ def coilspring_compression(length, d=None, thickness=None, solid=True):
 	for t in linrange(t0, t0 + 4*pi, step):
 		bot.append( vec3(r*cos(t), r*sin(t), z0 + (t-t0)/(2*pi) * thickness) )
 		
-	path = Wire(top, groups=['coil']) + Wire(coil, groups=['spring']) + Wire(bot, groups=['coil'])
+	path = Wire(top) + Wire(coil).qualify('spring') + Wire(bot)
 	
 	if not solid:
 		return path
 	
-	return tube(
-			flatsurface(Circle(
-				(path[0],Y), 
-				thickness/2, 
-				resolution=('div',6)
-				)) .flip(), 
-			path,
+	return Solid(
+			part=tube(
+				flatsurface(Circle(
+					(path[0],Y), 
+					thickness/2, 
+					resolution=('div',6)
+					)) .flip(), 
+				path,
+				),
+			axis=Axis(O, Z, interval=(-length/2, length/2)),
+			top=0.5*length*Z,
+			bottom=-0.5*length*Z,
 			)
 	
 @cachefunc
-def coilspring_tension(length, d=None, thickness=None, solid=True):
+def coilspring_tension(length, d=None, thickness=None, solid=True) -> Solid:
 	''' return a Mesh model of a croilspring meant for use in tension 
 	
 		Parameters:
@@ -652,8 +666,7 @@ def coilspring_tension(length, d=None, thickness=None, solid=True):
 	step = 2*pi/(div+1)
 	z0 = -0.5 * ncoil * thickness
 	coil = Wire([	vec3(r*cos(t), r*sin(t), z0 + t/(2*pi) * thickness)
-					for t in linrange(0, 2*pi * ncoil, step) ], 
-				groups=['spring'])
+					for t in linrange(0, 2*pi * ncoil, step) ]) .qualify('spring')
 	# create path with hooks
 	path = wire([
 				ArcCentered((-0.5*length*Z, X), vec3(0, -r, -0.5*length), -hold*Z),
@@ -665,17 +678,28 @@ def coilspring_tension(length, d=None, thickness=None, solid=True):
 	if not solid:
 		return path
 	
-	return tube(
-			flatsurface(Circle(
-				(path[0],Z), 
-				thickness/2, 
-				resolution=('div',6)
-				)), 
-			path,
+	return Solid(
+			part=tube(
+				flatsurface(Circle(
+					(path[0],Z), 
+					thickness/2, 
+					resolution=('div',6)
+					)), 
+				path,
+				),
+			axis=Axis(O,Z, interval=(-length/2, length/2)),
+			top=0.5*length*Z,
+			bottom=-0.5*length*Z,
 			)
 	
 @cachefunc
-def coilspring_torsion(arm, angle=radians(45), d=None, length=None, thickness=None, hook=None, solid=True):
+def coilspring_torsion(arm, 
+			angle=radians(45), 
+			d=None, 
+			length=None, 
+			thickness=None, 
+			hook=None, 
+			solid=True) -> Solid:
 	''' return a Mesh model of a croilspring meant for use in torsion
 	
 		Parameters:
@@ -702,8 +726,7 @@ def coilspring_torsion(arm, angle=radians(45), d=None, length=None, thickness=No
 	step = 2*pi/(div+1)
 	z0 = -0.5 * ncoil * thickness
 	coil = Wire([	vec3(-r*sin(t), r*cos(t), z0 + t/(2*pi) * thickness)
-					for t in linrange(0, 2*pi * ncoil, step) ], 
-				groups=['spring'])
+					for t in linrange(0, 2*pi * ncoil, step) ]) .qualify('spring')
 				
 	# create hooks
 	c = thickness * sign(hook)
@@ -728,21 +751,31 @@ def coilspring_torsion(arm, angle=radians(45), d=None, length=None, thickness=No
 	if not solid:
 		return path
 	
-	return tube(
-		flatsurface(Circle(
-			(path[0], normalize(path[0]-path[1])),
-			thickness/2,
-			resolution=('div',6),
-			)),
-		path,
-		)
+	return Solid(
+			part=tube(
+				flatsurface(Circle(
+					(path[0], normalize(path[0]-path[1])),
+					thickness/2,
+					resolution=('div',6),
+					)),
+				path,
+				),
+			axis=Axis(O,Z, interval=(-length/2, length/2)),
+			top=path[0],
+			bottom=path[-1],
+			)
 		
 		
 		
 # ----------------------- bearing stuff --------------------------
 
 @cachefunc
-def bearing(dint, dext=None, h=None, circulating='ball', contact=0, hint=None, hext=None, sealing=False, detail=False):
+def bearing(dint, dext=None, h=None, 
+			circulating='ball', 
+			contact=0, 
+			hint=None, hext=None, 
+			sealing=False, 
+			detail=False) -> Solid:
 	''' 
 		Circulating bearings rely on rolling elements to avoid friction and widen the part life.
 		Its friction depends on the rotation speed but not on the current load.
@@ -816,8 +849,12 @@ def bearing_spec(code):
 	elif re.match(r'[\d\.]+x[\d\.]+x[\d\.]+', code):
 		return tuple(float(d) for d in re.split('x'))
 		
+bearing_color = vec3(0.5,0.4,0.35)
+bearing_cage_color = vec3(0.3,0.2,0)
+bearing_circulating_color = vec3(0,0.1,0.2)
 		
-def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False):
+		
+def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False) -> Solid:
 	# convenient variables
 	rint = dint/2
 	rext = dext/2
@@ -826,7 +863,7 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False):
 	e = 0.15*(dext-dint)
 
 	# outer rings profiles
-	axis = Axis(O,Z)
+	axis = Axis(O,Z, interval=(0,h))
 	interior = Wire([
 		vec3(rint+e, 0,	w), 
 		vec3(rint, 0, w),
@@ -852,10 +889,10 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False):
 		exterior += wire(ArcCentered((rb*X,-Y), vec3(rext-e, 0, -hr), vec3(rext-e, 0, hr)))
 		interior.close()
 		exterior.close()
-		part = revolution(2*pi, axis, web([exterior, interior]))
+		part = revolution(2*pi, axis, web([exterior, interior])) .option(color=bearing_color)
 
 		nb = int(0.7 * pi*rb/rr)	# number of balls that can fit in
-		balls = repeat(icosphere(rb*X, rr), nb, angleAxis(radians(360)/nb, Z))
+		balls = repeat(icosphere(rb*X, rr), nb, angleAxis(radians(360)/nb, Z)) .option(color=vec3(0,0.1,0.2))
 		
 		# balls cage (simplified version)
 		cage_profile = Wire([vec3(
@@ -875,10 +912,10 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False):
 
 		cage = thicken(
 				surf + surf.transform(mat3(1,1,-1)) .flip(), 
-				c) .option(color=vec3(0.5,0.3,0))
+				c) .option(color=bearing_cage_color)
 				
 		# asemble
-		return part + cage + balls
+		return Solid(part=part, cage=cage, balls=balls, axis=axis)
 
 	else:
 		# assemble and close rings profiles
@@ -895,10 +932,13 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False):
 				exterior[0]-c*Z, 
 				exterior[0]]) .segmented()
 			)
-		return revolution(2*pi, axis, web([exterior, interior]))
+		return Solid(
+				part=revolution(2*pi, axis, web([exterior, interior]))
+						.option(color=bearing_color), 
+				axis=axis)
 
 
-def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, detail=False):
+def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, detail=False) -> Solid:
 	# interior and exterior heights (automatically deduced from total height if not specified)
 	if not hint:	hint = h*cos(contact)
 	if not hext:	hext = h*cos(contact) * 0.8 if contact else h
@@ -912,7 +952,7 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 	c = 0.05*h
 	w = 0.5*h
 	e = 0.08*(dext-dint)
-	axis = Axis(O,Z)
+	axis = Axis(O,Z, interval=(0,h))
 	
 	# cones definition points
 	if contact:
@@ -970,7 +1010,7 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 		part = revolution(2*pi, axis, web([
 					exterior, 
 					interior,
-					]).flip() )
+					]).flip() ) .option(color=bearing_color)
 	
 		# create conic rollers
 		roller = revolution(2*pi, angled, Segment(mix(p1,p3,0.05), mix(p3,p1,0.05)))
@@ -980,7 +1020,7 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 		# number of rollers that can fit in
 		nb = int(pi*(rint+rext) / (2.5*distance_pa(p1,angled)))
 		rollers = repeat(roller, nb, rotatearound(2*pi/nb, axis)) 
-		rollers.option(color=vec3(0,0.1,0.2))
+		rollers.option(color=bearing_circulating_color)
 
 		# roller cage
 		p6 = mix(p4,p3,0.6) - e*angled[1]
@@ -992,21 +1032,22 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 		bevel(cage_profile, [1], ('radius',c))
 		cage = revolution(2*pi, axis, cage_profile)
 		cage = pierce(cage, inflate(rollers, 0.5*c), False)
-		cage = thicken(cage, c) .option(color=vec3(0.3,0.2,0))
+		cage = thicken(cage, c) .option(color=bearing_cage_color)
 		
 		# assemble
-		return part + cage + rollers
+		return Solid(part=part, cage=cage, rollers=rollers, axis=axis)
 	
 	# simply create a bounding representation
 	else:
 		# assemble and close rings profiles
-		part = revolution(2*pi, axis, 
+		return Solid(
+				part=revolution(2*pi, axis, 
 					(exterior + interior) .close() .flip()
-					)
-		return part
+					) .option(color=bearing_color), 
+				axis=axis)
 		
 
-def bearing_thrust(dint, dext, h, detail=False):
+def bearing_thrust(dint, dext, h, detail=False) -> Solid:
 	# convenient variables
 	rint = dint/2
 	rext = dext/2
@@ -1015,7 +1056,7 @@ def bearing_thrust(dint, dext, h, detail=False):
 	e = 0.12*(dext-dint) # outer rings thickness
 
 	# rings outlines
-	axis = Axis(O,Z)
+	axis = Axis(O,Z, interval=(0,h))
 	top = Wire([
 		vec3(rext, 0, w-e), 
 		vec3(rext, 0, w),
@@ -1042,12 +1083,12 @@ def bearing_thrust(dint, dext, h, detail=False):
 		bot += wire(ArcCentered((rb*X,-Y), vec3(rb-hr, 0, -w+e), vec3(rb+hr, 0, -w+e)))
 		top.close()
 		bot.close()
-		part = revolution(2*pi, axis, web([top, bot]))
+		part = revolution(2*pi, axis, web([top, bot])) .option(color=bearing_color)
 		
 		# number of balls to place
 		nb = int(0.8 * pi*rb/rr)
 		balls = repeat(icosphere(rb*X, rr), nb, angleAxis(radians(360)/nb, Z))
-		balls.option(color=vec3(0,0.1,0.2))
+		balls.option(color=bearing_circulating_color)
 		
 		# cage
 		cage_profile = Wire([ 
@@ -1060,10 +1101,10 @@ def bearing_thrust(dint, dext, h, detail=False):
 		
 		cage_surf = revolution(2*pi, axis, cage_profile)
 		cage_surf = pierce(cage_surf, inflate(balls, 0.2*c), False)
-		cage = thicken(cage_surf, c) .option(color=vec3(0.3,0.2,0))  .option(color=vec3(0.3,0.2,0))
+		cage = thicken(cage_surf, c) .option(color=bearing_cage_color)
 		
 		# assemble
-		return part + cage + balls
+		return Solid(part=part, cage=cage, balls=balls, axis=axis)
 		
 	else:
 		# assemble and close the profiles
@@ -1081,8 +1122,9 @@ def bearing_thrust(dint, dext, h, detail=False):
 				bot[0]]) .segmented()
 			)
 
-		part = revolution(2*pi, axis, web([top, bot]))
-		return part
+		return Solid(
+				part=revolution(2*pi, axis, web([top, bot])) .option(color=bearing_color), 
+				axis=axis)
 
 	
 '''
@@ -1097,7 +1139,7 @@ standard_bearing_ball_straight = [
 from .selection import *
 
 @cachefunc
-def slidebearing(dint, h=None, thickness=None, shoulder=None, opened=False):
+def slidebearing(dint, h=None, thickness=None, shoulder=None, opened=False) -> Solid:
 	'''
 		Slide bearings rely on gliding parts to ensure a good pivot. It's much cheaper than circulating bearings and much more compact. But needs lubricant and has a shorter life than circulating bearings.
 		Its friction depends on the rotation speed and on the load.
@@ -1114,27 +1156,28 @@ def slidebearing(dint, h=None, thickness=None, shoulder=None, opened=False):
 	rint = dint/2
 	
 	profile = Wire([
-				vec3(rint,0,-0.5*h),
-				vec3(rint,0, 0.5*h),
+				vec3(rint,0,-h),
+				vec3(rint,0, 0),
 				])
 	if shoulder:
-		profile += Wire([ vec3(rint+shoulder, 0, 0.5*h) ])
+		profile += Wire([ vec3(rint+shoulder, 0, 0) ])
 		profile = profile.segmented()
 		bevel(profile, [1], ('radius', 1.5*thickness), resolution=('div',2))
 
-	shape = revolution(1.98*pi if opened else 2*pi, (O,Z), profile)
+	axis = Axis(O,Z, interval=(-h,0))
+	shape = revolution(1.98*pi if opened else 2*pi, axis, profile)
 	
-	part = thicken(shape, thickness)
-	line = (  select(part, vec3(0,0,-h), stopangle(pi/2))
+	part = thicken(shape, thickness) .option(color=bearing_color)
+	line = (  select(part, vec3(-rint,0,-h), stopangle(pi/2))
 			+ select(part, vec3(dint,dint,-h), stopangle(pi/2))
 			)
 	if not shoulder:
-		line += (  select(part, vec3(0,0,h), stopangle(pi/2))
-				 + select(part, vec3(dint,dint,h), stopangle(pi/2))
+		line += (  select(part, vec3(-rint,0,0), stopangle(pi/2))
+				 + select(part, vec3(dint,dint,0), stopangle(pi/2))
 				)
 	
 	chamfer(part, line, ('width',0.5*thickness))
-	return part
+	return Solid(part=part, axis=axis)
 
 '''
 * profilés

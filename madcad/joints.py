@@ -50,6 +50,23 @@ def solidtransform_base(solid, obj):
 	rot = solid.orientation
 	if len(obj) == 3:	return (rot*obj[0] + solid.position, rot*obj[1], rot*obj[2])
 	if len(obj) == 4:	return (rot*obj[0] + solid.position, rot*obj[1], rot*obj[2], rot*obj[3])
+	
+	
+class Welded(Joint):
+	def __init__(self, s1, s2, transform=None):
+		self.solids = (s1, s2)
+		self.transform = transform or affineInverse(s1.pose) * s2.pose
+		self.position = (vec3(0), vec3(0))
+		
+	def corrections(self):
+		p1 = dmat4x3(self.solids[0].pose * self.transform)
+		p2 = dmat4x3(self.solids[1].pose)
+		t = p2[3] - p1[3]
+		r = cross(p1[0], p2[0]) + cross(p1[1], p2[1]) + cross(p1[2], p2[2])
+		return Screw(t,r,p1[3]), Screw(-t,-r,p2[3])
+		
+	def scheme(self, solid, size, junc=None) -> Scheme:
+		return Scheme([], [], [], [])
 
 class Pivot(Joint):
 	''' Junction for rotation only around an axis

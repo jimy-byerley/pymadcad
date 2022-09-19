@@ -10,6 +10,9 @@ m2 = (deepcopy(m1)
 		.transform(quat(0.7*vec3(1,1,0)))
 		)
 		
+#from madcad.boolean import cut_mesh
+#res, frontier = cut_mesh(m1, m2)
+#show([res, frontier, m2], options={'display_wire':True, 'display_faces':False})
 
 results = []
 

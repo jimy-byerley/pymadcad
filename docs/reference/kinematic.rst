@@ -6,30 +6,46 @@ kinematic   - Kinematic solver/constraint system
 .. automodule:: madcad.kinematic
 
 
+.. autoclass:: Solid
+
+	.. autoproperty:: pose
+	
+	.. automethod:: transform
+	.. automethod:: place
+	
+	.. automethod:: set
+	.. automethod:: add
+	.. automethod:: __getitem__
+	.. automethod:: __setitem__
+	.. automethod:: display
+
+.. autoclass:: Kinematic
+
+	.. autoproperty:: pose
+	
+	.. automethod:: transform
+	.. automethod:: itransform
+	
+	.. automethod:: solve
+	
+	.. automethod:: __copy__
+	.. automethod:: __add__
+	
+	.. automethod:: display
+	
+.. autoclass:: Joint
+
+.. autofunction:: isjoint
+
+.. autofunction:: solvekin
+
+	See :ref:`the joints module<joints>` for joints definitions.
+	
 .. autoclass:: Screw
 	:members: locate, transform
 	
 	Of course, as any vector variables, ``Screw`` implements ``+ -`` with other ``Torsor``, and ``* /`` with ``float``
 
-.. autoclass:: Solid
-
-	.. autoproperty:: pose
-	
-	.. automethod:: set
-	.. automethod:: add
-	.. automethod:: __getitem__
-	
-	.. automethod:: transform
-	.. automethod:: place
-
-.. autoclass:: Kinematic
-	:members: solve, pose
-
-.. autofunction:: solvekin
-
-	See :ref:`the joints module<joints>` for joints definitions.
-
-.. autofunction:: makescheme
 
 .. autofunction:: placement
 
@@ -52,3 +68,4 @@ kinematic   - Kinematic solver/constraint system
 	.. image:: /screenshots/explode-after.png
 
 .. autofunction:: explode_offsets
+

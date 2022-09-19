@@ -39,7 +39,7 @@ assert abs(mesh_distance(m, ico)[0] - 4) < 0.2
 
 # test orientation
 ico = icosphere(vec3(0), 1)
-ico.faces = [f if random()>0.5 else (f[0],f[2],f[1])	for f in ico.faces]
+ico.faces = typedlist((f if random()>0.5 else (f[0],f[2],f[1])	for f in ico.faces), dtype=uvec3)
 
 o = ico.orient()
 o.check()
@@ -58,4 +58,16 @@ m = Web(
 m.check()
 assert len(m.islands()) == 2
 
-
+# test group qualification
+bri = brick(center=vec3(2,0,0), width=vec3(0.5))
+bri.qualify('truc', select=0)
+assert bri.groups[0] == {'truc':None}
+assert bri.groups[1] == None
+bri.qualify('machin')
+assert bri.groups[0] == {'truc':None, 'machin':None}
+assert bri.groups[1] == {'machin':None}
+bri.qualify('bidule', select='truc')
+assert bri.groups[0] == {'truc':None, 'machin':None, 'bidule':None}
+assert bri.groups[1] == {'machin':None}
+assert len(bri.group(['truc', 'machin']).faces) == 2
+nprint('groups', bri.groups)

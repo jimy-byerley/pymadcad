@@ -151,7 +151,7 @@ from .mathutils import *
 from .mesh import Mesh, Web, Wire, MeshError, web, wire, suites
 from .boolean import pierce, difference, union, intersection
 from .cut import chamfer, bevel, multicut, planeoffsets
-from .generation import flatsurface, extrans, extrusion, revolution, saddle, tube, square, brick, icosahedron, icosphere, uvsphere, thicken, inflate, repeat, regon
+from .generation import *
 from .blending import junction, multijunction, blend, blendloop, blendpair, blenditer
 from .primitives import isprimitive, Point, Axis, Segment, ArcThrough, ArcCentered, ArcTangent, TangentEllipsis, Circle, Interpolated, Softened, isaxis
 from .constraints import isconstraint, SolveError, Tangent, Distance, Angle, Parallel, Radius, PointOn, OnPlane, solve
@@ -161,6 +161,7 @@ from .reverse import segmentation
 from .selection import select
 from .io import read, write, cache, cachefunc
 from .triangulation import TriangulationError
+from .hull import convexhull, convexoutline, horizon
 
 from .scheme import *
 from .text import Text
