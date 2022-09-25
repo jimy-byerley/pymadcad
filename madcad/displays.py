@@ -241,17 +241,23 @@ class BoxDisplay(AnnotationDisplay):
 		self.textplace = box.min
 
 		super().__init__(scene, pts, color)
-	
+
+from .mathutils import norminf, length2
 
 class SolidDisplay(Display):
 	''' Display render Meshes '''
 	def __init__(self, scene, positions, normals, faces, lines, idents, color=None):
 		self.box = npboundingbox(positions)
 		self.options = scene.options
-		color = fvec3(color or settings.display['solid_color'])
-		setting = settings.display['line_color']
-		line = length(setting) * normalize(mix(color, setting, 0.2))	if max(color) else setting
-		reflect = normalize(color) * settings.display['solid_reflectivity']
+		
+		s = settings.display
+		color = fvec3(color or s['solid_color'])
+		line = (	(length(s['line_color']) + 2*length(color-s['solid_color'])) 
+					/ length2(color + 0.5*s['background_color']) 
+					* normalize(color + 1e-6)  )
+		#if length(s['line_color']) > length(color)
+		reflect = normalize(color + 1e-6) * s['solid_reflectivity']
+		
 		self.vertices = Vertices(scene.ctx, positions, idents)
 		self.disp_faces = FacesDisplay(scene, self.vertices, normals, faces, color=color, reflect=reflect, layer=0)
 		self.disp_ghost = GhostDisplay(scene, self.vertices, normals, faces, color=line, layer=0)
