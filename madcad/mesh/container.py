@@ -39,7 +39,7 @@ class NMesh(object):
 		new = copy(self)
 		for name, required in kwargs.items():
 			if required:
-				setattr(self, name, deepcopy(getattr(self, name)))
+				setattr(new, name, deepcopy(getattr(self, name)))
 		return new
 	
 	def option(self, **kwargs) -> 'self':
