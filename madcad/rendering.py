@@ -85,6 +85,8 @@ def show(scene:dict, interest:Box=None, size=uvec2(400,400), **options):
 	global global_context
 
 	if isinstance(scene, list):	scene = dict(enumerate(scene))
+	# retro-compatibility fix, shall be removed in future versions
+	if 'options' in options:	options.update(options['options'])
 	if not isinstance(scene, Scene):	scene = Scene(scene, options)
 
 	app = QApplication.instance()
@@ -987,17 +989,15 @@ class View(ViewCommon, QOpenGLWidget):
 	''' Qt widget to render and interact with displayable objects
 		it holds a scene as renderpipeline
 
-		Attributes definied here:
+		Attributes:
 
-				:scene:        the `Scene` object displayed
-				:projection:   `Perspective` or `Orthographic`
-				:navigation:   `Orbit` or `Turntable`
-				:tool:         list of callables in priority order to receive events
+			scene:        the `Scene` object displayed
+			projection:   `Perspective` or `Orthographic`
+			navigation:   `Orbit` or `Turntable`
+			tool:         list of callables in priority order to receive events
 
-			* render stuff
-
-				:targets:     render targets matching those in `scene.stacks`
-				:uniforms:    parameters for rendering, used in shaders
+			targets:     render targets matching those requested in `scene.stacks`
+			uniforms:    parameters for rendering, used in shaders
 	'''
 	def __init__(self, scene, projection=None, navigation=None, parent=None):
 		# super init
