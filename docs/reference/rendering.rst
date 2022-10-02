@@ -80,7 +80,7 @@ Views classes
 .. autoclass:: View
 	
 	.. note::
-		There is some restrictions using the widget. This is due to some Qt limitations (and design choices), that Qt is using separated opengl contexts for each independent widgets or window.
+		There is some restrictions using the widget. Due to some Qt limitations (and design choices), Qt is using separated opengl contexts for each independent widgets or window.
 		
 		- a View should not be reparented once displayed
 		- a View can't share a scene with Views from an other window

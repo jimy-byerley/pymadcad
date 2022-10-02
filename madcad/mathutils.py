@@ -5,6 +5,7 @@
 import glm
 from glm import *
 del version, license
+import math
 from math import pi, inf, nan, atan2
 from copy import deepcopy
 max = __builtins__['max']
@@ -41,6 +42,8 @@ Z = vec3(0,0,1)
 
 def isfinite(x):
 	''' return false if x contains a `inf` or a `nan` '''
+	if isinstance(x, (int,float)):
+		return math.isfinite(x)
 	return not (glm.any(isinf(x)) or glm.any(isnan(x)))
 
 def norminf(x):

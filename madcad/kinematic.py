@@ -915,7 +915,7 @@ def makescheme(joints, color=None):
 				info[4].union_update(pos)
 	# get the junction size
 	#size = (max(diag) or 1) / (len(joints)+1)
-	size=  0.5 * max(max(info[4].width) / info[3] for info in solids.values())
+	size = 0.5 * max(max(info[4].width) / info[3] for info in solids.values())  or 1
 	
 	for info in solids.values():
 		info[0]['scheme'] = scheme = Scheme([], [], [], [], color)
