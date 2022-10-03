@@ -80,7 +80,7 @@
     background: none;
 }*/
 
-.wy-nav-side {
+.wy-nav-side, .wy-nav-top {
 	color: #cecccc;
 	background: #161c20;
 }

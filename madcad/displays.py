@@ -250,8 +250,7 @@ class SolidDisplay(Display):
 		
 		s = settings.display
 		color = fvec3(color or s['solid_color'])
-		line = (	(length(s['line_color']) + 2*length(color-s['solid_color'])) 
-					/ length2(color + 0.5*s['background_color']) 
+		line = (	(length(s['line_color']) + dot(color-s['solid_color'], s['line_color']-s['solid_color']))
 					* normalize(color + 1e-6)  )
 		#if length(s['line_color']) > length(color)
 		reflect = normalize(color + 1e-6) * s['solid_reflectivity']

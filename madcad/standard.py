@@ -31,8 +31,67 @@ __all__ = [	'nut', 'screw', 'washer',
 			'coilspring_compression', 'coilspring_tension', 'coilspring_torsion',
 			'bearing', 'slidebearing',
 			'section_s', 'section_w', 'section_c', 'section_l', 'section_tslot',
+			'stfloor', 'stceil',
 			]
 
+			
+# --------- numeric stuff --------------------
+
+standard_digits = sorted([1., 1.25, 1.5, 2., 2.5, 3., 4., 5., 6., 8., 10., 12., 16., 17.5, 24., 36.])
+
+def stfloor(x, precision=1):
+	''' return a numeric value fitting x, with lower digits being the under closest digits from `standard_digits` 
+		
+		`precision` gives the relative tolerance interval for the returned number, so we are sure it lays in `[x*(1-precision), x]`
+	'''
+	if hasattr(x, '__getitem__'):
+		return type(x)(stfloor(e)  for e in x)
+	if not isfinite(x):
+		return x
+	s, x = sign(x), abs(x)
+	
+	base = 10
+	magnitude = base**floor(log(x) / log(base))
+	ratio = x / magnitude
+	
+	for j in range(1 + int(ceil(-log(precision) / log(base)))):
+		candidate = None
+		for st in standard_digits:
+			previous = candidate
+			candidate = base*floor(ratio/base) + st
+			if candidate > ratio + NUMPREC:
+				break
+		if ratio*(1-precision) - NUMPREC <= previous:
+			return previous * magnitude * s
+		magnitude /= base
+		ratio *= base
+
+def stceil(x, precision=1):
+	''' return a numeric value fitting x, with lower digits being the above closest digits from `standard_digits` 
+		
+		`precision` gives the relative tolerance interval for the returned number, so we are sure it lays in `[x, x*(1+precision)]`
+	'''
+	if hasattr(x, '__getitem__'):
+		return type(x)(stceil(e)  for e in x)
+	if not isfinite(x):
+		return x
+	s, x = sign(x), abs(x)
+	
+	base = 10
+	magnitude = base**floor(log(x) / log(base))
+	ratio = x / magnitude
+	
+	for j in range(1 + int(ceil(-log(precision) / log(base)))):
+		candidate = None
+		for st in reversed(standard_digits):
+			previous = candidate
+			candidate = base*floor(ratio/base) + st
+			if candidate < ratio - NUMPREC:
+				break
+		if ratio*(1+precision) + NUMPREC >= previous:
+			return previous * magnitude * s
+		magnitude /= base
+		ratio *= base
 
 # --------- screw stuff -----------------------
 	
