@@ -48,7 +48,7 @@ from math import *
 from functools import reduce, partial
 from operator import add
 from copy import copy
-
+from madcad.mathutils import COMPREC
 
 
 def rackprofile(step, h=None, offset=0, alpha=radians(20), resolution=None) -> Wire:
@@ -256,6 +256,8 @@ def pattern_full(ext_radius, int_radius, depth, int_height=0, **kwargs) -> Mesh:
 	circles_ref = web(Circle(axis, ext_radius)) + web(Circle(axis, int_radius)).flip()
 	top_profile = circles_ref.transform(vec3(0, 0, half_depth - int_height))
 	bottom_profile = circles_ref.transform(vec3(0, 0, -half_depth + int_height)).flip()
+	if ext_radius == int_radius:
+		return top_profile + bottom_profile
 	mesh = triangulation(top_profile) + triangulation(bottom_profile)
 	mesh.mergeclose()
 	return mesh
@@ -635,6 +637,7 @@ def gearstructure(
 	"""
 	# int_radius must not be 0
 	int_radius = int_radius or 0.1 * ext_radius
+	pattern = "full" if ext_radius == int_radius else pattern
 	pattern_function = globals()['pattern_' + pattern]
 	return pattern_function(ext_radius, int_radius, depth, int_height, ratio=ratio, **kwargs)
 
@@ -707,41 +710,112 @@ def geargather(exterior, structure, hub) -> Mesh:
 	hub.mergeclose()
 
 	# Parameters
+	#box = exterior.box()
+	#height_e_top = box.max.z
+	#height_e_bot = box.min.z
+	
+	int_e_radius = minmax_radius(exterior.points)[0]
+
 	box = structure.box()
 	height_top = box.max.z
 	height_bot = box.min.z
-	ext_radius = box.max.x
-	int_radius = 0
-
+	int_radius, ext_radius = minmax_radius(structure.points)
+	
 	box = hub.box()
 	height_h_top = box.max.z
 	height_h_bot = box.min.z
-	ext_h_radius = box.max.x
+	ext_h_radius = minmax_radius(hub.points)[1]
+	
+	# show([exterior, structure, hub])
+	assert ext_h_radius * COMPREC <= int_radius
+	assert ext_radius * COMPREC <= int_e_radius
+
+	def radius_height(circle):
+		center = vec3(0)
+		for point in circle.points:
+			center = center + point
+		center = center / len(circle.points)
+		return length(center - circle.points[0]), glm.dot(Z, center)
 
 	# Select borderlines
 	# int = internal / ext = external
 	# e = exterior / s = structure / h = hub
 	# top = top / bot = bottom
 	circle_int_e_top = select(exterior, vec3(0, 0, height_top))
+	circle_int_e_top.finish()
+	radius_int_e_top, height_int_e_top = radius_height(circle_int_e_top)
+	
 	circle_int_e_bot = select(exterior, vec3(0, 0, height_bot))
+	circle_int_e_bot.finish()
+	radius_int_e_bot, height_int_e_bot = radius_height(circle_int_e_bot)
+	
 	circle_ext_s_top = select(structure, vec3(ext_radius, 0, height_top))
+	circle_ext_s_top.finish()
+	radius_ext_s_top, height_ext_s_top = radius_height(circle_ext_s_top)
+	
 	circle_ext_s_bot = select(structure, vec3(ext_radius, 0, height_bot))
+	circle_ext_s_bot.finish()
+	radius_ext_s_bot, height_ext_s_bot = radius_height(circle_ext_s_bot)
+	
 	circle_int_s_top = select(structure, vec3(int_radius, 0, height_top))
+	circle_int_s_top.finish()
+	radius_int_s_top, height_int_s_top = radius_height(circle_int_s_top)
+	
 	circle_int_s_bot = select(structure, vec3(int_radius, 0, height_bot))
+	circle_int_s_bot.finish()
+	radius_int_s_bot, height_int_s_bot = radius_height(circle_int_s_bot)
+	
 	circle_ext_h_top = select(hub, vec3(ext_h_radius, 0, height_h_top))
+	circle_ext_h_top.finish()
+	radius_ext_h_top, height_ext_h_top = radius_height(circle_ext_h_top)
+	
 	circle_ext_h_bot = select(hub, vec3(ext_h_radius, 0, height_h_bot))
+	circle_ext_h_bot.finish()
+	radius_ext_h_bot, height_ext_h_bot = radius_height(circle_ext_h_bot)
 
 	# Join all borderlines
 	# j1 is the junction between `exterior` and `structure`
 	# j2 is the junction between `structure` and `hub`
-	j1_top = junction(circle_ext_s_top, circle_int_e_top, tangents="straight", resolution = ("div", 0))
-	j1_bot = junction(circle_ext_s_bot, circle_int_e_bot, tangents="straight", resolution = ("div", 0))
-	j2_top = junction(circle_ext_h_top, circle_int_s_top, tangents="straight", resolution = ("div", 0))
-	j2_bot = junction(circle_ext_h_bot, circle_int_s_bot, tangents="straight", resolution = ("div", 0))
-	j1 = j1_top + j1_bot
-	j2 = j2_top + j2_bot
-
-	mesh = exterior + j1 + structure + j2 + hub
+	
+	if radius_int_e_top == radius_ext_h_top and height_int_e_top == height_ext_h_top:
+		top = Mesh()
+	else:
+		if round(radius_int_e_top , 6) == round(radius_ext_s_top , 6) and round(height_int_e_top , 6) == round(height_ext_s_top, 6):
+			j1_top = Mesh()
+		else:
+			# TODO: Change .flip() because of errors
+			j1_top = junction(circle_ext_s_top, circle_int_e_top, tangents="straight", resolution = ("div", 0))
+		
+		if round(radius_int_s_top , 6) == round(radius_ext_h_top , 6) and round(height_int_s_top , 6) == round(height_ext_h_top, 6):
+			j2_top = Mesh()
+		else:
+			j2_top = junction(circle_ext_h_top, circle_int_s_top, tangents="straight", resolution = ("div", 0))
+		
+		top = j1_top + j2_top
+	
+	if radius_int_e_bot == radius_ext_h_bot and height_int_e_bot == height_ext_h_bot:
+		bottom = Mesh()
+	else:
+		if round(radius_int_e_bot , 6) == round(radius_ext_s_bot , 6) and round(height_int_e_bot , 6) == round(height_ext_s_bot, 6):
+			j1_bot = Mesh()
+		else:
+			# TODO: Change .flip() because of errors
+			j1_bot = junction(circle_ext_s_bot, circle_int_e_bot, tangents="straight", resolution = ("div", 0))
+			
+		if round(radius_int_s_bot, 6) == round(radius_ext_h_bot, 6) and round(height_int_s_bot, 6) == round(height_ext_h_bot, 6):
+			j2_bot = Mesh()
+		else:
+			j2_bot = junction(circle_ext_h_bot, circle_int_s_bot, tangents="straight", resolution = ("div", 0))
+			
+		bottom = j1_bot + j2_bot
+	# show([structure, hub])
+	
+	#show([exterior, structure, hub])
+	if isinstance(structure, Web):
+		mesh = exterior + top + bottom + hub
+	else:
+		mesh = exterior + top + structure + bottom + hub
+		# show([exterior.transform(translate(10 * Z)), top.transform(translate(7.5 * Z)), structure.transform(translate(5 * Z)), bottom.transform(translate(2.5 * Z)), hub])
 	mesh.mergeclose()
 	return mesh
 
@@ -805,12 +879,13 @@ def gear(
 
 	# Parts
 	exterior = gearexterior(profile, depth, step, **kwargs)
-	hub = gearhub(bore_radius, depth, int_height, **kwargs)
 	ext_int = minmax_radius(exterior.points)[0]
+	hub = gearhub(bore_radius, depth, int_height, hub_radius=min(2 * bore_radius, 0.9 * ext_int), **kwargs)
+	hub_ext = minmax_radius(hub.points)[1]
 	structure = gearstructure(
 					pattern,
-					ext_int * 0.95,
-					max(minmax_radius(hub.points)[1], 0.2*ext_int),
+					0.95 * ext_int,
+					hub_ext,
 					depth,
 					int_height,
 					**kwargs)
