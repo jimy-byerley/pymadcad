@@ -59,8 +59,10 @@ def stfloor(x, precision=1):
 		for st in standard_digits:
 			previous = candidate
 			candidate = base*floor(ratio/base) + st
-			if candidate > ratio + NUMPREC:
+			if candidate > ratio + 2*NUMPREC:
 				break
+		else:
+			previous = candidate
 		if ratio*(1-precision) - NUMPREC <= previous:
 			return previous * magnitude * s
 		magnitude /= base
@@ -86,8 +88,10 @@ def stceil(x, precision=1):
 		for st in reversed(standard_digits):
 			previous = candidate
 			candidate = base*floor(ratio/base) + st
-			if candidate < ratio - NUMPREC:
+			if candidate < ratio - 2*NUMPREC:
 				break
+		else:
+			previous = candidate
 		if ratio*(1+precision) + NUMPREC >= previous:
 			return previous * magnitude * s
 		magnitude /= base
