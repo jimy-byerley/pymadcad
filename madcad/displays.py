@@ -1,10 +1,8 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
 from math import log, exp, floor
-from .mathutils import (vec3, fvec3, fvec4, fmat4, 
-						mix, normalize, length, distance, dot, noproject, dirbase, transform,
-						Box, isnan, isinf,
-						)
+from .mathutils import *
+from .mesh import typedlist_to_numpy
 from .rendering import Display, overrides, writeproperty
 from .common import ressourcedir
 from . import settings
@@ -778,7 +776,6 @@ class VoxelDisplay(Display):
 
 		def load(scene):
 			from . import generation
-			from .mesh import glmarray
 			
 			# load shader
 			shader = scene.ctx.program(
@@ -787,10 +784,10 @@ class VoxelDisplay(Display):
 						)
 			# load vertex buffer for the brick
 			brick = generation.brick(min=vec3(0), max=vec3(1)) .flip()
-			pts = []
+			pts = typedlist(vec3)
 			for face in brick.faces:
 				pts.extend(brick.facepoints(face))
-			vb = scene.ctx.buffer(glmarray(pts))
+			vb = scene.ctx.buffer(typedlist_to_numpy(pts, 'f4'))
 			
 			return shader, vb
 		

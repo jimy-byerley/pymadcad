@@ -637,8 +637,8 @@ def writeproperty(func):
 class Group(Display):
 	''' a group is like a subscene '''
 	def __init__(self, scene, objs:'dict/list'=None, pose=1):
-		self._pose = fmat4(pose)
 		self._world = fmat4(1)
+		self._pose = fmat4(pose)
 		self.displays = {}
 		if objs:	self.dequeue(scene, objs)
 	
@@ -652,13 +652,16 @@ class Group(Display):
 		elif hasattr(objs, '__iter__'):	items = enumerate(objs)
 		else:
 			return False
+		
 		# update displays
+		sub = self._world * self._pose
 		with scene.ctx:
 			scene.ctx.finish()
 			for key, obj in items:
 				if not displayable(obj):	continue
 				try:
-					self.displays[key] = scene.display(obj, self.displays.get(key))
+					self.displays[key] = disp = scene.display(obj, self.displays.get(key))
+					disp.world = sub
 				except:
 					print('tried to display', object.__repr__(obj))
 					traceback.print_exc()
