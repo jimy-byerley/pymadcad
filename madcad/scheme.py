@@ -785,7 +785,7 @@ def mesh_curvature_radius(mesh, conn=None, normals=None, propagate=2) -> '(dista
 	if isinstance(mesh, Mesh):		
 		if not conn:	conn = connpp(mesh.faces)
 		if not normals:	normals = mesh.vertexnormals()
-		it = ( (p, list(propagate_pp(conn, [p], propagate)))   for p in range(len(mesh.points)) )
+		it = ( (p, list(propagate_pp(conn, [p], propagate)))   for p in connpp )
 	elif isinstance(mesh, Web):	
 		if not conn:	conn = connpp(mesh.edges)
 		if not normals:	
@@ -797,7 +797,7 @@ def mesh_curvature_radius(mesh, conn=None, normals=None, propagate=2) -> '(dista
 				normals[e[1]] -= d
 			for i,n in enumerate(normals):
 				normals[i] = normalize(n)
-		it = ( (p, list(propagate_pp(conn, [p], propagate)))   for p in range(len(mesh.points)) )
+		it = ( (p, list(propagate_pp(conn, [p], propagate)))   for p in connpp )
 	elif isinstance(mesh, Wire):
 		if not normals:	normals = mesh.vertexnormals()
 		it = ( (mesh.indices[i], mesh.indices[i-propagate:i+propagate])   for i in range(len(mesh.indices)) )
@@ -850,7 +850,7 @@ def mesh_curvature_radius(mesh, conn=None, normals=None, propagate=2) -> '(dista
 	curvatures = mesh_curvatures(mesh, conn, normals, propagate)
 	
 	place = min(range(len(mesh.points)),
-				key=lambda p: 1/np.max(np.abs(curvatures[p][0])), 
+				key=lambda p: 1/np.max(np.abs(curvatures[p][0]))  if curvatures[p] else inf, 
 				default=None)
 	return 1/np.max(np.abs(curvatures[place][0])), place
 	
@@ -889,7 +889,7 @@ def mesh_curvatures(mesh, conn=None, normals=None, propagate=2):
 	if isinstance(mesh, Mesh):		
 		if not conn:	conn = connpp(mesh.faces)
 		if not normals:	normals = mesh.vertexnormals()
-		it = ( (p, propagate_pp(conn, [p], propagate))   for p in range(len(mesh.points)) )
+		it = ( (p, propagate_pp(conn, [p], propagate))   for p in conn )
 	elif isinstance(mesh, Web):	
 		if not conn:	conn = connpp(mesh.edges)
 		if not normals:	
@@ -900,7 +900,7 @@ def mesh_curvatures(mesh, conn=None, normals=None, propagate=2):
 				normals[e[1]] -= d
 			for i,n in enumerate(normals):
 				normals[i] = normalize(n)
-		it = ( (p, propagate_pp(conn, [p], propagate))   for p in range(len(mesh.points)) )
+		it = ( (p, propagate_pp(conn, [p], propagate))   for p in conn )
 	elif isinstance(mesh, Wire):
 		if not normals:	normals = mesh.vertexnormals()
 		it = ( (mesh.indices[i], mesh.indices[i-propagate:i+propagate])   for i in range(len(mesh.indices)) )
