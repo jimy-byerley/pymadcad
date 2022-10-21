@@ -63,8 +63,6 @@ from .nprint import nprint
 
 # minimum opengl version required by the rendering pipeline
 opengl_version = (3,3)
-# shared open gl context, None if not yet initialized
-global_context = None
 
 
 def show(scene:dict, interest:Box=None, size=uvec2(400,400), **options):
@@ -82,8 +80,6 @@ def show(scene:dict, interest:Box=None, size=uvec2(400,400), **options):
 		Tip:
 			For integration in a Qt window or to manipulate the view, you should directly use `View`
 	'''
-	global global_context
-
 	if isinstance(scene, list):	scene = dict(enumerate(scene))
 	# retro-compatibility fix, shall be removed in future versions
 	if 'options' in options:	options.update(options['options'])
@@ -95,7 +91,6 @@ def show(scene:dict, interest:Box=None, size=uvec2(400,400), **options):
 		import sys
 		QApplication.setAttribute(Qt.AA_ShareOpenGLContexts, True)
 		app = QApplication(sys.argv)
-		global_context = None
 		created = True
 
 	# use the Qt color scheme if specified
@@ -116,6 +111,8 @@ def show(scene:dict, interest:Box=None, size=uvec2(400,400), **options):
 	if created:
 		err = app.exec()
 		if err != 0:	print('error: Qt exited with code', err)
+	else:
+		return view
 
 def render(scene, options=None, interest:Box=None, navigation=None, projection=None, size=uvec2(400,400)):
 	''' shortcut to render the given objects to an image, returns a PIL Image
@@ -941,14 +938,9 @@ class Offscreen(ViewCommon):
 	''' object allowing to perform offscreen rendering, navigate and get informations from screen as for a normal window 
 	'''
 	def __init__(self, scene, size=uvec2(400,400), projection=None, navigation=None):
-		global global_context
-		
 		super().__init__(scene, projection=projection, navigation=navigation)
 		
-		if global_context:
-			self.scene.ctx = global_context
-		else:
-			self.scene.ctx = global_context = mgl.create_standalone_context(requires=opengl_version)
+		self.scene.ctx = mgl.create_context(standalone=True)
 		self.scene.ctx.line_width = settings.display["line_width"]
 
 		self.init(size)
@@ -984,6 +976,70 @@ class Offscreen(ViewCommon):
 			self.init(size)
 
 	def render(self):
+		super().render()
+		return Image.frombytes('RGBA', tuple(self.size), self.fb_screen.read(components=4), 'raw', 'RGBA', 0, -1)
+
+
+from PyQt5.QtGui import QSurfaceFormat, QOffscreenSurface, QOpenGLContext
+
+class QOffscreen(ViewCommon):
+	''' object allowing to perform offscreen rendering, navigate and get informations from screen as for a normal window 
+	'''
+	def __init__(self, scene, size=uvec2(400,400), projection=None, navigation=None):
+		super().__init__(scene, projection=projection, navigation=navigation)
+		
+		fmt = QSurfaceFormat()
+		fmt.setVersion(*opengl_version)
+		fmt.setProfile(QSurfaceFormat.CoreProfile)
+		fmt.setSamples(4)
+		
+		self.qctx = QOpenGLContext()
+		self.qctx.setFormat(fmt)
+		self.qctx.create()
+		
+		self.surface = QOffscreenSurface()
+		self.surface.setFormat(fmt)
+		self.surface.create()
+		
+		self.qctx.makeCurrent(self.surface)
+		self.scene.ctx = mgl.create_context()
+		self.scene.ctx.line_width = settings.display["line_width"]
+
+		self.init(size)
+		self.preload()
+
+	def init(self, size):
+		w, h = size
+
+		ctx = self.scene.ctx
+		assert ctx, 'context is not initialized'
+
+		# self.fb_screen is already created and sized by Qt
+		self.fb_screen = ctx.simple_framebuffer(size)
+		self.fb_ident = ctx.simple_framebuffer((w, h), components=3, dtype='f1')
+		self.targets = [ ('screen', self.fb_screen, self.setup_screen),
+						 ('ident', self.fb_ident, self.setup_ident)]
+		self.map_ident = np.empty((h,w), dtype='u2')
+		self.map_depth = np.empty((h,w), dtype='f4')
+		
+	@property
+	def size(self):		
+		return self.fb_screen.size
+		
+	def width(self):
+		return self.fb_screen.size[0]
+		
+	def height(self):
+		return self.fb_screen.size[1]
+	
+	def resize(self, size):
+		if size != self.fb_screen.size:
+			#self.qctx.makeCurrent(self.surface)
+			self.scene.ctx.finish()
+			self.init(size)
+
+	def render(self):
+		#self.qctx.makeCurrent(self.surface)
 		super().render()
 		return Image.frombytes('RGBA', tuple(self.size), self.fb_screen.read(components=4), 'raw', 'RGBA', 0, -1)
 
@@ -1129,16 +1185,7 @@ class View(ViewCommon, QOpenGLWidget):
 	# -- Qt things --
 
 	def initializeGL(self):
-		# retrieve global shared context if available
-		global global_context
-		
-		if QApplication.testAttribute(Qt.AA_ShareOpenGLContexts):
-			if not global_context:
-				global_context = mgl.create_context()
-			self.scene.ctx = global_context
-		# or create a context
-		else:
-			self.scene.ctx = mgl.create_context()
+		self.scene.ctx = mgl.create_context()
 		self.init()
 		self.preload()
 
