@@ -937,11 +937,14 @@ class ViewCommon:
 class Offscreen(ViewCommon):
 	''' object allowing to perform offscreen rendering, navigate and get informations from screen as for a normal window 
 	'''
-	def __init__(self, scene, size=uvec2(400,400), projection=None, navigation=None):
+	def __init__(self, scene, size=uvec2(400,400), projection=None, navigation=None, ctx=None):
 		super().__init__(scene, projection=projection, navigation=navigation)
 		
-		self.scene.ctx = mgl.create_context(standalone=True)
-		self.scene.ctx.line_width = settings.display["line_width"]
+		if ctx:
+			self.scene.ctx = ctx
+		else:
+			self.scene.ctx = mgl.create_context(standalone=True)
+			self.scene.ctx.line_width = settings.display["line_width"]
 
 		self.init(size)
 		self.preload()
