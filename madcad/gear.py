@@ -710,10 +710,6 @@ def geargather(exterior, structure, hub) -> Mesh:
 	hub.mergeclose()
 
 	# Parameters
-	#box = exterior.box()
-	#height_e_top = box.max.z
-	#height_e_bot = box.min.z
-	
 	int_e_radius = minmax_radius(exterior.points)[0]
 
 	box = structure.box()
@@ -783,7 +779,6 @@ def geargather(exterior, structure, hub) -> Mesh:
 		if round(radius_int_e_top , 6) == round(radius_ext_s_top , 6) and round(height_int_e_top , 6) == round(height_ext_s_top, 6):
 			j1_top = Mesh()
 		else:
-			# TODO: Change .flip() because of errors
 			j1_top = junction(circle_ext_s_top, circle_int_e_top, tangents="straight", resolution = ("div", 0))
 		
 		if round(radius_int_s_top , 6) == round(radius_ext_h_top , 6) and round(height_int_s_top , 6) == round(height_ext_h_top, 6):
@@ -799,7 +794,6 @@ def geargather(exterior, structure, hub) -> Mesh:
 		if round(radius_int_e_bot , 6) == round(radius_ext_s_bot , 6) and round(height_int_e_bot , 6) == round(height_ext_s_bot, 6):
 			j1_bot = Mesh()
 		else:
-			# TODO: Change .flip() because of errors
 			j1_bot = junction(circle_ext_s_bot, circle_int_e_bot, tangents="straight", resolution = ("div", 0))
 			
 		if round(radius_int_s_bot, 6) == round(radius_ext_h_bot, 6) and round(height_int_s_bot, 6) == round(height_ext_h_bot, 6):
@@ -808,14 +802,11 @@ def geargather(exterior, structure, hub) -> Mesh:
 			j2_bot = junction(circle_ext_h_bot, circle_int_s_bot, tangents="straight", resolution = ("div", 0))
 			
 		bottom = j1_bot + j2_bot
-	# show([structure, hub])
 	
-	#show([exterior, structure, hub])
 	if isinstance(structure, Web):
 		mesh = exterior + top + bottom + hub
 	else:
 		mesh = exterior + top + structure + bottom + hub
-		# show([exterior.transform(translate(10 * Z)), top.transform(translate(7.5 * Z)), structure.transform(translate(5 * Z)), bottom.transform(translate(2.5 * Z)), hub])
 	mesh.mergeclose()
 	return mesh
 
