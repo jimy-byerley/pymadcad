@@ -61,5 +61,4 @@ csts = [
 	]
 
 solvekin(csts, [s0], precision=1e-2)
-makescheme(csts)
 show([Kinematic(csts, [s0]), O, X, Y, Z])
