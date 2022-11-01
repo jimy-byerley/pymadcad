@@ -60,7 +60,7 @@ scene = {
 	}
 		
 controls = {
-	'navigation': 'Orbit',
+	'navigation': 'Turntable',
 	'snap_dist': 10,	# pixel distance to click items
 	}
 
