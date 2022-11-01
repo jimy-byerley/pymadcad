@@ -19,6 +19,13 @@ nprint('bri', bri)
 m = ico + bri
 m.check()
 
+# test simple properties
+def closeto(x, ref, prec):	return abs(x-ref)/ref < prec
+r = 1
+s = icosphere(vec3(0), r)
+assert closeto(s.surface(), 4*pi*r**2, 0.05)
+assert closeto(s.volume(), 4/3*pi*r**3, 0.05)
+
 # test separation
 l = m.islands()
 assert len(l) == 2
