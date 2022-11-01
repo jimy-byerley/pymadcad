@@ -6,7 +6,7 @@ from .kinematic import Screw, WireDisplay, Scheme, Joint
 from .mesh import Mesh, Wire, web, Web
 from . import generation, primitives
 
-__all__ = ['Pivot', 'Plane', 'Track', 'Gliding', 'Ball', 'Punctiform', 'Gear', 'Helicoid']
+__all__ = ['Pivot', 'Planar', 'Track', 'Gliding', 'Ball', 'Punctiform', 'Gear', 'Helicoid']
 
 '''
 TODO:
