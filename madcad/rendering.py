@@ -234,6 +234,7 @@ def navigation_tool(dispatcher, view):
 			if	 k == Qt.Key_Control:	ctrl = press
 			elif k == Qt.Key_Alt:		alt = press
 			elif k == Qt.Key_Shift:		slow = press
+			elif k == Qt.Key_Escape: raise
 			if ctrl and alt:		curr = 'zoom'
 			elif ctrl:				curr = 'pan'
 			elif alt:				curr = 'rotate'
