@@ -1218,10 +1218,10 @@ def helical_bevel_gear(
 	step:float,
 	z:int,
 	pitch_cone_angle:float,
-	pressure_angle:float=pi/9,
+	pressure_angle:float = radians(20),
 	ka:float=1,
 	kd:float=1.25,
-	helix_angle:float = pi/5,
+	helix_angle:float = radians(20),
 	bore_radius:float=None,
 	bore_height:float=None,
 ):
@@ -1274,9 +1274,11 @@ def helical_bevel_gear(
 	angle_step = lambda z: (log(z) - log(z0)) / delta
 
 	# Compute the number of steps for discretization
-	_helix_angle = (log(z1) - log(z0)) / delta	# Angle of the conical helix
-	_helix_length = (z1 - z0) / (cos(helix_angle) * cosp)	# Length of the conical helix
-	step = settings.curve_resolution(_helix_length, abs(_helix_angle))
+	topbot_angle = abs((log(z1) - log(z0)) / delta)
+	step = settings.curve_resolution(
+			(z1 - z0) / (cos(helix_angle) * cosp),	# Length of the conical helix 
+			topbot_angle,	# Angle of the conical helix
+			)
 
 	# Parameters for scaling and rotation
 	scale_step = (rho1 - rho0) / (step + 1)
@@ -1284,14 +1286,16 @@ def helical_bevel_gear(
 
 	# The transformation aims to generate a conical helix.
 	_scale = lambda x : scale(vec3(x))
-	_rotate = lambda x: transform(angleAxis(angle_step(x), Z))
-	transformations = (
-		_scale(i * scale_step + rho0) * _rotate(z_step * i + z0)
-		for i in range(-1, step + 2 + 1)
-	)
-
-	links = ((i, i + 1, 0) for i in range(step + 1 + 2))
-	gear_surface = extrans(tooth, transformations, links)
+	_rotate = lambda x: rotate(angle_step(x), Z)
+	
+	gear_surface = extrans(tooth, 
+			transformations = (
+				_scale(i * scale_step + rho0) * _rotate(z_step * i + z0)
+				for i in range(-1, step + 2 + 1)), 
+			links = (
+				(i, i + 1, 0) 
+				for i in range(step + 1 + 2)),
+			)
 
 	# Get angle between the initial body and tooth
 	body_point = vec3(sin(gamma_r), 0, cos(gamma_r))
@@ -1317,15 +1321,11 @@ def helical_bevel_gear(
 		and the height. They are useful to build the body correctly
 		for the boolean operation
 		"""
-		mat4_scale_rot = _scale(rho) * _rotate(z)
+		mat4_scale_rot = mat4(quat_t2b) * _scale(rho) * _rotate(z)
 		gear_surface_point_A = _scale(rho - scale_step) * _rotate(z - z_step) * tooth_point
 		gear_surface_point_B = _scale(rho) * transform(angleAxis(angle, Z)) * tooth_point
-		body_C = vec3(sin(gamma_r), 0, cos(gamma_r))
-		body_C = mat4_scale_rot * body_C
-		body_C = quat_t2b * body_C
-		body_D = vec3(sin(gamma_l), 0, cos(gamma_l))
-		body_D = mat4_scale_rot * body_D
-		body_D = quat_t2b * body_D
+		body_C = mat4_scale_rot * vec3(sin(gamma_r), 0, cos(gamma_r))
+		body_D = mat4_scale_rot * vec3(sin(gamma_l), 0, cos(gamma_l))
 
 		# Compute intersection and get E
 		t_rho = _get_intersection(gear_surface_point_A, gear_surface_point_B, body_C, body_D)
@@ -1334,8 +1334,7 @@ def helical_bevel_gear(
 		return body_C, E
 
 	C, D = get_body_points(rho0, z0, 0)
-	A, B = get_body_points(rho1, z1, _helix_angle)
-	# raise
+	A, B = get_body_points(rho1, z1, topbot_angle)
 
 	# Generate points for a section
 	if bore_radius is None:
@@ -1363,14 +1362,13 @@ def helical_bevel_gear(
 
 	body = revolution(angle1tooth, (O, Z), wire)
 	onetooth = intersection(gear_surface, body)
-	all_teeth = repeat(onetooth, z, rotatearound(angle1tooth, (O, Z)))
-	all_teeth.finish()
+	all_teeth = repeat(onetooth, z, rotatearound(angle1tooth, (O, Z))).finish()
 
+	# align the mesh on the middle of a tooth
 	involute = lambda t, t0: spherical_involute(gamma_b, t0, t)
 	t_max = acos(cos(gamma_f) / cos_b) / sin_b
 	middle_tooth = 0.5 * (involute(t_max, 0) + involute(-t_max, phase_diff))
-	phase = anglebt(X, middle_tooth * v)
-	return all_teeth.transform(angleAxis(-phase, Z))
+	return all_teeth.transform(quat(X, middle_tooth * v))
 
 def _get_intersection(A: vec3, B: vec3, C: vec3, D: vec3) -> float:
 	"""
