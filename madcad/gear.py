@@ -424,7 +424,7 @@ def create_pattern_rect(
 	top_profile = reduce(add, top_webs)
 	bottom_profile = reduce(add, bottom_webs)
 	surfaces = extrusion(vec3(0, 0, depth - 2 * int_height), bottom_webs[0].flip())
-
+    
 	mesh = triangulation(top_profile) + triangulation(bottom_profile) + surfaces
 	mesh.mergeclose()
 	return mesh
@@ -876,7 +876,7 @@ def gear(
 	structure = gearstructure(
 					pattern,
 					0.95 * ext_int,
-					hub_ext,
+					max(hub_ext, 0.2 * ext_int),
 					depth,
 					int_height,
 					**kwargs)
