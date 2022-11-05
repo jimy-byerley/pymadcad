@@ -1311,12 +1311,12 @@ def helical_bevel_gear(
 	z_step = (z1 - z0) / (step + 1)
 
 	# The transformation aims to generate a conical helix.
-	_scale = lambda x : scale(vec3(x))
-	_rotate = lambda x: rotate(angle_step(x), Z)
+	helix_scale = lambda x : scale(vec3(x))
+	helix_rotate = lambda x: rotate(angle_step(x), Z)
 	
 	gear_surface = extrans(tooth, 
 			transformations = (
-				_scale(i * scale_step + rho0) * _rotate(z_step * i + z0)
+				helix_scale(i * scale_step + rho0) * helix_rotate(z_step * i + z0)
 				for i in range(-1, step + 2 + 1)), 
 			links = (
 				(i, i + 1, 0) 
@@ -1347,9 +1347,9 @@ def helical_bevel_gear(
 		and the height. They are useful to build the body correctly
 		for the boolean operation
 		"""
-		mat4_scale_rot = mat4(quat_t2b) * _scale(rho) * _rotate(z)
-		gear_surface_point_A = _scale(rho - scale_step) * _rotate(z - z_step) * tooth_point
-		gear_surface_point_B = _scale(rho) * transform(angleAxis(angle, Z)) * tooth_point
+		mat4_scale_rot = mat4(quat_t2b) * helix_scale(rho) * helix_rotate(z)
+		gear_surface_point_A = helix_scale(rho - scale_step) * helix_rotate(z - z_step) * tooth_point
+		gear_surface_point_B = helix_scale(rho) * transform(angleAxis(angle, Z)) * tooth_point
 		body_C = mat4_scale_rot * vec3(sin(gamma_r), 0, cos(gamma_r))
 		body_D = mat4_scale_rot * vec3(sin(gamma_l), 0, cos(gamma_l))
 
