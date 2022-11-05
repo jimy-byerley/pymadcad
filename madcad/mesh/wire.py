@@ -222,11 +222,11 @@ class Wire(NMesh):
 		
 	def surface(self) -> float:
 		''' return the surface enclosed by the web if planar and is a loop (else it has no meaning) '''
-		s = vec3(0)
 		o = self.barycenter()
+		s = vec3(0)
 		for i in range(1, len(self)):
-			area += cross(self[i-1]-o, self[i]-o)
-		return length(area)
+			s += cross(self[i-1]-o, self[i]-o)
+		return length(s)
 		
 	def barycenter(self) -> vec3:
 		''' curve barycenter '''
