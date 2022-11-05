@@ -900,6 +900,7 @@ class Kinemanip(rendering.Group):
 def makescheme(joints, color=None):
 	''' create kinematic schemes and add them as visual elements to the solids the joints applies on '''
 	# collect solids informations
+	assigned = set()
 	solids = {}
 	diag = vec3(0)
 	for cst in joints:
@@ -918,7 +919,11 @@ def makescheme(joints, color=None):
 	size = 0.5 * max(max(info[4].width) / info[3] for info in solids.values())  or 1
 	
 	for info in solids.values():
-		info[0]['scheme'] = scheme = Scheme([], [], [], [], color)
+		container = info[0].content
+		if id(container) not in assigned:
+			container['scheme'] = Scheme([], [], [], [], color)
+			assigned.add(id(container))
+		scheme = container['scheme']
 		center = info[2]/info[3]
 		if not isfinite(center):	center = vec3(0)
 		for cst in info[1]:
