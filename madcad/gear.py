@@ -42,6 +42,7 @@ from .selection import *
 from .rendering import show
 from .cut import bevel, chamfer
 from .boolean import intersection
+from .io import cachefunc
 from . import settings
 
 from math import *
@@ -770,7 +771,7 @@ def geargather(exterior, structure, hub) -> Mesh:
 		mesh = exterior + top + structure + bottom + hub
 	return mesh.finish()
 
-
+@cachefunc
 def gear(
 	step,
 	z: int,
@@ -1096,6 +1097,7 @@ def cone_projection(profile: Wire, pitch_cone_angle:float) -> Wire:
 	new_points = [1 / dot(ref(atan2(point.y, point.x)), point) * point for point in profile.points]
 	return Wire(new_points, indices=profile.indices)
 
+@cachefunc
 def bevelgear(
 	step:float,
 	z:int,
@@ -1198,8 +1200,7 @@ def straight_bevel_gear(
 	D = vec3(rho0 * sin(gamma_l), 0, rho0 * cos(gamma_l))
 	v1 = A * v
 	v2 = spherical_profile[0] * v
-	phase_tooth_body = anglebt(v1, v2)
-	phase_tooth_body = -phase_tooth_body if cross(v1, v2).z > 0 else phase_tooth_body
+	phase_tooth_body = quat(v1, v2)
 
 
 	# Generate points for a section
@@ -1228,7 +1229,7 @@ def straight_bevel_gear(
 
 	axis = (O, Z)
 	body = revolution(angle1tooth, axis, wire)
-	one_tooth = intersection(body.transform(angleAxis(-phase_tooth_body, Z)), teeth_border)
+	one_tooth = intersection(body.transform(phase_tooth_body), teeth_border)
 	all_teeth = repeat(one_tooth, z, rotatearound(angle1tooth, axis))
 	all_teeth.finish()
 
