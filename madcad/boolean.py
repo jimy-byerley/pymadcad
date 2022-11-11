@@ -591,7 +591,7 @@ def pierce(m, ref, side=False, prec=None):
 	'''
 	op = pierce_ops.get((type(m), type(ref)))
 	if not op:
-		raise TypeError('pierce is not possible between {} and {}'.format(type(m), type(ref)))
+		raise TypeError('pierce is not possible between {} and {}'.format(type(m).__name__, type(ref).__name__))
 	return op(m, ref, side, prec)
 
 
