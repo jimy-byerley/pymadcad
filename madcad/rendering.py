@@ -67,7 +67,7 @@ opengl_version = (3,3)
 global_context = None
 
 
-def show(scene:dict, interest:Box=None, size=uvec2(400,400), **options):
+def show(scene:dict, interest:Box=None, size=uvec2(400,400), projection=None, navigation=None, **options):
 	''' 
 		easy and convenient way to create a window containing a `View` on a created `Scene`
 		
@@ -103,7 +103,7 @@ def show(scene:dict, interest:Box=None, size=uvec2(400,400), **options):
 		settings.use_qt_colors()
 
 	# create the scene as a window
-	view = View(scene)
+	view = View(scene, projection, navigation)
 	view.resize(*size)
 	view.show()
 
@@ -648,8 +648,9 @@ class Group(Display):
 		return iter(self.displays.values())
 		
 	def update(self, scene, objs):
-		if isinstance(objs, dict):		items = objs.items()
-		elif hasattr(objs, '__iter__'):	items = enumerate(objs)
+		if isinstance(objs, dict):		objs = objs
+		elif hasattr(objs, 'keys'):		objs = dict(objs)
+		elif hasattr(objs, '__iter__'):	objs = dict(enumerate(objs))
 		else:
 			return False
 		
@@ -657,7 +658,7 @@ class Group(Display):
 		sub = self._world * self._pose
 		with scene.ctx:
 			scene.ctx.finish()
-			for key, obj in items:
+			for key, obj in objs.items():
 				if not displayable(obj):	continue
 				try:
 					self.displays[key] = disp = scene.display(obj, self.displays.get(key))
@@ -665,6 +666,8 @@ class Group(Display):
 				except:
 					print('tried to display', object.__repr__(obj))
 					traceback.print_exc()
+			for key in self.displays.keys() - objs.keys():
+				del self.displays[key]
 		scene.touch()
 		return True
 	dequeue = update
