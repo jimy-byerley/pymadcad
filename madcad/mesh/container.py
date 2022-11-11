@@ -239,8 +239,9 @@ class NMesh(object):
 	def box(self) -> Box:
 		''' return the extreme coordinates of the mesh (vec3, vec3) '''
 		if not self.points:		return Box()
-		max = deepcopy(self.points[0])
-		min = deepcopy(self.points[0])
+		p = next(filter(isfinite, self.points))
+		max = deepcopy(p)
+		min = deepcopy(p)
 		for pt in self.points:
 			for i in range(3):
 				if   pt[i] < min[i]:	min[i] = pt[i]
