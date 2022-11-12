@@ -213,7 +213,7 @@ class Scheme:
 			:vb_vertices:  vertex buffer for vertices
 			:vas:          vertex array associated to each shader
 		'''
-		max_spaces = 32
+		max_spaces = 32  # this maximum size of the spaces array must match the size in the shader
 		
 		def __init__(self, scene, sch):
 			ctx = scene.ctx
@@ -225,9 +225,9 @@ class Scheme:
 			self.shaders, self.shader_ident = scene.ressource('scheme', self.load)
 			
 			# switch to array indexed spaces
-			self.spaces = glm.array.zeros(self.max_spaces, fmat4)
+			self.spaces = typedlist.full(fmat4(0), self.max_spaces)
 			self.spacegens = list(sch.spaces)
-			if len(self.spacegens) > self.max_spaces:		
+			if len(self.spacegens) > self.max_spaces:
 				print('warning: the number of local spaces exceeds the arbitrary build-in limit of {}'.format(self.max_spaces))
 			
 			self.components = [(space,scene.display(obj))	for space,obj in sch.components]

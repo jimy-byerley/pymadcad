@@ -22,7 +22,7 @@ setup(
 		'PyQt5>=5',
 		'Pillow>=5.4',
 		'pyyaml>=5',
-		'arrex>=0.5',
+		'arrex>=0.5.1',
 		],
 	extras_require={
 		'PLY': ['plyfile>=0.7'],
