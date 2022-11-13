@@ -1128,13 +1128,13 @@ def bevelgear(
 		bore_radius (float):   		radius of the main bore
 		bore_height (float):   		height of the main bore
 	"""
-	if helix_angle is None:
-		return straight_bevel_gear(
-			step, z, pitch_cone_angle, pressure_angle, ka, kd, bore_radius, bore_height,
-		)
-	else:
+	if helix_angle:
 		return helical_bevel_gear(
 			step, z, pitch_cone_angle, pressure_angle, ka, kd, helix_angle, bore_radius, bore_height,
+		)
+	else:
+		return straight_bevel_gear(
+			step, z, pitch_cone_angle, pressure_angle, ka, kd, bore_radius, bore_height,
 		)
 
 
@@ -1301,10 +1301,10 @@ def helical_bevel_gear(
 	angle_step = lambda z: (log(z) - log(z0)) / delta
 
 	# Compute the number of steps for discretization
-	topbot_angle = abs((log(z1) - log(z0)) / delta)
+	topbot_angle = (log(z1) - log(z0)) / delta
 	step = settings.curve_resolution(
 			(z1 - z0) / (cos(helix_angle) * cosp),	# Length of the conical helix 
-			topbot_angle,	# Angle of the conical helix
+			abs(topbot_angle),	# Angle of the conical helix
 			)
 
 	# Parameters for scaling and rotation
