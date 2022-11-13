@@ -37,9 +37,9 @@ __all__ = [	'nut', 'screw', 'washer',
 			
 # --------- numeric stuff --------------------
 
-standard_digits = sorted([1., 1.25, 1.5, 2., 2.5, 3., 4., 5., 6., 8., 10., 12., 16., 17.5, 24., 36.])
+standard_digits = [.0, 1., .5, .4, .6, .8, .2, .25, .75]
 
-def stfloor(x, precision=1):
+def stfloor(x, precision=0.1):
 	''' return a numeric value fitting x, with lower digits being the under closest digits from `standard_digits` 
 		
 		`precision` gives the relative tolerance interval for the returned number, so we are sure it lays in `[x*(1-precision), x]`
@@ -54,21 +54,18 @@ def stfloor(x, precision=1):
 	magnitude = base**floor(log(x) / log(base))
 	ratio = x / magnitude
 	
-	for j in range(1 + int(ceil(-log(precision) / log(base)))):
-		candidate = None
+	for j in range(2 + int(ceil(-log(precision) / log(base)))):
 		for st in standard_digits:
-			previous = candidate
-			candidate = base*floor(ratio/base) + st
+			candidate = floor(ratio) + st
 			if candidate > ratio + 2*NUMPREC:
-				break
-		else:
-			previous = candidate
-		if ratio*(1-precision) - NUMPREC <= previous:
-			return previous * magnitude * s
+				continue
+			if ratio*(1-precision) + NUMPREC <= candidate:
+				return candidate * magnitude * s
 		magnitude /= base
 		ratio *= base
+	raise RuntimeError('failed to converge, this is a bug')
 
-def stceil(x, precision=1):
+def stceil(x, precision=0.1):
 	''' return a numeric value fitting x, with lower digits being the above closest digits from `standard_digits` 
 		
 		`precision` gives the relative tolerance interval for the returned number, so we are sure it lays in `[x, x*(1+precision)]`
@@ -80,22 +77,19 @@ def stceil(x, precision=1):
 	s, x = sign(x), abs(x)
 	
 	base = 10
-	magnitude = base**floor(log(x) / log(base))
+	magnitude = base**ceil(log(x) / log(base))
 	ratio = x / magnitude
 	
-	for j in range(1 + int(ceil(-log(precision) / log(base)))):
-		candidate = None
-		for st in reversed(standard_digits):
-			previous = candidate
-			candidate = base*floor(ratio/base) + st
+	for j in range(2 + int(ceil(-log(precision) / log(base)))):
+		for st in standard_digits:
+			candidate = floor(ratio) + st
 			if candidate < ratio - 2*NUMPREC:
-				break
-		else:
-			previous = candidate
-		if ratio*(1+precision) + NUMPREC >= previous:
-			return previous * magnitude * s
+				continue
+			if ratio*(1+precision) + NUMPREC >= candidate:
+				return candidate * magnitude * s
 		magnitude /= base
 		ratio *= base
+	raise RuntimeError('failed to converge, this is a bug')
 
 # --------- screw stuff -----------------------
 	
