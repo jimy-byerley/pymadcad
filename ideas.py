@@ -1,33 +1,4 @@
 
-
-body = union(
-		icosphere(O, rext)
-			.name('centerball'),
-		revolution(2*pi, Axis(O,Z), Softened([
-				vec3(2.706, 0, 1.147),
-				vec3(1.959, -1.56e-08, 2.209),
-				vec3(1.221, -1.454e-07, 3.298),
-				vec3(1.175, -4.856e-07, 6.152)])) .flip()
-			.name('softneck'),
-		) .transform(rint*0.3*Z)
-		
-body.unname('new')
-chamfer(body, body.frontiers().select(closest(P), stopangle(pi/4)))
-body.name('chamfer', 'new')
-
-chamfer(body, body.frontiers().select(closest(P), stopangle(pi/4)), name='chamfer')
-chamfer(body, body.frontiers().select(closest(P), stopangle(pi/4))).name('chanfer')
-
-body.group('softneck')   -> extrait tous les groupes possedant cette designation
-body.mergegroups('somenew')  -> fusionne tous les groupes en un nouveau donné par une designation
-body.namegroups('somenew')
-body.qual('somenew')
-body.name('somenew')
-body.name('somenew', replace='new')
-
-Mesh.name(name, former=False)
-Mesh.group(name)
-
 class GroupDef:
 	qualifiers = set()
 	attributes = dict()
@@ -65,3 +36,12 @@ hull(mesh, concave=0, width=0) -> mesh
 chamfer(mesh, edges, cutter, grouplimit=False, tangent_limit=True) -> MeshGroup
 
 
+bolt(a, b, rscrew, washera=False, washerb=False)	# bolt assembly
+sphere_plane_bolted_junction(axis, radius, rscrew)     # many bolts, soft surface between sphere and plane
+bearing_slot_exterior(axis, rext, shouldering=True, circlip=False)   # revolution surface to place a bearing in
+bearing_slot_interior(axis, rext, shouldering=True, circlip=False)   # revolution surface to place a bearing on
+screw_slot(axis, rscrew, rslot=None, hole=True, expand=None)  # revolution surface to place a bolt in
+bolt_slot(a, b, rscrew, rslot=None, hole=True, expanda=None, expandb=None)  # revolution surface to place a bolt in
+
+Solid.globalref('sub', 'element', 'subgroup')  # return it all transformed
+Solid.localref('sub', 'element', 'subgroup')  # return it not transformed, as with __getitem__

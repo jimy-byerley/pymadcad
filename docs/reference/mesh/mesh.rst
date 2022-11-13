@@ -47,6 +47,7 @@ Mesh
 		.. automethod:: maxnum
 		.. automethod:: precision
 		.. automethod:: surface
+		.. automethod:: volume
 		.. automethod:: barycenter
 		.. automethod:: barycenter_points
 		.. automethod:: box

@@ -42,6 +42,7 @@ from .selection import *
 from .rendering import show
 from .cut import bevel, chamfer
 from .boolean import intersection
+from .io import cachefunc
 from . import settings
 
 from math import *
@@ -722,83 +723,44 @@ def geargather(exterior, structure, hub) -> Mesh:
 	height_h_bot = box.min.z
 	ext_h_radius = minmax_radius(hub.points)[1]
 	
-	# show([exterior, structure, hub])
 	assert ext_h_radius * COMPREC <= int_radius
 	assert ext_radius * COMPREC <= int_e_radius
 
+	# borderline overlapping check
+	prec2 = (4*NUMPREC*ext_radius)**2
 	def radius_height(circle):
-		center = vec3(0)
-		for point in circle.points:
-			center = center + point
-		center = center / len(circle.points)
-		return length(center - circle.points[0]), glm.dot(Z, center)
-
-	# Select borderlines
-	# int = internal / ext = external
-	# e = exterior / s = structure / h = hub
-	# top = top / bot = bottom
-	circle_int_e_top = select(exterior, vec3(0, 0, height_top))
-	circle_int_e_top.finish()
-	radius_int_e_top, height_int_e_top = radius_height(circle_int_e_top)
+		p = circle.points[circle.edges[0][0]]
+		return vec2(length(p - circle.barycenter()), p.z)
+	def samecircle(c1, c2):
+		return distance2(radius_height(c1), radius_height(c2)) < prec2
 	
-	circle_int_e_bot = select(exterior, vec3(0, 0, height_bot))
-	circle_int_e_bot.finish()
-	radius_int_e_bot, height_int_e_bot = radius_height(circle_int_e_bot)
-	
-	circle_ext_s_top = select(structure, vec3(ext_radius, 0, height_top))
-	circle_ext_s_top.finish()
-	radius_ext_s_top, height_ext_s_top = radius_height(circle_ext_s_top)
-	
-	circle_ext_s_bot = select(structure, vec3(ext_radius, 0, height_bot))
-	circle_ext_s_bot.finish()
-	radius_ext_s_bot, height_ext_s_bot = radius_height(circle_ext_s_bot)
-	
-	circle_int_s_top = select(structure, vec3(int_radius, 0, height_top))
-	circle_int_s_top.finish()
-	radius_int_s_top, height_int_s_top = radius_height(circle_int_s_top)
-	
-	circle_int_s_bot = select(structure, vec3(int_radius, 0, height_bot))
-	circle_int_s_bot.finish()
-	radius_int_s_bot, height_int_s_bot = radius_height(circle_int_s_bot)
-	
-	circle_ext_h_top = select(hub, vec3(ext_h_radius, 0, height_h_top))
-	circle_ext_h_top.finish()
-	radius_ext_h_top, height_ext_h_top = radius_height(circle_ext_h_top)
-	
-	circle_ext_h_bot = select(hub, vec3(ext_h_radius, 0, height_h_bot))
-	circle_ext_h_bot.finish()
-	radius_ext_h_bot, height_ext_h_bot = radius_height(circle_ext_h_bot)
-
-	# Join all borderlines
+	# select and join all borderlines
 	# j1 is the junction between `exterior` and `structure`
 	# j2 is the junction between `structure` and `hub`
+	top = j1_top = j2_top = bottom = j1_bot = j2_bot = Mesh()
 	
-	if radius_int_e_top == radius_ext_h_top and height_int_e_top == height_ext_h_top:
-		top = Mesh()
-	else:
-		if round(radius_int_e_top , 6) == round(radius_ext_s_top , 6) and round(height_int_e_top , 6) == round(height_ext_s_top, 6):
-			j1_top = Mesh()
-		else:
-			j1_top = junction(circle_ext_s_top, circle_int_e_top, tangents="straight", resolution = ("div", 0))
+	circle_int_e_top = select(exterior, vec3(0, 0, height_top))
+	circle_ext_h_top = select(hub, vec3(ext_h_radius, 0, height_h_top))
+	if not samecircle(circle_int_e_top, circle_ext_h_top):
+		circle_ext_s_top = select(structure, vec3(ext_radius, 0, height_top))
+		circle_int_s_top = select(structure, vec3(int_radius, 0, height_top))
 		
-		if round(radius_int_s_top , 6) == round(radius_ext_h_top , 6) and round(height_int_s_top , 6) == round(height_ext_h_top, 6):
-			j2_top = Mesh()
-		else:
+		if not samecircle(circle_ext_s_top, circle_int_e_top):
+			j1_top = junction(circle_ext_s_top, circle_int_e_top, tangents="straight", resolution = ("div", 0))
+		if not samecircle(circle_ext_h_top, circle_int_s_top):
 			j2_top = junction(circle_ext_h_top, circle_int_s_top, tangents="straight", resolution = ("div", 0))
 		
 		top = j1_top + j2_top
 	
-	if radius_int_e_bot == radius_ext_h_bot and height_int_e_bot == height_ext_h_bot:
-		bottom = Mesh()
-	else:
-		if round(radius_int_e_bot , 6) == round(radius_ext_s_bot , 6) and round(height_int_e_bot , 6) == round(height_ext_s_bot, 6):
-			j1_bot = Mesh()
-		else:
+	circle_int_e_bot = select(exterior, vec3(0, 0, height_bot))
+	circle_ext_h_bot = select(hub, vec3(ext_h_radius, 0, height_h_bot))
+	if not samecircle(circle_int_e_bot, circle_ext_h_bot):
+		circle_ext_s_bot = select(structure, vec3(ext_radius, 0, height_bot))
+		circle_int_s_bot = select(structure, vec3(int_radius, 0, height_bot))
+		
+		if not samecircle(circle_ext_s_bot, circle_int_e_bot):
 			j1_bot = junction(circle_ext_s_bot, circle_int_e_bot, tangents="straight", resolution = ("div", 0))
-			
-		if round(radius_int_s_bot, 6) == round(radius_ext_h_bot, 6) and round(height_int_s_bot, 6) == round(height_ext_h_bot, 6):
-			j2_bot = Mesh()
-		else:
+		if not samecircle(circle_ext_h_bot, circle_int_s_bot):
 			j2_bot = junction(circle_ext_h_bot, circle_int_s_bot, tangents="straight", resolution = ("div", 0))
 			
 		bottom = j1_bot + j2_bot
@@ -807,10 +769,9 @@ def geargather(exterior, structure, hub) -> Mesh:
 		mesh = exterior + top + bottom + hub
 	else:
 		mesh = exterior + top + structure + bottom + hub
-	mesh.mergeclose()
-	return mesh
+	return mesh.finish()
 
-
+@cachefunc
 def gear(
 	step,
 	z: int,
@@ -1136,6 +1097,7 @@ def cone_projection(profile: Wire, pitch_cone_angle:float) -> Wire:
 	new_points = [1 / dot(ref(atan2(point.y, point.x)), point) * point for point in profile.points]
 	return Wire(new_points, indices=profile.indices)
 
+@cachefunc
 def bevelgear(
 	step:float,
 	z:int,
@@ -1238,8 +1200,7 @@ def straight_bevel_gear(
 	D = vec3(rho0 * sin(gamma_l), 0, rho0 * cos(gamma_l))
 	v1 = A * v
 	v2 = spherical_profile[0] * v
-	phase_tooth_body = anglebt(v1, v2)
-	phase_tooth_body = -phase_tooth_body if cross(v1, v2).z > 0 else phase_tooth_body
+	phase_tooth_body = quat(v1, v2)
 
 
 	# Generate points for a section
@@ -1268,7 +1229,7 @@ def straight_bevel_gear(
 
 	axis = (O, Z)
 	body = revolution(angle1tooth, axis, wire)
-	one_tooth = intersection(body.transform(angleAxis(-phase_tooth_body, Z)), teeth_border)
+	one_tooth = intersection(body.transform(phase_tooth_body), teeth_border)
 	all_teeth = repeat(one_tooth, z, rotatearound(angle1tooth, axis))
 	all_teeth.finish()
 
@@ -1284,10 +1245,10 @@ def helical_bevel_gear(
 	step:float,
 	z:int,
 	pitch_cone_angle:float,
-	pressure_angle:float=pi/9,
+	pressure_angle:float = radians(20),
 	ka:float=1,
 	kd:float=1.25,
-	helix_angle:float = pi/5,
+	helix_angle:float = radians(20),
 	bore_radius:float=None,
 	bore_height:float=None,
 ):
@@ -1340,24 +1301,28 @@ def helical_bevel_gear(
 	angle_step = lambda z: (log(z) - log(z0)) / delta
 
 	# Compute the number of steps for discretization
-	_helix_angle = (log(z1) - log(z0)) / delta	# Angle of the conical helix
-	_helix_length = (z1 - z0) / (cos(helix_angle) * cosp)	# Length of the conical helix
-	step = settings.curve_resolution(_helix_length, abs(_helix_angle))
+	topbot_angle = abs((log(z1) - log(z0)) / delta)
+	step = settings.curve_resolution(
+			(z1 - z0) / (cos(helix_angle) * cosp),	# Length of the conical helix 
+			topbot_angle,	# Angle of the conical helix
+			)
 
 	# Parameters for scaling and rotation
 	scale_step = (rho1 - rho0) / (step + 1)
 	z_step = (z1 - z0) / (step + 1)
 
 	# The transformation aims to generate a conical helix.
-	_scale = lambda x : scale(vec3(x))
-	_rotate = lambda x: transform(angleAxis(angle_step(x), Z))
-	transformations = (
-		_scale(i * scale_step + rho0) * _rotate(z_step * i + z0)
-		for i in range(-1, step + 2 + 1)
-	)
-
-	links = ((i, i + 1, 0) for i in range(step + 1 + 2))
-	gear_surface = extrans(tooth, transformations, links)
+	helix_scale = lambda x : scale(vec3(x))
+	helix_rotate = lambda x: rotate(angle_step(x), Z)
+	
+	gear_surface = extrans(tooth, 
+			transformations = (
+				helix_scale(i * scale_step + rho0) * helix_rotate(z_step * i + z0)
+				for i in range(-1, step + 2 + 1)), 
+			links = (
+				(i, i + 1, 0) 
+				for i in range(step + 1 + 2)),
+			)
 
 	# Get angle between the initial body and tooth
 	body_point = vec3(sin(gamma_r), 0, cos(gamma_r))
@@ -1383,15 +1348,11 @@ def helical_bevel_gear(
 		and the height. They are useful to build the body correctly
 		for the boolean operation
 		"""
-		mat4_scale_rot = _scale(rho) * _rotate(z)
-		gear_surface_point_A = _scale(rho - scale_step) * _rotate(z - z_step) * tooth_point
-		gear_surface_point_B = _scale(rho) * transform(angleAxis(angle, Z)) * tooth_point
-		body_C = vec3(sin(gamma_r), 0, cos(gamma_r))
-		body_C = mat4_scale_rot * body_C
-		body_C = quat_t2b * body_C
-		body_D = vec3(sin(gamma_l), 0, cos(gamma_l))
-		body_D = mat4_scale_rot * body_D
-		body_D = quat_t2b * body_D
+		mat4_scale_rot = mat4(quat_t2b) * helix_scale(rho) * helix_rotate(z)
+		gear_surface_point_A = helix_scale(rho - scale_step) * helix_rotate(z - z_step) * tooth_point
+		gear_surface_point_B = helix_scale(rho) * transform(angleAxis(angle, Z)) * tooth_point
+		body_C = mat4_scale_rot * vec3(sin(gamma_r), 0, cos(gamma_r))
+		body_D = mat4_scale_rot * vec3(sin(gamma_l), 0, cos(gamma_l))
 
 		# Compute intersection and get E
 		t_rho = _get_intersection(gear_surface_point_A, gear_surface_point_B, body_C, body_D)
@@ -1400,8 +1361,7 @@ def helical_bevel_gear(
 		return body_C, E
 
 	C, D = get_body_points(rho0, z0, 0)
-	A, B = get_body_points(rho1, z1, _helix_angle)
-	# raise
+	A, B = get_body_points(rho1, z1, topbot_angle)
 
 	# Generate points for a section
 	if bore_radius is None:
@@ -1429,14 +1389,13 @@ def helical_bevel_gear(
 
 	body = revolution(angle1tooth, (O, Z), wire)
 	onetooth = intersection(gear_surface, body)
-	all_teeth = repeat(onetooth, z, rotatearound(angle1tooth, (O, Z)))
-	all_teeth.finish()
+	all_teeth = repeat(onetooth, z, rotatearound(angle1tooth, (O, Z))).finish()
 
+	# align the mesh on the middle of a tooth
 	involute = lambda t, t0: spherical_involute(gamma_b, t0, t)
 	t_max = acos(cos(gamma_f) / cos_b) / sin_b
 	middle_tooth = 0.5 * (involute(t_max, 0) + involute(-t_max, phase_diff))
-	phase = anglebt(X, middle_tooth * v)
-	return all_teeth.transform(angleAxis(-phase, Z))
+	return all_teeth.transform(quat(X, middle_tooth * v))
 
 def _get_intersection(A: vec3, B: vec3, C: vec3, D: vec3) -> float:
 	"""

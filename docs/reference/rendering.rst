@@ -2,61 +2,35 @@
 
 .. currentmodule:: madcad.rendering
 
-rendering   - 3D interface
-==========================
+rendering   - 3D user interface
+===============================
 
-This module provides a render pipeline system centered around class 'Scene' and a Qt widget 'View' for window integration and user interaction. 'Scene' is only to manage the objects to render (almost every madcad object). Most of the time you won't need to deal with it directly. The widget is what actually displays it on the screen.
-The objects displayed can be of any type but must implement the display protocol
-	
-display protocol
-----------------
-a displayable is an object that implements the signatue of Display:
+This module provides a render pipeline system featuring:
 
-.. code-block:: python
-	
-		class display:
-			box (Box)                      # delimiting the display, can be an empty or invalid box
-			world (fmat4)                   # local transformation
-			
-			stack(scene)                   # rendering routines (can be methods, or any callable)
-			duplicate(src,dst)             # copy the display object for an other scene if possible
-			upgrade(scene,displayable)     # upgrade the current display to represent the given displayable
-			control(...)                   # handle events
-			
-			__getitem__                    # access to subdisplays if there is
-	
-For more details, see class Display below
-	
-.. note::
-	As the GPU native precision is *f4* (float 32 bits), all the vector stuff regarding rendering is made using simple precision types: `fvec3, fvec4, fmat3, fmat4, ...` instead of the usual double precision `vec3`
+- class `Scene` to gather the data to render
+- widget `View` that actually renders the scene 
+- the display protocol, that allows any object to define its `Display` subclass to be rendered in a scene.
 
-.. note::
-	There is some restrictions using the widget. This is due to some Qt limitations (and design choices), that Qt is using separated opengl contexts for each independent widgets or window.
-	
-	- a View should not be reparented once displayed
-	- a View can't share a scene with Views from an other window
-	- to share a Scene between Views, you must activate 
-	
-		.. code-block:: python
-			
-			QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts, True)
+The view is for window integration and user interaction. `Scene` is only to manage the objects to render . Almost all madcad data types can be rendered to scenes being converted into an appropriate subclass of `Display`. Since the conversion from madcad data types into display instance is automatically handled via the *display protocol*, you usually don't need to deal with displays directly.
 
-Rendering system
-----------------
+
 
 .. autofunction:: show
 
-.. py:data:: overrides
-	
-	dictionnary of callables used by `Scene.display` to override the classes `.display(scene)` method
-
-.. py:data:: global_context
-
-	shared open gl context, None if not yet initialized
-	
 .. py:data:: opengl_version
 
-	minimum opengl required version
+	minimum opengl version required by the rendering pipeline
+
+	
+	
+display protocol
+----------------
+
+a displayable is an object that implements the signatue of Display.
+
+
+.. autofunction:: displayable
+
 
 .. autoclass:: Display
 	
@@ -64,24 +38,57 @@ Rendering system
 	
 		.. automethod:: display
 		.. automethod:: stack
+		.. automethod:: __getitem__
 		
 		.. automethod:: duplicate
-		.. automethod:: __getitem__
 		.. automethod:: update
 	
 	- Optional interface, only for Qt interaction
 	
-		:selected (bool):  flag set to True by left-clicking on the object
+		.. py:attribute:: selected
+			
+			flag set to True by left-clicking on the object
 		
 		.. automethod:: control
 		
 
+Rendering system
+----------------
+	
+.. note::
+	As the GPU native precision is *f4* (float 32 bits), all the vector stuff regarding rendering is made using simple precision types: `fvec3, fvec4, fmat3, fmat4, ...` instead of the usual double precision `vec3`
+
+.. py:data:: overrides
+	
+	dictionnary of callables used by `Scene.display` to override the display protocol method `object.display(scene)`
+
+.. py:data:: global_context
+
+	shared open gl context, None if not yet initialized
+	
 
 .. autoclass:: Scene
 	:members:
+	
+	.. automethod:: __getitem__
+	.. automethod:: __setitem__
 
+	
+Views classes
+-------------
 
 .. autoclass:: View
+	
+	.. note::
+		There is some restrictions using the widget. Due to some Qt limitations (and design choices), Qt is using separated opengl contexts for each independent widgets or window.
+		
+		- a View should not be reparented once displayed
+		- a View can't share a scene with Views from an other window
+		- to share a Scene between Views, you must activate 
+		
+			.. code-block:: python
+				
+				QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts, True)
 
 	* Methods to get items on the screen
 	
@@ -128,7 +135,7 @@ Rendering system
 		.. automethod:: identstep
 
 
-view settings/interaction methods
+view projections and navigations
 ---------------------------------
 
 .. autoclass:: Turntable
@@ -149,5 +156,3 @@ helpers to trick into the pipeline
 .. autoclass:: Step
 
 .. autoclass:: Displayable
-
-.. autofunction:: displayable

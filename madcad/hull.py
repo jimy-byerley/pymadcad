@@ -1,6 +1,13 @@
+# This file is part of pymadcad,  distributed under license LGPL v3
+'''
+	This module provides functions to compute convex hulls 
+	(See https://en.wikipedia.org/wiki/Convex_hull) 
+	and other hull-related operations for `Mesh` and `Web`
+	
+	Those can be very helpful to complete sketches or parts by adding the missing surface portions. Also very helpful to sort a set of directions.
+'''
 
 import scipy.spatial
-
 from .mathutils import *
 from .mesh import Mesh, Web, Wire, edgekey, facekeyo, arrangeface, connef, connpe, numpy_to_typedlist, typedlist_to_numpy
 from .asso import Asso
@@ -10,76 +17,25 @@ from collections import Counter
 
 
 
-def expand(surface: Mesh, offset: float) -> Mesh:
-	''' generate a surface expanding the input mesh on the tangent of the ouline neighboring faces
-	'''
-	# outline with associated face normals
-	pts = surface.points
-	edges = {}
-	for face in self.faces:
-		for e in ((face[0], face[1]), (face[1], face[2]), (face[2],face[0])):
-			if e in edges:	del edges[e]
-			else:			edges[(e[1], e[0])] = self.facenormal(face)
-	
-	#def tangent(e0, e1):
-		#''' find tangent between the given edges '''
-		#c = cross(	edges[e0], 
-					#edges[e1] )
-		#o = cross(  pts[e0[0]] - pts[e1[1]],
-					#edges[e0] + edges[e1] )
-		#return normalize(mix(o, c, clamp(length2(c)/length2(o)/NUMPREC, 0, 1) ))
-		
-	def tangent(e0, e1):
-		d = cross(edges[e0], edges[e1])
-		v = pts[e1[0]] - pts[e0[1]]
-		return mix(  
-		          pts[e0[1]] + unproject(project(v, edges[e1]), cross(edges[e0], n))
-				+ pts[e1[0]] + unproject(project(-v, edges[e0]), cross(edges[e1], n)),
-				0.5)
-	
-	# cross neighbooring normals
-	for loop in suites(edges, cut=False):
-		assert loop[-1] == loop[0],  "non-manifold mesh"
-		# compute the offsets, and remove anticipated overlapping geometries
-		extended = [None]*len(loop)
-		for i in range(len(loop)):
-			ei0 = (loop[i-2], loop[i-1])
-			ei1 = (loop[i-1], loop[i])
-			ti = tangent(e0, e1) * offset
-			ej0, ej1 = e0, e1
-			for j in reversed(range(i-len(loop), i)):
-				ej0, ej1 = (loop[i-1], loop[i]), ej0
-				tj = tangent(ej0, ej1) * offset
-				if dot(ti - tj, pts[ei1[0]] - pts[ej0[1]]) < 0:
-					tj = tangent(ej0, ei1) * offset
-				else:
-					break
-			for j in range(j, i):
-				extended[j] = tj
-		
-		# insert the new points
-		for i in range(len(extended)):
-			if extended[i] != extended[i-1]:
-				pts.append(extended[i])
-				
-		# create the faces
-		for i in range(len(extended)):
-			if extended[i] != extended[i-1]:
-				mkquad(surface, loop[i-1], loop[i], j-1, j)
-			else:
-				mktri(surface, loop[i-1], loop[i], j)
-	
-	return surface
-		
-	
 def simple_convexhull(points: '[vec3]') -> '[uvec3]':
+	''' Just like `convexhull()` but minimalist.
+		It does not take care of groups crossing. It doesn't return a new Mesh but a buffer of triangles indices 
+	'''
 	return numpy_to_typedlist(scipy.spatial.ConvexHull(typedlist_to_numpy(points, 'f8'), qhull_options='QJ Pp').simplices, uvec3)
 	
-def convexhull(source: typedlist) -> Mesh:
+
+def convexhull(source: '[vec3]') -> Mesh:
 	''' compute the convex hull of the input container 
 		
 		Parameters:
-			points (typedlist/Web/Mesh):	the input container, if it is a Web or Mesh, their groups are kept in the output data
+			source (typedlist/Web/Mesh):	the input container, if it is a Web or Mesh, their groups are kept in the output data
+
+		Example:
+			
+			>>> m = convexhull(mesh([
+			... 	uvsphere(O, 1, alignment=X),
+			... 	uvsphere(4*X, 2, alignment=X),
+			... 	]))
 	'''
 	if isinstance(source, (Mesh,Web,Wire)):
 		source = copy(source)
@@ -91,7 +47,42 @@ def convexhull(source: typedlist) -> Mesh:
 	
 	return restore_groups(source, simple_convexhull(points)).orient()
 	
+
+def convexoutline(source: '[vec3]', normal: vec3=None, flatten: bool=False) -> Web:
+	''' based on `convexhull()` but will extract the loop formed by the edges in the biggest planar projection of the convex hull 
+	
+		Parameters:
+			source (typedlist/Web/Mesh):     the input container, if it is a Web or Mesh, their groups are kept in the output data
+			normal:                          the projection normal to retreive the outline using `horizon()`, if None is given it will default to the direction in which the outlien surface is the biggest
+			flatten:                         whether to project the outline points in its mean plane
+	
+		Example:
+			
+			>>> convexoutline(web([
+			... 	Circle(Axis(O,Z), 1),
+			... 	Circle(Axis(4*X,Z), 2),
+			... 	]))
+	'''
+	hull = convexhull(source)
+	direction = normal or widest_surface_direction(hull)
+	outline = horizon(hull, direction)
+	if flatten:
+		outline.strippoints()
+		center = outline.barycenter()
+		outline.points = typedlist(center + noproject(p-center, direction)   for p in outline.points)
+	return outline
+	
+
 def restore_groups(source, indices) -> Mesh:	
+	'''
+		Create a mesh contaning the given simplices, associated with groups created from group crossing from the source mesh.
+		The simplices must refer to points in `source`.
+		The created groups are tuples of indices of the groups touched by each simplex.
+	
+		Parameters:
+			source (Mesh/Web):    the mesh containing reference triangles and groups
+			indices:              a buffer of simplices indices (depending on the dimensionnality of `source`) we want to find groups for
+	'''
 	groups = source.groups
 	tracks = typedlist.full(len(groups), len(indices), dtype='I')
 	
@@ -142,7 +133,11 @@ def restore_groups(source, indices) -> Mesh:
 	else:
 		raise TypeError('outer simplex dimension {} is not supported'.format(outdim))
 
+		
 def horizon(mesh, direction: vec3) -> Web:
+	''' 
+		Return a Web of the ORIENTED edges of the given mesh that lay between triangles that are oriented either sides of `direction`
+	'''
 	horizon = Web(points=mesh.points, groups=mesh.groups)
 	signs = {}	# dictionnary for crossing face directions around edges
 	groups = {} # track of the positive face connected for each edge
@@ -170,6 +165,7 @@ def horizon(mesh, direction: vec3) -> Web:
 				signs[flipped(edge)] = s
 	return horizon
 
+	
 def flipped(simplex):
 	if len(simplex) == 2:
 		return (simplex[1], simplex[0])
@@ -177,6 +173,7 @@ def flipped(simplex):
 		return (simplex[2], simplex[1], simplex[2])
 	else:
 		raise TypeError('expected and edge or a triangle')
+	
 	
 def widest_surface_direction(mesh) -> vec3:
 	# find a direction not orthogonal to any of the mesh faces
@@ -200,19 +197,7 @@ def widest_surface_direction(mesh) -> vec3:
 	return normalize(direction)
 	
 	
-def convexoutline(points: typedlist, normal=None, flatten=False) -> Web:
-	''' based on `convexhull()` but will extract the loop formed by the edges in the biggest planar projection of the convex hull 
-	'''
-	hull = convexhull(points)
-	direction = normal or widest_surface_direction(hull)
-	outline = horizon(hull, direction)
-	if flatten:
-		outline.strippoints()
-		center = outline.barycenter()
-		outline.points = typedlist(center + noproject(p-center, direction)   for p in outline.points)
-	return outline
-	
-
+"""
 def hull(bounds: Web) -> Web:
 	conn = connpe(bounds)
 	bridges = line_bridges(bounds, conn)
@@ -240,38 +225,5 @@ def brush(brush: Mesh, path, orient=None) -> Mesh:
 				If set to `None`, it defaults to the path normals
 	'''
 	indev
-	
-	
-def test_convexhull():
-	from .mesh import web
-	from .generation import brick, icosphere, uvsphere
-	from .primitives import Circle, Interpolated
-	from .rendering import show
-	
-	results = []
-	for i, obj in enumerate([
-			brick(width=vec3(1)),
-			icosphere(O, 1),
-			brick(width=vec3(1)) + icosphere(vec3(1,2,3), 1),
-			brick(width=vec3(1)) + icosphere(vec3(0,1,0), 1),
-			brick(center=vec3(0,0,1), width=vec3(1)) + uvsphere(vec3(0,1,0), 1) + icosphere(vec3(0,-1,0), 0.8),
-			web(Circle((O,Z), 1)),
-			web(Circle((O,Z), 1), Circle((vec3(0,1,1), vec3(1,2,1)), 1), Circle((vec3(1.2,-1,1), X), 0.5)),
-			web(Circle((O,Z), 0.2), Circle((vec3(0,2,0.5),Z), 1)),
-			]):
-		hull = convexhull(obj)
-		hull.check()
-		assert hull.isenvelope()
-		results.append(hull.transform(i*2*X))
-		
-		contour = convexoutline(obj, normal=Z)
-		contour.check()
-		assert contour.isloop()
-		results.append(contour.transform(i*2*X+4*Y))
-		
-		contour = convexoutline(obj, flatten=True)
-		contour.check()
-		assert contour.isloop()
-		results.append(contour.transform(i*2*X+8*Y))
+"""
 
-	show(results)

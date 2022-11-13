@@ -39,7 +39,7 @@ class NMesh(object):
 		new = copy(self)
 		for name, required in kwargs.items():
 			if required:
-				setattr(self, name, deepcopy(getattr(self, name)))
+				setattr(new, name, deepcopy(getattr(self, name)))
 		return new
 	
 	def option(self, **kwargs) -> 'self':
@@ -158,6 +158,8 @@ class NMesh(object):
 			group = self.groups[i]
 			if group is None:
 				self.groups[i] = group = {}
+			if not hasattr(group, '__setitem__'):
+				raise TypeError('cannot qualify a group that is not a dictionnary')
 			if replace:
 				for key in select:
 					if key in group:
@@ -237,8 +239,9 @@ class NMesh(object):
 	def box(self) -> Box:
 		''' return the extreme coordinates of the mesh (vec3, vec3) '''
 		if not self.points:		return Box()
-		max = deepcopy(self.points[0])
-		min = deepcopy(self.points[0])
+		p = next(filter(isfinite, self.points))
+		max = deepcopy(p)
+		min = deepcopy(p)
 		for pt in self.points:
 			for i in range(3):
 				if   pt[i] < min[i]:	min[i] = pt[i]

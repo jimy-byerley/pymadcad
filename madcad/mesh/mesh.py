@@ -392,20 +392,22 @@ class Mesh(NMesh):
 		s = 0
 		for f in self.faces:
 			a,b,c = self.facepoints(f)
-			s += length(cross(a-b, a,c))/2
-		return s
+			s += length(cross(a-b, a-c))
+		return s /2
 		
 	def volume(self) -> float:
 		''' return the volume enclosed by the mesh if composed of envelopes (else it has no meaning) '''
 		o = self.barycenter()
-		s = vec3(0)
+		s = 0
 		for f in self.faces:
-			s += glm.determinant(mat3(self.points[f[0]] - o, self.points[f[1]] - o, self.points[f[2]] - o))
-		return s
+			a,b,c = self.facepoints(f)
+			s += glm.determinant(mat3(a-o, b-o, c-o))
+		return s /6
 	
 	def barycenter(self) -> vec3:
 		''' surface barycenter of the mesh '''
-		if not self.faces:	return vec3(0)
+		if not self.faces:	
+			return None
 		acc = vec3(0)
 		tot = 0
 		for f in self.faces:
@@ -419,6 +421,8 @@ class Mesh(NMesh):
 		''' return the unconnected parts of the mesh as several meshes '''
 		if not conn:	
 			conn = connef(self.faces)
+		if not self.faces:
+			return
 		
 		reached = [False] * len(self.faces)	# faces reached
 		stack = []

@@ -118,7 +118,7 @@ class Segment(object):
 		return self.direction
 	
 	def mesh(self):
-		return mesh.Wire([self.a, self.b], groups=['flat'])
+		return mesh.Wire([self.a, self.b], groups=[None])
 		
 	def __repr__(self):
 		return 'Segment({}, {})'.format(self.a, self.b)
@@ -268,7 +268,7 @@ def mkarc(axis, start, end, resolution=None):
 		a = angle * i/(div+1)
 		pts.append(x*r*cos(a) + y*r*sin(a) + center)
 	pts.append(end)
-	return mesh.Wire(pts, groups=['arc'])
+	return mesh.Wire(pts, groups=[None])
 
 class TangentEllipsis(object):
 	''' An quater of ellipsis always tangent to `Segment(a,b)` and `Segment(c,b)`. The solution is unique.
@@ -305,7 +305,7 @@ class TangentEllipsis(object):
 			t = pi/2 * i/(div+1)
 			pts.append(x*sin(t) + y*cos(t) + origin-x-y)
 		pts.append(self.c)
-		return mesh.Wire(pts, groups=['ellipsis'])
+		return mesh.Wire(pts, groups=[None])
 		
 	def __repr__(self):
 		return 'TangentEllipsis({}, {}, {})'.format(self.c, self.b, self.c)
@@ -347,7 +347,7 @@ class Circle(object):
 			pts.append(x*r*cos(a) + y*r*sin(a) + center)
 		indices = list(range(div))
 		indices.append(0)
-		return mesh.Wire(pts, indices, groups=['arc'])
+		return mesh.Wire(pts, indices, groups=[None])
 		
 	def __repr__(self):
 		return 'Circle({}, {})'.format(self.axis, self.radius)
@@ -407,7 +407,7 @@ class Interpolated(object):
 				curve.append(interpol2((a,ta), (b,tb), i/(div+1)))
 		
 		curve.append(b)
-		return mesh.Wire(curve, groups=['spline'])
+		return mesh.Wire(curve, groups=[None])
 		
 	def box(self):
 		return boundingbox(self.points)
@@ -456,7 +456,7 @@ class Softened(object):
 				curve.append(interpol2((a,ta), (b,tb), i/(div+1)))
 		
 		curve.append(b)
-		return mesh.Wire(curve, groups=['spline'])
+		return mesh.Wire(curve, groups=[None])
 		
 	def box(self):
 		return boundingbox(self.points)

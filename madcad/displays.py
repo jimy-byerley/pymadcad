@@ -1,10 +1,8 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
 from math import log, exp, floor
-from .mathutils import (vec3, fvec3, fvec4, fmat4, 
-						mix, normalize, length, distance, dot, noproject, dirbase, transform,
-						Box, isnan, isinf,
-						)
+from .mathutils import *
+from .mesh import typedlist_to_numpy
 from .rendering import Display, overrides, writeproperty
 from .common import ressourcedir
 from . import settings
@@ -241,17 +239,22 @@ class BoxDisplay(AnnotationDisplay):
 		self.textplace = box.min
 
 		super().__init__(scene, pts, color)
-	
+
+from .mathutils import norminf, length2
 
 class SolidDisplay(Display):
 	''' Display render Meshes '''
 	def __init__(self, scene, positions, normals, faces, lines, idents, color=None):
 		self.box = npboundingbox(positions)
 		self.options = scene.options
-		color = fvec3(color or settings.display['solid_color'])
-		setting = settings.display['line_color']
-		line = length(setting) * normalize(mix(color, setting, 0.2))	if max(color) else setting
-		reflect = normalize(color) * settings.display['solid_reflectivity']
+		
+		s = settings.display
+		color = fvec3(color or s['solid_color'])
+		line = (	(length(s['line_color']) + dot(color-s['solid_color'], s['line_color']-s['solid_color']))
+					* normalize(color + 1e-6)  )
+		#if length(s['line_color']) > length(color)
+		reflect = normalize(color + 1e-6) * s['solid_reflectivity']
+		
 		self.vertices = Vertices(scene.ctx, positions, idents)
 		self.disp_faces = FacesDisplay(scene, self.vertices, normals, faces, color=color, reflect=reflect, layer=0)
 		self.disp_ghost = GhostDisplay(scene, self.vertices, normals, faces, color=line, layer=0)
@@ -773,7 +776,6 @@ class VoxelDisplay(Display):
 
 		def load(scene):
 			from . import generation
-			from .mesh import glmarray
 			
 			# load shader
 			shader = scene.ctx.program(
@@ -782,10 +784,10 @@ class VoxelDisplay(Display):
 						)
 			# load vertex buffer for the brick
 			brick = generation.brick(min=vec3(0), max=vec3(1)) .flip()
-			pts = []
+			pts = typedlist(vec3)
 			for face in brick.faces:
 				pts.extend(brick.facepoints(face))
-			vb = scene.ctx.buffer(glmarray(pts))
+			vb = scene.ctx.buffer(typedlist_to_numpy(pts, 'f4'))
 			
 			return shader, vb
 		

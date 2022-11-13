@@ -76,13 +76,6 @@ m7 = icosphere(vec3(0,3,0), 1)
 m7.options['color'] = (1, 0.5, 0.1)
 #m7.options = {'debug_display':True, 'debug_points':True}
 
-corner = Mesh(
-			[vec3(0), vec3(1,0,0), vec3(0,1,0), vec3(0,0,1)], 
-			[(0,1,2), (0,2,3), (0,3,1)],
-			[0,1,2]
-			).transform(vec3(0,-3,0)).flip()
-corner.options['color'] = (1, 0.5, 0.1)
-m8 = thicken(corner, 0.1, 0.5)
 
 m9 = pyramid(vec3(-3,-2,3), flatsurface(regon(Axis(vec3(-3,-3,0), Z), 2, 5)))
 m9.check()
@@ -98,4 +91,4 @@ assert m11.isenvelope()
 
 
 
-show([m1, m2, m3, m4, m6, m7, corner, m8, m9, m10, m11])
+show([m1, m2, m3, m4, m6, m7, m9, m10, m11])

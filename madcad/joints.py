@@ -6,7 +6,7 @@ from .kinematic import Screw, WireDisplay, Scheme, Joint
 from .mesh import Mesh, Wire, web, Web
 from . import generation, primitives
 
-__all__ = ['Pivot', 'Plane', 'Track', 'Gliding', 'Ball', 'Punctiform', 'Gear', 'Helicoid']
+__all__ = ['Pivot', 'Planar', 'Track', 'Gliding', 'Ball', 'Punctiform', 'Gear', 'Helicoid']
 
 '''
 TODO:
@@ -561,12 +561,14 @@ class Gear(Joint):
 			)
 		
 	def scheme(self, solid, size, junc):
-		if solid is self.solids[0]:		i0,i1,n = 0,1,self.ratio
-		elif solid is self.solids[1]:	i0,i1,n = 1,0,1/self.ratio
+		if solid is self.solids[0]:		i0,i1,n = 0, 1, self.ratio
+		elif solid is self.solids[1]:	i0,i1,n = 1, 0, 1/self.ratio
 		else:	return
 		
 		a0, a1 = solidtransform_axis(self.solids[0],self.axis[0]), solidtransform_axis(self.solids[1],self.axis[1])
-		x,y,z = dirbase(self.axis[i0][1], align=junc-self.axis[i0][0])
+		align = junc-self.axis[i0][0]
+		if length2(align) == 0:		align = vec3(1,0,0)
+		x,y,z = dirbase(self.axis[i0][1], align=align)
 		o = self.axis[i0][0] + project(self.position[i0]-self.axis[i0][0], z)
 		
 		# radial vector
@@ -579,7 +581,8 @@ class Gear(Joint):
 		angle = min(1, dot(	a0[1] if solid is self.solids[0] else a1[1], 
 						normalize(mix(a0[1], a1[1], abs(self.ratio)/(1+abs(self.ratio))))
 						))
-		d = angle*z + sqrt(1-angle**2)*x
+		
+		d = angle*z + sqrt(max(0, 1-angle**2))*x
 		b = size*0.4 * d
 		w = size*0.08 * cross(d,y)
 		if self.ratio > 0 and (	abs(self.ratio) > 1 and solid is self.solids[0] 

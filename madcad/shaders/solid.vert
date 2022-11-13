@@ -16,12 +16,17 @@ out vec3 sight;		// vector from object to eye
 out vec3 normal;	// normal to the surface
 flat out int flags;
 
+vec3 sight_direction(vec4 p) {
+	float f = proj[3][3] / dot(transpose(proj)[3], p) - 1;
+	return vec3(p) * vec3(f,f,-1);
+}
+
 void main() {
 	flags = v_flags;
 	
 	vec4 p = world * vec4(v_position, 1);
 	// world space vectors for the fragment shader
-	sight = vec3(inverse(view) * vec4(0,0,0,1) - p);
+	sight = transpose(mat3(view)) * sight_direction(view*p);
 	normal = mat3(world) * v_normal;
 	
 	gl_Position = proj * view * p;	// set vertex position for render

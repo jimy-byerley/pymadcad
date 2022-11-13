@@ -375,8 +375,8 @@ def boolean_web(w1, w2, sides, prec=None) -> Web:
 
 	if not prec:	prec = max(w1.precision(), w2.precision())
 	
-	result = pierce_web(w1, w2, sides[0], prec)
-	w2, frontier = cut_web(w2, result, prec)
+	mc1 = pierce_web(w1, w2, sides[0], prec)
+	w2, frontier = cut_web(w2, mc1, prec)
 	conn2 = connpe(w2.edges)		# connectivity
 	stops = set(frontier.indices)	# propagation stop points
 	
@@ -386,8 +386,8 @@ def boolean_web(w1, w2, sides, prec=None) -> Web:
 		front = []	# points on the propagation front
 		
 		# check which side to keep to respect the choices made in the first web
-		e1 = result.edges[ei]
-		direction = sides[0] ^ sides[1] ^ (distance2(w2.points[p2], result.points[e1[0]]) < distance2(w2.points[p2], result.points[e1[1]]))
+		e1 = mc1.edges[ei]
+		direction = sides[0] ^ sides[1] ^ (distance2(w2.points[p2], mc1.points[e1[0]]) < distance2(w2.points[p2], mc1.points[e1[1]]))
 		for ei in conn2[p2]:
 			if w2.edges[ei][direction] == p2:
 				front.append(w2.edges[ei][direction-1])
@@ -406,12 +406,18 @@ def boolean_web(w1, w2, sides, prec=None) -> Web:
 				front.append(next)
 					
 	# filter web content to keep
-	return result + Web(
+	mc2 = Web(
 			w2.points,
 			[e  for u,e in zip(used, w2.edges) if u],
 			[t  for u,t in zip(used, w2.tracks) if u],
 			w2.groups,
 			)
+	
+	if sides[0] and not sides[1]:		mc1 = mc1.flip()
+	if not sides[0] and sides[1]:		mc2 = mc2.flip()
+	res = mc1 + mc2
+	res.mergeclose()
+	return res
 		
 
 	
@@ -585,7 +591,7 @@ def pierce(m, ref, side=False, prec=None):
 	'''
 	op = pierce_ops.get((type(m), type(ref)))
 	if not op:
-		raise TypeError('pierce is not possible between {} and {}'.format(type(m), type(ref)))
+		raise TypeError('pierce is not possible between {} and {}'.format(type(m).__name__, type(ref).__name__))
 	return op(m, ref, side, prec)
 
 

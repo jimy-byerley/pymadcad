@@ -125,7 +125,7 @@ That's it ! The primitive list can now be converted to Wire or Web with the good
 	(vec3(...), vec3(...), vec3(...))
 
 '''
-version = '0.11.0'
+version = '0.13.2'
 
 import os
 from .nprint import nprint
@@ -161,6 +161,7 @@ from .reverse import segmentation
 from .selection import select
 from .io import read, write, cache, cachefunc
 from .triangulation import TriangulationError
+from .hull import convexhull, convexoutline, horizon
 
 from .scheme import *
 from .text import Text

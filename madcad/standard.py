@@ -24,21 +24,84 @@ from .boolean import pierce, union, difference, intersection
 from .cut import *
 from .io import cachefunc
 
-cachefunc = lambda x:x	# debug purpose
+#cachefunc = lambda x:x	# debug purpose
 
 
 __all__ = [	'nut', 'screw', 'washer', 
 			'coilspring_compression', 'coilspring_tension', 'coilspring_torsion',
 			'bearing', 'slidebearing',
 			'section_s', 'section_w', 'section_c', 'section_l', 'section_tslot',
+			'stfloor', 'stceil',
 			]
 
+			
+# --------- numeric stuff --------------------
+
+standard_digits = sorted([1., 1.25, 1.5, 2., 2.5, 3., 4., 5., 6., 8., 10., 12., 16., 17.5, 24., 36.])
+
+def stfloor(x, precision=1):
+	''' return a numeric value fitting x, with lower digits being the under closest digits from `standard_digits` 
+		
+		`precision` gives the relative tolerance interval for the returned number, so we are sure it lays in `[x*(1-precision), x]`
+	'''
+	if hasattr(x, '__getitem__'):
+		return type(x)(stfloor(e)  for e in x)
+	if not isfinite(x):
+		return x
+	s, x = sign(x), abs(x)
+	
+	base = 10
+	magnitude = base**floor(log(x) / log(base))
+	ratio = x / magnitude
+	
+	for j in range(1 + int(ceil(-log(precision) / log(base)))):
+		candidate = None
+		for st in standard_digits:
+			previous = candidate
+			candidate = base*floor(ratio/base) + st
+			if candidate > ratio + 2*NUMPREC:
+				break
+		else:
+			previous = candidate
+		if ratio*(1-precision) - NUMPREC <= previous:
+			return previous * magnitude * s
+		magnitude /= base
+		ratio *= base
+
+def stceil(x, precision=1):
+	''' return a numeric value fitting x, with lower digits being the above closest digits from `standard_digits` 
+		
+		`precision` gives the relative tolerance interval for the returned number, so we are sure it lays in `[x, x*(1+precision)]`
+	'''
+	if hasattr(x, '__getitem__'):
+		return type(x)(stceil(e)  for e in x)
+	if not isfinite(x):
+		return x
+	s, x = sign(x), abs(x)
+	
+	base = 10
+	magnitude = base**floor(log(x) / log(base))
+	ratio = x / magnitude
+	
+	for j in range(1 + int(ceil(-log(precision) / log(base)))):
+		candidate = None
+		for st in reversed(standard_digits):
+			previous = candidate
+			candidate = base*floor(ratio/base) + st
+			if candidate < ratio - 2*NUMPREC:
+				break
+		else:
+			previous = candidate
+		if ratio*(1+precision) + NUMPREC >= previous:
+			return previous * magnitude * s
+		magnitude /= base
+		ratio *= base
 
 # --------- screw stuff -----------------------
 	
 	
 @cachefunc
-def screw(d, length, filet_length=None, head='SH', drive=None, detail=False):
+def screw(d, length, filet_length=None, head='SH', drive=None, detail=False) -> Solid:
 	''' create a standard screw using the given drive and head shapes
 	
 	Parameters:
@@ -270,7 +333,7 @@ def screw_spec(head, drive=None):
 # ------------------- nut stuff ----------------------
 
 @cachefunc
-def nut(d, type='hex', detail=False) -> Mesh:
+def nut(d, type='hex', detail=False) -> Solid:
 	''' create a standard nut model using the given shape type 
 	
 		Parameters:
@@ -288,7 +351,7 @@ def nut(d, type='hex', detail=False) -> Mesh:
 	return hexnut(*args)
 
 	
-def hexnut(d, w, h):
+def hexnut(d, w, h) -> Solid:
 	''' create an hexagon nut with custom dimensions '''
 	# revolution profile
 	w *= 0.5
@@ -360,7 +423,7 @@ standard_hexnuts = [
 # -------------- washer stuff ----------------------
 	
 @cachefunc
-def washer(d, e=None, h=None) -> Mesh:
+def washer(d, e=None, h=None) -> Solid:
 	''' create a standard washer.
 		Washers are useful to offset screws and avoid them to scratch the mount part
 		
@@ -589,7 +652,7 @@ standard_ipn = [
 # --------------------- coilspring stuff ------------------------
 
 @cachefunc
-def coilspring_compression(length, d=None, thickness=None, solid=True):
+def coilspring_compression(length, d=None, thickness=None, solid=True) -> Solid:
 	''' return a Mesh model of a croilspring meant for use in compression
 	
 		Parameters:
@@ -622,7 +685,7 @@ def coilspring_compression(length, d=None, thickness=None, solid=True):
 	for t in linrange(t0, t0 + 4*pi, step):
 		bot.append( vec3(r*cos(t), r*sin(t), z0 + (t-t0)/(2*pi) * thickness) )
 		
-	path = Wire(top, groups=['coil']) + Wire(coil, groups=['spring']) + Wire(bot, groups=['coil'])
+	path = Wire(top) + Wire(coil).qualify('spring') + Wire(bot)
 	
 	if not solid:
 		return path
@@ -642,7 +705,7 @@ def coilspring_compression(length, d=None, thickness=None, solid=True):
 			)
 	
 @cachefunc
-def coilspring_tension(length, d=None, thickness=None, solid=True):
+def coilspring_tension(length, d=None, thickness=None, solid=True) -> Solid:
 	''' return a Mesh model of a croilspring meant for use in tension 
 	
 		Parameters:
@@ -666,8 +729,7 @@ def coilspring_tension(length, d=None, thickness=None, solid=True):
 	step = 2*pi/(div+1)
 	z0 = -0.5 * ncoil * thickness
 	coil = Wire([	vec3(r*cos(t), r*sin(t), z0 + t/(2*pi) * thickness)
-					for t in linrange(0, 2*pi * ncoil, step) ], 
-				groups=['spring'])
+					for t in linrange(0, 2*pi * ncoil, step) ]) .qualify('spring')
 	# create path with hooks
 	path = wire([
 				ArcCentered((-0.5*length*Z, X), vec3(0, -r, -0.5*length), -hold*Z),
@@ -694,7 +756,13 @@ def coilspring_tension(length, d=None, thickness=None, solid=True):
 			)
 	
 @cachefunc
-def coilspring_torsion(arm, angle=radians(45), d=None, length=None, thickness=None, hook=None, solid=True):
+def coilspring_torsion(arm, 
+			angle=radians(45), 
+			d=None, 
+			length=None, 
+			thickness=None, 
+			hook=None, 
+			solid=True) -> Solid:
 	''' return a Mesh model of a croilspring meant for use in torsion
 	
 		Parameters:
@@ -721,8 +789,7 @@ def coilspring_torsion(arm, angle=radians(45), d=None, length=None, thickness=No
 	step = 2*pi/(div+1)
 	z0 = -0.5 * ncoil * thickness
 	coil = Wire([	vec3(-r*sin(t), r*cos(t), z0 + t/(2*pi) * thickness)
-					for t in linrange(0, 2*pi * ncoil, step) ], 
-				groups=['spring'])
+					for t in linrange(0, 2*pi * ncoil, step) ]) .qualify('spring')
 				
 	# create hooks
 	c = thickness * sign(hook)
@@ -766,7 +833,12 @@ def coilspring_torsion(arm, angle=radians(45), d=None, length=None, thickness=No
 # ----------------------- bearing stuff --------------------------
 
 @cachefunc
-def bearing(dint, dext=None, h=None, circulating='ball', contact=0, hint=None, hext=None, sealing=False, detail=False):
+def bearing(dint, dext=None, h=None, 
+			circulating='ball', 
+			contact=0, 
+			hint=None, hext=None, 
+			sealing=False, 
+			detail=False) -> Solid:
 	''' 
 		Circulating bearings rely on rolling elements to avoid friction and widen the part life.
 		Its friction depends on the rotation speed but not on the current load.
@@ -845,7 +917,7 @@ bearing_cage_color = vec3(0.3,0.2,0)
 bearing_circulating_color = vec3(0,0.1,0.2)
 		
 		
-def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False):
+def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False) -> Solid:
 	# convenient variables
 	rint = dint/2
 	rext = dext/2
@@ -929,7 +1001,7 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False):
 				axis=axis)
 
 
-def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, detail=False):
+def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, detail=False) -> Solid:
 	# interior and exterior heights (automatically deduced from total height if not specified)
 	if not hint:	hint = h*cos(contact)
 	if not hext:	hext = h*cos(contact) * 0.8 if contact else h
@@ -1038,7 +1110,7 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 				axis=axis)
 		
 
-def bearing_thrust(dint, dext, h, detail=False):
+def bearing_thrust(dint, dext, h, detail=False) -> Solid:
 	# convenient variables
 	rint = dint/2
 	rext = dext/2
@@ -1130,7 +1202,7 @@ standard_bearing_ball_straight = [
 from .selection import *
 
 @cachefunc
-def slidebearing(dint, h=None, thickness=None, shoulder=None, opened=False):
+def slidebearing(dint, h=None, thickness=None, shoulder=None, opened=False) -> Solid:
 	'''
 		Slide bearings rely on gliding parts to ensure a good pivot. It's much cheaper than circulating bearings and much more compact. But needs lubricant and has a shorter life than circulating bearings.
 		Its friction depends on the rotation speed and on the load.

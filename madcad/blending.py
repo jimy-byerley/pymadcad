@@ -458,7 +458,7 @@ def blenditer(parameters, div, interpol) -> Mesh:
 		interpol receive the elements iterated and the interpolation position at the end
 	'''
 	segts = div+2
-	mesh = Mesh(groups=['blend'])
+	mesh = Mesh(groups=[None])
 	# create interpolation points
 	steps = 0
 	for params in parameters:
@@ -528,7 +528,7 @@ def wire_atlength(wire, length):
 def join(mesh, line1, line2):
 	''' simple straight surface created from matching couples of line1 and line2 using mesh indices for lines '''
 	group = len(mesh.groups)
-	mesh.groups.append('blend')
+	mesh.groups.append(None)
 	match = iter(curvematch(Wire(mesh.points, line1), Wire(mesh.points, line2)))
 	last = next(match)
 	for couple in match:
@@ -542,7 +542,7 @@ def join(mesh, line1, line2):
 		
 def trijoin(pts, ptgts, div):
 	''' simple straight surface created between 3 points, interpolation is only on the sides '''
-	mesh = Mesh(groups=['blend'])
+	mesh = Mesh(groups=[None])
 	segts = div+1
 	for i in range(3):
 		for j in range(segts):

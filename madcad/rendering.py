@@ -2,8 +2,14 @@
 
 '''	Display module of pymadcad
 	
-	This module provides a render pipeline system centered around class 'Scene' and a Qt widget 'View' for window integration and user interaction. 'Scene' is only to manage the objects to render (almost every madcad object). Most of the time you won't need to deal with it directly. The widget is what actually displays it on the screen.
-	The objects displayed can be of any type but must implement the display protocol
+	This module provides a render pipeline system featuring:
+
+	- class `Scene` to gather the data to render
+	- widget `View` that actually renders the scene 
+	- the display protocol, that allows any object to define its `Display` subclass to be rendered in a scene.
+
+	The view is for window integration and user interaction. `Scene` is only to manage the objects to render . Almost all madcad data types can be rendered to scenes being converted into an appropriate subclass of `Display`. Since the conversion from madcad data types into display instance is automatically handled via the *display protocol*, you usually don't need to deal with displays directly.
+
 	
 	display protocol
 	----------------
@@ -13,12 +19,12 @@
 				box (Box)                      # delimiting the display, can be an empty or invalid box
 				world (fmat4)                  # local transformation
 				
-				stack(scene)                   # rendering routines (can be methods, or any callable)
-				duplicate(src,dst)             # copy the display object for an other scene if possible
-				upgrade(scene,displayable)     # upgrade the current display to represent the given displayable
-				control(...)                   # handle events
-				
 				__getitem__                    # access to subdisplays if there is
+				stack(scene)                   # rendering routines (can be methods, or any callable)
+				
+				duplicate(src,dst)             # copy the display object for an other scene if possible
+				update(scene,displayable)     # upgrade the current display to represent the given displayable
+				control(...)                   # handle events
 		
 		For more details, see class Display below
 		
@@ -44,7 +50,7 @@ import numpy.core as np
 
 from PyQt5.QtCore import Qt, QPoint, QEvent
 from PyQt5.QtWidgets import QApplication, QWidget, QOpenGLWidget
-from PyQt5.QtGui import QSurfaceFormat, QMouseEvent, QInputEvent, QKeyEvent, QTouchEvent
+from PyQt5.QtGui import QSurfaceFormat, QMouseEvent, QInputEvent, QKeyEvent, QTouchEvent, QFocusEvent
 
 from PIL import Image
 
@@ -55,22 +61,32 @@ from . import settings
 from .nprint import nprint
 
 
-# minimum opengl required version
+# minimum opengl version required by the rendering pipeline
 opengl_version = (3,3)
 # shared open gl context, None if not yet initialized
 global_context = None
 
 
-def show(scene, options=None, interest:Box=None, size=uvec2(400,400)):
-	''' shortcut to create a QApplication showing only one view with the given objects inside.
+def show(scene:dict, interest:Box=None, size=uvec2(400,400), projection=None, navigation=None, **options):
+	''' 
+		easy and convenient way to create a window containing a `View` on a created `Scene`
 		
 		If a Qt app is not already running, the functions returns when the window has been closed and all GUI destroyed
 		
-		For integration in a Qt window or to manipulate the view, you should directly use `View`
+		Parameters:
+			scene:     a mapping (dict or list) giving the objects to render in the scene
+			interest:  the region of interest to zoom on at the window initialization
+			size:      the window size (pixel)
+			options:   options to set in `Scene.options`
+		
+		Tip:
+			For integration in a Qt window or to manipulate the view, you should directly use `View`
 	'''
 	global global_context
 
 	if isinstance(scene, list):	scene = dict(enumerate(scene))
+	# retro-compatibility fix, shall be removed in future versions
+	if 'options' in options:	options.update(options['options'])
 	if not isinstance(scene, Scene):	scene = Scene(scene, options)
 
 	app = QApplication.instance()
@@ -87,7 +103,7 @@ def show(scene, options=None, interest:Box=None, size=uvec2(400,400)):
 		settings.use_qt_colors()
 
 	# create the scene as a window
-	view = View(scene)
+	view = View(scene, projection, navigation)
 	view.resize(*size)
 	view.show()
 
@@ -218,7 +234,6 @@ def navigation_tool(dispatcher, view):
 			if	 k == Qt.Key_Control:	ctrl = press
 			elif k == Qt.Key_Alt:		alt = press
 			elif k == Qt.Key_Shift:		slow = press
-			elif k == Qt.Key_Escape: raise
 			if ctrl and alt:		curr = 'zoom'
 			elif ctrl:				curr = 'pan'
 			elif alt:				curr = 'rotate'
@@ -365,7 +380,8 @@ class Orbit:
 class Perspective:
 	''' object used as `View.projection` 
 	
-		:fov:	field of view (rad)
+		Attributes:
+			fov (float):	field of view (rad), defaulting to `settings.display['field_of_view']`
 	'''
 	def __init__(self, fov=None):
 		self.fov = fov or settings.display['field_of_view']
@@ -373,12 +389,21 @@ class Perspective:
 		return perspective(self.fov, ratio, distance*1e-2, distance*1e4)
 
 class Orthographic:
-	''' object used as `View.projection` '''
+	''' object used as `View.projection` 
+	
+		Attributes:
+			size (float):  
+			
+				factor between the distance from camera to navigation center and the zone size to display
+				defaulting to `tan(settings.display['field_of_view']/2)`
+	'''
+	def __init__(self, size=None):
+		self.size = size or tan(settings.display['field_of_view']/2)
 	def matrix(self, ratio, distance) -> fmat4:
-		return fmat4(1/ratio/distance, 0, 0, 0,
-		            0,       1/distance, 0, 0,
-		            0,       0,          1, 0,
-		            0,       0,          0, 1)
+		return fmat4(1/(ratio*distance*self.size), 0, 0, 0,
+		            0,       1/(distance*self.size), 0, 0,
+		            0,       0,          -2/(distance*(1e3-1e-2)), 0,
+		            0,       0,          -(1e3+1e-2)/(1e3-1e-2), 1)
 
 
 class Scene:
@@ -386,24 +411,20 @@ class Scene:
 		
 		This class is gui-agnostic, it only relys on opengl, and the context has to be created by te user.
 		
-		Attributes defined here:
-		
-		- scene stuff
-			
-			:ctx:           moderngl Context (must be the same for all views using this scene)
-			:ressources:    dictionnary of scene ressources (like textures, shaders, etc) index by name
-			:options:       dictionnary of options for rendering, innitialized with a copy of `settings.scene`
-			
-		- rendering pipeline stuff
-			
-			:displays:      dictionnary of items in the scheme `{'name': Display}`
-			:stacks:        lists of callables to render each target `{'target': [(key, priority, callable(view))]}`
-			:setup:         callable for setup of each rendering target
-			
-			:touched:       flag set to True if the stack must be recomputed at the next render time (there is a change in a Display or in one of its children)
-			
 		When an object is added to the scene, a Display is not immediately created for it, the object is put into the queue and the Display is created at the next render.
 		If the object is removed from the scene before the next render, it is dequeued.
+		
+		Attributes:
+		
+			ctx:           moderngl Context (must be the same for all views using this scene)
+			ressources (dict):    dictionnary of scene ressources (like textures, shaders, etc) index by name
+			options (dict):       dictionnary of options for rendering, initialized with a copy of `settings.scene`
+			
+			displays (dict):      dictionnary of items in the scheme `{'name': Display}`
+			stacks (list):        lists of callables to render each target `{'target': [(key, priority, callable(view))]}`
+			setup (dict):         setup of each rendering target `{'target': callable}`
+			
+			touched (bool):       flag set to True if the stack must be recomputed at the next render time (there is a change in a Display or in one of its children)
 	'''
 	
 	def __init__(self, objs=(), options=None, ctx=None, setup=None):
@@ -488,12 +509,11 @@ class Scene:
 				self.ctx.finish()
 				# update displays
 				for key,displayable in self.queue.items():
-					if key not in self.displays or not self.displays[key].update(self, displayable):
-						try:	
-							self.displays[key] = self.display(displayable)
-						except:
-							print('\ntried to display', object.__repr__(displayable))
-							traceback.print_exc()
+					try:	
+						self.displays[key] = self.display(displayable, self.displays.get(key))
+					except:
+						print('\ntried to display', object.__repr__(displayable))
+						traceback.print_exc()
 				self.touched = True
 				self.queue.clear()
 		
@@ -550,12 +570,14 @@ class Scene:
 		else:
 			raise KeyError("ressource {} doesn't exist or is not loaded".format(repr(name)))
 					
-	def display(self, obj):
+	def display(self, obj, former=None):
 		''' create a display for the given object for the current scene.
 		
 			this is the actual function converting objects into displays.
 			you don't need to call this method if you just want to add an object to the scene, use add() instead
 		'''
+		if former and former.update(self, obj):
+			return former
 		if type(obj) in overrides:
 			disp = overrides[type(obj)](self, obj)
 		elif hasattr(obj, 'display'):
@@ -585,7 +607,7 @@ class Step(Display):
 	'''
 	__slots__ = 'step',
 	def __init__(self, target, priority, callable):	self.step = ((), target, priority, callable)
-	def __repr__(self):		return '{}({}, {}, {})'.format(self.step[1], self.step[2], self.step[3])
+	def __repr__(self):		return '{}({}, {}, {})'.format(type(self).__name__, self.step[1], self.step[2], self.step[3])
 	def stack(self, scene):		return self.step,
 
 class Displayable:
@@ -615,8 +637,8 @@ def writeproperty(func):
 class Group(Display):
 	''' a group is like a subscene '''
 	def __init__(self, scene, objs:'dict/list'=None, pose=1):
-		self._pose = fmat4(pose)
 		self._world = fmat4(1)
+		self._pose = fmat4(pose)
 		self.displays = {}
 		if objs:	self.dequeue(scene, objs)
 	
@@ -626,21 +648,26 @@ class Group(Display):
 		return iter(self.displays.values())
 		
 	def update(self, scene, objs):
-		if isinstance(objs, dict):		items = objs.items()
-		elif hasattr(objs, '__iter__'):	items = enumerate(objs)
+		if isinstance(objs, dict):		objs = objs
+		elif hasattr(objs, 'keys'):		objs = dict(objs)
+		elif hasattr(objs, '__iter__'):	objs = dict(enumerate(objs))
 		else:
 			return False
+		
 		# update displays
+		sub = self._world * self._pose
 		with scene.ctx:
 			scene.ctx.finish()
-			for key, obj in items:
+			for key, obj in objs.items():
 				if not displayable(obj):	continue
-				if key not in self.displays or not self.displays[key].update(scene, obj):
-					try:
-						self.displays[key] = scene.display(obj)
-					except:
-						print('tried to display', object.__repr__(obj))
-						traceback.print_exc()
+				try:
+					self.displays[key] = disp = scene.display(obj, self.displays.get(key))
+					disp.world = sub
+				except:
+					print('tried to display', object.__repr__(obj))
+					traceback.print_exc()
+			for key in self.displays.keys() - objs.keys():
+				del self.displays[key]
 		scene.touch()
 		return True
 	dequeue = update
@@ -899,7 +926,7 @@ class ViewCommon:
 		if isinstance(self.projection, Perspective):
 			self.navigation.distance = dist / tan(self.projection.fov/2)
 		elif isinstance(self.projection, Orthographic):
-			self.navigation.distance = dist
+			self.navigation.distance = dist / self.projection.size
 		else:
 			raise TypeError('projection {} not supported'.format(type(self.projection)))
 
@@ -968,17 +995,15 @@ class View(ViewCommon, QOpenGLWidget):
 	''' Qt widget to render and interact with displayable objects
 		it holds a scene as renderpipeline
 
-		Attributes definied here:
+		Attributes:
 
-				:scene:        the `Scene` object displayed
-				:projection:   `Perspective` or `Orthographic`
-				:navigation:   `Orbit` or `Turntable`
-				:tool:         list of callables in priority order to receive events
+			scene:        the `Scene` object displayed
+			projection:   `Perspective` or `Orthographic`
+			navigation:   `Orbit` or `Turntable`
+			tool:         list of callables in priority order to receive events
 
-			* render stuff
-
-				:targets:     render targets matching those in `scene.stacks`
-				:uniforms:    parameters for rendering, used in shaders
+			targets:     render targets matching those requested in `scene.stacks`
+			uniforms:    parameters for rendering, used in shaders
 	'''
 	def __init__(self, scene, projection=None, navigation=None, parent=None):
 		# super init
@@ -994,6 +1019,7 @@ class View(ViewCommon, QOpenGLWidget):
 		self.handler = GhostWidget(self)
 		self.handler.setFocusPolicy(Qt.StrongFocus)
 		self.handler.setAttribute(Qt.WA_AcceptTouchEvents, True)
+		self.setFocusProxy(self.handler)
 
 		ViewCommon.__init__(self, scene, projection=projection, navigation=navigation)
 		self.tool = [Tool(self.navigation.tool, self)] # tool stack, the last tool is used for input events, until it is removed 
@@ -1146,6 +1172,8 @@ class GhostWidget(QWidget):
 			evt.ignore()
 			self.parent().inputEvent(evt)
 			if evt.isAccepted():	return True
+		elif isinstance(evt, QFocusEvent):
+			self.parent().event(evt)
 		return super().event(evt)
 
 
