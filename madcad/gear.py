@@ -1097,7 +1097,7 @@ def cone_projection(profile: Wire, pitch_cone_angle:float) -> Wire:
 	new_points = [1 / dot(ref(atan2(point.y, point.x)), point) * point for point in profile.points]
 	return Wire(new_points, indices=profile.indices)
 
-@cachefunc
+# @cachefunc
 def bevelgear(
 	step:float,
 	z:int,
@@ -1301,10 +1301,10 @@ def helical_bevel_gear(
 	angle_step = lambda z: (log(z) - log(z0)) / delta
 
 	# Compute the number of steps for discretization
-	topbot_angle = abs((log(z1) - log(z0)) / delta)
+	topbot_angle = (log(z1) - log(z0)) / delta
 	step = settings.curve_resolution(
 			(z1 - z0) / (cos(helix_angle) * cosp),	# Length of the conical helix 
-			topbot_angle,	# Angle of the conical helix
+			abs(topbot_angle),	# Angle of the conical helix
 			)
 
 	# Parameters for scaling and rotation
@@ -1388,6 +1388,7 @@ def helical_bevel_gear(
 		wire = Wire([D, C, F, E, A, B]).segmented()
 
 	body = revolution(angle1tooth, (O, Z), wire)
+	# show([gear_surface, body])
 	onetooth = intersection(gear_surface, body)
 	all_teeth = repeat(onetooth, z, rotatearound(angle1tooth, (O, Z))).finish()
 
