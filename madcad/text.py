@@ -11,7 +11,7 @@ from PIL import Image, ImageFont, ImageDraw
 import numpy.core as np
 import moderngl as mgl
 from .common import ressourcedir
-from .mathutils import fvec3, fvec4, fmat4, ceil, sqrt
+from .mathutils import fvec3, fvec4, fvec2, fmat4, ceil, sqrt
 from . import settings, rendering
 
 # TODO: utiliser les methodes et attributs ImgeFont.size, .getmetrics(), etc pour avoir les hauteur et largeur de police
@@ -163,7 +163,7 @@ def textsize(text, tab=4):
 		else:
 			c += 1
 	l += 1
-	return vec2(c,l)
+	return fvec2(c,l)
 
 #class Particles(rendering.Display):
 	#def __init__(self, texture, format, vertices):

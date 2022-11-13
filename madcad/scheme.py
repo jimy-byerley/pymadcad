@@ -455,72 +455,20 @@ def scale_view(center):
 	return mat
 
 
-
-class note_leading_display(Display):
-	def __init__(self, scene, origin, offset, comment, annotation=True):
-		self.origin = fvec3(origin)
-		self.offset = fvec3(offset)
-		self.comment = comment
-		self._world = fmat4(1)
-		self.annotation = annotation
-		
-		def build(side):
-			color = settings.display['annotation_color']
-			sch = Scheme(color=fvec4(color,0.7))
-			sch.add([self.origin, self.origin+self.offset], shader='line', space=world)
-			x,y,z = dirbase(normalize(vec3(self.offset)))
-			sch.add(
-				gt.revolution(2*pi, (vec3(0), z), 
-					web([vec3(0), 16*z+4*x]), 
-					resolution=('div',8),
-					), 
-				shader='fill',
-				space=scale_screen(self.origin),
-				)
-			sch.set(space=halo_screen(self.origin+self.offset))
-			font = settings.display['view_font_size']
-			sch.add([vec3(0), vec3(side*font*2, 0, 0)], shader='line')
-			sch.add(txt.Text(vec3(side*font*3, 0, 0), self.comment, align=('left' if side>0 else 'right', 0.5), color=fvec4(color,1), size=font))
-			
-			return scene.display(sch)
-		self.disp = build(-1), build(1)
-		
-	@property
-	def selected(self):
-		return self.disp[0].selected
-	@selected.setter
-	def selected(self, value):
-		for disp in self.disp:
-			disp.selected = value
-		
-	def side(self, view):
-		return int((fmat3(view.uniforms['view']) * (fmat3(self.world) * self.offset))[0] > 0)
-		
-	def compute_spaces(self, view):
-		side = int((fmat3(view.uniforms['view']) * (fmat3(self.world) * self.offset))[0] > 0)
-		self.active_disp = self.disp[side]
-		self.active_disp.compute_spaces(view)
-	
-	def render(self, view):
-		self.active_disp.render(view)
-		for _,comp in self.active_disp.components:
-			comp.render(view)		
-	
-	def identify(self, view):
-		self.active_disp.identify(view)
-	
-	def stack(self, scene):
-		if self.annotation and not scene.options['display_annotations']:
-			return ()
-		return (	((), 'screen', -1, self.compute_spaces),
-					((), 'screen', 2, self.render), 
-					((), 'ident', 2, self.identify),
-					)
-		
-	@writeproperty
-	def world(self, value):
-		for disp in self.disp:	disp.world = value
-
+def halo_screen_flipping(position, offset):
+	position = fvec4(position,1)
+	def mat(view):
+		center = view.uniforms['view'] * (view.uniforms['world'] * position)
+		e = view.uniforms['proj'] * fvec4(1,1,center.z,1)
+		e /= e[3]
+		if (view.uniforms['view'] * (view.uniforms['world'] * fvec4(offset,0)))[0] > 0:
+			flip = fvec4(1,1,1,1)
+		else:
+			flip = fvec4(-1,1,1,1)
+		m = fmat4(*(flip * 2/(e[1]*view.target.height)))
+		m[3] = center
+		return m
+	return mat
 
 def mesh_placement(mesh) -> '(pos,normal)':
 	''' return an axis for placement of a note on the given object '''
@@ -558,6 +506,12 @@ def mesh_placement(mesh) -> '(pos,normal)':
 		raise TypeError('unable to place note on a {}'.format(type(mesh)))
 	return pos, normal
 
+
+def note_floating(position, text):
+	''' place a floating note at given position '''
+	return txt.Text(position, text, align=(0,0), color=settings.display['annotation_color'], size=settings.display['view_font_size'])
+
+	
 def note_leading(placement, offset=None, text='here'):
 	''' place a leading note at given position
 	
@@ -570,12 +524,25 @@ def note_leading(placement, offset=None, text='here'):
 		offset = offset*normal
 	elif not isinstance(offset, vec3):
 		raise TypeError('offset must be scalar or vector')
-	return Displayable(note_leading_display, origin, offset, text)
-
-
-def note_floating(position, text):
-	''' place a floating note at given position '''
-	return txt.Text(position, text, align=(0,0), color=settings.display['annotation_color'], size=settings.display['view_font_size'])
+	
+	color = settings.display['annotation_color']
+	sch = Scheme(color=fvec4(color,0.7))
+	sch.add([origin, origin+offset], shader='line', space=world)
+	x,y,z = dirbase(normalize(vec3(offset)))
+	sch.add(
+		gt.revolution(2*pi, (vec3(0), z), 
+			web([vec3(0), 16*z+4*x]), 
+			resolution=('div',8),
+			), 
+		shader='fill',
+		space=scale_screen(fvec3(origin)),
+		)
+	font = settings.display['view_font_size']
+	sch.set(space=halo_screen_flipping(fvec3(origin+offset), fvec3(offset)))
+	sch.add([vec3(0), vec3(font*2, 0, 0)], shader='line')
+	sch.add(txt.Text(vec3(txt.textsize(text)[0]/2*0.8*font + font*3, 0, 0), text, align=('center', 0.5), color=fvec4(color,1), size=font))
+	
+	return sch
 
 def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None, side=False):
 	''' place a distance quotation between 2 points, 
@@ -632,16 +599,13 @@ def note_distance_planes(s0, s1, offset=None, d=None, tol=None, text=None):
 		
 		`s0` and `s1` can be any of `Mesh, Web, Wire`
 	'''
-	#n0 = s0.facenormal(0)
-	#n1 = s1.facenormal(1)
-	#print('angle', length(cross(n0,n1)), n0, n1)
-	
 	p0, n0 = mesh_placement(s0)
 	p1, n1 = mesh_placement(s1)
 	if length2(cross(n0,n1)) > 1e-10:
 		raise ValueError('surfaces are not parallel')
 	if not offset:
-		offset = length(noproject(boundingbox(s0,s1).width, n0)) * 0.6
+		box = boundingbox(s0,s1)
+		offset = 0.2 * length(box.width) * normalize(noproject(p0+p1 - 2*box.center, n0))
 	return note_distance(p0, p1, offset, n0, d, tol, text)
 	
 def note_distance_set(s0, s1, offset=0, d=None, tol=None, text=None):
@@ -744,13 +708,22 @@ def note_radius(mesh, offset=None, d=None, tol=None, text=None, propagate=2):
 		raise TypeError('input mesh must be Mesh, Web or Wire')
 	if not offset:
 		offset = 0.2 * length(boundingbox(mesh).width)
+	if not isinstance(offset, vec3):
+		offset = normal * offset
+	if abs(dot(offset, normal))**2 < length2(place)*1e-4:
+		offset += 0.2 * length(boundingbox(mesh).width) * normal
 	
 	if isinstance(place, tuple):
 		place = sum(mesh.points[i]  for i in place) / len(place)
 	else:
 		place = mesh.points[place]
 	
-	return note_leading((place,normal), offset=offset, text=text or 'R {:.4g}'.format(radius))
+	arrowplace = place + noproject(offset, normal)
+	note = note_leading((arrowplace,normal), offset=project(offset, normal), text=text or 'R {:.4g}'.format(radius))
+	color = settings.display['annotation_color']
+	note.set(shader='line', layer=1e-4, color=fvec4(color,0.3), space=world)
+	note.add([place, arrowplace])
+	return note
 	
 import numpy.linalg
 import numpy as np
@@ -998,6 +971,20 @@ def note_angle_edge(part, edge, offset=0, d=None, tol=None, text=None, unit='deg
 			offset, d, tol, text, unit)
 	
 def note_absciss(axis, pts):
+	indev
+	
+def note_diameter(mesh, direction=None, offset=None, d=None, tol=None, text=None):
+	assert direction is not None
+	for f in mesh.faces:
+		for p in f:
+			if dot(mesh.points[p], direction):
+				indev
+	
+def diameter_min(mesh, convex=False):
+	if not convex:
+		convex = simple_convexhull(mesh)
+	
+def diameter_max(mesh, convex=False):
 	indev
 	
 def note_surface(placement, offset=None, roughness=None, method=None):
