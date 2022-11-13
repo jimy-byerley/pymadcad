@@ -283,7 +283,7 @@ def distance_pe(pt, edge):
 
 def distance_aa(a1, a2):
 	''' axis - axis distance '''
-	return dot(a1[0]-a2[0], normalize(cross(a1[1], a2[1])))
+	return length(project(a1[0]-a2[0], cross(a1[1], a2[1])))
 
 def distance_ae(axis, edge):
 	''' axis - edge distance '''
@@ -298,6 +298,14 @@ def distance_ae(axis, edge):
 		return distance_pa(edge[0], axis)
 	else:
 		return distance_pa(edge[1], axis)
+		
+def distance_pt(p, triangle):
+	''' point - triangle distance '''
+	normal = cross(triangle[1]-triangle[0], triangle[2]-triangle[0])
+	for i in range(3):
+		if dot(p-triangle[i-1], cross(triangle[i-2]-triangle[i-1], normal)) > 0:
+			return distance_pe(p, (triangle[i-1],triangle[i-2]))
+	return length(project(normal, p-triangle[0]))
 
 
 #-- algorithmic functions ---------

@@ -127,7 +127,7 @@ class Web(NMesh):
 	def edgenear(self, point: vec3) -> int:
 		''' return the index of the closest edge to the given point '''
 		return min( range(len(self.edges)),
-					lambda i: distance_pe(point, self.edgepoints(i)) )
+					key=lambda i: distance_pe(point, self.edgepoints(i)) )
 	
 	def group(self, quals) -> 'Self':
 		''' extract a part of the mesh corresponding to the designated groups.

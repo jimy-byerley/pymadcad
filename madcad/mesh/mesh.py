@@ -125,12 +125,12 @@ class Mesh(NMesh):
 	
 	def groupnear(self, point) -> int:
 		''' return group id if the face the closest to the given point '''
-		return self.tracks[self.face_near(point)]
+		return self.tracks[self.facenear(point)]
 		
 	def facenear(self, point) -> int:
 		''' return the index of the closest triangle to the given point '''
 		return min(	range(len(self.faces)), 
-					lambda i: distance_pt(point, self.facepoints(i)) )
+					key=lambda i: distance_pt(point, self.facepoints(i)) )
 	
 	def group(self, quals) -> 'Self':
 		''' extract a part of the mesh corresponding to the designated groups.
