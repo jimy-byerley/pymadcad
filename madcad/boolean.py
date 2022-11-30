@@ -66,7 +66,7 @@ def cut_mesh(m1, m2, prec=None) -> '(Mesh, Web)':
 	
 	# topology informations for optimization
 	points = hashing.PointSet(prec, manage=m1.points)
-	prox2 = hashing.PositionMap(hashing.meshcellsize(m2))
+	prox2 = hashing.PositionMap(max(hashing.meshcellsize(m2), hashing.meshcellsize(m1)))
 	for f2 in range(len(m2.faces)):
 		prox2.add(m2.facepoints(f2), f2)
 	conn = connef(m1.faces)
