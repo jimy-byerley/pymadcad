@@ -1,6 +1,7 @@
 Installation
 ============
 
+In order to install ``pymadcad``, you need a version of Python ``>=3.8``
 
 From PyPI
 ---------
@@ -9,7 +10,7 @@ From PyPI
 
 	pip install pymadcad
 	
-or selecting one or more optional dependencies
+You can also select one or more optional dependencies :
 
 .. code-block:: sh
 	
@@ -17,10 +18,10 @@ or selecting one or more optional dependencies
 	
 This installation may require build-dependencies, so please refer to source dependencies below
 
-Optionnal dependencies
+Optional dependencies
 ~~~~~~~~~~~~~~~~~~~~~~
 
-There is some optionnal dependencies you can choose to install by yourself to enable some features of pymadcad.
+There is some optional dependencies you can choose to install by yourself to enable some features of pymadcad.
 
 - `plyfile <https://github.com/dranjan/python-plyfile>`_		to read/write ``.ply`` files
 - `stl-numpy <https://github.com/WoLpH/numpy-stl>`_		to read/write ``.stl`` files
@@ -29,18 +30,18 @@ There is some optionnal dependencies you can choose to install by yourself to en
 From source
 -----------
 
-build dependencies
+Build dependencies
 ~~~~~~~~~~~~~~~~~~
 
-- debian-based distrbutions
+- Debian-based distributions
 
 	.. code-block:: sh
 	
 		apt install gcc binutils python3-dev
 		
-- windows distributions
+- Windows distributions
 
-	you will need Visual Studio (licensed) or MSVC redistribuable (free to download) installed
+	You will need Visual Studio (licensed) or MSVC redistribuable (free to download) installed
 
 
 
@@ -62,7 +63,7 @@ Choose one of the following:
 		
 		pip install PyQt5
 		
-- Qt from the linux repositories
+- Qt from the Linux repositories
 
 	.. code-block:: sh
 	

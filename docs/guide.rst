@@ -7,13 +7,13 @@ Here are the most used functions and classes of madcad.
 Features
 --------
 
-- surface generation (3D sketch primitives, extrusion, revolution, ...)
-- fast boolean operations
-- common mesh file format import/export
+- Surface generation (3D sketch primitives, extrusion, revolution, ...)
+- Fast boolean operations
+- Common mesh file format import/export
 - kinematic manipulation
-- indirect geometry definition through the constraint/solver system
-- blending and envelope completion functions
-- objects display with high-quality graphics
+- Indirect geometry definition through the constraint/solver system
+- Blending and envelope completion functions
+- Objects display with high-quality graphics
 
 data types
 ----------
@@ -41,7 +41,7 @@ mesh data:
 
 kinematic data: 
 
-	:Solid:		each instance constitutes a kinematic undeformable solid
+	:Solid:		each instance constitutes a kinematic rigid solid
 	:Kinematic:	holds joints and solids for a kinematic structure, with some common mathematical operations
 	
 	details in :ref:`module kinematic<kinematic>`
@@ -83,7 +83,7 @@ Geometry primitives
 	# create a list of primitives
 	line = [
 		Segment(O, A),          # segment from 0 to A (the direction is important for the surface generation)
-		ArcThrough(A, B, C), # arc from A to C, with waypoint B
+		ArcThrough(A, B, C),    # arc from A to C, with waypoint B
 		Segment(C,O),           # segment from C to O
 		]
 
@@ -181,7 +181,7 @@ Suppose we want a torus, let's make a simple revolution around an axis, the extr
 .. code-block:: python
 
 	revolution(
-	    radians(180),       # 180 degrees converted into radiaus 
+	    radians(180),       # 180 degrees converted into radians 
 	    (O,Z),              # revolution axis, origin=0, direction=Z
 	    web(Circle((A,Y), 0.5)),	# primitive converted into Web
 	    )
@@ -229,7 +229,7 @@ For some geometries it is much faster to rework the already generated mesh to ad
 	m1 = brick(width=vec3(2))
 	m2 = m1.transform(vec3(0.5, 0.3, 0.4)) .transform(quat(0.7*vec3(1,1,0)))
 	
-	# remove the volue of the second to the first
+	# remove the volume of the second to the first
 	difference(m1, m2)
 	
 .. image:: /screenshots/boolean-cube.png
