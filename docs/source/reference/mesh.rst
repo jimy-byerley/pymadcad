@@ -1,6 +1,6 @@
 .. _mesh:
 
-mesh    - meshes and discretised objects
+mesh    - Meshes and discretised objects
 ========================================
 
 .. automodule:: madcad.mesh

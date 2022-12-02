@@ -1,6 +1,6 @@
 .. _generation:
 
-generation    - functions to generate mesh surfaces from lines or meshes
+generation    - Functions to generate mesh surfaces from lines or meshes
 ========================================================================
 
 .. automodule:: madcad.generation

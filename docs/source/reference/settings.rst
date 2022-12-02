@@ -1,6 +1,6 @@
 .. _settings:
 
-settings    - global and default settings
+settings    - Global and default settings
 =========================================
 
 .. automodule:: madcad.settings

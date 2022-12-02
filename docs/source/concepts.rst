@@ -72,7 +72,7 @@ It appeared that the GPU `shader languages <https://docs.gl/sl4/all>`_ already f
 Mesh Data
 ~~~~~~~~~
 
-It's always a difficult way to stop a decision on the way to represent 3D objects. In most cases we represent it by its exterior surface, but the problem of the polygons remains: `ngons, quads, triangles, bezier,` ... ? And the way to put it into memory also: `simple unit elements, dynamically typed polygons, halfedges, quadedges,` ... Or even the way to access it: `arrays, chained lists, octree, hashmaps`.
+It's always a difficult way to stop a decision on the way to represent 3D objects. In most cases we represent it by its exterior surface, but the problem of the polygons remains: `ngons`, `quads`, `triangles`, `bezier`, ... ? And the way to put it into memory also: `simple unit elements`, `dynamically typed polygons`, `halfedges`, `quadedges`, ... Or even the way to access it: `arrays`, `chained lists`, `octree`, `hashmaps`.
 
 The choice was not easy but was in favor of simplicity:
 	

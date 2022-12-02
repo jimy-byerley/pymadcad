@@ -1,6 +1,6 @@
 .. _reverse:
 
-reverse   - reverse engineering functions
+reverse   - Reverse engineering functions
 =========================================
 
 .. automodule:: madcad.reverse

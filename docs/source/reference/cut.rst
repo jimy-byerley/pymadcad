@@ -1,6 +1,6 @@
 .. _cut:
 
-cut    - functions for cutting meshes at edges or points, like chamfer
+cut    - Functions for cutting meshes at edges or points, like chamfer
 ======================================================================
 
 .. automodule:: madcad.cut

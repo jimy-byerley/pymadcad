@@ -1,6 +1,6 @@
 .. _boolean:
 
-boolean    - boolean cut/intersect/stitch meshes
+boolean    - Boolean cut/intersect/stitch meshes
 ================================================
 
 .. automodule:: madcad.boolean

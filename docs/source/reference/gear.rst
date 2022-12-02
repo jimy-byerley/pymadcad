@@ -1,6 +1,6 @@
 .. _gear:
 
-gear   - generation of gears, racks, etc
+gear   - Generation of gears, racks, etc
 ========================================
 
 .. automodule:: madcad.gear

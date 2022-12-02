@@ -1,11 +1,11 @@
-Reference
-=========
+References
+==========
 
-.. warning::
-	The module is still in alpha version and the API may change a lot before release.
+.. .. warning::
+.. 	The module is still in alpha version and the API may change a lot before release.
 
-submodules
-~~~~~~~~~~
+.. submodules
+.. ~~~~~~~~~~
 
 .. tip::
 	Most of the submodule functions and classes are present in the madcad root module, so unless you write a library you won't need to import them explicitly.
@@ -13,28 +13,24 @@ submodules
 .. toctree::
 	:maxdepth: 1
 
-	mathutils.rst
-	mesh.rst
-	
-	kinematic.rst
-	joints.rst
-	
-	primitives.rst
-	constraints.rst
-	
-	generation.rst
-	blending.rst
-	cut.rst
-	boolean.rst
-	reverse.rst
-	
-	io.rst
-	settings.rst
-	hashing.rst
-	rendering.rst
-	scheme.rst
-	standard.rst
-	gear.rst
+    blending.rst
+    boolean.rst
+    constraints.rst
+    cut.rst
+    gear.rst
+    generation.rst
+    hashing.rst
+    io.rst
+    joints.rst
+    kinematic.rst
+    mathutils.rst
+    mesh.rst
+    primitives.rst
+    rendering.rst
+    reverse.rst
+    scheme.rst
+    settings.rst
+    standard.rst
 
 .. py:module:: madcad
 

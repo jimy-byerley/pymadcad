@@ -1,6 +1,6 @@
 .. _standard:
 
-standard     - common standard parametric parts
+standard     - Common standard parametric parts
 ===============================================
 
 .. automodule:: madcad.standard

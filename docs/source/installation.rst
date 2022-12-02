@@ -45,7 +45,7 @@ Build dependencies
 
 
 
-module dependencies
+Module dependencies
 ~~~~~~~~~~~~~~~~~~~
 
 Make sure you installed the dependencies:

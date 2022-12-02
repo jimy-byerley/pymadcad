@@ -1,7 +1,7 @@
 .. _mathutils:
 .. py:module:: madcad.mathutils
 
-mathutils    - all the basic math types and functions
+mathutils    - All the basic math types and functions
 =====================================================
 
 Most of the names here are coming from the `glm <http://github.com/Zuzu-Typ/PyGLM>`_ module.

@@ -1,5 +1,5 @@
-Algorithms explainations
-========================
+Algorithms explanations
+=======================
 
 We describe here the most challenging algorithms used in madcad.
 

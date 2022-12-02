@@ -1,6 +1,6 @@
 .. _blending:
 
-blending    - creation of surface between outlines
+blending    - Creation of surface between outlines
 ==================================================
 
 .. automodule:: madcad.blending

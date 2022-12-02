@@ -1,6 +1,6 @@
 .. _scheme:
 
-scheme   - annotation functionalities
+scheme   - Annotation functionalities
 =====================================
 
 .. automodule:: madcad.scheme
