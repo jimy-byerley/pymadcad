@@ -19,7 +19,7 @@ project = 'pymadcad'
 copyright = '2019-2021, jimy byerley'
 author = 'jimy byerley'
 
-version = '0.12'			# The short X.Y version
+version = '0.14'			# The short X.Y version
 release = 'v'+version	# The full version, including alpha/beta/rc tags
 
 
@@ -62,6 +62,9 @@ html_static_path = ['_static']	# path to custom static files, such as images and
 
 html_theme = 'sphinx_rtd_theme'
 
+html_theme_options = {
+	"page_width": 'auto',
+}
 
 # -- Options for HTMLHelp output ---------------------------------------------
 

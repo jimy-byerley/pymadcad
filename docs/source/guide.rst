@@ -10,43 +10,43 @@ Features
 - Surface generation (3D sketch primitives, extrusion, revolution, ...)
 - Fast boolean operations
 - Common mesh file format import/export
-- kinematic manipulation
+- Kinematic manipulation
 - Indirect geometry definition through the constraint/solver system
 - Blending and envelope completion functions
 - Objects display with high-quality graphics
 
-data types
+Data types
 ----------
 
 The most common object types of MADCAD are the following:
 
-math types: 
+Math types: 
 
 	:vec3:    a 3D vector (with fast operations)
 	:mat3:    linear transformation, used for rotations and scaling
 	:mat4:    affine transformation, used for poses, rotations, translations, scaling
 	:quat:    a quaternion, used for rotation (faster and more convenient than matrices for non-repeated operations)
 	
-	details in :ref:`module mathutils<mathutils>`
+	Details in :ref:`module mathutils<mathutils>`
 
 
-mesh data: 
+Mesh data: 
 
 	:Mesh:		used to represent 3D surfaces.
 	:Web:		used to represent 3D lines.
 	:Wire:		used to represent only contiguous 3D lines.
 	
-	details in :ref:`module mesh<mesh>`
+	Details in :ref:`module mesh<mesh>`
 
 
-kinematic data: 
+Kinematic data: 
 
 	:Solid:		each instance constitutes a kinematic rigid solid
 	:Kinematic:	holds joints and solids for a kinematic structure, with some common mathematical operations
 	
-	details in :ref:`module kinematic<kinematic>`
+	Details in :ref:`module kinematic<kinematic>`
 
-most of the remaining classes are definition elements for kinematics or meshes, see :ref:`primitives<primitives>` , :ref:`constraints<constraints>` , and :ref:`joints<joints>` modules.
+Most of the remaining classes are definition elements for kinematics or meshes, see :ref:`primitives<primitives>` , :ref:`constraints<constraints>` , and :ref:`joints<joints>` modules.
 
 Most common operations
 ----------------------
@@ -215,7 +215,7 @@ Join arbitrary outlines in nicely blended surfaces.
 .. image:: /screenshots/junction-circles-post.png
 	:width: 500px
 
-details in module :ref:`generation<generation>`
+Details in module :ref:`generation<generation>`
 
 
 Reworking
@@ -248,5 +248,3 @@ An other usual rework operation is cut edges with chamfers or roundings. Because
 	
 .. image:: /screenshots/bevel-cube.png
 	:width: 500px
-
-

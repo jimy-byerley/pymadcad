@@ -78,7 +78,7 @@ The interference curve is then an involute of circle with a radial offset.
 
 $ theta_i(t) = $ interference curve $ = p ((cos(t)), (sin(t))) + p*(t_i-t) ((-sin(t)), (cos(t))) - (h+e) ((cos(t)), (sin(t))) $
 
-![curves of tooths identified](/schemes/gear-curves-identified.png)
+<!-- ![curves of tooths identified](/schemes/gear-curves-identified.png) -->
 
 
 
@@ -105,7 +105,7 @@ $ t_0 - t_s = angle( theta(t_0 + tan(alpha)) - theta(t_0) ) $
 
 $ theta_i $ starts at the very moment the tooth offset is radial:
 
-![gear offset radial](/schemes/gear-offset-radial.png)
+<!-- ![gear offset radial](/schemes/gear-offset-radial.png) -->
 
 $ t_i - t_s = arctan((h-e)/p * tan(alpha)) $
 

@@ -85,6 +85,10 @@
 	background: #161c20;
 }
 
+.wy-nav-content{
+		max-width: 100%;
+}
+
 .wy-nav-content-wrap {
 	background: none;
 }
@@ -391,13 +395,19 @@ code {
 /* markdown stuff */
 h1, h2, h3 {
 	border-bottom: 1px solid #c6c5c536;
-	margin-top: 5%;
+	/* margin-top: 5%; */
 }
 /*
 h2 {
 	margin-top: 15%;
 }*/
 
+
+img {
+    display:block;
+    margin-left:auto;
+    margin-right:auto;
+}
 
 /* ugly stuff to correct other colors from readthedocs */
 
