@@ -31,9 +31,10 @@ class PositionMap:
 	def keysfor(self, space):
 		''' rasterize the primitive, yielding the successive position keys 
 			currently allowed primitives are 
-				points:	vec3
-				segments:  (vec3,vec3)
-				triangles: (vec3,vec3,vec3)
+
+				:points:		vec3
+				:segments:	(vec3,vec3)
+				:triangles:	(vec3,vec3,vec3)
 		'''
 		cell = self.cellsize
 		# point
@@ -147,9 +148,10 @@ class PositionMap:
 	def keysfor(self, space):
 		''' rasterize the primitive, yielding the successive position keys 
 			currently allowed primitives are 
-				:points: 	vec3
-				:segments:   (vec3,vec3)
-				:triangles:  (vec3,vec3,vec3)
+
+				:points:		vec3
+				:segments:		(vec3,vec3)
+				:triangles:		(vec3,vec3,vec3)
 		'''
 		# point
 		if isinstance(space, vec3):

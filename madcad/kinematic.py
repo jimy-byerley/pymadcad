@@ -38,18 +38,19 @@ __all__ = ['Screw', 'comomentum', 'Pressure', 'Solid', 'Kinematic', 'Kinemanip',
 
 
 class Screw(object):
-	''' a 3D torsor aka Screw aka Wrench aka Twist - is a mathematical object defined as follow:
+	''' A 3D torsor aka Screw aka Wrench aka Twist - is a mathematical object defined as follow:
 		  * a resulting vector R
 		  * a momentum vector field M
-		  the momentum is a function of space, satisfying the relationship:
+
+		The momentum is a function of space, satisfying the relationship:
 			M(A) = M(B) + cross(R, A-B)
 		
-		therefore it is possible to represent a localized torsor such as:
+		Therefore it is possible to represent a localized torsor such as:
 		  * R = resulting
 		  * M = momentum vector at position P
 		  * P = position at which M takes the current value
 		
-		torsor are usefull for generalized solid mechanics to handle multiple variables of the same nature:
+		Torsor are useful for generalized solid mechanics to handle multiple variables of the same nature:
 		  * force torsor:	
 			  Screw(force, torque, pos)
 		  * velocity (aka kinematic) torsor:
@@ -57,7 +58,7 @@ class Screw(object):
 		  * kinetic (inertia) torsor:
 			  Screw(linear movement quantity, rotational movement quantity, pos)
 			
-		  all these torsors makes it possible to represent all these values independently from expression location
+		  All these torsors makes it possible to represent all these values independently from expression location
 		  
 		  
 		Attributes:

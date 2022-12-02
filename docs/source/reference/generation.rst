@@ -66,8 +66,8 @@ generation of common meshes
 	.. image:: /screenshots/generation-uvsphere.png
 	
 
-offseting
----------
+offsetting
+----------
 
 .. autofunction:: inflateoffsets
 .. autofunction:: inflate
