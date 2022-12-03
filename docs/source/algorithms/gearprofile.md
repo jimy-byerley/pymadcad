@@ -114,7 +114,8 @@ $ t_i - t_s = arctan((h-e)/p * tan(alpha)) $
 
 To know when does $ theta_i $ stop and when $ theta_0 $ start, we need to know the intersection point between them. As both curves are defined by different points of the rack at different times during the rotation, the two curves must have different parameters.
 
-intersection between $theta_0$ and $theta_i$
+Intersection between $theta_0$ and $theta_i$
+$
 <=> theta_0(t_1) = theta_i(t_2) 
 <=> theta_0(t_1) - theta_i(t_2) = vec 0
 $

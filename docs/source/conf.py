@@ -62,9 +62,9 @@ html_static_path = ['_static']	# path to custom static files, such as images and
 
 html_theme = 'sphinx_rtd_theme'
 
-html_theme_options = {
-	"page_width": 'auto',
-}
+# html_theme_options = {
+# 	"page_width": 'auto',
+# }
 
 # -- Options for HTMLHelp output ---------------------------------------------
 

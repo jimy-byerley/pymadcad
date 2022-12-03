@@ -956,10 +956,10 @@ class Offscreen(ViewCommon):
 
 
 class View(ViewCommon, QOpenGLWidget):
-	''' Qt widget to render and interact with displayable objects
-		it holds a scene as renderpipeline
+	''' Qt widget to render and interact with displayable objects.
+		It holds a scene as renderpipeline.
 
-		Attributes definied here:
+		Attributes defined here:
 
 				:scene:        the `Scene` object displayed
 				:projection:   `Perspective` or `Orthographic`
