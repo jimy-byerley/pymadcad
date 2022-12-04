@@ -13,6 +13,7 @@
 '''
 
 from operator import itemgetter
+from itertools import accumulate
 
 from .mathutils import *
 from .primitives import *
@@ -27,10 +28,11 @@ from .io import cachefunc
 #cachefunc = lambda x:x	# debug purpose
 
 
-__all__ = [	'nut', 'screw', 'washer', 
+__all__ = [	'nut', 'screw', 'washer', 'bolt',
 			'coilspring_compression', 'coilspring_tension', 'coilspring_torsion',
 			'bearing', 'slidebearing',
 			'section_s', 'section_w', 'section_c', 'section_l', 'section_tslot',
+			'screw_slot', 'bolt_slot', 'bearing_slot_exterior', 'bearing_slot_interior',
 			'stfloor', 'stceil',
 			]
 
@@ -1252,10 +1254,11 @@ def bolt(a: vec3, b: vec3, dscrew: float, washera=False, washerb=False) -> Solid
 	thickness = rwasher['part'].box().width.z
 	rscrew = screw(dscrew, stceil(distance(a,b) + 1.2*dscrew, precision=0.2))
 	rnut = nut(dscrew)
-	rscrew['annotations'] = [
-				note_distance(O, -stceil(distance(a,b) + 1.2*dscrew)*Z, offset=2*dscrew*X),
-				note_radius(rscrew['part'].group(0)),
-				]
+	#rscrew['annotations'] = [
+				#note_distance(O, -stceil(distance(a,b) + 1.2*dscrew)*Z, offset=2*dscrew*X),
+				#note_radius(rscrew['part'].group(0)),
+				#]
+	from .joints import Pivot
 	return Solid(
 			screw = rscrew.place((Pivot, rscrew['axis'], Axis(a-thickness*dir, -dir))), 
 			nut = rnut.place((Pivot, rnut['top'], Axis(b+thickness*dir, -dir))),
@@ -1309,6 +1312,12 @@ def bolt_slot(a: vec3, b: vec3, dscrew: float, rslot=None, hole=True, expanda=Tr
 			expanda, expandb:
 				- if `True`, enables slot sides on tip `a` or `b`
 				- if `float`, it is the slot side height
+				
+		Example:
+			
+			>>> a, b = vec3(...), vec3(...)
+			>>> bolts = bolt(a, b, 3)
+			>>> part_hole = bolt_slot(a, b, 3)
 	'''
 	if not rslot:	rslot = 1.3*dscrew
 	x,y,z = dirbase(normalize(a-b))
