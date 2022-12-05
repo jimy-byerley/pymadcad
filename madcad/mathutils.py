@@ -345,12 +345,22 @@ def linrange(start, stop=None, step=None, div=0, end=True):
 	''' yield successive intermediate values between start and stop 
 		
 		stepping:
-		* if `step` is given, it will be the amount between raised value until it gets over `stop`
-		* if `div` is given, it will be the number of intermediate steps between `start` and `stop` (with linear spacing)
+		
+		- if `step` is given, it will be the amount between raised value until it gets over `stop`
+		- if `div` is given, it will be the number of intermediate steps between `start` and `stop` (with linear spacing)
 		
 		ending:
-		* if `end` is True, it will stop iterate with value `stop` (or just before)
-		* if `end` is False, it will stop iterating just before `stop` and never with `stop`
+		
+		- if `end` is True, it will stop iterate with value `stop` (or just before)
+		- if `end` is False, it will stop iterating just before `stop` and never with `stop`
+		
+		Example:
+		
+			>>> list(linrange(5, -5, div=1))
+			[5, 0, -5]
+			
+			>>> list(linrange(5, -5, div=10)
+			
 		
 		NOTE:  
 			If step is given and is not a multiple of `stop-start` then `end` has no influence
@@ -362,7 +372,7 @@ def linrange(start, stop=None, step=None, div=0, end=True):
 	stop += NUMPREC*stop
 	
 	t = start
-	while t <= stop:
+	while (stop-t)*step >= 0:
 		yield t
 		t += step
 

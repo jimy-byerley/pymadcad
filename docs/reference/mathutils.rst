@@ -204,6 +204,8 @@ Constants
 Localy defined data types
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
+.. autofunction:: linrange
+
 .. autoclass:: Box
 
 	.. autoproperty:: center
