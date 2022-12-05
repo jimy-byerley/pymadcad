@@ -1,5 +1,6 @@
 from madcad.gear import *
 from madcad.mesh import edgekey, facekeyo
+from madcad.kinematic import Solid
 
 # Colors
 class bcolors:
@@ -13,6 +14,7 @@ class bcolors:
 	BOLD = '\033[1m'
 	UNDERLINE = '\033[4m'
 
+results = []
 
 def test_gear(name, *args, **kwargs):
 	print("{}: {}, {}".format(name, args, kwargs))
@@ -26,6 +28,8 @@ def test_gear(name, *args, **kwargs):
 		print(bcolors.WARNING + str(e) + bcolors.ENDC)
 		print(f"{bcolors.FAIL}>>> Failed ! <<<\n{bcolors.ENDC}")
 		raise
+	else:
+		results.append(mesh)
 	#show([mesh])
 
 def testing(function):
@@ -134,3 +138,12 @@ test_rounded("test rounded pattern", 15, 5, 15, int_height = 5, patterns = 6)
 test_rounded("test rounded pattern", 15, 5, 15, int_height = 5, patterns = 4) # ...
 test_rounded("test rounded pattern", 15, 5, 15, int_height = 5, patterns = 3) # ...
 test_rounded("test rounded pattern", 15, 5, 15, int_height = 5, patterns = 2)
+
+
+x = 0
+for i, part in enumerate(results):
+	box = boundingbox(part)
+	results[i] = solid = Solid(content=part)
+	solid.position = vec3(x-box.min.x,0,0)
+	x +=  box.width.x
+show(results)
