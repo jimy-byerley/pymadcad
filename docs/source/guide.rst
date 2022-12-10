@@ -199,9 +199,9 @@ Suppose we want a torus, let's make a simple revolution around an axis, the extr
    from madcad import *
 
    half_tube = revolution(
-       radians(180),               # 180 degrees converted into radians 
-       (O,Z),                      # revolution axis, origin=0, direction=z
-       web(circle((A,Y), 0.5)),	  # primitive converted into web
+       radians(180),                # 180 degrees converted into radians 
+       (O, Z),                      # revolution axis, origin=0, direction=Z
+       web(circle((A, Y), 0.5)),    # primitive converted into web
    )
    show([half_tube, axis], options={"display_wire":True})
 
