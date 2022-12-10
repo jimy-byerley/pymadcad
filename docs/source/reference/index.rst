@@ -11,26 +11,27 @@ References
 	Most of the submodule functions and classes are present in the madcad root module, so unless you write a library you won't need to import them explicitly.
 
 .. toctree::
-	:maxdepth: 1
+    :maxdepth: 1
 
-    blending.rst
-    boolean.rst
-    constraints.rst
-    cut.rst
-    gear.rst
-    generation.rst
-    hashing.rst
-    io.rst
-    joints.rst
-    kinematic.rst
     mathutils.rst
     mesh.rst
+    kinematic.rst
+    joints.rst
     primitives.rst
-    rendering.rst
+    constraints.rst
+    generation.rst
+    blending.rst
+    cut.rst
+    boolean.rst
     reverse.rst
-    scheme.rst
+    hull.rst
+    io.rst
     settings.rst
+    hashing.rst
+    rendering.rst
+    scheme.rst
     standard.rst
+    gear.rst
 
 .. py:module:: madcad
 
