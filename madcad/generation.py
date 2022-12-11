@@ -22,12 +22,13 @@ __all__ = [
 
 
 def extrusion(trans, line, alignment=0):
-	''' create a surface by extruding the given outline by a transformation
+	''' Create a surface by extruding the given outline by a transformation
 		
-		parameters:
-			:line:         a line (Web or Wire) or a surface (Mesh) to extrude
-			:trans:        any transformation object accepted by `mathutils.transform`
-			:alignment:	   when > 0 the line is extruded both sides (the transformation is linearly interpoled)
+		Parameters:
+
+			line:         a line (Web or Wire) or a surface (Mesh) to extrude
+			trans:        any transformation object accepted by `mathutils.transform`
+			alignment:	  when > 0 the line is extruded both sides (the transformation is linearly interpoled)
 	'''
 	trans = transform(trans)
 	neutral = mat4()
@@ -38,7 +39,7 @@ def extrusion(trans, line, alignment=0):
 				[(0,1,0)])
 
 def revolution(angle, axis, profile, resolution=None):
-	''' create a revolution surface by extruding the given outline
+	''' Create a revolution surface by extruding the given outline
 		`steps` is the number of steps between the start and the end of the extrusion
 	'''
 	if not isinstance(profile, (Mesh,Web,Wire)):	
@@ -61,7 +62,7 @@ def revolution(angle, axis, profile, resolution=None):
 	return extrans(profile, trans(), links())
 
 def saddle(web1, web2):
-	''' create a surface by extruding outine1 translating each instance to the next point of outline2
+	''' Create a surface by extruding outine1 translating each instance to the next point of outline2
 	'''
 	web1, web2 = web(web1), web(web2)
 	def trans():
@@ -71,7 +72,7 @@ def saddle(web1, web2):
 	return extrans(web1, trans(), ((*e,t)  for e,t in zip(web2.edges, web2.tracks)))
 
 def tube(outline, path, end=True, section=True):
-	''' create a tube surface by extrusing the outline along the path
+	''' Create a tube surface by extrusing the outline along the path
 		if section is True, there is a correction of the segments to keep the section undeformed by the curve
 	'''
 	path = wire(path)
@@ -114,7 +115,7 @@ def tube(outline, path, end=True, section=True):
 
 
 def extrans(section, transformations, links) -> 'Mesh':
-	''' create a surface by extruding and transforming the given outline.
+	''' Create a surface by extruding and transforming the given outline.
 		
 		:transformations:   iterable of mat4, one each section
 		:link:              iterable of tuples (a,b,t)  with:
@@ -188,7 +189,7 @@ def linstep(start, stop, x):
 	return (x-start)/(stop-start)
 
 def inflateoffsets(surf, distance, method='face') -> '[vec3]':
-	''' displacements vectors for points of a surface we want to inflate.
+	''' Displacements vectors for points of a surface we want to inflate.
 		
 		:method:     
 			determines if the distance is from the old to the new faces, edges or points
@@ -232,7 +233,7 @@ def inflateoffsets(surf, distance, method='face') -> '[vec3]':
 		return typedlist((pnormals[p]*distance	for p in range(len(pnormals))), dtype=vec3)
 
 def inflate(surf, distance, method='face') -> 'Mesh':
-	''' move all points of the surface to make a new one at a certain distance of the last one
+	''' Move all points of the surface to make a new one at a certain distance of the last one
 
 		:method:       determines if the distance is from the old to the new faces, edges or points
 	'''
@@ -243,7 +244,7 @@ def inflate(surf, distance, method='face') -> 'Mesh':
 				surf.groups)
 
 def thicken(surf, thickness, alignment=0, method='face') -> 'Mesh':
-	''' thicken a surface by extruding it, points displacements are made along normal. 
+	''' Thicken a surface by extruding it, points displacements are made along normal. 
 
 		:thickness:    determines the distance between the two surfaces (can be negative to go the opposite direction to the normal).
 		:alignment:    specifies which side is the given surface: 0 is for the first, 1 for the second side, 0.5 thicken all apart the given surface.
@@ -277,7 +278,7 @@ def thicken(surf, thickness, alignment=0, method='face') -> 'Mesh':
 # --- filling things ---
 
 def flatsurface(outline, normal=None) -> 'Mesh':
-	''' generates a surface for a flat outline using the prefered triangulation method .
+	''' Generates a surface for a flat outline using the prefered triangulation method .
 	
 		if `normal` is specified, it must be the normal vector to the plane, and will be used to orient the face.
 	'''
@@ -291,10 +292,10 @@ def flatsurface(outline, normal=None) -> 'Mesh':
 
 
 def icosurface(pts, ptangents, resolution=None) -> 'Mesh':
-	''' generate a surface ICO (a subdivided triangle) with its points interpolated using interpol2tri.
+	''' Generate a surface ICO (a subdivided triangle) with its points interpolated using interpol2tri.
 	
 		- If normals are given instead of point tangents (for ptangents), the surface will fit a sphere.
-		- Else ptangents must be a list of couples (2 edge tangents each point).
+		- Else `ptangents` must be a list of couples (2 edge tangents each point).
 	'''
 	# compute normals to points
 	if isinstance(ptangents[0], tuple):
@@ -321,7 +322,7 @@ def icosurface(pts, ptangents, resolution=None) -> 'Mesh':
 	return dividedtriangle(lambda u,v: intri_sphere(pts, ptangents, u,v), div)
 	
 def dividedtriangle(placement, div=1) -> 'Mesh':
-	''' generate a subdivided triangle with points placed according to the placement closure
+	''' Generate a subdivided triangle with points placed according to the placement closure
 		`placement(a,b) -> vec3`
 		with a,b such as a+b+c = 1 with a,b,c within [0;1]
 	'''
@@ -350,7 +351,7 @@ def dividedtriangle(placement, div=1) -> 'Mesh':
 
 
 def subdivide(mesh, div=1) -> 'Mesh':
-	''' subdivide all faces by the number of cuts '''
+	''' Subdivide all faces by the number of cuts '''
 	n = div+2
 	pts = typedlist(dtype=vec3)
 	faces = typedlist(dtype=uvec3)
@@ -386,9 +387,9 @@ def subdivide(mesh, div=1) -> 'Mesh':
 # --- standard shapes ---
 	
 def brick(*args, **kwargs) -> 'Mesh':
-	''' a simple brick with rectangular sides 
+	''' A simple brick with rectangular sides 
 	
-		constructors
+		Constructors
 		
 			- brick(Box)
 			- brick(min, max)
@@ -429,7 +430,7 @@ def brick(*args, **kwargs) -> 'Mesh':
 	return mesh
 	
 def cylinder(bottom:vec3, top:vec3, radius:float, fill=True) -> 'Mesh':
-	''' create a revolution cylinder, with the given radius 
+	''' Create a revolution cylinder, with the given radius 
 	
 		Parameters:
 		
@@ -442,7 +443,7 @@ def cylinder(bottom:vec3, top:vec3, radius:float, fill=True) -> 'Mesh':
 	return extrusion(direction, base)
 
 def cone(summit:vec3, base:vec3, radius:float, fill=True) -> 'Mesh':
-	''' create a revolution cone, with a base of the given radius 
+	''' Create a revolution cone, with a base of the given radius 
 	
 		Parameters:
 			
@@ -455,7 +456,7 @@ def cone(summit:vec3, base:vec3, radius:float, fill=True) -> 'Mesh':
 	return pyramid(summit, base)
 		
 def pyramid(summit:vec3, base) -> 'Mesh':
-	''' create a pyramid with the given summit point and the given base 
+	''' Create a pyramid with the given summit point and the given base 
 	
 		Parameters:
 			summit (vec3):   the top (summit) of the cone, not necessarity in the center of the shape
@@ -481,7 +482,7 @@ def pyramid(summit:vec3, base) -> 'Mesh':
 	return result
 
 def square(axis:primitives.Axis, width:float) -> 'Mesh':
-	''' return a simple square with the given normal axis and square width.
+	''' Return a simple square with the given normal axis and square width.
 		Useful to quickly create a cutplane
 	'''
 	x,y,z = dirbase(axis[1])
@@ -492,7 +493,7 @@ def square(axis:primitives.Axis, width:float) -> 'Mesh':
 		)
 
 def icosahedron(center:vec3, radius:float) -> 'Mesh':
-	''' a simple icosahedron (see https://en.wikipedia.org/wiki/Icosahedron) '''
+	''' A simple icosahedron (see https://en.wikipedia.org/wiki/Icosahedron) '''
 	phi = (1+ sqrt(5)) /2	# golden ratio
 	m = Mesh(
 		typedlist([
@@ -522,7 +523,7 @@ def icosahedron(center:vec3, radius:float) -> 'Mesh':
 	return m
 
 def icosphere(center:vec3, radius:float, resolution=None) -> 'Mesh':
-	''' a simple icosphere with an arbitrary resolution (see https://en.wikipedia.org/wiki/Geodesic_polyhedron).
+	''' A simple icosphere with an arbitrary resolution (see https://en.wikipedia.org/wiki/Geodesic_polyhedron).
 	
 		Points are obtained from a subdivided icosahedron and reprojected on the desired radius.
 	'''
@@ -534,7 +535,7 @@ def icosphere(center:vec3, radius:float, resolution=None) -> 'Mesh':
 	return ico
 
 def uvsphere(center:vec3, radius:float, alignment=vec3(0,0,1), resolution=None) -> 'Mesh':
-	''' a simple uvsphere (simple sphere obtained with a revolution of an arc) '''
+	''' A simple uvsphere (simple sphere obtained with a revolution of an arc) '''
 	x,y,z = dirbase(alignment)
 	mesh = revolution(2*pi, 
 			(center, z),
@@ -548,14 +549,14 @@ def uvsphere(center:vec3, radius:float, alignment=vec3(0,0,1), resolution=None) 
 	return mesh
 
 def regon(axis:primitives.Axis, radius, n, alignment=None) -> 'Wire':
-	''' create a regular n-gon `Wire`, the same way we create a `Circle` '''
+	''' Create a regular n-gon `Wire`, the same way we create a `Circle` '''
 	return primitives.Circle(axis, radius, 
 				resolution=('div',n), 
 				alignment=alignment or vec3(1,0,0),
 				).mesh() .segmented()
 
 def repeat(pattern, n:int, transform):
-	''' create a mesh duplicating n times the given pattern, each time applying the given transform.
+	''' Create a mesh duplicating n times the given pattern, each time applying the given transform.
 		
 		Parameters:
 		
