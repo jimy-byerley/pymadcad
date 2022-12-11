@@ -10,7 +10,7 @@ The objects displayed can be of any type but must implement the display protocol
 	
 Display protocol
 ----------------
-a displayable is an object that implements the signatue of Display:
+A displayable is an object that implements the signatue of Display:
 
 .. code-block:: python
 	
@@ -48,15 +48,15 @@ Rendering system
 
 .. py:data:: overrides
 	
-	dictionnary of callables used by `Scene.display` to override the classes `.display(scene)` method
+	Dictionnary of callables used by `Scene.display` to override the classes `.display(scene)` method
 
 .. py:data:: global_context
 
-	shared open gl context, None if not yet initialized
+	Shared OpenGL context, None if not yet initialized
 	
 .. py:data:: opengl_version
 
-	minimum opengl required version
+	Minimum OpenGL required version
 
 .. autoclass:: Display
 	

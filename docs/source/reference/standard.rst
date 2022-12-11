@@ -64,7 +64,7 @@ Bearings
 			
 		.. image:: /screenshots/bearing-ball.png
 
-	* roller bearing
+	* Roller bearing
 	
 		Those can hold a much bigger force than ball bearings, but must be carefully mounted in the direction of that force to always be in pressure (requiring extra design for this)
 
@@ -76,7 +76,7 @@ Bearings
 
 		.. image:: /screenshots/bearing-roller.png
 
-	* thrust bearing
+	* Thrust bearing
 		
 		Those can hold a bigger force that radial ball bearings, but must be carefully mounted to always stay in pressure. They also are less precise than the two previous.
 
@@ -101,7 +101,7 @@ Bearings
 			
 		.. image:: /screenshots/slidebearing-opened.png
 	
-	* with shoulder
+	* With shoulder
 	
 		.. code-block:: python
 		

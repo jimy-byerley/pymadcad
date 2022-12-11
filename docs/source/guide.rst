@@ -1,3 +1,8 @@
+.. Display
+   Settings
+   Primitives
+   Principal objects
+
 Guide
 =====
 
