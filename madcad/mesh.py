@@ -10,17 +10,17 @@
 	The classes defined here are 'points containers' it means that they are storing a list of points (as a member `point`), a list of groups (member `group`) and index points and groups for other purpose (faces and edges).
 	All of these follow this line:
 	
-	- storages are using basic types, no object inter-referencing, making it easy to copy it
+	- Storage is using basic types, no object inter-referencing, making it easy to copy it
 	
-	- storages (points, groups, faces, edges, ...) are used as shared ressources
+	- Storage (points, groups, faces, edges, ...) is used as shared resources
 	
-		python objects are ref-counted, allowing multiple Mesh instance to have the same point buffer. The user is responsible to ensure that there will be no conflict in making one mesh modifying the buffer in a way that makes it invalid for an other mesh referencing it.
+		Python objects are ref-counted, allowing multiple Mesh instance to have the same point buffer. The user is responsible to ensure that there will be no conflict in making one mesh modifying the buffer in a way that makes it invalid for an other mesh referencing it.
 		
 		To avoid conflicts, operations that are changing each point (or the most of them) reallocate a new list. Then operations like `mergeclose` or `stripgroups` won't affect other Meshes that shared the same buffers initially.
 		
-	- as build from shared ressources, these classes can be build from existing parts at a nearly zero cost (few verifications, no computation)
+	- As build from shared resources, these classes can be build from existing parts at a nearly zero cost (few verifications, no computation)
 	
-	- the user is allowed to hack into the internal data, ensure that the Mesh is still consistent after.
+	- The user is allowed to hack into the internal data, ensure that the Mesh is still consistent after.
 '''
 
 from copy import copy, deepcopy
@@ -48,7 +48,7 @@ __all__ = [
 class MeshError(Exception):	pass
 
 class Container:
-	''' common methods for points container (typically Mesh or Wire) '''
+	''' Common methods for points container (typically Mesh or Wire) '''
 	
 	def __init__(self, points=(), groups=(), options=None):
 		self.points = points
@@ -58,15 +58,15 @@ class Container:
 	# --- basic transformations of points ---
 	
 	def transform(self, trans):
-		''' apply the transform to the points of the mesh, returning the new transformed mesh'''
+		''' Apply the transform to the points of the mesh, returning the new transformed mesh'''
 		trans = transformer(trans)
 		transformed = copy(self)
 		transformed.points = typedlist((trans(p) for p in self.points), dtype=vec3)
 		return transformed
 			
 	def mergeclose(self, limit=None, start=0):
-		''' merge points below the specified distance, or below the precision 
-			return a dictionnary of points remapping  {src index: dst index}
+		''' Merge points below the specified distance, or below the precision 
+			return a dictionary of points remapping  {src index: dst index}
 		'''
 		if limit is None:	limit = self.precision()
 		'''
@@ -92,7 +92,7 @@ class Container:
 		return merges
 		
 	def mergegroups(self, defs=None, merges=None):
-		''' merge the groups according to the merge dictionnary
+		''' Merge the groups according to the merge dictionary
 			the new groups associated can be specified with defs
 			the former unused groups are not removed from the buffer and the new ones are appended
 			
@@ -109,7 +109,7 @@ class Container:
 					self.tracks[i] = merges[t]+l
 		
 	def stripgroups(self):
-		''' remove groups that are used by no faces, return the reindex list '''
+		''' Remove groups that are used by no faces, return the reindex list '''
 		used = [False] * len(self.groups)
 		for track in self.tracks:
 			used[track] = True
@@ -121,7 +121,7 @@ class Container:
 		return reindex
 	
 	def finish(self):
-		''' finish and clean the mesh 
+		''' Finish and clean the mesh 
 			note that this operation can cost as much as other transformation operation
 			job done
 
@@ -139,7 +139,7 @@ class Container:
 	# --- verification methods ---
 		
 	def isvalid(self):
-		''' return true if the internal data is consistent (all indices referes to actual points and groups) '''
+		''' Return true if the internal data is consistent (all indices referes to actual points and groups) '''
 		try:				self.check()
 		except MeshError:	return False
 		else:				return True
@@ -147,7 +147,7 @@ class Container:
 	# --- selection methods ---
 	
 	def maxnum(self):
-		''' maximum numeric value of the mesh, use this to get an hint on its size or to evaluate the numeric precision '''
+		''' Maximum numeric value of the mesh, use this to get an hint on its size or to evaluate the numeric precision '''
 		m = 0
 		for p in self.points:
 			for v in p:
@@ -156,7 +156,7 @@ class Container:
 		return m
 	
 	def precision(self, propag=3):
-		''' numeric coordinate precision of operations on this mesh, allowed by the floating point precision '''
+		''' Numeric coordinate precision of operations on this mesh, allowed by the floating point precision '''
 		return self.maxnum() * NUMPREC * (2**propag)
 		
 	def usepointat(self, point, neigh=NUMPREC):
@@ -168,17 +168,17 @@ class Container:
 		return i
 	
 	def pointat(self, point, neigh=NUMPREC):
-		''' return the index of the first point at the given location, or None '''
+		''' Return the index of the first point at the given location, or None '''
 		for i,p in enumerate(self.points):
 			if distance(p,point) <= neigh:	return i
 	
 	def pointnear(self, point):
-		''' return the nearest point the the given location '''
+		''' Return the nearest point the the given location '''
 		return min(	range(len(self.points)), 
 					lambda i: distance(self.points[i], point))
 					
 	def box(self):
-		''' return the extreme coordinates of the mesh (vec3, vec3) '''
+		''' Return the extreme coordinates of the mesh (vec3, vec3) '''
 		if not self.points:		return Box()
 		max = deepcopy(self.points[0])
 		min = deepcopy(self.points[0])
@@ -190,7 +190,7 @@ class Container:
 		
 		
 	def option(self, update=None, **kwargs):
-		''' update the internal options with the given dictionnary and the keywords arguments.
+		''' Update the internal options with the given dictionary and the keywords arguments.
 			This is only a shortcut to set options in a method style.
 		'''
 		if update:	self.options.update(update)
@@ -199,7 +199,7 @@ class Container:
 
 
 class Mesh(Container):
-	''' set of triangles, used to represent volumes or surfaces.
+	''' Set of triangles, used to represent volumes or surfaces.
 		As volumes are represented by their exterior surface, there is no difference between representation of volumes and faces, juste the way we interpret it.
 		
 		Attributes:
@@ -221,7 +221,7 @@ class Mesh(Container):
 		self.options = options or {}
 	
 	def __add__(self, other):
-		''' append the faces and points of the other mesh '''
+		''' Append the faces and points of the other mesh '''
 		if isinstance(other, Mesh):
 			r = Mesh(
 				self.points if self.points is other.points else self.points[:], 
@@ -235,7 +235,7 @@ class Mesh(Container):
 			return NotImplemented
 			
 	def __iadd__(self, other):
-		''' append the faces and points of the other mesh '''
+		''' Append the faces and points of the other mesh '''
 		if isinstance(other, Mesh):		
 			if self.points is other.points:
 				self.faces.extend(other.faces)
@@ -256,7 +256,7 @@ class Mesh(Container):
 	# --- mesh optimization ---
 		
 	def mergepoints(self, merges):
-		''' merge points with the merge dictionnary {src index: dst index}
+		''' Merge points with the merge dictionary {src index: dst index}
 			merged points are not removed from the buffer.
 		'''
 		i = 0
@@ -275,7 +275,7 @@ class Mesh(Container):
 		self.faces.shrink()
 	
 	def strippoints(self, used=None):
-		''' remove points that are used by no faces, return the reindex list.
+		''' Remove points that are used by no faces, return the reindex list.
 			if used is provided, these points will be removed without usage verification
 			
 			return a table of the reindex made
@@ -294,14 +294,14 @@ class Mesh(Container):
 		return reindex
 	
 	def flip(self):
-		''' flip all faces, getting the normals opposite '''
+		''' Flip all faces, getting the normals opposite '''
 		return Mesh(self.points, 
 					typedlist((uvec3(f[0],f[2],f[1]) for f in self.faces), dtype=uvec3), 
 					self.tracks, 
 					self.groups)
 		
 	def issurface(self):
-		''' return True if the mesh is a well defined surface (an edge has 2 connected triangles at maximum, with coherent normals)
+		''' Return True if the mesh is a well defined surface (an edge has 2 connected triangles at maximum, with coherent normals)
 			such meshes are usually called 'manifold'
 		''' 
 		reached = set()
@@ -311,12 +311,12 @@ class Mesh(Container):
 				else:				reached.add(e)
 		return True
 	def isenvelope(self):
-		''' return True if the surfaces are a closed envelope (the outline is empty)
+		''' Return True if the surfaces are a closed envelope (the outline is empty)
 		'''
 		return len(self.outlines_oriented()) == 0
 	
 	def check(self):
-		''' raise if the internal data is inconsistent '''
+		''' Raise if the internal data is inconsistent '''
 		if not (isinstance(self.points, typedlist) and self.points.dtype == vec3):	raise MeshError("points must be a typedlist(dtype=vec3)")
 		if not (isinstance(self.faces, typedlist) and self.faces.dtype == uvec3): 	raise MeshError("faces must be a typedlist(dtype=uvec3)")
 		if not (isinstance(self.tracks, typedlist) and self.tracks.dtype == 'I'): 	raise MeshError("tracks must be a typedlist(dtype='I')")
@@ -332,7 +332,7 @@ class Mesh(Container):
 	# --- selection methods ---
 	
 	def groupnear(self, point):
-		''' return the id of the group for the nearest surface to the given point '''
+		''' Return the id of the group for the nearest surface to the given point '''
 		track = None
 		best = math.inf
 		for i,face in enumerate(self.faces):
@@ -346,7 +346,7 @@ class Mesh(Container):
 	# --- extraction methods ---
 		
 	def facenormal(self, f):
-		''' normal for a face '''
+		''' Normal for a face '''
 		if isinstance(f, Integral):	
 			f = self.faces[f]
 		p0 = self.points[f[0]]
@@ -355,11 +355,11 @@ class Mesh(Container):
 		return normalize(cross(e1, e2))
 	
 	def facenormals(self):
-		''' list normals for each face '''
+		''' List normals for each face '''
 		return typedlist(map(self.facenormal, self.faces), vec3)
 	
 	def edgenormals(self):
-		''' dict of normals for each UNORIENTED edge '''
+		''' Dict of normals for each UNORIENTED edge '''
 		normals = {}
 		for face in self.faces:
 			normal = self.facenormal(face)
@@ -372,7 +372,7 @@ class Mesh(Container):
 	
 		
 	def vertexnormals(self):
-		''' list of normals for each point '''
+		''' List of normals for each point '''
 		
 		# collect the mesh border as edges and as points
 		outline = self.outlines_oriented()
@@ -406,7 +406,7 @@ class Mesh(Container):
 		return normals
 		
 	def tangents(self):
-		''' tangents to outline points '''
+		''' Tangents to outline points '''
 		# outline with associated face normals
 		edges = {}
 		for face in self.faces:
@@ -426,13 +426,13 @@ class Mesh(Container):
 	
 	
 	def facepoints(self, f):
-		''' shorthand to get the points of a face (index is an int or a triplet) '''
+		''' Shorthand to get the points of a face (index is an int or a triplet) '''
 		if isinstance(f, Integral):
 			f = self.faces[f]
 		return self.points[f[0]], self.points[f[1]], self.points[f[2]]
 	
 	def edges(self):
-		''' set of UNORIENTED edges present in the mesh '''
+		''' Set of UNORIENTED edges present in the mesh '''
 		edges = set()
 		for face in self.faces:
 			edges.add(edgekey(face[0], face[1]))
@@ -441,14 +441,14 @@ class Mesh(Container):
 		return edges
 	
 	def edges_oriented(self):
-		''' iterator of ORIENTED edges, directly retreived of each face '''
+		''' Iterator of ORIENTED edges, directly retreived of each face '''
 		for face in self.faces:
 			yield face[0], face[1]
 			yield face[1], face[2]
 			yield face[2], face[0]
 	
 	def group(self, groups):
-		''' return a new mesh linked with this one, containing only the faces belonging to the given groups '''
+		''' Return a new mesh linked with this one, containing only the faces belonging to the given groups '''
 		if isinstance(groups, set):			pass
 		elif hasattr(groups, '__iter__'):	groups = set(groups)
 		else:								groups = (groups,)
@@ -461,7 +461,7 @@ class Mesh(Container):
 		return Mesh(self.points, faces, tracks, self.groups)
 	
 	def outlines_oriented(self):
-		''' return a set of the ORIENTED edges delimiting the surfaces of the mesh '''
+		''' Return a set of the ORIENTED edges delimiting the surfaces of the mesh '''
 		edges = set()
 		for face in self.faces:
 			for e in ((face[0], face[1]), (face[1], face[2]), (face[2],face[0])):
@@ -470,7 +470,7 @@ class Mesh(Container):
 		return edges
 	
 	def outlines_unoriented(self):
-		''' return a set of the UNORIENTED edges delimiting the surfaces of the mesh 
+		''' Return a set of the UNORIENTED edges delimiting the surfaces of the mesh 
 			this method is robust to face orientation aberations
 		'''
 		edges = set()
@@ -482,11 +482,11 @@ class Mesh(Container):
 		return edges
 	
 	def outlines(self):
-		''' return a Web of ORIENTED edges '''
+		''' Return a Web of ORIENTED edges '''
 		return Web(self.points, self.outlines_oriented())
 		
 	def groupoutlines(self):
-		''' return a dict of ORIENTED edges indexing groups.
+		''' Return a dict of ORIENTED edges indexing groups.
 			
 			On a frontier between multiple groups, there is as many edges as groups, each associated to a group.
 		'''
@@ -509,7 +509,7 @@ class Mesh(Container):
 		return Web(self.points, edges, tracks, self.groups)
 		
 	def frontiers(self, *args):
-		''' return a Web of UNORIENTED edges that split the given groups appart.
+		''' Return a Web of UNORIENTED edges that split the given groups appart.
 		
 			if groups is None, then return the frontiers between any groups
 		'''
@@ -536,7 +536,7 @@ class Mesh(Container):
 		return Web(self.points, edges, tracks, list(couples))
 	
 	def surface(self):
-		''' total surface of triangles '''
+		''' Total surface of triangles '''
 		s = 0
 		for f in self.faces:
 			a,b,c = self.facepoints(f)
@@ -544,7 +544,7 @@ class Mesh(Container):
 		return s
 	
 	def barycenter(self):
-		''' surface barycenter of the mesh '''
+		''' Surface barycenter of the mesh '''
 		if not self.faces:	return vec3(0)
 		acc = vec3(0)
 		tot = 0
@@ -556,7 +556,7 @@ class Mesh(Container):
 		return acc / (3*tot)
 	
 	def splitgroups(self, edges=None):
-		''' split the mesh groups into connectivity separated groups.
+		''' Split the mesh groups into connectivity separated groups.
 			the points shared by multiple groups will be duplicated
 			if edges is provided, only the given edges at group frontier will be splitted
 			
@@ -592,7 +592,7 @@ class Mesh(Container):
 		return idents
 		
 	def split(self, edges):
-		''' split the mesh around the given edges. 
+		''' Split the mesh around the given edges. 
 			The points in common with two or more designated edges will be dupliated once or more, and the face indices will be reassigned so that faces each side of the given edges will own a duplicate of that point each.
 		'''
 		# get connectivity and set of edges to manage
@@ -634,7 +634,7 @@ class Mesh(Container):
 	# NOTE: splitfaces(self) ?
 		
 	def islands(self, conn=None) -> '[Mesh]':
-		''' return the unconnected parts of the mesh as several meshes '''
+		''' Return the unconnected parts of the mesh as several meshes '''
 		if not conn:	
 			conn = connef(self.faces)
 		# propagation
@@ -667,7 +667,7 @@ class Mesh(Container):
 		return islands
 		
 	def propagate(self, atface, atisland=None, find=None, conn=None):
-		''' return the unconnected parts of the mesh as several meshes '''
+		''' Return the unconnected parts of the mesh as several meshes '''
 		if not conn:	
 			conn = connef(self.faces)
 		
@@ -703,7 +703,7 @@ class Mesh(Container):
 				atisland(reached)
 				
 	def islands(self, conn=None) -> '[Mesh]':
-		''' return the unconnected parts of the mesh as several meshes '''
+		''' Return the unconnected parts of the mesh as several meshes '''
 		islands = []
 		faces = typedlist(dtype=uvec3)
 		tracks = typedlist(dtype='I')
@@ -718,7 +718,7 @@ class Mesh(Container):
 		return islands
 	
 	def orient(self, dir=None, conn=None) -> 'Mesh':
-		''' flip the necessary faces to make the normals consistent, ensuring the continuity of the out side.
+		''' Flip the necessary faces to make the normals consistent, ensuring the continuity of the out side.
 			
 			Argument `dir` tries to make the result deterministic:
 			
@@ -786,7 +786,7 @@ class Mesh(Container):
 		
 	# NOTE not sure this method is useful
 	def replace(self, mesh, groups=None) -> 'Mesh':
-		''' replace the given groups by the given mesh.
+		''' Replace the given groups by the given mesh.
 			If no groups are specified, it will take the matching groups (with same index) in the current mesh
 		'''
 		if not groups:
@@ -926,7 +926,7 @@ def reprarray(array, name):
 	return '['+content+']'
 
 def striplist(list, used):
-	''' remove all elements of list that match a False in used, return a reindexation list '''
+	''' Remove all elements of list that match a False in used, return a reindexation list '''
 	reindex = [-1] * len(list)
 	j = 0
 	for i,u in enumerate(used):
@@ -953,7 +953,7 @@ def npcast(storage, dtype=None):
 		return np.array(storage, dtype=dtype)
 
 def numpy_to_typedlist(array: 'ndarray', dtype) -> 'typedlist':
-	''' convert a numpy.ndarray into a typedlist with the given dtype, if the conversion is possible term to term '''
+	''' Convert a numpy.ndarray into a typedlist with the given dtype, if the conversion is possible term to term '''
 	ndtype = np.array(typedlist(dtype)).dtype
 	if ndtype.fields:
 		return typedlist(rfn.unstructured_to_structured(array).astype(ndtype, copy=False), dtype)
@@ -961,7 +961,7 @@ def numpy_to_typedlist(array: 'ndarray', dtype) -> 'typedlist':
 		return typedlist(array.astype(ndtype, copy=False), dtype)
 	
 def typedlist_to_numpy(array: 'typedlist', dtype) -> 'ndarray':
-	''' convert a typedlist to a numpy.ndarray with the given dtype, if the conversion is possible term to term '''
+	''' Convert a typedlist to a numpy.ndarray with the given dtype, if the conversion is possible term to term '''
 	tmp = np.array(array, copy=False)
 	if tmp.dtype.fields:
 		return rfn.structured_to_unstructured(tmp, dtype)
@@ -969,7 +969,7 @@ def typedlist_to_numpy(array: 'typedlist', dtype) -> 'ndarray':
 		return tmp.astype(dtype)
 		
 def ensure_typedlist(obj, dtype):
-	''' return a typedlist with the given dtype, create it from whatever is in obj if needed '''
+	''' Return a typedlist with the given dtype, create it from whatever is in obj if needed '''
 	if isinstance(obj, typedlist) and obj.dtype == dtype:
 		return obj
 	else:
@@ -977,7 +977,7 @@ def ensure_typedlist(obj, dtype):
 
 
 class Web(Container):
-	''' set of bipoint edges, used to represent wires
+	''' Set of bipoint edges, used to represent wires
 		this definition is very close to the definition of Mesh, but with edges instead of triangles
 		
 		Attributes:
@@ -998,7 +998,7 @@ class Web(Container):
 		self.options = options or {}
 		
 	def __add__(self, other):
-		''' append the faces and points of the other mesh '''
+		''' Append the faces and points of the other mesh '''
 		if isinstance(other, Web):
 			r = Web(
 				self.points if self.points is other.points else self.points[:], 
@@ -1012,7 +1012,7 @@ class Web(Container):
 			return NotImplemented
 			
 	def __iadd__(self, other):
-		''' append the faces and points of the other mesh '''
+		''' Append the faces and points of the other mesh '''
 		if isinstance(other, Web):
 			if self.points is other.points:
 				self.edges.extend(other.edges)
@@ -1031,14 +1031,14 @@ class Web(Container):
 			return NotImplemented
 	
 	def flip(self):
-		''' reverse direction of all edges '''
+		''' Reverse direction of all edges '''
 		return Web(	self.points, 
 					typedlist((uvec2(b,a)  for a,b in self.edges), dtype=uvec2), 
 					self.tracks, 
 					self.groups)
 		
 	def segmented(self, group=None):
-		''' return a copy of the mesh with a group each edge 
+		''' Return a copy of the mesh with a group each edge 
 		
 			if group is specified, it will be the new definition put in each groups
 		'''
@@ -1051,7 +1051,7 @@ class Web(Container):
 	# --- mesh optimization ---
 	
 	def mergepoints(self, merges):
-		''' merge points with the merge dictionnary {src index: dst index}
+		''' Merge points with the merge dictionary {src index: dst index}
 			remaining points are not removed
 		'''
 		i = 0
@@ -1068,7 +1068,7 @@ class Web(Container):
 				i += 1
 	
 	def strippoints(self, used=None):
-		''' remove points that are used by no edges, return the reindex list.
+		''' Remove points that are used by no edges, return the reindex list.
 			if used is provided, these points will be removed without usage verification
 			
 			return a table of the reindex made
@@ -1088,7 +1088,7 @@ class Web(Container):
 	# --- verification methods ---
 			
 	def isline(self):
-		''' true if each point is used at most 2 times by edges '''
+		''' True if each point is used at most 2 times by edges '''
 		reached = typedlist.full(0, len(self.points), 'I')
 		for line in self.edges:
 			for p in line:	reached[p] += 1
@@ -1097,11 +1097,11 @@ class Web(Container):
 		return True
 	
 	def isloop(self):
-		''' true if the wire form a loop '''
+		''' True if the wire form a loop '''
 		return len(self.extremities) == 0
 	
 	def check(self):
-		''' check that the internal data references are good (indices and list lengths) '''
+		''' Check that the internal data references are good (indices and list lengths) '''
 		if not (isinstance(self.points, typedlist) and self.points.dtype == vec3):	raise MeshError("points must be a typedlist(dtype=vec3)")
 		if not (isinstance(self.edges, typedlist) and self.edges.dtype == uvec2): 	raise MeshError("edges must be in a typedlist(dtype=uvec2)")
 		if not (isinstance(self.tracks, typedlist) and self.tracks.dtype == 'I'): 	raise MeshError("tracks must be in a typedlist(dtype='I')")
@@ -1117,7 +1117,7 @@ class Web(Container):
 	# --- extraction methods ---
 		
 	def extremities(self):
-		''' return the points that are used once only (so at wire terminations)
+		''' Return the points that are used once only (so at wire terminations)
 			1D equivalent of Mesh.outlines()
 		'''
 		extr = set()
@@ -1128,7 +1128,7 @@ class Web(Container):
 		return extr
 	
 	def groupextremities(self):
-		''' return the extremities of each group.
+		''' Return the extremities of each group.
 			1D equivalent of Mesh.groupoutlines()
 			
 			On a frontier between multiple groups, there is as many points as groups, each associated to a group.
@@ -1152,7 +1152,7 @@ class Web(Container):
 		return Wire(self.points, indices, tracks, self.groups)
 		
 	def frontiers(self, *args):
-		''' return a Wire of points that split the given groups appart.
+		''' Return a Wire of points that split the given groups appart.
 		
 			if groups is None, then return the frontiers between any groups
 		'''
@@ -1179,7 +1179,7 @@ class Web(Container):
 		
 		
 	def group(self, groups):
-		''' return a new mesh linked with this one, containing only the faces belonging to the given groups '''
+		''' Return a new mesh linked with this one, containing only the faces belonging to the given groups '''
 		if isinstance(groups, set):			pass
 		elif hasattr(groups, '__iter__'):	groups = set(groups)
 		else:								groups = (groups,)
@@ -1192,7 +1192,7 @@ class Web(Container):
 		return Web(self.points, edges, tracks, self.groups)
 		
 	def islands(self) -> '[Web]':
-		''' return the unconnected parts of the mesh as several meshes '''
+		''' Return the unconnected parts of the mesh as several meshes '''
 		conn = Asso(	[(e[0],i)  for i,e in enumerate(self.edges)]
 					+	[(e[1],i)  for i,e in enumerate(self.edges)])
 		# propagation
@@ -1222,14 +1222,14 @@ class Web(Container):
 		return islands
 	
 	def length(self):
-		''' total length of edges '''
+		''' Total length of edges '''
 		s = 0
 		for a,b in lineedges(self):
 			s += distance(self.points[a], self.points[b])
 		return s
 	
 	def barycenter(self):
-		''' curve barycenter of the mesh '''
+		''' Curve barycenter of the mesh '''
 		if not self.edges:	return vec3(0)
 		acc = vec3(0)
 		tot = 0
@@ -1241,7 +1241,7 @@ class Web(Container):
 		return acc / (2*tot)
 	
 	def arcs(self):
-		''' return the contiguous portions of this web '''
+		''' Return the contiguous portions of this web '''
 		return [Wire(self.points, typedlist(loop, dtype=uvec2))		for loop in suites(self.edges, oriented=False)]
 		
 	def edgepoints(self, e):
@@ -1249,7 +1249,7 @@ class Web(Container):
 		return self.points[e[0]], self.points[e[1]]
 	
 	def edgedirection(self, e):
-		''' direction of edge e '''
+		''' Direction of edge e '''
 		if isinstance(e, Integral):	e = self.edges[e]
 		return normalize(self.points[e[1]] - self.points[e[0]])
 	
@@ -1302,7 +1302,7 @@ class Web(Container):
 
 
 def glmarray(array, dtype='f4'):
-	''' create a numpy array from a list of glm vec '''
+	''' Create a numpy array from a list of glm vec '''
 	buff = np.array(glm.array(array), copy=False)
 	if buff.dtype == np.float64:	buff = buff.astype(np.float32)
 	elif buff.dtype == np.int64:	buff = buff.astype(np.int32)
@@ -1365,7 +1365,7 @@ class Wire(Container):
 	def __len__(self):	return len(self.indices)
 	def __iter__(self):	return (self.points[i] for i in self.indices)
 	def __getitem__(self, i):
-		''' return the ith point of the wire, useful to use the wire in a same way as list of points
+		''' Return the ith point of the wire, useful to use the wire in a same way as list of points
 		
 			equivalent to `self.points[self.indices[i]]` 
 		'''
@@ -1392,7 +1392,7 @@ class Wire(Container):
 		return self
 		
 	def segmented(self, group=None):
-		''' return a copy of the mesh with a group each edge 
+		''' Return a copy of the mesh with a group each edge 
 		
 			if group is specified, it will be the new definition put in each groups
 		'''
@@ -1404,7 +1404,7 @@ class Wire(Container):
 					)
 	
 	def mergeclose(self, limit=None):
-		''' merge close points ONLY WHEN they are already linked by an edge.
+		''' Merge close points ONLY WHEN they are already linked by an edge.
 			the meaning of this method is different than `Web.mergeclose()`
 		'''
 		if limit is None:	limit = self.precision()
@@ -1424,13 +1424,13 @@ class Wire(Container):
 		return merges
 		
 	def isvalid(self):
-		''' return True if the internal data are consistent '''
+		''' Return True if the internal data are consistent '''
 		try:				self.check()
 		except MeshError:	return False
 		else:				return True
 	
 	def check(self):
-		''' raise if the internal data are not consistent '''
+		''' Raise if the internal data are not consistent '''
 		if not (isinstance(self.points, typedlist) and self.points.dtype == vec3):	raise MeshError("points must be a typedlist(dtype=vec3)")
 		if not (isinstance(self.indices, typedlist) and self.indices.dtype == 'I'): 	raise MeshError("indices must be a typedlist(dtype='I')")
 		if self.tracks and not (isinstance(self.tracks, typedlist) and self.tracks.dtype == 'I'): 	raise MeshError("tracks must be a typedlist(dtype='I')")
@@ -1442,19 +1442,19 @@ class Wire(Container):
 			if max(self.tracks) >= len(self.groups):	raise MeshError("some tracks are greater than the number of groups", max(self.tracks), len(self.groups))
 
 	def edge(self, i):
-		''' ith edge of the wire '''
+		''' Ith edge of the wire '''
 		return uvec2(self.indices[i], self.indices[i+1])
 	def edges(self):
-		''' list of successive edges of the wire '''
+		''' List of successive edges of the wire '''
 		return typedlist((self.edge(i)  for i in range(len(self.indices)-1)), dtype=uvec2)
 		
 	def edgedirection(self, e):
-		''' direction of edge e '''
+		''' Direction of edge e '''
 		if isinstance(e, Integral):	e = self.indices[e], self.indices[e+1]
 		return normalize(self.points[e[1]] - self.points[e[0]])
 	
 	def group(self, groups):
-		''' return a new mesh Wire with this one, containing only the indices belonging to the given groups '''
+		''' Return a new mesh Wire with this one, containing only the indices belonging to the given groups '''
 		if not self.tracks:
 			return self
 		if isinstance(groups, set):			pass
@@ -1470,14 +1470,14 @@ class Wire(Container):
 		
 	
 	def length(self):
-		''' curviform length of the wire (sum of all edges length) '''
+		''' Curviform length of the wire (sum of all edges length) '''
 		s = 0
 		for i in range(1,len(self.indices)):
 			s += distance(self[i-1], self[i])
 		return s
 		
 	def barycenter(self):
-		''' curve barycenter '''
+		''' Curve barycenter '''
 		if not self.indices:	return vec3(0)
 		if len(self.indices) == 1:	return self.points[self.indices[0]]
 		acc = vec3(0)
@@ -1491,11 +1491,11 @@ class Wire(Container):
 			
 		
 	def barycenter_points(self):
-		''' barycenter of points used '''
+		''' Barycenter of points used '''
 		return sum(self.points[i]	for i in self.indices) / len(self.indices)
 	
 	def vertexnormals(self, loop=False):
-		''' return the opposed direction to the curvature in each point 
+		''' Return the opposed direction to the curvature in each point 
 			this is called normal because it would be the normal to a surface whose section would be that wire
 		'''
 		normals = typedlist.full(vec3(0), len(self.indices))
@@ -1506,7 +1506,7 @@ class Wire(Container):
 		return normals
 		
 	def tangents(self, loop=False):
-		''' return approximated tangents to the curve as if it was a surface section.
+		''' Return approximated tangents to the curve as if it was a surface section.
 			if this is not a loop the result is undefined.
 		'''
 		tangents = typedlist.full(vec3(0), len(self.indices))
@@ -1541,7 +1541,7 @@ class Wire(Container):
 					normals[i] = normals[i-1]
 	
 	def normal(self):
-		''' return an approximated normal to the curve as if it was the outline of a flat surface.
+		''' Return an approximated normal to the curve as if it was the outline of a flat surface.
 			if this is not a loop the result is undefined.
 		'''
 		area = vec3(0)
@@ -1551,7 +1551,7 @@ class Wire(Container):
 		return normalize(area)
 	
 	def __add__(self, other):
-		''' append the indices and points of the other wire '''
+		''' Append the indices and points of the other wire '''
 		if isinstance(other, Wire):
 			r = Wire(
 				self.points if self.points is other.points else self.points[:], 
@@ -1565,7 +1565,7 @@ class Wire(Container):
 			return NotImplemented
 			
 	def __iadd__(self, other):
-		''' append the indices and points of the other wire '''
+		''' Append the indices and points of the other wire '''
 		if isinstance(other, Wire):		
 			li = len(self.indices)
 			
@@ -1595,7 +1595,7 @@ class Wire(Container):
 			return NotImplemented
 		
 	def strippoints(self):
-		''' remove points that are used by no edge, return the reindex list.
+		''' Remove points that are used by no edge, return the reindex list.
 			if used is provided, these points will be removed without usage verification
 			
 			return a table of the reindex made
@@ -1658,7 +1658,7 @@ def wire(*arg):
 # --- common tools ----
 
 class mono(object):
-	''' this is a class pretending to be an array
+	''' This is a class pretending to be an array
 		its __getitem__ and __setitem__ will always answer that its elements are its provided `value`
 	'''
 	__slots__ = 'value',
@@ -1677,7 +1677,7 @@ class mono(object):
 			yield self.value
 
 class jitmap(object):
-	''' array like map that supports __getitem__ and __setitem__ '''
+	''' Array like map that supports __getitem__ and __setitem__ '''
 	__slots__ = 'func', 'inverse', 'source'	
 	def __init__(self, source, func, inverse=None):
 		self.func = func
@@ -1713,18 +1713,18 @@ class jitmap(object):
 # connectivity:
 		
 def edgekey(a,b):
-	''' return a key for a non-directional edge '''
+	''' Return a key for a non-directional edge '''
 	if a < b:	return (a,b)
 	else:		return (b,a)
 	
 def facekeyo(a,b,c):
-	''' return a key for an oriented face '''
+	''' Return a key for an oriented face '''
 	if a < b and b < c:		return (a,b,c)
 	elif a < b:				return (c,a,b)
 	else:					return (b,c,a)
 	
 def arrangeface(f, p):
-	''' return the face indices rotated the way the `p` is the first one '''
+	''' Return the face indices rotated the way the `p` is the first one '''
 	if   p == f[1]:	return f[1],f[2],f[0]
 	elif p == f[2]:	return f[2],f[0],f[1]
 	else:			return f
@@ -1734,7 +1734,7 @@ def arrangeedge(e, p):
 	else:			return e
 
 def connpp(ngons):
-	''' point to point connectivity 
+	''' Point to point connectivity 
 		input is a list of ngons (tuple of 2 to n indices)
 	'''
 	conn = {}
@@ -1746,7 +1746,7 @@ def connpp(ngons):
 	return conn
 	
 def connef(faces):
-	''' connectivity dictionnary, from oriented edge to face '''
+	''' Connectivity dictionary, from oriented edge to face '''
 	conn = {}
 	for i,f in enumerate(faces):
 		for e in ((f[0],f[1]), (f[1],f[2]), (f[2],f[0])):
@@ -1761,7 +1761,7 @@ def connpe(edges):
 	return conn
 
 def connexity(links):
-	''' return the number of links referencing each point as a dictionnary {point: num links} '''
+	''' Return the number of links referencing each point as a dictionary {point: num links} '''
 	reach = {}
 	for l in links:
 		for p in l:
@@ -1770,7 +1770,7 @@ def connexity(links):
 		
 
 def lineedges(line, closed=False):
-	''' yield the successive couples in line '''
+	''' Yield the successive couples in line '''
 	if isinstance(line, Wire):	
 		line = line.indices
 	line = iter(line)
@@ -1781,10 +1781,10 @@ def lineedges(line, closed=False):
 	if closed:	yield (i,first)
 	
 def line_simplification(web, prec=None):
-	''' return a dictionnary of merges to simplify edges when there is points aligned.
+	''' Return a dictionary of merges to simplify edges when there is points aligned.
 	
 		This function sort the points to remove on the height of the triangle with adjacent points.
-		The returned dictionnary is guaranteed without cycles
+		The returned dictionary is guaranteed without cycles
 	'''
 	if not prec:	prec = web.precision()
 	pts = web.points
@@ -1815,14 +1815,14 @@ def line_simplification(web, prec=None):
 	
 
 def suites(lines, oriented=True, cut=True, loop=False):
-	''' return a list of the suites that can be formed with lines.
-		lines is an iterable of edges
+	''' Return a list of the suites that can be formed with lines.
+		`lines` is an iterable of edges
 		
 		Parameters:
 			oriented:      specifies that (a,b) and (c,b) will not be assembled
 			cut:           cut suites when they are crossing each others
 		
-		return a list of the sequences that can be formed
+		Return a list of the sequences that can be formed
 	'''
 	lines = list(lines)
 	# get contiguous suite of points
@@ -1861,8 +1861,7 @@ def suites(lines, oriented=True, cut=True, loop=False):
 	
 
 def distance2_pm(point, mesh) -> '(d, prim)':
-	''' squared distance from a point to a mesh
-	'''
+	''' Squared distance from a point to a mesh'''
 	if isinstance(mesh, Mesh):
 		def analyse():
 			for face in mesh.faces:
@@ -1903,8 +1902,7 @@ def distance2_pm(point, mesh) -> '(d, prim)':
 	
 	
 def distance2_pm(point, mesh) -> '(d, prim)':
-	''' squared distance from a point to a mesh
-	'''
+	''' Squared distance from a point to a mesh'''
 	score = inf
 	best = None
 	if isinstance(mesh, Mesh):
@@ -1948,7 +1946,7 @@ def distance2_pm(point, mesh) -> '(d, prim)':
 	return score, best
 
 def mesh_distance(m0, m1) -> '(d, prim0, prim1)':
-	''' minimal distance between elements of meshes 
+	''' Minimal distance between elements of meshes 
 	
 		The result is a tuple `(distance, primitive from m0, primitive from m1)`.
 		`primitive` can be:
@@ -1988,12 +1986,12 @@ def mesh_distance(m0, m1) -> '(d, prim0, prim1)':
 		
 
 def mktri(mesh, pts, track=0):
-	''' append a triangle '''
+	''' Append a triangle '''
 	mesh.faces.append(pts)
 	mesh.tracks.append(track)
 
 def mkquad(mesh, pts, track=0):
-	''' append a quad, choosing the best diagonal '''
+	''' Append a quad, choosing the best diagonal '''
 	if (	distance2(mesh.points[pts[0]], mesh.points[pts[2]]) 
 		<=	distance2(mesh.points[pts[1]], mesh.points[pts[3]]) ):
 		mesh.faces.append((pts[:-1]))
