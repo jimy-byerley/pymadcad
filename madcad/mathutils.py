@@ -99,7 +99,7 @@ def perp(v:vec2) -> vec2:
 	return vec2(-v[1], v[0])
 	
 def dirbase(dir, align=vec3(1,0,0)):
-	''' returns a base using the given direction as z axis (and the nearer vector to align as x) '''
+	''' Return a base using the given direction as z axis (and the nearer vector to align as x) '''
 	x = noproject(align, dir)
 	if not length2(x) > NUMPREC**2:
 		align = vec3(align[2],-align[0],align[1])
@@ -112,7 +112,7 @@ def dirbase(dir, align=vec3(1,0,0)):
 	return x,y,dir
 
 def scaledir(dir, factor=None) -> mat3:
-	''' return a mat3 scaling in the given direction, with the given factor (1 means original scale) 
+	''' Return a mat3 scaling in the given direction, with the given factor (1 means original scale) 
 		if factor is None, the length of dir is used, but it can leads to precision loss on direction when too small.
 	'''
 	if factor is None:
@@ -121,7 +121,7 @@ def scaledir(dir, factor=None) -> mat3:
 	return mat3(1) + (factor-1)*mat3(dir[0]*dir, dir[1]*dir, dir[2]*dir)
 	
 def rotatearound(angle, *args) -> mat4:
-	''' return a transformation matrix for a rotation around an axis
+	''' Return a transformation matrix for a rotation around an axis
 		
 		rotatearound(angle, axis)
 		rotatearound(angle, origin, dir)
@@ -137,10 +137,10 @@ def rotatearound(angle, *args) -> mat4:
 	return m
 
 def transform(*args) -> mat4:
-	''' create an affine transformation matrix.
+	''' Create an affine transformation matrix.
 		
-		supported inputs:
-			:mat4:                                    obviously returns it unmodified
+		Supported inputs:
+			:mat4:                                    obviously return it unmodified
 			:float:                                   scale using the given ratio 
 			:vec3:                                    translation only
 			:quat, mat3, mat4:                        rotation only
