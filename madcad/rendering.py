@@ -43,6 +43,7 @@
 '''
 
 from copy import copy, deepcopy
+from operator import itemgetter
 import traceback
 
 import moderngl as mgl
@@ -503,7 +504,9 @@ class Scene:
 		self.touched = True
 		
 	def dequeue(self):
-		''' load all pending objects to insert into the scene '''
+		''' load all pending objects to insert into the scene.
+			this is called automatically by the next `render()` if `touch()` has been called
+		'''
 		if self.queue:
 			with self.ctx:
 				self.ctx.finish()
@@ -518,19 +521,27 @@ class Scene:
 				self.queue.clear()
 		
 		if self.touched:
-			# recreate stack
-			self.stacks.clear()
-			for key,display in self.displays.items():
-				for frame in display.stack(self):
-					if len(frame) != 4:
-						raise ValueError('wrong frame format in the stack from {}\n\t got {}'.format(display, frame))
-					sub,target,priority,func = frame
-					if target not in self.stacks:	self.stacks[target] = []
-					stack = self.stacks[target]
-					stack.insert(
-								bisect(stack, priority, lambda s:s[1]), 
-								((key,*sub), priority, func))
-			self.touched = False
+			self.restack()
+			
+	def restack(self):
+		''' update the rendering calls stack from the current scene's displays.
+			this is called automatically on `dequeue()`
+		'''
+		# recreate stacks
+		for stack in self.stacks.values():
+			stack.clear()
+		for key,display in self.displays.items():
+			for frame in display.stack(self):
+				if len(frame) != 4:
+					raise ValueError('wrong frame format in the stack from {}\n\t got {}'.format(display, frame))
+				sub,target,priority,func = frame
+				if target not in self.stacks:	self.stacks[target] = []
+				stack = self.stacks[target]
+				stack.append(((key,*sub), priority, func))
+		# sort the stack using the specified priorities
+		for stack in self.stacks.values():
+			stack.sort(key=itemgetter(1))
+		self.touched = False
 	
 	def render(self, view):
 		''' render to the view targets. 

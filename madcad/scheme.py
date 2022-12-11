@@ -74,17 +74,14 @@ class Scheme:
 				- `'ghost'` triangles of surface that fade when its normal is close to the view
 			
 			components (list):   objects to display setting their local space to one of the spaces
-				
-			annotation (bool):     whether this object must be considered as an annotation (and hidden with others when requested)
 			
 			current (dict):     last vertex definition, implicitely reused for convenience
 	'''
-	def __init__(self, vertices=None, spaces=None, primitives=None, annotation=True, **kwargs):
+	def __init__(self, vertices=None, spaces=None, primitives=None, **kwargs):
 		self.vertices = vertices or [] # list of vertices
 		self.spaces = spaces or []	# definition of each space
 		self.primitives = primitives or {} # list of indices for each shader
 		self.components = []	# displayables associated to spaces
-		self.annotation = annotation	# flag saying if this object is an annotation
 		# for creation: last vertex inserted
 		self.current = {'color':fvec4(settings.display['annotation_color'],1), 'flags':0, 'layer':0, 'space':world, 'shader':'wire', 'track':0, 'normal':fvec3(0)}
 		self.set(**kwargs)
@@ -218,9 +215,6 @@ class Scheme:
 		def __init__(self, scene, sch):
 			ctx = scene.ctx
 			
-			# set display params
-			self.annotation = sch.annotation
-			
 			# load the ressources
 			self.shaders, self.shader_ident = scene.ressource('scheme', self.load)
 			
@@ -344,8 +338,6 @@ class Scheme:
 			if self.vai_triangles:	self.vai_triangles.render(mgl.TRIANGLES)
 		
 		def stack(self, scene):
-			if self.annotation and not scene.options['display_annotations']:
-				return
 			yield ((), 'screen', -1, self.compute_spaces)
 			yield ((), 'screen', 2, self.render) 
 			yield ((), 'ident', 2, self.identify)
@@ -496,7 +488,7 @@ def mesh_placement(mesh) -> '(pos,normal)':
 		pos, normal = mesh
 	
 	elif isinstance(mesh, vec3):
-		normal = vec3(0)
+		normal = Z
 		pos = mesh
 		
 	elif hasattr(mesh, 'mesh'):
@@ -979,14 +971,7 @@ def note_diameter(mesh, direction=None, offset=None, d=None, tol=None, text=None
 		for p in f:
 			if dot(mesh.points[p], direction):
 				indev
-	
-def diameter_min(mesh, convex=False):
-	if not convex:
-		convex = simple_convexhull(mesh)
-	
-def diameter_max(mesh, convex=False):
-	indev
-	
+
 def note_surface(placement, offset=None, roughness=None, method=None):
 	indev
 	
@@ -996,9 +981,13 @@ def note_label(placement, offset=None, text='!', style='rect'):
 		`placement` can be any of `Mesh, Web, Wire, axis, vec3`
 	'''
 	p, normal = mesh_placement(placement)
-	if not offset:	
-		size = length(boundingbox(placement).width)
+	if not offset:
 		offset = 0.2 * length(boundingbox(placement).width) * normal
+	elif isinstance(offset, (float,int)):
+		offset = offset*normal
+	elif not isinstance(offset, vec3):
+		raise TypeError('offset must be scalar or vector')
+	
 	color = settings.display['annotation_color']
 	x,_,z = dirbase(normalize(offset))
 	sch = Scheme()

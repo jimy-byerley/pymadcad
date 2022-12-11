@@ -232,15 +232,25 @@ class Solid:
 			if not isinstance(solid, Solid):	return
 			super().update(scene, solid.content)
 			self.solid = solid
-			self.apply_pose()
 			return True
+		
+		def stack(self, scene):
+			for key,display in self.displays.items():
+				if key == 'annotations' and not scene.options['display_annotations'] and not self.selected:
+					continue
+				for sub,target,priority,func in display.stack(scene):
+					yield ((key, *sub), target, priority, func)
 				
 		def control(self, view, key, sub, evt):
+				# solid manipulation
 			if not view.scene.options['lock_solids'] and evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
 				evt.accept()
 				start = view.ptat(view.somenear(evt.pos()))
 				offset = self.solid.position - affineInverse(mat4(self.world)) * start
 				view.tool.append(rendering.Tool(self.move, view, start, offset))
+			# this click might have been a selection, ask for scene restack just in case
+			elif evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
+				view.scene.touch()
 				
 		def move(self, dispatcher, view, pt, offset):
 			moved = False
@@ -300,6 +310,7 @@ def placement(*pairs, precision=1e-3):
 			...		)
 	'''
 	from .reverse import guessjoint
+	from random import random
 	
 	a, b = Solid(), Solid()
 	joints = []
