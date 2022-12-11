@@ -106,7 +106,7 @@ Geometry primitives
     # show the object
     show([line]) # or show([web_line])
 	
-.. image:: /images/simple-wire.jpg
+.. image:: /images/simple-wire.png
 
 Solver
 ******
@@ -135,7 +135,7 @@ That's it ! The primitive list can now be converted to Wire or Web with the good
 
     show([line])
 	
-.. image:: /images/solved-wire.jpg
+.. image:: /images/solved-wire.png
 
 Kinematic
 *********
@@ -174,7 +174,7 @@ Prior part design (or after for assembly), we may want to see how what we are ma
 
     show([kin])
 		
-.. image:: /images/simple-kinematic.jpg
+.. image:: /images/simple-kinematic.png
 
 Kinematics are displayable as interactive objects the user can move. They also are useful to compute force distributions during the movements or movement trajectories or kinematic cycles ...
 
@@ -208,10 +208,10 @@ Suppose we want a torus, let's make a simple revolution around an axis, the extr
        (O, Z),                      # revolution axis, origin=0, direction=Z
        web(circle((A, Y), 0.5)),    # primitive converted into web
    )
-   show([half_tube, axis], options={"display_wire":True})
+   show([half_tube, axis])
 
  
-.. image:: /images/half-tube.jpg
+.. image:: /images/half-tube.png
 
 
 
@@ -238,7 +238,7 @@ Join arbitrary outlines in nicely blended surfaces.
     
    show([mymesh])
 
-.. image:: /images/junction-example.jpg
+.. image:: /images/junction-example.png
 
 Details in module :ref:`generation<generation>`
 
@@ -260,7 +260,7 @@ For some geometries it is much faster to rework the already generated mesh to ad
    diff = difference(m1, m2)
    show([diff])
 	
-.. image:: /images/diff-example.jpg
+.. image:: /images/diff-example.png
 
 An other usual rework operation is cut edges with chamfers or roundings. Because `round` is already a math function, we use the term `bevel`
 
@@ -281,4 +281,4 @@ An other usual rework operation is cut edges with chamfers or roundings. Because
    show([cube])
 
 	
-.. image:: /images/bevel-cube.jpg
+.. image:: /images/bevel-cube.png
