@@ -29,17 +29,17 @@ __all__ = [	'chamfer', 'bevel', 'multicut',
 
 @singledispatch
 def multicut(mesh, indices, cutter):
-	''' cut a Mesh/Web/Wire around the given edges/points, using the given cutter '''
+	''' Cut a Mesh/Web/Wire around the given edges/points, using the given cutter '''
 	raise TypeError('wrong argument type: {}'.format(type(mesh)))
 
 @singledispatch
 def chamfer(mesh, indices, cutter):
-	''' chamfer a Mesh/Web/Wire around the given edges/points, using the given cutter '''
+	''' Chamfer a Mesh/Web/Wire around the given edges/points, using the given cutter '''
 	raise TypeError('wrong argument type: {}'.format(type(mesh)))
 	
 @singledispatch
 def bevel(mesh, indices, cutter):
-	''' bevel a Mesh/Web/Wire around the given edges/points, using the given cutter '''
+	''' Bevel a Mesh/Web/Wire around the given edges/points, using the given cutter '''
 	raise TypeError('wrong argument type: {}'.format(type(mesh)))
 
 
@@ -48,21 +48,21 @@ def bevel(mesh, indices, cutter):
 # ---- cut methods -----
 
 def cutter_width(width, fn1, fn2):
-	''' plane offset for a cut based on the width of the bevel '''
+	''' Plane offset for a cut based on the width of the bevel '''
 	n = normalize(fn1+fn2)
 	s = dot(fn1,n)
 	return -width/2 * sqrt(1/s**2 - 1) * n
 
 def cutter_distance(depth, fn1, fn2):
-	''' plane offset for a cut based on the distance along the side faces '''
+	''' Plane offset for a cut based on the distance along the side faces '''
 	return -depth * normalize(fn1+fn2)
 
 def cutter_depth(dist, fn1, fn2):
-	''' plane offset for a cut based on the distance to the cutted edge '''
+	''' Plane offset for a cut based on the distance to the cutted edge '''
 	return -dist * cross(normalize(cross(fn1,fn2)), fn1-fn2)
 
 def cutter_radius(depth, fn1, fn2):
-	''' plane offset for a cut based on the angle between faces '''
+	''' Plane offset for a cut based on the angle between faces '''
 	n = normalize(fn1 + fn2)
 	s = dot(fn1,n)
 	return -depth * (1/s - s) * n
@@ -73,7 +73,7 @@ def cutter_radius(depth, fn1, fn2):
 # ----- mesh operations ------
 
 def planeoffsets(mesh, edges, cutter):
-	''' compute the offsets for cutting planes using the given method 
+	''' Compute the offsets for cutting planes using the given method 
 		cutter is a tuple or a function
 		
 			- function(fn1,fn2) -> offset 		
@@ -116,7 +116,7 @@ def interpretcutter(cutter):
 
 		
 def mesh_cut(mesh, start, cutplane, stops, conn, prec, removal, cutghost=True):
-	''' propagation cut for an edge 
+	''' Propagation cut for an edge 
 		
 		:start:		the edge or point to start propagation from
 		:cutplane:	the plane cutting the faces. Its normal must be oriented toward the propagation area.
@@ -280,7 +280,7 @@ def propagate(mesh, edges, conn, prec):
 	
 @multicut.register(Mesh)
 def mesh_multicut(mesh, edges, cutter, conn=None, prec=None, removal=None):
-	''' general purpose edge cutting function.
+	''' General purpose edge cutting function.
 		cut the given edges and the crossing corners, resolving the interference issues.
 		
 		cutter can either be a argument for planeoffsets or more directly a dict `{edgekey: offset vector}` for each passed edge.
@@ -390,7 +390,7 @@ def mesh_multicut(mesh, edges, cutter, conn=None, prec=None, removal=None):
 	return outlines
 
 def finalize(mesh, outlines, removal, prec):
-	''' function finalizing the mesh for multicut
+	''' Function finalizing the mesh for multicut
 		removing faces and simplifying outlines
 	'''
 	# simplify cuts
@@ -438,7 +438,7 @@ def segmentsdict(line):
 	return segments
 
 def intersection_plane_plane(p0, p1, neigh=None):
-	''' return the intersection axis between two planes '''
+	''' Return the intersection axis between two planes '''
 	if not neigh:	neigh = p0[0]
 	d = cross(p0[1], p1[1])
 	if length(d) <= NUMPREC:	return None
@@ -448,7 +448,7 @@ def intersection_plane_plane(p0, p1, neigh=None):
 		), normalize(d)
 
 def intersection_edge_plane(edge, axis, prec):
-	''' return the intersection point of an edge with a plane, or None if it doesn't exist 
+	''' Return the intersection point of an edge with a plane, or None if it doesn't exist 
 		In case of an intersection at an extremity of the edge, return that edge point
 	'''
 	a, b = edge
@@ -463,7 +463,7 @@ def intersection_edge_plane(edge, axis, prec):
 	return a + da * edgedir / proj
 
 def intersection_axis_face(axis, face, prec):
-	''' intersection between an axis and a triangle
+	''' Intersection between an axis and a triangle
 		In case of intersection with an edge of the triangle, return None
 	'''
 	n = cross(face[1]-face[0], face[2]-face[0])
@@ -478,7 +478,7 @@ def intersection_axis_face(axis, face, prec):
 
 
 def removefaces(mesh, crit):
-	''' remove faces whose indices are present in faces, (for huge amount, prefer pass faces as a set) '''
+	''' Remove faces whose indices are present in faces, (for huge amount, prefer pass faces as a set) '''
 	newfaces = typedlist(dtype=uvec3)
 	newtracks = typedlist(dtype='I')
 	for i in range(len(mesh.faces)):
@@ -489,7 +489,7 @@ def removefaces(mesh, crit):
 	mesh.tracks = newtracks
 	
 def removeedges(mesh, crit):
-	''' remove faces whose indices are present in faces, (for huge amount, prefer pass faces as a set) '''
+	''' Remove faces whose indices are present in faces, (for huge amount, prefer pass faces as a set) '''
 	newedges = typedlist(dtype=uvec2)
 	newtracks = typedlist(dtype='I')
 	for i in range(len(mesh.edges)):
@@ -530,7 +530,7 @@ def faceheight(mesh, fi):
 
 @chamfer.register(Mesh)
 def mesh_chamfer(mesh, edges, cutter):
-	''' create a chamfer on the given suite of points, create faces are planes.
+	''' Create a chamfer on the given suite of points, create faces are planes.
 		cutter is described in function planeoffsets()
 	'''
 	# cut faces
@@ -582,7 +582,7 @@ def mesh_chamfer(mesh, edges, cutter):
 
 @bevel.register(Mesh)
 def mesh_bevel(mesh, edges, cutter, resolution=None):
-	''' create a chamfer on the given suite of points, create faces are planes.
+	''' Create a chamfer on the given suite of points, create faces are planes.
 		cutter is described in function planeoffsets()
 	'''
 	if isinstance(edges, Web):	edges = edges.edges
@@ -718,7 +718,7 @@ def mesh_bevel(mesh, edges, cutter, resolution=None):
 from .nprint import nprint
 	
 def web_cut(web, start, cutplane, conn, prec, removal):
-	''' propagation cut for a point 
+	''' Propagation cut for a point 
 		
 		:start:		the edge or point to start propagation from
 		:cutplane:	the plane cutting the faces. Its normal must be oriented toward the propagation area.
@@ -832,7 +832,7 @@ def web_bevel(obj, points, cutter, resolution=None):
 	obj.groups.append('bevel')
 	
 	def tangentat(p):
-		''' find the tangent axis to the given cut point, 
+		''' Find the tangent axis to the given cut point, 
 			the third element is whether the original edge direction is opposite to the given tangent 
 		'''
 		e = obj.edges[next(conn[p])]
@@ -960,7 +960,7 @@ def wire_bevel(wire, points, cutter, resolution=None):
 # --- mesh tangent generation functions ----
 
 def tangentarc(s0, s1, resolution=None):
-	''' create a tangent curve to both given axis. 
+	''' Create a tangent curve to both given axis. 
 		return the curve as a list of points 
 	'''
 	p0, t0 = s0
@@ -973,8 +973,8 @@ def tangentarc(s0, s1, resolution=None):
 	return [ interpol2(s0, s1, j/(div+1))   for j in range(div+2) ]
 
 def tangentend(points, edge, normals, div):
-	''' join a tangent surface resulting of `tangentcorner` or `tangentjunction` to a straight edge e 
-		normals is the same dict as for tangentcorner and tangentjunction
+	''' Join a tangent surface resulting of `tangentcorner` or `tangentjunction` to a straight edge e 
+		`normals` is the same dict as for tangentcorner and tangentjunction
 	'''
 	l, r = edge
 	pl, pr = points[l], points[r]
@@ -991,7 +991,7 @@ def tangentend(points, edge, normals, div):
 	
 
 def tangentcorner(pts, lp, normals, div):
-	''' create a rounded surface tangent to the loop given
+	''' Create a rounded surface tangent to the loop given
 		`normals` is a dict {point: normal}
 	'''
 	new = Mesh()
@@ -1014,7 +1014,7 @@ def tangentcorner(pts, lp, normals, div):
 	return new
 
 def tangentjunction(points, match, normals, div):
-	''' create a surface joining the given couples of points, tangent to the two sides
+	''' Create a surface joining the given couples of points, tangent to the two sides
 		`normals` is a dict {point: normal}
 	'''
 	def infos():
