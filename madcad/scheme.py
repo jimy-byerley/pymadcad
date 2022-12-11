@@ -49,7 +49,7 @@ __all__ = ['Scheme',
 
 
 class Scheme:
-	''' an object containing schematics. 
+	''' An object containing schematics. 
 	
 		This is a buffer object, it isnot intended to be useful to modify a scheme.
 		
@@ -90,7 +90,7 @@ class Scheme:
 		self.set(**kwargs)
 		
 	def __iadd__(self, other):
-		''' concatenante the content of an other scheme in the current one
+		''' Concatenante the content of an other scheme in the current one
 			
 			the current settings stay as before concatenation
 		'''
@@ -113,16 +113,16 @@ class Scheme:
 		return self
 		
 	def __add__(self, other):
-		''' return the union of the two schemes 
+		''' Return the union of the two schemes.
 		
-			the current settings are those from first scheme
+			The current settings are those from first scheme
 		'''
 		r = deepcopy(self)
 		r += other
 		return r
 		
 	def set(self, *args, **kwargs):
-		''' change the specified attributes in the current default vertex definition '''
+		''' Change the specified attributes in the current default vertex definition '''
 		if args:
 			if len(args) == 1 and isinstance(args[0], dict):
 				kwargs = args[0]
@@ -142,9 +142,9 @@ class Scheme:
 		return self
 	
 	def add(self, obj, **kwargs):
-		''' add an object to the scheme
-			if it is a mesh it's merged in the current buffers 
-			else it is added as a component to the current space
+		''' Add an object to the scheme.
+			If it is a mesh, it's merged in the current buffers. 
+			Else it is added as a component to the current space.
 		'''
 		self.set(kwargs)
 		if self.current['shader'] not in self.primitives:
@@ -199,16 +199,16 @@ class Scheme:
 		return self
 	
 	def component(self, obj, **kwargs):
-		''' add an object as component associated to the current space '''
+		''' Add an object as component associated to the current space '''
 		self.set(**kwargs)
 		self.components.append((self.current['space'], obj))
 		
 		return self
 	
 	class display(Display):
-		''' display for schemes
+		''' Display for schemes
 			
-			attributes:
+			Attributes:
 			:spaces:       numpy array of matrices for each space, sent as uniform to the shader
 			:vb_vertices:  vertex buffer for vertices
 			:vas:          vertex array associated to each shader
@@ -289,7 +289,7 @@ class Scheme:
 				self.vb_vertices = None
 			
 		def load(self, scene):
-			''' load shaders and all static data for the current opengl context '''
+			''' Load shaders and all static data for the current OpenGL context '''
 			vert = open(ressourcedir+'/shaders/scheme.vert').read()
 			shader_ident = scene.ctx.program(
 						vertex_shader=vert,
@@ -312,8 +312,8 @@ class Scheme:
 			return shaders, shader_ident
 			
 		def compute_spaces(self, view):
-			''' computes the new spaces for this frame
-				this is meant to be overriden when new spaces are required 
+			''' Compute the new spaces for this frame.
+				This is meant to be overriden when new spaces are required 
 			'''
 			view.uniforms['world'] = self.world
 			for i,gen in enumerate(self.spacegens):
@@ -324,7 +324,7 @@ class Scheme:
 					disp.world = invview * self.spaces[space]
 		
 		def render(self, view):
-			''' render each va in self.vas '''
+			''' Render each va in self.vas '''
 			#self.compute_spaces(view)
 			for name in self.vas:
 				shader = self.shaders[name][1]
@@ -335,7 +335,7 @@ class Scheme:
 				va.render(prim)
 		
 		def identify(self, view):
-			''' render all the triangles and lines for identification '''
+			''' Render all the triangles and lines for identification '''
 			self.shader_ident['startident'] = view.identstep(self.nidents)
 			self.shader_ident['spaces'].write(self.spaces)
 			self.shader_ident['proj'].write(view.uniforms['proj'])
@@ -366,8 +366,8 @@ class SchemeInstance:
 			self.spaces = deepcopy(disp.spaces)
 			
 		def compute_spaces(self, view):
-			''' computes the new spaces for this frame
-				this is meant to be overriden when new spaces are required 
+			''' Computes the new spaces for this frame.
+				This is meant to be overriden when new spaces are required 
 			'''
 			view.uniforms['world'] = self.world
 			for i,gen in enumerate(self.spacegens):
@@ -511,7 +511,7 @@ class note_leading_display(Display):
 
 
 def mesh_placement(mesh) -> '(pos,normal)':
-	''' return an axis for placement of a note on the given object '''
+	''' Return an axis for placement of a note on the given object '''
 	if isinstance(mesh, Mesh):
 		# group center normal
 		center = mesh.barycenter()
@@ -547,7 +547,7 @@ def mesh_placement(mesh) -> '(pos,normal)':
 	return pos, normal
 
 def note_leading(placement, offset=None, text='here'):
-	''' place a leading note at given position
+	''' Place a leading note at given position
 	
 		`placement` can be any of `Mesh, Web, Wire, axis, vec3`
 	'''
@@ -562,11 +562,11 @@ def note_leading(placement, offset=None, text='here'):
 
 
 def note_floating(position, text):
-	''' place a floating note at given position '''
+	''' Place a floating note at given position '''
 	return txt.Text(position, text, align=(0,0), color=settings.display['annotation_color'], size=9)
 
 def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None, side=False):
-	''' place a distance quotation between 2 points, 
+	''' Place a distance quotation between 2 points, 
 		the distance can be evaluated along vector `project` if specified 
 	'''
 	# get text to display
@@ -616,7 +616,7 @@ def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None, sid
 	return sch
 	
 def note_distance_planes(s0, s1, offset=None, d=None, tol=None, text=None):
-	''' place a distance quotation between 2 meshes 
+	''' Place a distance quotation between 2 meshes 
 		
 		`s0` and `s1` can be any of `Mesh, Web, Wire`
 	'''
@@ -633,7 +633,7 @@ def note_distance_planes(s0, s1, offset=None, d=None, tol=None, text=None):
 	return note_distance(p0, p1, offset, n0, d, tol, text)
 	
 def note_distance_set(s0, s1, offset=0, d=None, tol=None, text=None):
-	''' place a distance quotation between 2 objects. This is the distance between the closest elements of both sets 
+	''' Place a distance quotation between 2 objects. This is the distance between the closest elements of both sets 
 	
 		`s0` and `s1` can be any of `Mesh, Web, Wire, vec3`
 	'''
@@ -653,7 +653,7 @@ def note_distance_set(s0, s1, offset=0, d=None, tol=None, text=None):
 		
 
 def note_angle(a0, a1, offset=0, d=None, tol=None, text=None, unit='deg', side=False):
-	''' place an angle quotation between 2 axis '''
+	''' Place an angle quotation between 2 axis '''
 	o0, d0 = a0
 	o1, d1 = a1
 	z = normalize(cross(d0,d1))
@@ -713,8 +713,8 @@ def note_angle(a0, a1, offset=0, d=None, tol=None, text=None, unit='deg', side=F
 	return sch
 	
 def note_radius(mesh, offset=None, d=None, tol=None, text=None, propagate=2):
-	''' place a curvature radius quotation. This will be the minimal curvature radius ovserved in the mesh 
-		As a mesh is generaly speaking an approximation of the desired shape, the radius may be approximative as well
+	''' Place a curvature radius quotation. This will be the minimal curvature radius observed in the mesh 
+		As a mesh is generally speaking an approximation of the desired shape, the radius may be approximative as well
 	'''
 	if isinstance(mesh, Mesh):
 		normals = mesh.vertexnormals()
@@ -745,7 +745,7 @@ import numpy as np
 from .mesh import connpp
 	
 def mesh_curvature_radius(mesh, conn=None, normals=None, propagate=2) -> '(distance, point)':
-	''' find the minimum curvature radius of a mesh.
+	''' Find the minimum curvature radius of a mesh.
 	
 		Parameters:
 		
@@ -754,7 +754,7 @@ def mesh_curvature_radius(mesh, conn=None, normals=None, propagate=2) -> '(dista
 			normals:		the vertex normals (computed if not provided)
 			propagate(int):	the maximum propagation rank for points to pick for the regression
 	
-		Returns:	`(distance: float, point: int)` where primitives varies according to the input mesh dimension
+		Return:	`(distance: float, point: int)` where primitives varies according to the input mesh dimension
 	'''
 		
 	def propagate_pp(conn, start, maxrank):
@@ -823,7 +823,7 @@ def mesh_curvature_radius(mesh, conn=None, normals=None, propagate=2) -> '(dista
 	
 	
 def mesh_curvature_radius(mesh, conn=None, normals=None, propagate=2) -> '(distance, point)':
-	''' find the minimum curvature radius of a mesh.
+	''' Find the minimum curvature radius of a mesh.
 	
 		Parameters:
 		
@@ -832,7 +832,7 @@ def mesh_curvature_radius(mesh, conn=None, normals=None, propagate=2) -> '(dista
 			normals:		the vertex normals (computed if not provided)
 			propagate(int):	the maximum propagation rank for points to pick for the regression
 	
-		Returns:	`(distance: float, point: int)` where primitives varies according to the input mesh dimension
+		Return:	`(distance: float, point: int)` where primitives varies according to the input mesh dimension
 	'''
 		
 	curvatures = mesh_curvatures(mesh, conn, normals, propagate)
@@ -843,7 +843,7 @@ def mesh_curvature_radius(mesh, conn=None, normals=None, propagate=2) -> '(dista
 	return 1/np.max(np.abs(curvatures[place][0])), place
 	
 def mesh_curvatures(mesh, conn=None, normals=None, propagate=2):
-	''' compute the curvature around a point in a mesh/web/wire
+	''' Compute the curvature around a point in a mesh/web/wire
 	
 		Parameters:
 		
@@ -852,7 +852,7 @@ def mesh_curvatures(mesh, conn=None, normals=None, propagate=2):
 			normals:		the vertex normals (computed if not provided)
 			propagate(int):	the maximum propagation rank for points to pick for the regression
 	
-		Returns:	
+		Return:	
 			
 			`[(tuple, mat3)]`
 			
@@ -927,7 +927,7 @@ def mesh_curvatures(mesh, conn=None, normals=None, propagate=2):
 
 
 def note_bounds(obj):
-	''' create dimension annotations on the boundingbox of an object '''
+	''' Create dimension annotations on the boundingbox of an object '''
 	box = boundingbox(obj)
 	size = 0.05 * length(box.width)
 	return [
@@ -948,7 +948,7 @@ def _mesh_direction(mesh):
 		raise TypeError('only Mesh and Web are supported')
 	
 def note_angle_planes(s0, s1, offset=0, d=None, tol=None, text=None, unit='deg'):
-	''' place an angle quotation between 2 meshes considered to be plane (surface) or straight (curve) 
+	''' Place an angle quotation between 2 meshes considered to be plane (surface) or straight (curve) 
 	
 		`s0` and `s1` can be any of `Mesh, Web, Wire, Axis`
 	'''
@@ -964,7 +964,7 @@ def note_angle_planes(s0, s1, offset=0, d=None, tol=None, text=None, unit='deg')
 				offset, d, tol, text, unit)
 				
 def note_angle_edge(part, edge, offset=0, d=None, tol=None, text=None, unit='deg'):
-	''' place an angle quotation around a mesh edge '''
+	''' Place an angle quotation around a mesh edge '''
 	f0 = None
 	f1 = None
 	for face in part.faces:
@@ -992,7 +992,7 @@ def note_surface(placement, offset=None, roughness=None, method=None):
 	indev
 	
 def note_label(placement, offset=None, text='!', style='rect'):
-	''' place a text label upon an object 
+	''' Place a text label upon an object 
 	
 		`placement` can be any of `Mesh, Web, Wire, axis, vec3`
 	'''
