@@ -13,7 +13,7 @@ class FileFormatError(Exception):	pass
 
 
 def filetype(name, type=None):
-	''' get the name for the file format, using the given forced type or the name extension '''
+	''' Get the name for the file format, using the given forced type or the name extension '''
 	if not type:
 		type = name[name.rfind('.')+1:]
 	if not type:
@@ -21,7 +21,7 @@ def filetype(name, type=None):
 	return type
 	
 def read(name: str, type=None, **opts) -> Mesh:
-	''' load a mesh from a file, guessing its file type '''
+	''' Load a mesh from a file, guessing its file type '''
 	type = filetype(name, type)
 	reader = globals().get(type+'_read')
 	if reader:
@@ -30,7 +30,7 @@ def read(name: str, type=None, **opts) -> Mesh:
 		raise FileFormatError('no read function available for format '+type)
 
 def write(mesh: Mesh, name: str, type=None, **opts):
-	''' write a mesh to a file, guessing its file type '''
+	''' Write a mesh to a file, guessing its file type '''
 	type = filetype(name, type)
 	writer = globals().get(type+'_write')
 	if writer:
@@ -43,11 +43,11 @@ caches = {}
 def cache(filename: str, create: callable=None, name=None, storage=None, **opts) -> Mesh:
 	''' Small cachefile system, it allows to dump objects to files and to get them when needed.
 		
-		It's particularly usefull when working with other processes. The cached files are reloaded only when the cache files are newer than the memory cache data
+		It's particularly useful when working with other processes. The cached files are reloaded only when the cache files are newer than the memory cache data.
 		
-		If specified, create() is called to provide the data, in case it doesn't exist in memory neighter as file
-		if specified, name is the cache name used to index the file it defaults to the filename
-		if specified, storage is the dictionnary used to storage cache data, defaults to io.caches
+		If specified, create() is called to provide the data, in case it doesn't exist in memory neither as file.
+		If specified, name is the cache name used to index the file it defaults to the `filename`.
+		If specified, storage is the dictionary used to storage cache data, defaults to io.caches.
 	'''
 	if not storage:	storage = caches
 	if not name:	name = filename
