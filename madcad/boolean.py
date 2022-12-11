@@ -51,7 +51,7 @@ __all__ = ['pierce', 'boolean', 'intersection', 'union', 'difference']
 def cut_mesh(m1, m2, prec=None) -> '(Mesh, Web)':
 	''' Cut m1 faces at their intersections with m2. 
 		
-		Returns:	
+		Return:	
 			
 			`(cutted, frontier)`
 			
@@ -260,7 +260,7 @@ def boolean_mesh(m1, m2, sides=(False,True), prec=None) -> Mesh:
 def cut_web(w1: Web, ref: Web, prec=None) -> '(Web, Wire)':
 	''' Cut the web edges at their intersectsions with the `ref` web
 		
-		Returns:
+		Return:
 			
 			`(cutted, frontier)`
 			
@@ -412,7 +412,7 @@ def boolean_web(w1, w2, sides, prec=None):
 
 	
 def intersect_edges(e1: '(vec3,vec3)', e2: '(vec3,vec3)', prec) -> vec3:
-	''' intersection between 2 segments '''
+	''' Intersection between 2 segments '''
 	d1 = e1[1]-e1[0]
 	d2 = e2[1]-e2[0]
 	g = e1[0]-e2[0]
@@ -428,7 +428,7 @@ def intersect_edges(e1: '(vec3,vec3)', e2: '(vec3,vec3)', prec) -> vec3:
 def cut_web_mesh(w1: Web, ref: Mesh, prec=None) -> '(Web, Wire)':
 	''' Cut the web inplace at its intersections with the `ref` web.
 	
-		Returns:
+		Return:
 		
 			`(cutted, frontier)`
 	'''
@@ -532,7 +532,7 @@ def pierce_web_mesh(w1: Web, ref: Mesh, side=False, prec=None) -> Web:
 			)
 
 def intersect_edge_face(edge: '(vec3, vec3)', face: '(vec3, vec3, vec3)', prec) -> vec3:
-	''' intersection between a segment and a triangle
+	''' Intersection between a segment and a triangle
 		In case of intersection with an edge of the triangle or an extremity of the edge, return the formed point.
 	'''
 	n = cross(face[1]-face[0], face[2]-face[0])
@@ -564,9 +564,9 @@ pierce_ops = {
 	(Web,Mesh):		pierce_web_mesh,
 	}
 def pierce(m, ref, side=False, prec=None):
-	''' cut a web/mesh and remove its parts considered inside the `ref` shape
+	''' Cut a web/mesh and remove its parts considered inside the `ref` shape
 		
-		overloads:
+		Overloads:
 		
 		.. code::
 		
@@ -590,9 +590,9 @@ boolean_ops = {
 	(Web,Web):		boolean_web,
 	}
 def boolean(a, b, sides=(False,True), prec=None):
-	''' cut two web/mesh and keep its interior or exterior parts
+	''' Cut two web/mesh and keep its interior or exterior parts
 	
-		overloads:
+		Overloads:
 		
 		.. code::
 		
@@ -610,19 +610,19 @@ def boolean(a, b, sides=(False,True), prec=None):
 	return op(a, b, sides, prec)
 
 def union(a, b) -> Mesh:
-	''' return a mesh for the union of the volumes. 
+	''' Return a mesh for the union of the volumes. 
 		It is a boolean with selector `(False,False)`
 	'''
 	return boolean(a,b, (False,False))
 
 def intersection(a, b) -> Mesh:	
-	''' return a mesh for the common volume. 
+	''' Return a mesh for the common volume. 
 		It is a boolean with selector `(True, True)`
 	'''
 	return boolean(a,b, (True,True))
 
 def difference(a, b) -> Mesh:	
-	''' return a mesh for the volume of `a` less the common volume with `b`
+	''' Return a mesh for the volume of `a` less the common volume with `b`
 		It is a boolean with selector `(False, True)`
 	'''
 	return boolean(a,b, (False,True))
