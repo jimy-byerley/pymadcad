@@ -35,7 +35,7 @@ example
 			generate='normal',
 			)
 
-to come in a next version
+To come in a next version
 
 .. code::
 	
@@ -56,7 +56,7 @@ from .nprint import nprint
 
 
 def get_interfaces(objs, tangents, weights):
-	''' collects the data definig interfaces for junctions and blendings out of an iterable of tuples 
+	''' Collects the data definig interfaces for junctions and blendings out of an iterable of tuples 
 		This function has no real interest for the enduser.
 	'''
 	# simply merge results of interface_parse
@@ -81,7 +81,7 @@ def get_interfaces(objs, tangents, weights):
 	return v_pts, v_tangents, v_weights, loops
 		
 def get_interface(base, tangents, weights, loops):
-	''' collects the data definig interfaces for junctions and blendings out of one object 
+	''' Collects the data definig interfaces for junctions and blendings out of one object 
 		This function has no real interest for the enduser.
 	'''
 	# get the interface outline to connect to the others
@@ -146,7 +146,7 @@ def get_interface(base, tangents, weights, loops):
 
 
 def junction(*args, center=None, tangents='normal', weight=1., match='length', resolution=None):
-	''' join several outlines with a blended surface
+	''' Join several outlines with a blended surface
 		
 		tangents:	
 			'straight'	no interpolation, straight lines
@@ -278,7 +278,7 @@ def junction(*args, center=None, tangents='normal', weight=1., match='length', r
 
 
 def multijunction(*nodes, **kwargs):
-	''' resolves partial definitions of interfaces, then create junctions with it 
+	''' Resolves partial definitions of interfaces, then create junctions with it 
 	
 		nodes are lists of interfaces, each of these list will end in a call to `junction`
 		nodes can contain 
@@ -311,7 +311,7 @@ def convexhull(pts):
 
 
 def match_length(line1, line2) -> '[(int, int)]':
-	''' yield couples of point indices where the curved absciss are the closest '''
+	''' Yield couples of point indices where the curved absciss are the closest '''
 	yield line1.indices[0], line2.indices[0]
 	l1, l2 = line1.length(), line2.length()
 	i1, i2 = 1, 1
@@ -338,7 +338,7 @@ def match_length(line1, line2) -> '[(int, int)]':
 
 
 def match_closest(line1, line2) -> '[(int, int)]':
-	''' yield couples of points by cutting each line at the curvilign absciss of the points of the other '''
+	''' Yield couples of points by cutting each line at the curvilign absciss of the points of the other '''
 	l1, l2 = line1.length(), line2.length()
 	p1, p2 = line1.points[line1.indices[0]], line2.points[line2.indices[0]]
 	x = 0
@@ -362,20 +362,20 @@ def match_closest(line1, line2) -> '[(int, int)]':
 		yield (p1, p2)
 
 def dividematch_length(line1, line2, resolution=None, associated=None) -> '[(vec3, vec3)]':
-	''' insert additional couples to ensure smoothness '''
+	''' Insert additional couples to ensure smoothness '''
 	indev
 
 def dividematch_closest(w0:Wire, w1:Wire, resolution=None, associated=None) -> (Wire, Wire):
 	indev
 
 def blend(interfaces, generate='straight', match='length', resolution=None) -> 'Mesh':
-	''' create a direct blended surface between unclosed lines '''	
+	''' Create a direct blended surface between unclosed lines '''	
 	pts, tangents, weights, loops = get_interfaces(args, tangents, weight)
 	
 	indev
 	
 def blendloop(interface, center=None, tangents='tangent', weight=1., resolution=None) -> Mesh:
-	''' blend inside a loop interface 
+	''' Blend inside a loop interface 
 	 
 		see `junction` for the parameters.
 	'''
@@ -401,11 +401,10 @@ def blendloop(interface, center=None, tangents='tangent', weight=1., resolution=
 
 
 def blendpair(*interfaces, match='length', tangents='tangent', weight=1., resolution=None) -> Mesh:
-	''' blend between a pair of interfaces 
+	''' Blend between a pair of interfaces 
 		
 		match:   
-			'length', 'closest'
-			refer to `match_*` in this module 
+			`'length'`, `'closest'` refer to `match_*` in this module 
 	 
 		see `junction` for the other parameters.
 	'''
@@ -450,7 +449,7 @@ def blendpair(*interfaces, match='length', tangents='tangent', weight=1., resolu
 	return blenditer(infos(), div, interpol2)
 
 def blenditer(parameters, div, interpol) -> Mesh:
-	''' create a blended surface using the matching parameters and the given interpolation 
+	''' Create a blended surface using the matching parameters and the given interpolation 
 		parameters is an iterable of tuples of arguments for the interpolation function
 		interpol receive the elements iterated and the interpolation position at the end
 	'''
@@ -474,7 +473,7 @@ def blenditer(parameters, div, interpol) -> Mesh:
 
 
 def synchronize(ref:Wire, loop:Wire) -> Wire:
-	''' assuming loop is a closed Wire, it will change its start point to match the startpoint of ref 
+	''' Assuming loop is a closed Wire, it will change its start point to match the startpoint of ref 
 	'''
 	r0, r1 = 0, int(wire_atlength(ref, ref.length()/2))	# lookup points on ref
 	l0 = l1 = 0	# lookup points on loop: start and middle
@@ -510,7 +509,7 @@ def synchronize(ref:Wire, loop:Wire) -> Wire:
 	return Wire(loop.points, end + loop.indices[:l0+1])
 
 def wire_atlength(wire, length):
-	''' return the index of the wire point at the given length.
+	''' Return the index of the wire point at the given length.
 	
 		the returned value is float whose integer part is the index and floating part is the 
 		ratio of the next segment to use to reach the exact desired length.
@@ -523,7 +522,7 @@ def wire_atlength(wire, length):
 			return i - (length-s)/d
 	
 def join(mesh, line1, line2):
-	''' simple straight surface created from matching couples of line1 and line2 using mesh indices for lines '''
+	''' Simple straight surface created from matching couples of line1 and line2 using mesh indices for lines '''
 	group = len(mesh.groups)
 	mesh.groups.append('blend')
 	match = iter(curvematch(Wire(mesh.points, line1), Wire(mesh.points, line2)))
@@ -538,7 +537,7 @@ def join(mesh, line1, line2):
 		last = couple
 		
 def trijoin(pts, ptgts, div):
-	''' simple straight surface created between 3 points, interpolation is only on the sides '''
+	''' Simple straight surface created between 3 points, interpolation is only on the sides '''
 	mesh = Mesh(groups=['blend'])
 	segts = div+1
 	for i in range(3):
