@@ -413,10 +413,10 @@ img {
     border: 1px solid #1c343c;
 }
 
-.field-list{
-    border-top: 1px solid #c6c5c5;
-    border-bottom: 1px solid #c6c5c5;
-}
+/* .field-list{ */
+/*     border-top: 1px solid #c6c5c5; */
+/*     border-bottom: 1px solid #c6c5c5; */
+/* } */
 
 
 /* ugly stuff to correct other colors from readthedocs */
