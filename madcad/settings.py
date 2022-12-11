@@ -1,6 +1,6 @@
-'''	 The settings module holds dictionnaries each aspect of the madcad library.
+'''	 The settings module holds dictionaries each aspect of the madcad library.
 
-dictionnaries:
+dictionaries:
 	:primitives:  default settings for mesh and primitive operations
 	:display:	visual settings to display the 3D objects
 	:scene:		for what and how to display in the 3D scene
@@ -81,17 +81,17 @@ settings = {'display':display, 'scene':scene, 'controls':controls, 'primitives':
 
 
 def install():
-	''' create and fill the config directory if not already existing '''
+	''' Create and fill the config directory if not already existing '''
 	if not exists(config):
 		os.makedirs(dirname(config), exist_ok=True)
 		dump()
 		
 def clean():
-	''' delete the default configuration file '''
+	''' Delete the default configuration file '''
 	os.rm(config)
 
 def load(file=None):
-	''' load the settings directly in this module, from the specified file or the default one '''
+	''' Load the settings directly in this module, from the specified file or the default one '''
 	if not file:	file = config
 	if isinstance(file, str):	file = open(file, 'r')
 	changes = yaml.safe_load(file)
@@ -107,7 +107,7 @@ def load(file=None):
 	update(settings, changes)
 
 def dump(file=None):
-	''' load the current settings into the specified file or to the default one '''
+	''' Load the current settings into the specified file or to the default one '''
 	if not file:	file = config
 	if isinstance(file, str):	file = open(file, 'w')
 	yaml.add_representer(fvec3, lambda dumper, data: dumper.represent_list(round(f,3) for f in data))
@@ -118,7 +118,7 @@ def dump(file=None):
 
 
 def curve_resolution(length, angle, param=None):
-	''' return the subdivision number for a curve, using the given or setting specification
+	''' Return the subdivision number for a curve, using the given or setting specification
 
 		:length:  is the curvilign length of the curve
 		:angle:   is the integral of the absolute curvature (total rotation angle)
@@ -140,7 +140,7 @@ def curve_resolution(length, angle, param=None):
 	return res
 
 def getparam(levels: list, key):
-	''' get the first found value for key through the given dictionnaries.
+	''' Get the first found value for key through the given dictionnaries.
 		Dictionnaries are tested successively until the matching value is found. If no value is found, None is returned
 	'''
 	for d in levels:
@@ -149,12 +149,12 @@ def getparam(levels: list, key):
 	return None
 
 def use_qt_colors():
-	''' set the color settings to fit the current system colors '''
+	''' Set the color settings to fit the current system colors '''
 	from .mathutils import fvec3, mix, distance
 	from PyQt5.QtWidgets import QApplication
 	palette = QApplication.instance().palette()
 	def qtc(role):
-		''' convert a QColor or QPalette role to fvec3'''
+		''' Convert a QColor or QPalette role to fvec3'''
 		c = palette.color(role)
 		return fvec3(c.red(), c.green(), c.blue()) / 255
 		
