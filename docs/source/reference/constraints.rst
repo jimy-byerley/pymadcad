@@ -25,7 +25,7 @@ Constraints can be any object referencing `variables` and implementing the follo
 
 .. autofunction:: isconstraint
 
-solver
+Solver
 ------
 
 .. autofunction:: solve
@@ -33,7 +33,7 @@ solver
 .. autoclass:: Problem
 	:members:
 	
-constraints definitions
+Constraints definitions
 -----------------------
 
 .. autoclass:: Distance(p1, p2)
@@ -41,5 +41,3 @@ constraints definitions
 .. autoclass:: Angle(s1, s2)
 .. autoclass:: Tangent(c1, c2, p)
 .. autoclass:: OnPlane(axis, pts: list)
-	
-

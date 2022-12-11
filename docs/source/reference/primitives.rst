@@ -46,11 +46,8 @@ specification format:
 		('radm', 0.6)
 		('radm2', 0.6)
 
-		
 
-
-
-primitives types
+Primitives types
 ----------------
 
 .. py:class:: Vector
@@ -140,5 +137,3 @@ primitives types
 .. autoclass:: Softened
 
 	.. image:: /screenshots/primitives-spline-softened.png
-
-

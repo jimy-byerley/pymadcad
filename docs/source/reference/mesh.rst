@@ -26,21 +26,21 @@ classes
 		.. automethod:: stripgroups
 		
 		
-	**check methods**
+	**Check methods**
 	
 		.. automethod:: check
 		.. automethod:: isvalid
 		.. automethod:: issurface
 		.. automethod:: isenvelope
 		
-	**scan methods**
+	**Scan methods**
 	
 		.. automethod:: pointat
 		.. automethod:: usepointat
 		.. automethod:: pointnear
 		.. automethod:: groupnear
 	
-	**extraction methods**
+	**Extraction methods**
 	
 		.. automethod:: facepoints
 		.. automethod:: facenormal
@@ -83,20 +83,20 @@ classes
 		.. automethod:: stripgroups
 		
 		
-	**check methods**
+	**Check methods**
 	
 		.. automethod:: check
 		.. automethod:: isvalid
 		.. automethod:: isline
 		.. automethod:: isloop
 		
-	**scan methods**
+	**Scan methods**
 	
 		.. automethod:: pointat
 		.. automethod:: usepointat
 		.. automethod:: pointnear
 	
-	**extraction methods**
+	**Extraction methods**
 	
 		.. automethod:: edgepoints
 		.. automethod:: edgedirection
@@ -131,12 +131,12 @@ classes
 		.. automethod:: mergeclose
 		.. automethod:: strippoints
 		
-	**check methods**
+	**Check methods**
 	
 		.. automethod:: check
 		.. automethod:: isvalid
 	
-	**extraction methods**
+	**Extraction methods**
 	
 		.. automethod:: edgedirection
 		.. automethod:: edges

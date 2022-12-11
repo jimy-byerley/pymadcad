@@ -5,7 +5,7 @@ cut    - Functions for cutting meshes at edges or points, like chamfer
 
 .. automodule:: madcad.cut
 
-end-user functions
+End-user functions
 ------------------
 
 	.. autofunction:: chamfer
@@ -33,7 +33,7 @@ end-user functions
 
 .. _cutter:
 
-cutters (cut methods)
+Cutters (cut methods)
 ---------------------
 
 	.. image:: /schemes/cutter.svg
@@ -49,7 +49,7 @@ cutters (cut methods)
 		
 	.. autofunction:: cutter_radius
 
-helpers
+Helpers
 -------
 
 	.. autofunction:: mesh_cut

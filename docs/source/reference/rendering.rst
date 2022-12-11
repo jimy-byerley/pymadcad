@@ -8,7 +8,7 @@ rendering   - 3D interface
 This module provides a render pipeline system centered around class 'Scene' and a Qt widget 'View' for window integration and user interaction. 'Scene' is only to manage the objects to render (almost every madcad object). Most of the time you won't need to deal with it directly. The widget is what actually displays it on the screen.
 The objects displayed can be of any type but must implement the display protocol
 	
-display protocol
+Display protocol
 ----------------
 a displayable is an object that implements the signatue of Display:
 
@@ -128,7 +128,7 @@ Rendering system
 		.. automethod:: identstep
 
 
-view settings/interaction methods
+View settings/interaction methods
 ---------------------------------
 
 .. autoclass:: Turntable
@@ -136,7 +136,7 @@ view settings/interaction methods
 .. autoclass:: Perspective
 .. autoclass:: Orthographic
 
-helpers to trick into the pipeline
+Helpers to trick into the pipeline
 ----------------------------------
 
 .. autoclass:: Group

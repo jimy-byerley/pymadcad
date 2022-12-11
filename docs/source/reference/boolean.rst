@@ -5,7 +5,7 @@ boolean    - Boolean cut/intersect/stitch meshes
 
 .. automodule:: madcad.boolean
 
-most common
+Most common
 -----------
 
 .. autofunction:: pierce
@@ -122,7 +122,7 @@ Those are shortcuts for `boolean`:
 
 	.. image:: /screenshots/boolean-intersection.png
 
-more advanced
+More advanced
 -------------
 
 .. autofunction:: cut_web

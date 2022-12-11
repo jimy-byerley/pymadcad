@@ -14,7 +14,7 @@ Most common **glm** types
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-all implements the common operators :code:`+ - * / <> ==`
+All following objects implement the common operators :code:`+ - * / <> ==`
 
 .. autoclass:: vec3
 
@@ -25,13 +25,13 @@ all implements the common operators :code:`+ - * / <> ==`
 .. autoclass:: quat
 
 
-all glm types exists with several element types and in several precision: 
+All `glm` types exists with several element types and in several precision: 
 
 .. list-table:: 
 	:header-rows: 1
 	
-	* - prefix
-	  - precision
+	* - Prefix
+	  - Precision
 	
 	* - **d**
 	  - f64 aka double precisin floating point
@@ -48,8 +48,8 @@ all glm types exists with several element types and in several precision:
 	* - **b**
 	  - bit aka boolean
 
-- precision specification is put as prefix: :code:`dvec3, fvec3, imat4`. Notation without prefix refers to the madcad implementation precision: **float64** (prefix 'd').
-- object dimension is put as suffix.
+- Precision specification is put as prefix: :code:`dvec3, fvec3, imat4`. Notation without prefix refers to the madcad implementation precision: **float64** (prefix 'd').
+- Object dimension is put as suffix.
 
 In this documentation, when we refer to a 'vector' without explicit type, we obviously mean a :code:`vec3` aka. :code:`dvec3`.
 
@@ -62,18 +62,22 @@ Common vector operations
 .. autofunction:: dot
 
 	.. image:: /schemes/mathutils-dot.svg
+           :width: 480
 
 .. autofunction:: cross
 
 	.. image:: /schemes/mathutils-cross.svg
+           :width: 480
 
 .. autofunction:: length
 	
 	.. image:: /schemes/mathutils-length.svg
+           :width: 480
 	
 .. autofunction:: distance
 
 	.. image:: /schemes/mathutils-distance.svg
+           :width: 480
 	
 .. function:: normalize(x) -> vecN
 
@@ -84,6 +88,7 @@ Common vector operations
 .. autofunction:: anglebt
 
 	.. image:: /schemes/mathutils-anglebt.svg
+           :width: 480
 	
 .. autofunction:: arclength
 
@@ -91,19 +96,23 @@ Common vector operations
 .. autofunction:: project
 
 	.. image:: /schemes/mathutils-project.svg
+           :width: 480
 
 .. autofunction:: noproject
 
 	.. image:: /schemes/mathutils-noproject.svg
+           :width: 480
 
 .. autofunction:: unproject
 
 	.. image:: /schemes/mathutils-unproject.svg
+           :width: 480
 
 
 .. autofunction:: perp
 
 	.. image:: /schemes/mathutils-perp.svg
+           :width: 480
 
 .. function:: norm1(x) -> float
 
@@ -160,22 +169,27 @@ Scalar functions
 .. autofunction:: mix
 
 	.. image:: /schemes/mathutils-mix.svg
+           :width: 960
 
 .. autofunction:: hermite
 
 	.. image:: /schemes/mathutils-hermite.svg
+           :width: 960
 
 .. autofunction:: step
 
 	.. image:: /schemes/mathutils-step.svg
+           :width: 480
 	
 .. autofunction:: smoothstep
 
 	.. image:: /schemes/mathutils-smoothstep.svg
+           :width: 480
 	
 .. autofunction:: clamp
 
 	.. image:: /schemes/mathutils-clamp.svg
+           :width: 480
 
 .. autofunction:: intri_smooth
 .. autofunction:: intri_sphere
@@ -223,5 +237,4 @@ Localy defined data types
 	.. automethod:: intersection_update
 	.. automethod:: union_update
 	
-	.. automethod:: transform
-	
+	.. automethod:: transform	
