@@ -1,8 +1,8 @@
 References
 ==========
 
-.. .. warning::
-.. 	The module is still in alpha version and the API may change a lot before release.
+.. warning::
+	The module is still in alpha version and the API may change a lot before release.
 
 .. submodules
 .. ~~~~~~~~~~
