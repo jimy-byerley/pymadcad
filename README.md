@@ -15,7 +15,7 @@ Simple yet powerful CAD (Computer Aided Design) library, written with Python.
 [![support-version](https://img.shields.io/pypi/pyversions/pymadcad.svg)](https://img.shields.io/pypi/pyversions/pymadcad)
 [![PyPI version shields.io](https://img.shields.io/pypi/v/pymadcad.svg)](https://pypi.org/project/pymadcad/)
 [![Documentation Status](https://readthedocs.org/projects/pymadcad/badge/?version=latest)](https://pymadcad.readthedocs.io/en/latest/?badge=latest)
-
+[![#madcad:matrix.org](https://img.shields.io/matrix/madcad:matrix.org.svg)](https://matrix.to/#/#madcad:matrix.org)
 
 ## Features
 
