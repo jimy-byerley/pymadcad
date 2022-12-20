@@ -105,6 +105,9 @@ class Segment(object):
 	def __init__(self, a, b):
 		self.a, self.b = a,b
 		
+	def __call__(self, t):
+		return mix(self.a, self.b, t)
+		
 	@property
 	def direction(self):
 		return normalize(self.b-self.a)
@@ -277,6 +280,13 @@ class TangentEllipsis(object):
 	def __init__(self, a,b,c, resolution=None):
 		self.a, self.b, self.c = a,b,c
 		self.resolution = resolution
+		
+	def __call__(self, t):
+		x = 0.5*pi*t
+		return (  (self.b - self.a)*sin(x) 
+		        + (self.b - self.c)*cos(x)
+		        + self.a + self.c - 2*self.b
+		        )
 	
 	@property
 	def axis(self):
