@@ -27,10 +27,10 @@ from .rendering import Display
 from .common import ressourcedir
 from .mesh import Mesh, Web, Wire, web, wire, mesh_distance, connef, connpe, edgekey, arrangeface, arrangeedge
 from .rendering import Displayable, writeproperty, overrides
+from .text import TextDisplay, textsize
 from .primitives import *
 from . import mathutils
 from . import generation as gt
-from . import text as txt
 from . import settings
 
 __all__ = ['Scheme', 
@@ -499,11 +499,11 @@ def mesh_placement(mesh) -> '(pos,normal)':
 	return pos, normal
 
 
-def note_floating(position, text):
+def note_floating(position, text, align=(0,0)):
 	''' place a floating note at given position '''
-	return txt.Text(position, text, align=(0,0), color=settings.display['annotation_color'], size=settings.display['view_font_size'])
+	return Displayable(TextDisplay, position, text, align=align, color=settings.display['annotation_color'], size=settings.display['view_font_size'])
 
-	
+
 def note_leading(placement, offset=None, text='here'):
 	''' place a leading note at given position
 	
@@ -532,7 +532,7 @@ def note_leading(placement, offset=None, text='here'):
 	font = settings.display['view_font_size']
 	sch.set(space=halo_screen_flipping(fvec3(origin+offset), fvec3(offset)))
 	sch.add([vec3(0), vec3(font*2, 0, 0)], shader='line')
-	sch.add(txt.Text(vec3(txt.textsize(text)[0]/2*0.8*font + font*3, 0, 0), text, align=('center', 0.5), color=fvec4(color,1), size=font))
+	sch.add(Displayable(TextDisplay, vec3(textsize(text)[0]/2*0.8*font + font*3, 0, 0), text, align=('center', 0.5), color=fvec4(color,1), size=font))
 	
 	return sch
 
@@ -565,7 +565,7 @@ def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None, sid
 	sch.add([b, bo])
 	sch.set(layer=-1e-4, color=fvec4(color,0.7))
 	sch.add([ao, bo])
-	sch.add(txt.Text(
+	sch.add(Displayable(TextDisplay,
 				mix(ao,bo,0.5), 
 				text, 
 				align=('center', 0.5), 
@@ -659,7 +659,7 @@ def note_angle(a0, a1, offset=0, d=None, tol=None, text=None, unit='deg', side=F
 	arc = ArcCentered((center,z), p0, p1, ('rad',0.05)).mesh()
 	sch.add(arc, color=fvec4(color,0.7))
 	sch.set(layer=-1e-4)
-	sch.add(txt.Text(
+	sch.add(Displayable(TextDisplay,
 				arc[len(arc)//2], 
 				text, 
 				align=('center', 0.5), 
@@ -1010,7 +1010,13 @@ def note_label(placement, offset=None, text='!', style='rect'):
 	sch.set(space=halo_screen(fvec3(p+offset)))
 	sch.add(outline, shader='line', layer=0)
 	sch.add(gt.flatsurface(wire(outline)), color=fvec4(settings.display['background_color'],0), shader='fill', layer=1e-3)
-	sch.add(txt.Text(p+offset, text, align=('center','center'), size=font, color=color), space=world)
+	sch.add(Displayable(TextDisplay,
+				p+offset, 
+				text, 
+				align=('center','center'), 
+				size=font, 
+				color=color), 
+			space=world)
 	return sch
 	
 
@@ -1093,7 +1099,7 @@ def note_base(matrix, color=None, labels=('X', 'Y', 'Z'), name=None, size=0.4):
 			shader='fill',
 			)
 		if axislabel or name:
-			sch.add(txt.Text(5*z, axislabel+' '+name, align=(0.5,0.5), color=color))
+			sch.add(Displayable(TextDisplay, 5*z, axislabel+' '+name, align=(0.5,0.5), color=color))
 	
 	return sch
 	

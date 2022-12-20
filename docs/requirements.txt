@@ -11,3 +11,4 @@ numpy>=1.1
 PyQt5>=5
 Pillow>=5.4
 arrex>=0.3.1
+freetype-py>=2.3

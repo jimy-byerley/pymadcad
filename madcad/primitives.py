@@ -117,7 +117,7 @@ class Segment(object):
 	def slv_tangent(self, pt):
 		return self.direction
 	
-	def mesh(self):
+	def mesh(self, resolution=None):
 		return mesh.Wire([self.a, self.b], groups=[None])
 		
 	def __repr__(self):

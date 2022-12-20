@@ -164,7 +164,6 @@ from .triangulation import TriangulationError
 from .hull import convexhull, convexoutline, horizon
 
 from .scheme import *
-from .text import Text
 from .rendering import Scene, Display, displayable, show, render
 
 from .standard import *

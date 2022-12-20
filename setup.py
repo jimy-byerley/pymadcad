@@ -28,6 +28,7 @@ setup(
 		'PLY': ['plyfile>=0.7'],
 		'STL': ['numpy-stl>=2'],
 		'OBJ': ['PyWavefront>=1.3'],
+		'freetype': ['freetype-py>=2.3'],
 		},
 	# source declaration
 	packages=find_packages(),
