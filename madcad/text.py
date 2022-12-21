@@ -69,7 +69,9 @@ def font_list():
 	''' yield all font files found '''
 	for location in font_locations():
 		try:
-			yield from os.listdir(location)
+			for name in os.listdir(location):
+				if name.endswith('.ttf'):
+					yield name
 		except (NotADirectoryError, FileNotFoundError):
 			pass
 
