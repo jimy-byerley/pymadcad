@@ -100,6 +100,9 @@ Common vector operations
 
 	.. image:: /schemes/mathutils-unproject.svg
 
+.. autofunction:: reflect
+
+	.. image:: /schemes/mathutils-reflect.svg
 
 .. autofunction:: perp
 
@@ -131,11 +134,26 @@ Transformations
 
 .. autofunction:: transform
 
-.. autofunction:: dirbase
+.. autofunction:: translate
+
+	.. image:: /schemes/mathutils-translate.svg
+
+.. autofunction:: rotate
+
+	.. image:: /schemes/mathutils-rotate.svg
 
 .. autofunction:: scaledir
 
+	.. image:: /schemes/mathutils-scaledir.svg
+
+.. autofunction:: scale
+
+	.. image:: /schemes/mathutils-scale.svg
+
+
 .. autofunction:: rotatearound
+
+.. autofunction:: dirbase
 
 .. autofunction:: transpose
 
