@@ -86,7 +86,9 @@
 }
 
 .wy-nav-content{
-		max-width: 100%;
+		max-width: 960px;
+    align-content: center;
+    margin:auto;
 }
 
 .wy-nav-content-wrap {

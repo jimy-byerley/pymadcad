@@ -53,5 +53,4 @@ Color
 
 .. image:: /images/display/color.png
 
-
 To get more information, please refer to :ref:`rendering<rendering>`.
