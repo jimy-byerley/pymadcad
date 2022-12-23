@@ -13,7 +13,7 @@ Simple yet powerful CAD (Computer Aided Design) library, written with Python.
 	guide.rst
 	reference/index.rst
 	algorithms.md
-	development.rst
+	development.md
 
 Indices and tables
 ==================
