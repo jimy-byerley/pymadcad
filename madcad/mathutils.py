@@ -5,6 +5,7 @@
 import glm
 from glm import *
 del version, license
+import math
 from math import pi, inf, nan, atan2
 from copy import deepcopy
 max = __builtins__['max']
@@ -41,6 +42,8 @@ Z = vec3(0,0,1)
 
 def isfinite(x):
 	''' Return false if x contains a `inf` or a `nan` '''
+	if isinstance(x, (int,float)):
+		return math.isfinite(x)
 	return not (glm.any(isinf(x)) or glm.any(isnan(x)))
 
 def norminf(x):
@@ -72,7 +75,10 @@ def project(vec, dir) -> vec3:
 		The result is not sensitive to the length of `dir`
 	'''
 	try:	return dot(vec,dir) / dot(dir,dir) * dir
-	except ZeroDivisionError:	return vec3(nan)
+	except ZeroDivisionError:	
+		if dot(vec,vec):		return vec3(nan)
+		else:					return vec3(0)
+		
 	
 def noproject(vec, dir) -> vec3:
 	''' Components of `vec` not along `dir`, equivalent to :code:`vec - project(vec,dir)` 
@@ -86,9 +92,10 @@ def unproject(vec, dir) -> vec3:
 	
 		The result is not sensitive to the length of `dir`
 	'''
-	if not dot(vec,vec	):		return vec3(0)
-	try:						return dot(vec,vec) / dot(vec,dir) * dir
-	except ZeroDivisionError:	return vec3(nan)
+	try:	return dot(vec,vec) / dot(vec,dir) * dir
+	except ZeroDivisionError:	
+		if dot(vec,vec):		return vec3(nan)
+		else:					return vec3(0)
 
 def perpdot(a:vec2, b:vec2) -> float:
 	''' Dot product of a with perpendicular vector to b, equivalent to `dot(a, prep(b))` '''
@@ -183,12 +190,9 @@ def transformer(trans):
 			:mat4:  affine transform (rotate then translate)
 	'''
 	if isinstance(trans, (dquat, fquat)):		trans = mat3_cast(trans)
-	if callable(trans):							return trans
-	if isinstance(trans, (dvec3, fvec3)):		return lambda v: v + trans
-	if isinstance(trans, (dmat3, fmat3)):		return lambda v: trans * v
-	if isinstance(trans, (int, float)):			return lambda v: trans * v
-	if isinstance(trans, dmat4):				return lambda v: dvec3(trans * dvec4(v,1))
-	if isinstance(trans, fmat4):				return lambda v: fvec3(trans * fvec4(v,1))
+	if callable(trans):													return trans
+	if isinstance(trans, (dvec3, fvec3)):								return lambda v: v + trans
+	if isinstance(trans, (dmat3, fmat3, dmat4, fmat4, int, float)):		return lambda v: trans * v
 	raise TypeError('a transformer must be a  vec3, quat, mat3, mat4 or callable, not {}'.format(trans))
 
 

@@ -47,7 +47,7 @@ To come in a next version
 			)
 '''
 
-from .mesh import Mesh, Wire, Web, wire, connef, edgekey, glmarray, suites, arrangeface, mkquad
+from .mesh import Mesh, Wire, Web, wire, connef, edgekey, suites, arrangeface, mkquad, numpy_to_typedlist, typedlist_to_numpy
 from .mathutils import *
 from . import settings
 from . import generation
@@ -305,8 +305,11 @@ def convexhull(pts):
 	if len(pts) == 3:
 		return Mesh(pts, [(0,1,2),(0,2,1)])
 	else:
-		hull = scipy.spatial.ConvexHull(glmarray(pts))
-		return Mesh(pts, [tuple(v) for v in hull.simplices])
+		return Mesh(pts, numpy_to_typedlist(
+			scipy.spatial.ConvexHull(
+				typedlist_to_numpy(pts, 'f8'), 
+				qhull_options='QJ Pp',
+				).simplices, uvec3))
 	
 
 
@@ -454,7 +457,7 @@ def blenditer(parameters, div, interpol) -> Mesh:
 		interpol receive the elements iterated and the interpolation position at the end
 	'''
 	segts = div+2
-	mesh = Mesh(groups=['blend'])
+	mesh = Mesh(groups=[None])
 	# create interpolation points
 	steps = 0
 	for params in parameters:
@@ -524,7 +527,7 @@ def wire_atlength(wire, length):
 def join(mesh, line1, line2):
 	''' Simple straight surface created from matching couples of line1 and line2 using mesh indices for lines '''
 	group = len(mesh.groups)
-	mesh.groups.append('blend')
+	mesh.groups.append(None)
 	match = iter(curvematch(Wire(mesh.points, line1), Wire(mesh.points, line2)))
 	last = next(match)
 	for couple in match:
@@ -538,7 +541,7 @@ def join(mesh, line1, line2):
 		
 def trijoin(pts, ptgts, div):
 	''' Simple straight surface created between 3 points, interpolation is only on the sides '''
-	mesh = Mesh(groups=['blend'])
+	mesh = Mesh(groups=[None])
 	segts = div+1
 	for i in range(3):
 		for j in range(segts):

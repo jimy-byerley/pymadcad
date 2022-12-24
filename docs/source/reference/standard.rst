@@ -131,4 +131,12 @@ Standard sections for extrusion
 	
 .. autofunction:: section_c
 
-	.. image:: /screenshots/section_c.png		
+	.. image:: /screenshots/section_c.png
+	
+
+Numeric helpers
+~~~~~~~~~~~~~~~
+
+.. autofunction:: stfloor
+.. autofunction:: stceil
+.. py:data:: standard_digits

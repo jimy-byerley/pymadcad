@@ -2,7 +2,7 @@
 
 # cython: language_level=3, cdivision=True
 
-from libc.math cimport fabs, ceil, floor, sqrt, fmod, INFINITY
+from libc.math cimport fabs, ceil, floor, sqrt, fmod, isfinite, INFINITY
 cimport cython
 import glm
 
@@ -76,6 +76,9 @@ cdef:
 		return cvec3(b.x + a.x*x,
 					b.y + a.y*x,
 					b.z + a.z*x)
+					
+	int visfinite(cvec3 v):
+		return isfinite(v.x) and isfinite(v.y) and isfinite(v.z)
 
 cdef cvec3 glm2c(v):
 	cdef cvec3 r
@@ -110,11 +113,14 @@ def rasterize_segment(spaceo, double cell):
 	cdef cvec3 space[2]
 	cdef double prec
 	
-	if cell <= 0:	raise ValueError('cell must be strictly positive')
-	
 	space = [glm2c(spaceo[0]), glm2c(spaceo[1])]
 	rasterization = []
 	prec = NUMPREC * max(norminf(space[0]), norminf(space[1]))
+	
+	if not cell > 0:	
+		raise ValueError('cell must be strictly positive')
+	if not (visfinite(space[0]) and visfinite(space[1])):	
+		raise ValueError('cannot rasterize non finite space')
 	
 	# permutation of coordinates to get the direction the closest to Z
 	n = vabs(vsub(space[1], space[0]))
@@ -182,11 +188,14 @@ def rasterize_triangle(spaceo, double cell):
 	cdef cvec3 space[3]
 	cdef double prec
 	
-	if cell <= 0:	raise ValueError('cell must be strictly positive')
-	
 	space = [glm2c(spaceo[0]), glm2c(spaceo[1]), glm2c(spaceo[2])]
 	rasterization = []
 	prec = NUMPREC*max(norminf(space[0]), norminf(space[1]), norminf(space[2]))
+	
+	if not cell > 0:	
+		raise ValueError('cell must be strictly positive')
+	if not (visfinite(space[0]) and visfinite(space[1])):	
+		raise ValueError('cannot rasterize non finite space')
 	
 	# permutation of coordinates to get the normal the closer to Z
 	n = vabs(cross(vsub(space[1],space[0]), vsub(space[2],space[0])))
@@ -418,7 +427,6 @@ def intersect_triangles(f0, f1, precision):
 		# M edge of A crosses face B and P edge of B crosses face A
 		return (0, eIA[miA], c2glm(vaffine(pA1, d, xIA[miA]))), (1, eIB[piB], c2glm(vaffine(pA1, d, xIB[piB])))
 	
-	print("error in intersect_triangles: unexpected case : ", fA, fB)
-	return None
+	raise Exception("unexpected case: {} {}".format(repr(fA), repr(fB)))
 
 

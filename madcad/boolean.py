@@ -62,7 +62,7 @@ def cut_mesh(m1, m2, prec=None) -> '(Mesh, Web)':
 		The algorithm is using ngon intersections and retriangulation, in order to avoid infinite loops and intermediate triangles.
 	'''
 	if not prec:	prec = m1.precision()
-	frontier = Web(m1.points, groups=list(m2.faces))	# cut points for each face from m2
+	frontier = Web(m1.points, groups=m2.faces)	# cut points for each face from m2
 	
 	# topology informations for optimization
 	points = hashing.PointSet(prec, manage=m1.points)
@@ -144,7 +144,6 @@ def cut_mesh(m1, m2, prec=None) -> '(Mesh, Web)':
 			# retriangulate the cutted surface
 			segts.edges.extend(uvec2(b,a) for a,b in segts.edges[:])
 			segts.edges.extend(outline)
-			segts.tracks = typedlist.full(0, len(segts.edges), 'I')
 			flat = triangulation.triangulation_closest(segts, normal, prec)
 			# append the triangulated face, in association with the original track
 			flat.tracks = typedlist.full(track, len(flat.faces), 'I')
@@ -161,7 +160,7 @@ def cut_mesh(m1, m2, prec=None) -> '(Mesh, Web)':
 	return mn, frontier
 
 
-def pierce_mesh(m1, m2, side=False, prec=None, strict=False) -> set:
+def pierce_mesh(m1, m2, side=False, prec=None, strict=False) -> Mesh:
 
 	if not prec:	prec = m1.precision()
 	m1, frontier = cut_mesh(m1, m2, prec)
@@ -191,6 +190,7 @@ def pierce_mesh(m1, m2, side=False, prec=None, strict=False) -> set:
 							front.append((f[i], f[i-1]))
 							front.append((f[i-2], f[i]))
 						break
+	
 	if not front:
 		if side:
 			m1.faces = typedlist(dtype=uvec3)
@@ -198,15 +198,16 @@ def pierce_mesh(m1, m2, side=False, prec=None, strict=False) -> set:
 		return m1
 	
 	## display frontier
-	#from . import text
-	#for edge in stops:
-		#p = (m1.points[edge[0]] + m1.points[edge[1]]) /2
-		#scn3D.add(text.Text(p, str(edge), 9, (1, 1, 0)))
 	#if debug_propagation:
+		#from . import text
+		#for edge in stops:
+			#p = (m1.points[edge[0]] + m1.points[edge[1]]) /2
+			#scn3D.append(text.Text(p, str(edge), 9, (1, 1, 0)))
 		#from .mesh import Web
 		#w = Web([1.01*p for p in m1.points], frontier.edges)
 		#w.options['color'] = (1,0.9,0.2)
-		#scn3D.add(w)
+		#scn3D.append(w)
+		#scn3D.append([text.Text(p, str(i))  for i,p in enumerate(m1.points)])
 	
 	# propagation
 	front = [e for e in front if edgekey(*e) not in stops]
@@ -233,16 +234,19 @@ def pierce_mesh(m1, m2, side=False, prec=None, strict=False) -> set:
 		#for i,u in enumerate(used):
 			#if u:
 				#p = m1.facepoints(i)
-				#scn3D.add(text.Text((p[0]+p[1]+p[2])/3, str(u), 9, (1,0,1), align=('center', 'center')))
+				#scn3D.append(text.Text((p[0]+p[1]+p[2])/3, str(u), 9, (1,0,1), align=('center', 'center')))
 	
 	# filter mesh content to keep
 	return Mesh(
 			m1.points,
-			[f for u,f in zip(used, m1.faces) if u > 0],
-			[t for u,t in zip(used, m1.tracks) if u > 0],
+			(f for u,f in zip(used, m1.faces) if u > 0),
+			(t for u,t in zip(used, m1.tracks) if u > 0),
 			m1.groups,
 			)
 
+#debug_propagation = True
+#scn3D = []
+			
 def boolean_mesh(m1, m2, sides=(False,True), prec=None) -> Mesh:
 
 	if not prec:	prec = max(m1.precision(), m2.precision())
@@ -329,7 +333,7 @@ def cut_web(w1: Web, ref: Web, prec=None) -> '(Web, Wire)':
 
 from .nprint import nprint
 	
-def pierce_web(web, ref, side=False, prec=None):
+def pierce_web(web, ref, side=False, prec=None) -> Web:
 
 	if not prec:	prec = web.precision()
 	web, frontier = cut_web(web, ref, prec)
@@ -367,12 +371,12 @@ def pierce_web(web, ref, side=False, prec=None):
 				web.groups,
 				)
 				
-def boolean_web(w1, w2, sides, prec=None):
+def boolean_web(w1, w2, sides, prec=None) -> Web:
 
 	if not prec:	prec = max(w1.precision(), w2.precision())
 	
-	result = pierce_web(w1, w2, sides[0], prec)
-	w2, frontier = cut_web(w2, result, prec)
+	mc1 = pierce_web(w1, w2, sides[0], prec)
+	w2, frontier = cut_web(w2, mc1, prec)
 	conn2 = connpe(w2.edges)		# connectivity
 	stops = set(frontier.indices)	# propagation stop points
 	
@@ -382,8 +386,8 @@ def boolean_web(w1, w2, sides, prec=None):
 		front = []	# points on the propagation front
 		
 		# check which side to keep to respect the choices made in the first web
-		e1 = result.edges[ei]
-		direction = sides[0] ^ sides[1] ^ (distance2(w2.points[p2], result.points[e1[0]]) < distance2(w2.points[p2], result.points[e1[1]]))
+		e1 = mc1.edges[ei]
+		direction = sides[0] ^ sides[1] ^ (distance2(w2.points[p2], mc1.points[e1[0]]) < distance2(w2.points[p2], mc1.points[e1[1]]))
 		for ei in conn2[p2]:
 			if w2.edges[ei][direction] == p2:
 				front.append(w2.edges[ei][direction-1])
@@ -402,12 +406,18 @@ def boolean_web(w1, w2, sides, prec=None):
 				front.append(next)
 					
 	# filter web content to keep
-	return result + Web(
+	mc2 = Web(
 			w2.points,
 			[e  for u,e in zip(used, w2.edges) if u],
 			[t  for u,t in zip(used, w2.tracks) if u],
 			w2.groups,
 			)
+	
+	if sides[0] and not sides[1]:		mc1 = mc1.flip()
+	if not sides[0] and sides[1]:		mc2 = mc2.flip()
+	res = mc1 + mc2
+	res.mergeclose()
+	return res
 		
 
 	
@@ -581,7 +591,7 @@ def pierce(m, ref, side=False, prec=None):
 	'''
 	op = pierce_ops.get((type(m), type(ref)))
 	if not op:
-		raise TypeError('pierce is not possible between {} and {}'.format(type(m), type(ref)))
+		raise TypeError('pierce is not possible between {} and {}'.format(type(m).__name__, type(ref).__name__))
 	return op(m, ref, side, prec)
 
 

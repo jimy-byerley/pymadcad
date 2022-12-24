@@ -107,6 +107,19 @@ test_bevel_gear("Bevel gear wheel", pi * m, z_wheel, shaft_angle - gamma_p, pres
 test_spherical_rack_profile("Spherical rack", z_pinion/sin(gamma_p))
 
 
+z_pinion = 12
+z_wheel = 40
+m = 1
+shaft_angle = pi / 3
+helix_angle = pi / 3
+gamma_p = get_pitch_cone_angle(z_pinion, z_wheel)
+pressure_angle = pi / 9
+
+test_bevel_gear("Bevel gear pinion", pi * m, z_pinion, gamma_p, pressure_angle = pressure_angle, ka=0.65, kd = 1, helix_angle=helix_angle)
+test_bevel_gear("Bevel gear wheel", pi * m, z_wheel, shaft_angle - gamma_p, pressure_angle = pressure_angle, helix_angle=helix_angle)
+test_spherical_rack_profile("Spherical rack", z_pinion/sin(gamma_p))
+
+
 x = 0
 for i, part in enumerate(results):
 	box = boundingbox(part)

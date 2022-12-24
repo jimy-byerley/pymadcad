@@ -62,6 +62,9 @@ Primitives types
 .. autoclass:: Axis
 
 	.. automethod:: __getitem__
+	.. automethod:: flip
+	.. automethod:: offset
+	.. automethod:: transform
 	
 	.. image:: /screenshots/primitives-axis.png
 	

@@ -6,7 +6,7 @@ import os, tempfile
 from functools import wraps
 from hashlib import md5
 
-from .mathutils import vec3, glm, inf
+from .mathutils import vec3, glm, inf, typedlist
 from .mesh import Mesh, Wire
 
 class FileFormatError(Exception):	pass
@@ -81,7 +81,7 @@ def cachefunc(f):
 			os.makedirs(cachedir)
 		key = '{}/{}{}-{}.pickle'.format(
 			cachedir,
-			f.__module__.__name__ + '.' if f.__module__ else '',
+			f.__module__ + '.' if f.__module__ else '',
 			f.__name__,
 			hex(int.from_bytes(
 				md5(repr((
@@ -115,6 +115,7 @@ try:
 	from plyfile import PlyData, PlyElement
 except ImportError:	pass
 else:
+	from . import triangulation
 
 	def ply_read(file, **opts):
 		mesh = Mesh()

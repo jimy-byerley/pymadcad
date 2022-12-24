@@ -69,7 +69,7 @@ Generation of common meshes
 Offsetting
 ----------
 
-.. autofunction:: inflateoffsets
+.. autofunction:: inflate_offsets
 .. autofunction:: inflate
 
 	.. image:: /screenshots/generation-inflate.png
@@ -77,6 +77,10 @@ Offsetting
 .. autofunction:: thicken
 
 	.. image:: /screenshots/generation-thicken.png
+	
+.. autofunction:: expand
+
+	.. image:: /screenshots/generation-expand.png
 	
 
 Others
