@@ -16,17 +16,17 @@ from .. import settings
 
 
 class MeshError(Exception):	
-	''' inconsistent data in mesh '''
+	''' Inconsistent data in mesh '''
 	pass
 
 
 class NMesh(object):
-	''' common methods for points container (typically Mesh, Web, Wire) '''
+	''' Common methods for points container (typically Mesh, Web, Wire) '''
 	
 	# BEGIN --- data management ---
 	
 	def own(self, **kwargs) -> 'Self':
-		''' return a copy of the current mesh, which attributes are referencing the original data or duplicates if demanded
+		''' Return a copy of the current mesh, which attributes are referencing the original data or duplicates if demanded
 		
 			Example:
 			
@@ -43,22 +43,22 @@ class NMesh(object):
 		return new
 	
 	def option(self, **kwargs) -> 'self':
-		''' update the internal options with the given dictionnary and the keywords arguments.
+		''' Update the internal options with the given dictionary and the keywords arguments.
 			This is only a shortcut to set options in a method style.
 		'''
 		self.options.update(kwargs)
 		return self
 	
 	def transform(self, trans) -> 'Self':
-		''' apply the transform to the points of the mesh, returning the new transformed mesh'''
+		''' Apply the transform to the points of the mesh, returning the new transformed mesh'''
 		trans = transformer(trans)
 		transformed = copy(self)
 		transformed.points = typedlist((trans(p) for p in self.points), dtype=vec3)
 		return transformed
 			
 	def mergeclose(self, limit=None) -> dict:
-		''' merge points below the specified distance, or below the precision 
-			return a dictionnary of points remapping  {src index: dst index}
+		''' Merge points below the specified distance, or below the precision 
+			return a dictionary of points remapping  {src index: dst index}
 			
 			O(n) implementation thanks to hashing
 		'''
@@ -74,16 +74,16 @@ class NMesh(object):
 		return merges
 	
 	def stripgroups(self) -> list:
-		''' remove groups that are used by no faces. return the reindex list. '''
+		''' Remove groups that are used by no faces. return the reindex list. '''
 		self.groups, self.tracks, reindex = striplist(self.groups, self.tracks)
 		return reindex
 	
 	def mergegroups(self, defs=None, merges=None) -> 'self':
-		''' merge the groups according to the merge dictionnary
-			the new groups associated can be specified with defs
-			the former unused groups are not removed from the buffer and the new ones are appended
+		''' Merge the groups according to the merge dictionary
+			The new groups associated can be specified with defs
+			The former unused groups are not removed from the buffer and the new ones are appended
 			
-			if merges is not provided, all groups are merged, and defs is the data associated to the only group after the merge
+			If merges is not provided, all groups are merged, and defs is the data associated to the only group after the merge
 		'''
 		if merges is None:	
 			self.groups = [defs]
@@ -100,13 +100,13 @@ class NMesh(object):
 		return self
 	
 	def finish(self) -> 'self':
-		''' finish and clean the mesh 
+		''' Finish and clean the mesh 
 			note that this operation can cost as much as other transformation operation
 			job done
-				- mergeclose
-				- strippoints
-				- stripgroups
-				- check
+            - mergeclose
+            - strippoints
+            - stripgroups
+            - check
 		'''
 		self.mergeclose()
 		self.strippoints()
@@ -117,7 +117,7 @@ class NMesh(object):
 	# END BEGIN --- verification methods ---
 		
 	def isvalid(self):
-		''' return true if the internal data is consistent (all indices referes to actual points and groups) '''
+		''' Return true if the internal data is consistent (all indices referes to actual points and groups) '''
 		try:				self.check()
 		except MeshError:	return False
 		else:				return True
@@ -125,17 +125,17 @@ class NMesh(object):
 	# END BEGIN --- selection methods ---
 	
 	def pointat(self, point: vec3, neigh=NUMPREC) -> int:
-		''' return the index of the first point at the given location, or None '''
+		''' Return the index of the first point at the given location, or None '''
 		for i,p in enumerate(self.points):
 			if distance(p,point) <= neigh:	return i
 	
 	def pointnear(self, point: vec3) -> int:
-		''' return the nearest point the the given location '''
+		''' Return the nearest point the the given location '''
 		return min(	range(len(self.points)), 
 					lambda i: distance(self.points[i], point))
 	
 	def qualify(self, *quals, select=None, replace=False) -> 'self':
-		''' set a new qualifier for the given groups 
+		''' Set a new qualifier for the given groups 
 		
 			Parameters:
 				quals:				the qualifiers to enable for the selected mesh groups
@@ -159,7 +159,7 @@ class NMesh(object):
 			if group is None:
 				self.groups[i] = group = {}
 			if not hasattr(group, '__setitem__'):
-				raise TypeError('cannot qualify a group that is not a dictionnary')
+				raise TypeError('cannot qualify a group that is not a dictionary')
 			if replace:
 				for key in select:
 					if key in group:
@@ -170,7 +170,7 @@ class NMesh(object):
 		return self
 		
 	def qualified_indices(self, quals):
-		''' yield the faces indices when their associated group are matching the requirements '''
+		''' Yield the faces indices when their associated group are matching the requirements '''
 		if isinstance(quals, int):
 			yield from self.qualified_indices({quals})
 		elif isinstance(quals, str):
@@ -197,7 +197,7 @@ class NMesh(object):
 					yield i
 				
 	def qualified_groups(self, quals):
-		''' yield the groups indices when they are matching the requirements '''
+		''' Yield the groups indices when they are matching the requirements '''
 		if isinstance(quals, int):
 			yield quals
 		elif isinstance(quals, str):
@@ -216,7 +216,7 @@ class NMesh(object):
 	# END BEGIN --- extraction methods ---
 	
 	def maxnum(self) -> float:
-		''' maximum numeric value of the mesh, use this to get an hint on its size or to evaluate the numeric precision '''
+		''' Maximum numeric value of the mesh, use this to get an hint on its size or to evaluate the numeric precision '''
 		m = 0
 		for p in self.points:
 			for v in p:
@@ -225,7 +225,7 @@ class NMesh(object):
 		return m
 	
 	def precision(self, propag=3) -> float:
-		''' numeric coordinate precision of operations on this mesh, allowed by the floating point precision '''
+		''' Numeric coordinate precision of operations on this mesh, allowed by the floating point precision '''
 		return self.maxnum() * NUMPREC * (2**propag)
 		
 	def usepointat(self, point, neigh=NUMPREC) -> int:
@@ -237,7 +237,7 @@ class NMesh(object):
 		return i
 					
 	def box(self) -> Box:
-		''' return the extreme coordinates of the mesh (vec3, vec3) '''
+		''' Return the extreme coordinates of the mesh (vec3, vec3) '''
 		if not self.points:		return Box()
 		p = next(filter(isfinite, self.points))
 		max = deepcopy(p)
@@ -249,7 +249,7 @@ class NMesh(object):
 		return Box(min, max)
 	
 	def barycenter_points(self) -> vec3:
-		''' barycenter of points used '''
+		''' Barycenter of points used '''
 		return sum(self.points[i]	for i in self.indices) / len(self.indices)
 		
 	# END
@@ -259,7 +259,7 @@ class NMesh(object):
 
 
 def numpy_to_typedlist(array: 'ndarray', dtype) -> 'typedlist':
-	''' convert a numpy.ndarray into a typedlist with the given dtype, if the conversion is possible term to term '''
+	''' Convert a numpy.ndarray into a typedlist with the given dtype, if the conversion is possible term to term '''
 	ndtype = np.array(typedlist(dtype)).dtype
 	if ndtype.fields:
 		return typedlist(rfn.unstructured_to_structured(array).astype(ndtype, copy=False), dtype)
@@ -267,7 +267,7 @@ def numpy_to_typedlist(array: 'ndarray', dtype) -> 'typedlist':
 		return typedlist(array.astype(ndtype, copy=False), dtype)
 	
 def typedlist_to_numpy(array: 'typedlist', dtype) -> 'ndarray':
-	''' convert a typedlist to a numpy.ndarray with the given dtype, if the conversion is possible term to term '''
+	''' Convert a typedlist to a numpy.ndarray with the given dtype, if the conversion is possible term to term '''
 	tmp = np.array(array, copy=False)
 	if tmp.dtype.fields:
 		return rfn.structured_to_unstructured(tmp, dtype)
@@ -275,7 +275,7 @@ def typedlist_to_numpy(array: 'typedlist', dtype) -> 'ndarray':
 		return tmp.astype(dtype)
 		
 def ensure_typedlist(obj, dtype):
-	''' return a typedlist with the given dtype, create it from whatever is in obj if needed '''
+	''' Return a typedlist with the given dtype, create it from whatever is in obj if needed '''
 	if isinstance(obj, typedlist) and obj.dtype == dtype:
 		return obj
 	else:
@@ -288,18 +288,18 @@ def ensure_typedlist(obj, dtype):
 		
 
 def edgekey(a,b):
-	''' return a key for a non-directional edge '''
+	''' Return a key for a non-directional edge '''
 	if a < b:	return (a,b)
 	else:		return (b,a)
 	
 def facekeyo(a,b,c):
-	''' return a key for an oriented face '''
+	''' Return a key for an oriented face '''
 	if a < b and b < c:		return (a,b,c)
 	elif a < b:				return (c,a,b)
 	else:					return (b,c,a)
 	
 def arrangeface(f, p):
-	''' return the face indices rotated the way the `p` is the first one '''
+	''' Return the face indices rotated the way the `p` is the first one '''
 	if   p == f[1]:	return f[1],f[2],f[0]
 	elif p == f[2]:	return f[2],f[0],f[1]
 	else:			return f
@@ -309,7 +309,7 @@ def arrangeedge(e, p):
 	else:			return e
 
 def connpp(ngons):
-	''' point to point connectivity 
+	''' Point to point connectivity 
 		input is a list of ngons (tuple of 2 to n indices)
 	'''
 	conn = {}
@@ -321,7 +321,7 @@ def connpp(ngons):
 	return conn
 	
 def connef(faces):
-	''' connectivity dictionnary, from oriented edge to face '''
+	''' Connectivity dictionary, from oriented edge to face '''
 	conn = {}
 	for i,f in enumerate(faces):
 		for e in ((f[0],f[1]), (f[1],f[2]), (f[2],f[0])):
@@ -337,7 +337,7 @@ def connpe(edges):
 
 
 def connexity(links):
-	''' return the number of links referencing each point as a dictionnary {point: num links} '''
+	''' Return the number of links referencing each point as a dictionary {point: num links} '''
 	reach = {}
 	for l in links:
 		for p in l:
@@ -345,14 +345,14 @@ def connexity(links):
 	return reach
 
 def suites(lines, oriented=True, cut=True, loop=False):
-	''' return a list of the suites that can be formed with lines.
-		lines is an iterable of edges
+	''' Return a list of the suites that can be formed with lines.
+		`lines` is an iterable of edges
 		
 		Parameters:
 			oriented:      specifies that (a,b) and (c,b) will not be assembled
 			cut:           cut suites when they are crossing each others
 		
-		return a list of the sequences that can be formed
+		Return a list of the sequences that can be formed
 	'''
 	lines = list(lines)
 	# get contiguous suite of points

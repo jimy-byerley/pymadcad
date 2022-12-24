@@ -161,7 +161,6 @@ mesh internals manipulation
 .. autofunction:: facekeyo
 .. autofunction:: connpp
 .. autofunction:: connef
-.. autofunction:: lineedges
 .. autofunction:: striplist
 .. autofunction:: line_simplification
 .. autofunction:: suites
