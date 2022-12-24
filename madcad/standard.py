@@ -40,7 +40,7 @@ __all__ = [	'nut', 'screw', 'washer',
 standard_digits = sorted([1., 1.25, 1.5, 2., 2.5, 3., 4., 5., 6., 8., 10., 12., 16., 17.5, 24., 36.])
 
 def stfloor(x, precision=1):
-	''' return a numeric value fitting x, with lower digits being the under closest digits from `standard_digits` 
+	''' Return a numeric value fitting x, with lower digits being the under closest digits from `standard_digits` 
 		
 		`precision` gives the relative tolerance interval for the returned number, so we are sure it lays in `[x*(1-precision), x]`
 	'''
@@ -69,7 +69,7 @@ def stfloor(x, precision=1):
 		ratio *= base
 
 def stceil(x, precision=1):
-	''' return a numeric value fitting x, with lower digits being the above closest digits from `standard_digits` 
+	''' Return a numeric value fitting x, with lower digits being the above closest digits from `standard_digits` 
 		
 		`precision` gives the relative tolerance interval for the returned number, so we are sure it lays in `[x, x*(1+precision)]`
 	'''

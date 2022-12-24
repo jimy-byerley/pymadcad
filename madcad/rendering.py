@@ -13,7 +13,7 @@
 	
 	display protocol
 	----------------
-		a displayable is an object that implements the signatue of Display:
+		A displayable is an object that implements the signature of Display:
 		
 			class display:
 				box (Box)                      # delimiting the display, can be an empty or invalid box
