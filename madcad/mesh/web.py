@@ -127,7 +127,7 @@ class Web(NMesh):
 	def edgenear(self, point: vec3) -> int:
 		''' return the index of the closest edge to the given point '''
 		return min( range(len(self.edges)),
-					lambda i: distance_pe(point, self.edgepoints(i)) )
+					key=lambda i: distance_pe(point, self.edgepoints(i)) )
 	
 	def group(self, quals) -> 'Self':
 		''' extract a part of the mesh corresponding to the designated groups.
@@ -286,18 +286,22 @@ class Web(NMesh):
 		belong = {}
 		for i,edge in enumerate(self.edges):
 			track = self.tracks[i]
-			if groups and track not in groups:	continue
-			for p in edge:
-				if p in belong:
-					if belong[p] != track:
-						g = edgekey(belong[p],track)
-						indices.append(p)
-						tracks.append(couples.setdefault(g, len(couples)))
-					del belong[p]
-				else:
-					belong[p] = track
+			if groups is None or None in groups or track in groups:	
+				for p in edge:
+					if p in belong:
+						if belong[p] != track and (groups is None or track in groups and belong[p] in groups):
+							g = edgekey(belong[p],track)
+							indices.append(p)
+							tracks.append(couples.setdefault(g, len(couples)))
+						del belong[p]
+					else:
+						belong[p] = track
 		if groups and None in groups:
-			indices.extend(belong.keys())
+			for p, i in belong.items():
+				if i in groups:
+					g = (i,None)
+					indices.append(p)
+					tracks.append(couples.setdefault(g, len(couples)))
 		return Wire(self.points, indices, tracks, list(couples))
 		
 		

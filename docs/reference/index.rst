@@ -13,25 +13,30 @@ References
 .. toctree::
     :maxdepth: 1
 
-    mathutils.rst
-    mesh.rst
-    kinematic.rst
-    joints.rst
-    primitives.rst
-    constraints.rst
-    generation.rst
-    blending.rst
-    cut.rst
-    boolean.rst
-    reverse.rst
-    hull.rst
-    io.rst
-    settings.rst
-    hashing.rst
-    rendering.rst
-    scheme.rst
-    standard.rst
-    gear.rst
+	mathutils.rst
+	mesh/index.rst
+	
+	kinematic.rst
+	joints.rst
+	
+	primitives.rst
+	constraints.rst
+	
+	generation.rst
+	blending.rst
+	cut.rst
+	boolean.rst
+	reverse.rst
+	hull.rst
+	
+	io.rst
+	settings.rst
+	hashing.rst
+	rendering.rst
+	scheme.rst
+	text.rst
+	standard.rst
+	gear.rst
 
 .. py:module:: madcad
 

@@ -194,7 +194,7 @@ def rasterize_triangle(spaceo, double cell):
 	
 	if not cell > 0:	
 		raise ValueError('cell must be strictly positive')
-	if not (visfinite(space[0]) and visfinite(space[1])):	
+	if not (visfinite(space[0]) and visfinite(space[1]) and visfinite(space[2])):	
 		raise ValueError('cannot rasterize non finite space')
 	
 	# permutation of coordinates to get the normal the closer to Z
@@ -251,7 +251,7 @@ def rasterize_triangle(spaceo, double cell):
 		ymin -= prec
 		ymax += prec
 		ymin -= pmod(ymin,cell)
-		if ymax < ymin:	continue
+		if ymax <= ymin:	continue
 		for j in range(max(1,<size_t>ceil((ymax-ymin)/cell))):
 			y = ymin + cell*j + cell2
 		
@@ -266,7 +266,7 @@ def rasterize_triangle(spaceo, double cell):
 			zmin -= prec
 			zmax += prec
 			zmin -= pmod(zmin,cell)
-			if zmax < zmin:	continue
+			if zmax <= zmin:	continue
 			for k in range(max(1,<size_t>ceil((zmax-zmin)/cell))):
 				z = zmin + cell*k + cell2
 				

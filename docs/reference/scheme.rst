@@ -35,6 +35,9 @@ Annotation functions
 		.. image:: /screenshots/note_leading.png
 	
 	.. autofunction:: note_floating
+	
+		.. image:: /screenshots/note_floating.png
+	
 	.. autofunction:: note_distance
 		
 		.. image:: /screenshots/note_distance.png

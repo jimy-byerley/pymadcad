@@ -152,7 +152,7 @@ class Wire(NMesh):
 	def edgenear(self, point: vec3) -> int:
 		''' return the index of the closest edge to the given point '''
 		return min( range(len(self.indices)-1),
-					lambda i: distance_pe(point, self.edgepoints(i)) )
+					key=lambda i: distance_pe(point, self.edgepoints(i)) )
 	
 	def group(self, groups):
 		''' extract a part of the mesh corresponding to the designated groups.

@@ -523,6 +523,7 @@ def gearexterior(
 	step = None,
 	helix_angle = 0,
 	chamfer = 0,
+	resolution = None,
 	**kwargs,
 ) -> Mesh:
 	"""
@@ -542,7 +543,7 @@ def gearexterior(
 	footer, header = minmax_radius(profile.points)
 
 	# Internal circles
-	circle_ref = wire(Circle((O,Z), footer - 0.3*(header-footer)))
+	circle_ref = wire(Circle((O,Z), footer - 0.3*(header-footer), resolution=resolution))
 	top_circle = circle_ref.transform(vec3(0, 0, half_depth))
 	bottom_circle = circle_ref.transform(vec3(0, 0, -half_depth))
 
@@ -583,7 +584,7 @@ def gearexterior(
 			# Edges of teeth
 			R = header # the largest radius of profile
 			# step to generate a helical transformation
-			step = settings.curve_resolution(depth / cos(helix_angle), depth * tan(helix_angle) / R)
+			step = settings.curve_resolution(depth / cos(helix_angle), depth * tan(helix_angle) / R, resolution)
 			angle = depth * tan(helix_angle) / R / (step + 1)
 			h = depth / (step + 1)
 			bottom_gear_edge = profile.transform(vec3(0, 0, -half_depth))
@@ -649,6 +650,7 @@ def gearhub(
 	int_height = 0,
 	hub_height = None,
 	hub_radius = None,
+	resolution = None,
 	**kwargs,
 ) -> Web:
 	"""
@@ -669,7 +671,7 @@ def gearhub(
 	"""
 	if not (bore_radius):  # No hub case
 		half_depth = depth / 2
-		circle_ref = web(Circle((O,Z), depth * 0.1))
+		circle_ref = web(Circle((O,Z), depth * 0.1, resolution=resolution))
 		circle_ref = triangulation(circle_ref)
 		top_surface = circle_ref.transform(vec3(0, 0, half_depth - int_height))
 		bottom_surface = circle_ref.transform(vec3(0, 0, -half_depth + int_height)).flip()
@@ -681,8 +683,8 @@ def gearhub(
 		hub_radius = 2 * bore_radius
 	height = hub_height + depth / 2 if hub_height else depth / 2 - int_height
 	axis = (vec3(0, 0, height), vec3(0, 0, 1))
-	bore_circle = Circle(axis, bore_radius)
-	hub_circle = Circle(axis, hub_radius)
+	bore_circle = Circle(axis, bore_radius, resolution=resolution)
+	hub_circle = Circle(axis, hub_radius, resolution=resolution)
 
 	# Top part
 	top_surface = triangulation(web(bore_circle).flip() + web(hub_circle))
@@ -692,8 +694,8 @@ def gearhub(
 
 	# Bottom part
 	axis = (vec3(0, 0, -depth / 2), vec3(0, 0, 1))
-	bottom_bore_circle = Circle(axis, bore_radius)
-	bottom_hub_circle = Circle(axis, hub_radius)
+	bottom_bore_circle = Circle(axis, bore_radius, resolution=resolution)
+	bottom_hub_circle = Circle(axis, hub_radius, resolution=resolution)
 	bottom_web = web(bottom_bore_circle) + web(bottom_hub_circle).flip()
 	bottom_surface = triangulation(bottom_web)
 
@@ -746,9 +748,9 @@ def geargather(exterior, structure, hub) -> Mesh:
 		circle_int_s_top = select(structure, vec3(int_radius, 0, height_top))
 		
 		if not samecircle(circle_ext_s_top, circle_int_e_top):
-			j1_top = junction(circle_ext_s_top, circle_int_e_top, tangents="straight", resolution = ("div", 0))
+			j1_top = junction(circle_ext_s_top, circle_int_e_top, tangents="straight", resolution=('div',0))
 		if not samecircle(circle_ext_h_top, circle_int_s_top):
-			j2_top = junction(circle_ext_h_top, circle_int_s_top, tangents="straight", resolution = ("div", 0))
+			j2_top = junction(circle_ext_h_top, circle_int_s_top, tangents="straight", resolution=('div',0))
 		
 		top = j1_top + j2_top
 	
@@ -759,9 +761,9 @@ def geargather(exterior, structure, hub) -> Mesh:
 		circle_int_s_bot = select(structure, vec3(int_radius, 0, height_bot))
 		
 		if not samecircle(circle_ext_s_bot, circle_int_e_bot):
-			j1_bot = junction(circle_ext_s_bot, circle_int_e_bot, tangents="straight", resolution = ("div", 0))
+			j1_bot = junction(circle_ext_s_bot, circle_int_e_bot, tangents="straight", resolution=('div',0))
 		if not samecircle(circle_ext_h_bot, circle_int_s_bot):
-			j2_bot = junction(circle_ext_h_bot, circle_int_s_bot, tangents="straight", resolution = ("div", 0))
+			j2_bot = junction(circle_ext_h_bot, circle_int_s_bot, tangents="straight", resolution=('div',0))
 			
 		bottom = j1_bot + j2_bot
 	
@@ -842,12 +844,6 @@ def gear(
 					int_height,
 					**kwargs)
 	return geargather(exterior, structure, hub)
-
-
-def frange(start:float, end:float, div:int=10):
-	"""Generate `div` numbers from `start` to `end`"""
-	k = (end - start) / (div - 1)
-	return (start + i * k for i in range(div))
 
 
 def get_pitch_cone_angle(z_pinion:int, z_wheel:int, shaft_angle:float=0.5 * pi) -> float:
@@ -987,7 +983,7 @@ def spherical_rack_tools(z:float, pressure_angle:float=pi / 9, ka:float=1, kd:fl
 	return [t_min, t_max, phase_diff, phase_empty, involute]
 
 
-def spherical_rackprofile(z:float, pressure_angle:float=pi / 9, ka:float=1, kd:float=1.25):
+def spherical_rackprofile(z:float, pressure_angle:float=pi / 9, ka:float=1, kd:float=1.25, resolution=None):
 	"""
 	Return a `Wire` which is a tooth of the rack.
 
@@ -1002,16 +998,25 @@ def spherical_rackprofile(z:float, pressure_angle:float=pi / 9, ka:float=1, kd:f
 		ka (float): 				the addendum coefficient
 		kd (float): 				the dedendum coefficient
 	"""
+	div = settings.curve_resolution(1, pi/z, resolution)
 	t_min, t_max, phase1, phase2, involute = spherical_rack_tools(z, pressure_angle, ka, kd)
-	side1 = [involute(t, 0) for t in frange(t_min, t_max)]
-	side2 = [involute(-t, phase1) for t in frange(t_min, t_max)]
+	
+	side1 = [involute(t, 0)         for t in linrange(t_min, t_max, div=div)]
+	side2 = [involute(-t, phase1)   for t in linrange(t_min, t_max, div=div)]
 	segment = Segment(involute(t_min, -phase2), side1[0]).mesh()
 	segment2 = Segment(side1[-1], side2[-1]).mesh()
 	wire = segment + Wire(side1) + segment2 + Wire(side2).flip()
 	return wire
 
 
-def spherical_gearprofile(z:int, pitch_cone_angle:float, pressure_angle:float=pi / 9, ka:float=1, kd:float=1.25) -> Wire:
+def spherical_gearprofile(
+		z:int, 
+		pitch_cone_angle:float, 
+		pressure_angle:float=pi / 9, 
+		ka:float=1, 
+		kd:float=1.25, 
+		resolution = None,
+		) -> Wire:
 	"""
 	Generate and return a `Wire` of a 1-period tooth spherical profile for a bevel gear
 
@@ -1070,10 +1075,11 @@ def spherical_gearprofile(z:int, pitch_cone_angle:float, pressure_angle:float=pi
 		t1, t2, t3 = vec3(t1, t2, t3) - inverse(J(t1, t2)) * f(t1, t2)
 
 	# Build sides of a tooth
-	interference1 = [interference(t, -0.5 * phase_interference + beta) for t in frange(0, t2)]
-	interference2 = [interference(-t, phase_diff + 0.5 * phase_interference - beta) for t in frange(0, t2)]
-	side1 = interference1[:-1] + [involute(t, 0) for t in frange(t1, t_max)]
-	side2 = interference2[:-1] + [involute(-t, phase_diff) for t in frange(t1, t_max)]
+	div = settings.curve_resolution(1, 2*pi/z, resolution)
+	interference1 = [interference(t, -0.5 * phase_interference + beta) for t in linrange(0, t2, div=div)]
+	interference2 = [interference(-t, phase_diff + 0.5 * phase_interference - beta) for t in linrange(0, t2, div=div)]
+	side1 = interference1[:-1] + [involute(t, 0) for t in linrange(t1, t_max, div=div)]
+	side2 = interference2[:-1] + [involute(-t, phase_diff) for t in linrange(t1, t_max, div=div)]
 
 	# Extreme points of sides to compute angle between them
 	a = interference(0, -0.5 * phase_interference + beta)
@@ -1108,6 +1114,7 @@ def bevelgear(
 	helix_angle:float=None,
 	bore_radius:float=None,
 	bore_height:float=None,
+	resolution = None,
 ):
 	"""
 	Generate a bevel gear.
@@ -1128,14 +1135,12 @@ def bevelgear(
 		bore_radius (float):   		radius of the main bore
 		bore_height (float):   		height of the main bore
 	"""
-	if helix_angle is None:
-		return straight_bevel_gear(
-			step, z, pitch_cone_angle, pressure_angle, ka, kd, bore_radius, bore_height,
-		)
+	if helix_angle:
+		return helical_bevel_gear(step, z, pitch_cone_angle, pressure_angle, ka, kd, helix_angle, 
+						bore_radius, bore_height, resolution)
 	else:
-		return helical_bevel_gear(
-			step, z, pitch_cone_angle, pressure_angle, ka, kd, helix_angle, bore_radius, bore_height,
-		)
+		return straight_bevel_gear(step, z, pitch_cone_angle, pressure_angle, ka, kd, 
+						bore_radius, bore_height, resolution)
 
 
 def straight_bevel_gear(
@@ -1147,6 +1152,7 @@ def straight_bevel_gear(
 	kd:float=1.25,
 	bore_radius:float=None,
 	bore_height:float=None,
+	resolution = None,
 ):
 	"""
 	Generate a bevel gear where teeth are straight.
@@ -1182,7 +1188,7 @@ def straight_bevel_gear(
 	phase_diff = pi / z + 2 * theta_p
 
 	# Generate spherical profiles
-	spherical_profile = spherical_gearprofile(z, gamma_p, pressure_angle, ka, kd) # one tooth
+	spherical_profile = spherical_gearprofile(z, gamma_p, pressure_angle, ka, kd, resolution=resolution) # one tooth
 	outside_profile = spherical_profile.transform(rho1 * 1.1)
 	inside_profile = spherical_profile.transform(rho0 * 0.9)
 
@@ -1228,7 +1234,7 @@ def straight_bevel_gear(
 		wire = Wire([D, C, F, E, A, B]).segmented()
 
 	axis = (O, Z)
-	body = revolution(angle1tooth, axis, wire)
+	body = revolution(angle1tooth, axis, wire, resolution=resolution)
 	one_tooth = intersection(body.transform(phase_tooth_body), teeth_border)
 	all_teeth = repeat(one_tooth, z, rotatearound(angle1tooth, axis))
 	all_teeth.finish()
@@ -1251,6 +1257,7 @@ def helical_bevel_gear(
 	helix_angle:float = radians(20),
 	bore_radius:float=None,
 	bore_height:float=None,
+	resolution = None,
 ):
 	"""
 	Generate a bevel gear where teeth are helical.
@@ -1290,7 +1297,7 @@ def helical_bevel_gear(
 	v = vec3(1, 1, 0) # useful for computation
 
 	# Generate spherical profiles
-	tooth = spherical_gearprofile(z, gamma_p, pressure_angle, ka, kd)	# one tooth
+	tooth = spherical_gearprofile(z, gamma_p, pressure_angle, ka, kd, resolution=resolution)	# one tooth
 
 	# One helical tooth
 	# General parameters
@@ -1301,10 +1308,11 @@ def helical_bevel_gear(
 	angle_step = lambda z: (log(z) - log(z0)) / delta
 
 	# Compute the number of steps for discretization
-	topbot_angle = abs((log(z1) - log(z0)) / delta)
+	topbot_angle = (log(z1) - log(z0)) / delta
 	step = settings.curve_resolution(
 			(z1 - z0) / (cos(helix_angle) * cosp),	# Length of the conical helix 
-			topbot_angle,	# Angle of the conical helix
+			abs(topbot_angle),	# Angle of the conical helix
+			resolution,
 			)
 
 	# Parameters for scaling and rotation

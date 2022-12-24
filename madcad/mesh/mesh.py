@@ -125,12 +125,12 @@ class Mesh(NMesh):
 	
 	def groupnear(self, point) -> int:
 		''' return group id if the face the closest to the given point '''
-		return self.tracks[self.face_near(point)]
+		return self.tracks[self.facenear(point)]
 		
 	def facenear(self, point) -> int:
 		''' return the index of the closest triangle to the given point '''
 		return min(	range(len(self.faces)), 
-					lambda i: distance_pt(point, self.facepoints(i)) )
+					key=lambda i: distance_pt(point, self.facepoints(i)) )
 	
 	def group(self, quals) -> 'Self':
 		''' extract a part of the mesh corresponding to the designated groups.
@@ -372,19 +372,24 @@ class Mesh(NMesh):
 		couples = OrderedDict()
 		belong = {}
 		for i,face in enumerate(self.faces):
-			if groups is None or self.tracks[i] in groups:	
-				for edge in ((face[0],face[1]),(face[1],face[2]),(face[2],face[0])):
-					e = edgekey(*edge)
+			track = self.tracks[i]
+			if groups is None or None in groups or track in groups:
+				for i in range(len(face)):
+					e = edgekey(face[i-1], face[i])
 					if e in belong:
-						if belong[e] != self.tracks[i]:
-							g = edgekey(belong[e],self.tracks[i])
+						if belong[e] != track and (groups is None or track in groups and belong[e] in groups):
+							g = edgekey(belong[e],track)
 							edges.append(e)
 							tracks.append(couples.setdefault(g, len(couples)))
 						del belong[e]
 					else:
-						belong[e] = self.tracks[i]
+						belong[e] = track
 		if groups and None in groups:
-			edges.extend(belong.keys())
+			for e, i in belong.items():
+				if i in groups:
+					g = (i,None)
+					edges.append(e)
+					tracks.append(couples.setdefault(g, len(couples)))
 		return Web(self.points, edges, tracks, list(couples))
 	
 	def surface(self) -> float:
