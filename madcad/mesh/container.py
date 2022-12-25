@@ -103,6 +103,7 @@ class NMesh(object):
 		''' Finish and clean the mesh 
 			note that this operation can cost as much as other transformation operation
 			job done
+
             - mergeclose
             - strippoints
             - stripgroups
