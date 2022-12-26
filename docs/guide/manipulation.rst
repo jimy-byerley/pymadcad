@@ -79,3 +79,21 @@ Junction
         m += extrusion(c.axis[1] * 3, web(c))
 
     show([m])
+
+Bevel
+-----
+
+.. code-block:: python
+
+    from madcad import *
+    # Obtain a mesh
+    cube = brick(width=vec3(2))
+
+    # Cut some edges
+    # No need to do cube = bevel(...)
+    bevel(
+       cube,
+       [(0, 1), (1, 2), (2, 3), (0, 3), (1, 5), (0, 4)],  # Edges to smooth
+       ("width", 0.3),  # Cutting description, known as 'cutter'
+    )
+    show([cube])
