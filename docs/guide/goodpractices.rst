@@ -1,7 +1,5 @@
-.. _goodpractices:
-
-Details good practices
-======================
+Good practices
+==============
 
 You should be aware of some good practices in `madcad` which may solve many issues.
 

@@ -1,5 +1,5 @@
-Settings
-========
+Configuration
+=============
 
 You can customize `madcad` with settings.
 You simply start to write a configuration file, then `madcad` does the rest for you.

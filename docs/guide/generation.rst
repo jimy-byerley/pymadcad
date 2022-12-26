@@ -1,7 +1,22 @@
-.. _generation:
-
 Generation
 ==========
+
+Most of the common surfaces are generated from an outline (closed is often not mandatory). An outline can be a `Web` or a `Wire`, depending on the algorithm behind. Those can be created by hand or obtained from primitives (see above).
+
+Generally speaking, generation functions are all functions that can produce a mesh from simple parameters by knowing by advance where each point will be.
+Most generation functions produce a surface. To represent a volume we use a closed surface so you have to pay attention to if your input outline is well closed too.
+
+The most common functions are
+
+    * extrusion
+    * revolution
+    * thicken
+    * tube
+    * saddle
+    * flatsurface
+    * repeat
+
+Some of them are presented here.
 
 Repeat - Translation
 --------------------
@@ -54,6 +69,9 @@ Revolution
     rev.mergeclose()
     show([rev])
 
+.. note::
+
+   The function `radians` allows to convert `degrees` to `radians`.
 
 Extrusion
 ---------

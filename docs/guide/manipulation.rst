@@ -1,10 +1,8 @@
-.. _manipulation:
-
 Manipulation
 ============
 
-Constraints
------------
+Constraints solver
+------------------
 
 .. code-block:: python
    
