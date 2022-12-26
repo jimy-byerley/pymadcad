@@ -140,6 +140,78 @@ There are still remaining dark surfaces on the top and the bottom of the revolut
     rev.mergeclose()
     show([rev])
 
+
+Qualify characteristics
+~~~~~~~~~~~~~~~~~~~~~~~
+
+You should also consider *qualifying* characteristics of your part when you are defining it. See the following examples:
+
+.. code-block:: python
+
+    from madcad import *
+    depth = 20
+    exterior = Circle((O, Z), 10)
+    hole = Circle((O, Z), 5)
+    profile = web([exterior, web(hole).flip().qualify("hole")]) # qualify "hole" for future usage
+    result = (
+        extrusion(depth * Z, profile)
+        + flatsurface(profile)
+        + flatsurface(profile.transform(depth * Z).flip())
+    )
+    show(
+        [
+            result,
+            result.group("hole").transform(translate(16 * X)), # extract faces and edges (Mesh)
+            result.frontiers("hole", None).transform(translate(27 * X)), # extract edges (Web)
+        ]
+    )
+
+The main idea is to be able to extract characteristics of your part without guessing their index. Without *qualifying* characteristics, you must inspect `groups` of your parts and test them one by one:
+
+.. code-block:: python
+
+    from madcad import *
+    depth = 20
+    exterior = Circle((O, Z), 10)
+    hole = Circle((O, Z), 5)
+    profile = web([exterior, web(hole).flip()])
+    result = (
+        extrusion(depth * Z, profile)
+        + flatsurface(profile)
+        + flatsurface(profile.transform(depth * Z).flip())
+    )
+    print(result.groups) # [None, None, None, None]
+    show(
+        [
+            result,
+            result.group(1).transform(translate(16 * X)),
+            result.frontiers(1, None).transform(translate(27 * X)),
+        ]
+    )
+
+It can be annoying when you have many `groups`.
+
+The last point to extract information could be by selecting edges based on a direction. See the following example :
+
+.. code-block:: python
+
+    from madcad import *
+    depth = 20
+    exterior = Circle((O, Z), 10)
+    hole = Circle((O, Z), 5)
+    profile = web([exterior, web(hole).flip()])
+    result = (
+        extrusion(depth * Z, profile)
+        + flatsurface(profile)
+        + flatsurface(profile.transform(depth * Z).flip())
+    )
+    extraction_top = select(result, vec3(5, 0, 20)) # or vec3(0, 5, 20)
+    extraction_bottom = select(result, vec3(5, 0, 0)) # or vec3(0, 5, 0)
+    extraction = extraction_top + extraction_bottom
+    show([result, extraction.transform(translate(16 * X))])
+
+But with this method, there are more computation and only edges are extracted.
+
 .. toctree::
     :maxdepth: 3
     
