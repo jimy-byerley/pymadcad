@@ -2,9 +2,9 @@
 '''
 This module focuses on automated envelope generations, based on interface outlines.
 
-the user has only to define the interface outlines or surfaces to join, and the algorithm makes the surface. No more pain to imagine some fancy geometries.
+The user has only to define the interface outlines or surfaces to join, and the algorithm makes the surface. No more pain to imagine some fancy geometries.
 	
-formal definitions
+Formal definitions
 ------------------
 	
 :interface:   a surface or an outline (a loop) with associated exterior normals.
@@ -12,39 +12,43 @@ formal definitions
 
 In order to generate envelopes, this module asks for cutting all the surfaces to join into 'nodes'. The algorithm decides how to join shortly all the outlines in a node. Once splited in nodes, you only need to generate node junctions for each, and concatenate the resulting meshes.
 
-details
+Details
 -------
 
 The blended surfaces are created between interfaces, linked as the points of a convex polyedron of the interfaces directions to the node center.
 
 	
-example
+Example
 -------
 
-.. code::
+.. code-block:: python
 
-	>>> x,y,z = vec3(1,0,0), vec3(0,1,0), vec3(0,0,1)
+	>>> x, y, z = vec3(1, 0, 0), vec3(0, 1, 0), vec3(0, 0, 1)
+
+	>>> # 1. A surface can be passed: the surface outlines and 
+	>>> # normals will be used as the generated surface tangents 
+	>>> # 2. Wire or primitives can be passed: the wire loops are used 
+	>>> # and the approximate normal to the  wire plane
+	>>> # 3. More parameters when building directly the interface
 	>>> m = junction(
-			# can pass a surface: the surface outlines and normals will be used as the generated surface tangents 
-			extrusion(2*z, web(Circle((vec3(0),z), 1))),	
-			# can pass wire or primitives: the wire loops are used and the approximate normal to the  wire plane
-			Circle((2*x,x), 0.5),	
-			# more parameters when building directly the interfqce
-			(Circle((2*y,y), 0.5), 'tangent', 2.),
-			
-			generate='normal',
-			)
+	...		extrusion(2 * z, web(Circle((vec3(0), z), 1))), # 1.
+	...		Circle((2 * x, x), 0.5),                        # 2.
+	...		(Circle((2 * y, y), 0.5), "tangent", 2.0),      # 3.
+	...		generate="normal",
+	... )
 
 To come in a next version
 
-.. code::
+.. code-block:: python
 	
-	# create junction for each iterable of interface, if some are not interfaces, they are used as placeholder objects for auto-determined interfaces
-	>> multijunction(
-			(surf1, surf2, 42, surf5),
-			(42, surf3, surf4),
-			generate='straight',
-			)
+	>>> # create junction for each iterable of interface, 
+	>>> # if some are not interfaces, they are used 
+	>>> # as placeholder objects for auto-determined interfaces
+	>>> multijunction(
+	...		(surf1, surf2, 42, surf5),
+	...		(42, surf3, surf4),
+	...		generate='straight',
+	... )
 '''
 
 from .mesh import Mesh, Wire, Web, wire, connef, edgekey, suites, arrangeface, mkquad, numpy_to_typedlist, typedlist_to_numpy

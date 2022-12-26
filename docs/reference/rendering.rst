@@ -7,13 +7,11 @@ rendering   - 3D user interface
 
 This module provides a render pipeline system featuring:
 
-- class `Scene` to gather the data to render
-- widget `View` that actually renders the scene 
-- the display protocol, that allows any object to define its `Display` subclass to be rendered in a scene.
+- Class `Scene` to gather the data to render
+- Widget `View` that actually renders the scene 
+- The display protocol, that allows any object to define its `Display` subclass to be rendered in a scene.
 
 The view is for window integration and user interaction. `Scene` is only to manage the objects to render . Almost all madcad data types can be rendered to scenes being converted into an appropriate subclass of `Display`. Since the conversion from madcad data types into display instance is automatically handled via the *display protocol*, you usually don't need to deal with displays directly.
-
-
 
 .. autofunction:: show
 
@@ -25,7 +23,7 @@ The view is for window integration and user interaction. `Scene` is only to mana
 Display protocol
 ----------------
 
-A displayable is an object that implements the signatue of Display.
+A displayable is an object that implements the signature of `Display`.
 
 
 .. autofunction:: displayable
@@ -58,11 +56,11 @@ Rendering system
 
 .. py:data:: overrides
 	
-	dictionnary of callables used by `Scene.display` to override the display protocol method `object.display(scene)`
+	Dictionary of callables used by `Scene.display` to override the display protocol method `object.display(scene)`
 
 .. py:data:: global_context
 
-	shared open gl context, None if not yet initialized
+	Shared open gl context, None if not yet initialized
 	
 
 .. autoclass:: Scene
