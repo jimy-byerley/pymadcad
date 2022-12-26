@@ -6,6 +6,12 @@
 Guide
 =====
 
+.. toctree::
+   :maxdepth: 1
+
+   guide/goodpractices
+   guide/display
+
 Features
 --------
 
@@ -91,7 +97,18 @@ Different rules which should be applied when you are defining your part in order
 
 Also some advice to have a better way to extract information by *qualifying* characteristics.
 
-See all information :ref:`good practices<goodpractices>`
+See all information in :ref:`good practices<goodpractices>`.
+
+Display
+-------
+
+There are different options to display objects in `madcad` such as :
+
+- By displaying edges
+- By not displaying faces
+- With customized colors
+
+See all information in :ref:`display<display>`.
 
 Read and write files
 --------------------
@@ -107,6 +124,7 @@ Reading and writing files is simple :
     io.write(s["part"], "screw.stl")
     # Read
     read_mesh = io.read("screw.stl")
+    read_mesh.mergeclose()
     show([read_mesh])
 
 .. .. toctree::
