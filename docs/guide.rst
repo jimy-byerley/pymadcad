@@ -9,6 +9,5 @@ Guide
    guide/generation
    guide/manipulation
    guide/kinematic
-   guide/settings
    guide/display
    guide/io	

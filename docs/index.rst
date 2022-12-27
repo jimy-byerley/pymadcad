@@ -5,7 +5,7 @@ Simple yet powerful CAD (Computer Aided Design) library, written with Python.
 
 
 .. toctree::
-	:maxdepth: 3
+	:maxdepth: 2
 	
 	installation.rst
 	concepts.rst

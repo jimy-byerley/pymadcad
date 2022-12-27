@@ -411,7 +411,7 @@ img {
     display:block;
     margin-left:auto;
     margin-right:auto;
-    border: 1px solid #1c343c;
+    /* border: 1px solid #1c343c; */
 }
 
 /* .field-list{ */
