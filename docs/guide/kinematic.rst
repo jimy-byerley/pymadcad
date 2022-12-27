@@ -34,6 +34,6 @@ Prior part design (or after for assembly), we may want to see how what we are ma
 
     show([kin])
 		
-.. image:: /images/simple-kinematic.png
+.. image:: /screenshots/simple-kinematic.png
 
 Kinematics are displayable as interactive objects the user can move. They also are useful to compute force distributions during the movements or movement trajectories or kinematic cycles ...
