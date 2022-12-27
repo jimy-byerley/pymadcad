@@ -29,7 +29,7 @@ Examples:
 .. code-block:: python
 
     >>> from madcad import *
-    >>> print("\n".join(map(str, (O, X, Y, Z)))) # already created
+    >>> print('\n'.join(map(str, (O, X, Y, Z)))) # already created
     dvec3(            0,            0,            0 )
     dvec3(            1,            0,            0 )
     dvec3(            0,            1,            0 )
