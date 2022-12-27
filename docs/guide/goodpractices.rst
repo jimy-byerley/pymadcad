@@ -14,6 +14,8 @@ Imagine you want to make a revolution of a section. You start by defining the po
     rev = revolution(2 * pi, (O, Z), section)
     show([section, rev.transform(translate(6 * X))])
 
+.. image:: /screenshots/goodpractices/rev0.png
+
 You can observe the section on left side and the revolution on the right side. There are several problems that we are going to solve step by step :
 
 There is no edge on the revolution
@@ -29,6 +31,8 @@ By default, when the `Wire` is created, the set of points is defined as a *curve
     rev = revolution(2 * pi, (O, Z), section)
     show([section, rev.transform(translate(6 * X))])
 
+.. image:: /screenshots/goodpractices/rev1.png
+
 The surface is dark
 -------------------
 
@@ -41,6 +45,8 @@ A surface in `madcad` is oriented which means it has a bright side and a dark si
     section = Wire(points).segmented().flip() # quicker on Wire because there are less points
     rev = revolution(2 * pi, (O, Z), section) # or .flip() here
     show([section, rev.transform(translate(6 * X))])
+
+.. image:: /screenshots/goodpractices/rev2.png
 
 Duplicated points
 -----------------
@@ -58,11 +64,12 @@ There are still remaining dark surfaces on the top and the bottom of the revolut
     rev.mergeclose()
     show([rev])
 
+.. image:: /screenshots/goodpractices/rev3.png
 
-Qualify characteristics
------------------------
+Qualify groups
+--------------
 
-You should also consider *qualifying* characteristics of your part when you are defining it. See the following examples:
+You should also consider *qualifying* groups of your part when you are defining it. See the following examples:
 
 .. code-block:: python
 
@@ -84,7 +91,9 @@ You should also consider *qualifying* characteristics of your part when you are 
         ]
     )
 
-The main idea is to be able to extract characteristics of your part without guessing their index. Without *qualifying* characteristics, you must inspect `groups` of your parts and test them one by one:
+.. image:: /screenshots/goodpractices/extract0.png
+
+The main idea is to be able to extract groups of your part without guessing their index. Without *qualifying* groups, you must inspect `groups` of your parts and test them one by one:
 
 .. code-block:: python
 
@@ -107,6 +116,8 @@ The main idea is to be able to extract characteristics of your part without gues
         ]
     )
 
+.. image:: /screenshots/goodpractices/extract1.png
+
 It can be annoying when you have many `groups`.
 
 The last point to extract information could be by selecting edges based on a direction. See the following example :
@@ -127,5 +138,7 @@ The last point to extract information could be by selecting edges based on a dir
     extraction_bottom = select(result, vec3(5, 0, 0)) # or vec3(0, 5, 0)
     extraction = extraction_top + extraction_bottom
     show([result, extraction.transform(translate(16 * X))])
+
+.. image:: /screenshots/goodpractices/extract2.png
 
 But with this method, there are more computation and only edges are extracted.
