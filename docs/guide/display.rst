@@ -10,10 +10,10 @@ Without any option
 
     from madcad import *
 
-    m = screw(10, 20)["part"]
+    m = screw(10, 20)
     show([m])
     
-.. image:: /images/display/normal.png
+.. image:: /screenshots/display/normal.png
 
 With triangles
 --------------
@@ -22,10 +22,10 @@ With triangles
 
     from madcad import *
 
-    m = screw(10, 20)["part"]
+    m = screw(10, 20)
     show([m], options={"display_wire":True})
 
-.. image:: /images/display/wire.png
+.. image:: /screenshots/display/wire.png
 
 With transparency
 -----------------
@@ -34,11 +34,22 @@ With transparency
 
     from madcad import *
 
-    m = screw(10, 20)["part"]
+    m = screw(10, 20)
     show([m], options={"display_faces":False})
 
-.. image:: /images/display/faces.png
+.. image:: /screenshots/display/faces.png
 
+With points
+-----------
+
+.. code-block:: python
+
+    from madcad import *
+
+    m = screw(10, 20)
+    show([m], options={"display_points":True})
+
+.. image:: /screenshots/display/points.png
 
 Color
 -----
@@ -47,13 +58,14 @@ Color
 
     from madcad import *
 
-    m = screw(10, 20)["part"]
-    m.option(color=vec3(70, 130, 180) / 255) # RGB
+    m = screw(10, 20)
+    # m["part"] is a `Mesh`
+    m["part"].option(color=vec3(70, 130, 180) / 255) # RGB
     show([m])
 
-.. image:: /images/display/color.png
+.. image:: /screenshots/display/color.png
 
 .. note::
-   `screw` returns a `Solid`. `Solid` does not have the method `.option()` but other options work on `Solid` also.
+   `screw` returns a `Solid`. `Solid` does not have the method `.option()`.
 
 To get more information, please refer to :ref:`rendering<rendering>`.
