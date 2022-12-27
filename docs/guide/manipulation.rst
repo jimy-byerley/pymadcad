@@ -4,6 +4,8 @@ Manipulation
 Constraints solver
 ------------------
 
+Suppose that you want to set the Arc tangent to the A and B segments, and fix its radius. It is not easy to guess the precise coordinates for A, B and C for this. You can then specify the constraints to the solver. He will fix that for you.
+
 .. code-block:: python
    
     from madcad import *
@@ -20,8 +22,10 @@ Constraints solver
         Segment(C, O),  # Segment from C to O
     ]
     show([lines])
-   
-Blabla
+
+.. image:: /screenshots/manipulation/constraints-before.png
+
+That’s it ! The primitive list can now be converted to Wire or Web with the good shape.
 
 .. code-block:: python
 
@@ -40,8 +44,12 @@ Blabla
     # C = dvec3(     0.145109,      1.64325, -2.07437e-09 )
     show([lines])
 
+.. image:: /screenshots/manipulation/constraints-after.png
+
 Boolean operations - Intersection
 ---------------------------------
+
+For some geometries it is much faster to rework the already generated mesh to add complex geometries. Putting a hole in a surface for instance. Thus you won’t need to generate all the intersection surfaces by hand.
 
 .. code-block:: python
 
@@ -54,9 +62,14 @@ Boolean operations - Intersection
     diff = difference(m1, m2)
     show([diff])
 
+.. image:: /screenshots/manipulation/boolean-op.png
+
+All boolean operation are documented :doc:`here</reference/boolean>`.
 
 Junction
 --------
+
+Join arbitrary outlines in nicely blended surfaces.
 
 .. code-block:: python
 
@@ -78,8 +91,14 @@ Junction
 
     show([m])
 
+.. image:: /screenshots/manipulation/junction.png
+
+More information are available :doc:`here</reference/blending>`.
+
 Bevel
 -----
+
+An other usual rework operation is cut edges with chamfers or roundings. Because `round` is already a math function, we use the term bevel
 
 .. code-block:: python
 
@@ -95,3 +114,9 @@ Bevel
        ("width", 0.3),  # Cutting description, known as 'cutter'
     )
     show([cube])
+
+.. image:: /screenshots/manipulation/bevel-cube.png
+
+.. tip::
+
+   `chamfer` and `bevel` work in the same way.
