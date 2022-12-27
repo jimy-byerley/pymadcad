@@ -18,10 +18,10 @@ Imagine you want to make a revolution of a section. You start by defining the po
 
 You can observe the section on left side and the revolution on the right side. There are several problems that we are going to solve step by step :
 
-There is no edge on the revolution
-----------------------------------
+There is no visible edge on the revolution
+------------------------------------------
 
-By default, when the `Wire` is created, the set of points is defined as a *curve* and not *discontinuous set of segments*. To solve this, we need to specify that the `Wire` is `segmented`:
+By default, when the `Wire` is created, the set of points is defined as a *discretized curve* contained in only one *group* in its `groups`. To get different *groups*, we need to specify that the `Wire` is `segmented`:
 
 .. code-block:: python
 
@@ -32,6 +32,10 @@ By default, when the `Wire` is created, the set of points is defined as a *curve
     show([section, rev.transform(translate(6 * X))])
 
 .. image:: /screenshots/goodpractices/rev1.png
+
+.. note::
+
+   A `Mesh` has necessary `edges` in order to display `faces`. Therefore visible edges are defined by `groups`.
 
 The surface is dark
 -------------------
