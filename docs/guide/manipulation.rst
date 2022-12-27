@@ -38,7 +38,7 @@ That’s it ! The primitive list can now be converted to Wire or Web with the go
     # Solve the constraints, 
     # O is fixed and therefore will not move during the process
     solve(csts, fixed=[0])
-    print("\n".join("{} = {}".format(name, v) for name, v in zip("ABC", (A, B, C))))
+    print('\n'.join("{} = {}".format(name, v) for name, v in zip("ABC", (A, B, C))))
     # A = dvec3(      1.83758,    -0.092837,  -5.8732e-09 )
     # B = dvec3(      1.21717,      2.83567,  3.43597e-10 )
     # C = dvec3(     0.145109,      1.64325, -2.07437e-09 )
@@ -65,35 +65,6 @@ For some geometries it is much faster to rework the already generated mesh to ad
 .. image:: /screenshots/manipulation/boolean-op.png
 
 All boolean operation are documented :doc:`here</reference/boolean>`.
-
-Junction
---------
-
-Join arbitrary outlines in nicely blended surfaces.
-
-.. code-block:: python
-
-    from madcad import *
-    interfaces = [
-        Circle((vec3(0, 0, 3), vec3(0, 0, 1)), 1),
-        Circle((vec3(-1, -1, -1), normalize(vec3(-1, -1, -1))), 1),
-        Circle((vec3(1, -1, -1), normalize(vec3(1, -1, -1))), 1),
-    ]
-
-    m = junction(
-        interfaces[0],
-        interfaces[1],
-        interfaces[2],
-        tangents="tangent",
-    )
-    for c in interfaces:
-        m += extrusion(c.axis[1] * 3, web(c))
-
-    show([m])
-
-.. image:: /screenshots/manipulation/junction.png
-
-More information are available :doc:`here</reference/blending>`.
 
 Bevel
 -----
