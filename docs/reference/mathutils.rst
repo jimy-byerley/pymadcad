@@ -62,22 +62,22 @@ Common vector operations
 .. autofunction:: dot
 
 	.. image:: /schemes/mathutils-dot.svg
-           :width: 480
+           :width: 360
 
 .. autofunction:: cross
 
 	.. image:: /schemes/mathutils-cross.svg
-           :width: 480
+           :width: 360
 
 .. autofunction:: length
 	
 	.. image:: /schemes/mathutils-length.svg
-           :width: 480
+           :width: 360
 	
 .. autofunction:: distance
 
 	.. image:: /schemes/mathutils-distance.svg
-           :width: 480
+           :width: 360
 	
 .. function:: normalize(x) -> vecN
 
@@ -88,7 +88,7 @@ Common vector operations
 .. autofunction:: anglebt
 
 	.. image:: /schemes/mathutils-anglebt.svg
-           :width: 480
+           :width: 360
 	
 .. autofunction:: arclength
 
@@ -96,17 +96,17 @@ Common vector operations
 .. autofunction:: project
 
 	.. image:: /schemes/mathutils-project.svg
-           :width: 480
+           :width: 360
 
 .. autofunction:: noproject
 
 	.. image:: /schemes/mathutils-noproject.svg
-           :width: 480
+           :width: 360
 
 .. autofunction:: unproject
 
 	.. image:: /schemes/mathutils-unproject.svg
-           :width: 480
+           :width: 360
 
 .. autofunction:: reflect
 
@@ -115,7 +115,7 @@ Common vector operations
 .. autofunction:: perp
 
 	.. image:: /schemes/mathutils-perp.svg
-           :width: 480
+           :width: 360
 
 .. function:: norm1(x) -> float
 
@@ -197,17 +197,17 @@ Scalar functions
 .. autofunction:: step
 
 	.. image:: /schemes/mathutils-step.svg
-           :width: 480
+           :width: 360
 	
 .. autofunction:: smoothstep
 
 	.. image:: /schemes/mathutils-smoothstep.svg
-           :width: 480
+           :width: 360
 	
 .. autofunction:: clamp
 
 	.. image:: /schemes/mathutils-clamp.svg
-           :width: 480
+           :width: 360
 
 .. autofunction:: intri_smooth
 .. autofunction:: intri_sphere
