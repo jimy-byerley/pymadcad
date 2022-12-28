@@ -22,7 +22,7 @@ import numpy.core as np
 import moderngl as mgl
 from PyQt5.QtCore import Qt, QEvent	
 
-from .common import ressourcedir
+from .common import resourcedir
 from .mathutils import *
 from .mesh import Mesh, Web, Wire, striplist, distance2_pm, typedlist_to_numpy
 from . import settings
@@ -978,18 +978,18 @@ class WireDisplay(rendering.Display):
 		
 		def load(scene):
 			return scene.ctx.program(
-						vertex_shader=open(ressourcedir+'/shaders/uniformcolor.vert').read(),
-						fragment_shader=open(ressourcedir+'/shaders/uniformcolor.frag').read(),
+						vertex_shader=open(resourcedir+'/shaders/uniformcolor.vert').read(),
+						fragment_shader=open(resourcedir+'/shaders/uniformcolor.frag').read(),
 						)
-		self.uniformshader = scene.ressource('shader_uniformcolor', load)
+		self.uniformshader = scene.resource('shader_uniformcolor', load)
 		
 		def load(scene):
 			return scene.ctx.program(
-						vertex_shader=open(ressourcedir+'/shaders/glowenvelope.vert').read(),
-						fragment_shader=open(ressourcedir+'/shaders/glowenvelope.frag').read(),
+						vertex_shader=open(resourcedir+'/shaders/glowenvelope.vert').read(),
+						fragment_shader=open(resourcedir+'/shaders/glowenvelope.frag').read(),
 						)
-		self.transpshader = scene.ressource('shader_glowenvelope', load)
-		self.identshader = scene.ressource('shader_ident')
+		self.transpshader = scene.resource('shader_glowenvelope', load)
+		self.identshader = scene.resource('shader_ident')
 		
 		normals = Mesh(points, transpfaces).vertexnormals()
 		#print('normals', normals)

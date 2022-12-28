@@ -4,7 +4,7 @@ from math import log, exp, floor
 from .mathutils import *
 from .mesh import typedlist_to_numpy
 from .rendering import Display, overrides, writeproperty
-from .common import ressourcedir
+from .common import resourcedir
 from . import settings
 from . import primitives
 from PIL import Image
@@ -16,14 +16,14 @@ from PyQt5.QtCore import Qt, QEvent
 
 def shader_wire(scene):
 	return scene.ctx.program(
-				vertex_shader=open(ressourcedir+'/shaders/wire.vert').read(),
-				fragment_shader=open(ressourcedir+'/shaders/wire.frag').read(),
+				vertex_shader=open(resourcedir+'/shaders/wire.vert').read(),
+				fragment_shader=open(resourcedir+'/shaders/wire.frag').read(),
 				)
 	
 def shader_uniformcolor(scene):
 	return scene.ctx.program(
-				vertex_shader=open(ressourcedir+'/shaders/uniformcolor.vert').read(),
-				fragment_shader=open(ressourcedir+'/shaders/uniformcolor.frag').read(),
+				vertex_shader=open(resourcedir+'/shaders/uniformcolor.vert').read(),
+				fragment_shader=open(resourcedir+'/shaders/uniformcolor.frag').read(),
 				)
 
 
@@ -35,19 +35,19 @@ class PointDisplay(Display):
 		self.color = fvec3(color or settings.display['line_color'])
 		
 		def load(scene):
-			img = Image.open(ressourcedir+'/textures/point.png')
+			img = Image.open(resourcedir+'/textures/point.png')
 			texture = scene.ctx.texture(img.size, 1, img.convert('L').tobytes())
-			#self.texture = scene.ressource('pointtex', load)
+			#self.texture = scene.resource('pointtex', load)
 			shader = scene.ctx.program(
-						vertex_shader=open(ressourcedir+'/shaders/pointhalo.vert').read(),
-						fragment_shader=open(ressourcedir+'/shaders/pointhalo.frag').read(),
+						vertex_shader=open(resourcedir+'/shaders/pointhalo.vert').read(),
+						fragment_shader=open(resourcedir+'/shaders/pointhalo.frag').read(),
 						)
 			shader['halotex'].value = 0
 			ident_shader = scene.ctx.program(
-						vertex_shader=open(ressourcedir+'/shaders/pointhalo-ident.vert').read(),
-						fragment_shader=open(ressourcedir+'/shaders/ident.frag').read(),
+						vertex_shader=open(resourcedir+'/shaders/pointhalo-ident.vert').read(),
+						fragment_shader=open(resourcedir+'/shaders/ident.frag').read(),
 						)
-			#self.shader = scene.ressource('pointhalo', load)
+			#self.shader = scene.resource('pointhalo', load)
 			vb = scene.ctx.buffer(np.array([(0,0), (0,1), (1,1), (0,0), (1,1), (1,0)], 'f4'))
 			va = scene.ctx.vertex_array(shader, [(vb, '2f', 'v_uv')])
 			va_ident = scene.ctx.vertex_array(ident_shader, [(vb, '2f', 'v_uv')])
@@ -57,7 +57,7 @@ class PointDisplay(Display):
 			self.shader, 
 			self.va, 
 			self.ident_shader, 
-			self.va_ident	) = scene.ressource('pointhalo', load)
+			self.va_ident	) = scene.resource('pointhalo', load)
 			
 	@property
 	def box(self):
@@ -102,16 +102,16 @@ class AxisDisplay(Display):
 		self.selected = False
 		self.box = Box(center=self.origin, width=fvec3(0))
 		
-		self.shader, self.va, self.ident_shader, self.va_ident = scene.ressource('axis', self.load)
+		self.shader, self.va, self.ident_shader, self.va_ident = scene.resource('axis', self.load)
 	
 	def load(self, scene):
 		shader = scene.ctx.program(
-					vertex_shader=open(ressourcedir+'/shaders/axis.vert').read(),
-					fragment_shader=open(ressourcedir+'/shaders/axis.frag').read(),
+					vertex_shader=open(resourcedir+'/shaders/axis.vert').read(),
+					fragment_shader=open(resourcedir+'/shaders/axis.frag').read(),
 					)
 		ident_shader = scene.ctx.program(
-					vertex_shader=open(ressourcedir+'/shaders/axis-ident.vert').read(),
-					fragment_shader=open(ressourcedir+'/shaders/ident.frag').read(),
+					vertex_shader=open(resourcedir+'/shaders/axis-ident.vert').read(),
+					fragment_shader=open(resourcedir+'/shaders/ident.frag').read(),
 					)
 		pts = []
 		for i in range(-1, self.repetitions+1):
@@ -168,14 +168,14 @@ class AnnotationDisplay(Display):
 		# load shader
 		def load(scene):
 			return scene.ctx.program(
-						vertex_shader=open(ressourcedir+'/shaders/annotation.vert').read(),
-						fragment_shader=open(ressourcedir+'/shaders/annotation.frag').read(),
+						vertex_shader=open(resourcedir+'/shaders/annotation.vert').read(),
+						fragment_shader=open(resourcedir+'/shaders/annotation.frag').read(),
 						)
-		self.shader = scene.ressource('shader_annotation', load)
+		self.shader = scene.resource('shader_annotation', load)
 		# allocate buffers
 		self.vb_pts = scene.ctx.buffer(points)
 		self.va = scene.ctx.vertex_array(self.shader, [(self.vb_pts, '3f f', 'v_position', 'v_alpha')])
-		self.va_ident = scene.ctx.vertex_array(scene.ressource('shader_ident'), [(self.vb_pts, '3f 4x', 'v_position')])
+		self.va_ident = scene.ctx.vertex_array(scene.resource('shader_ident'), [(self.vb_pts, '3f 4x', 'v_position')])
 		
 	def __del__(self):
 		self.va.release()
@@ -196,7 +196,7 @@ class AnnotationDisplay(Display):
 		self.va.render(mgl.LINES)
 	
 	def identify(self, view):
-		shader = view.scene.ressource('shader_ident')
+		shader = view.scene.resource('shader_ident')
 		shader['proj'].write(view.uniforms['proj'])
 		shader['view'].write(view.uniforms['view'] * self.world)
 		shader['ident'] = view.identstep(1)
@@ -369,21 +369,21 @@ class FacesDisplay:
 	
 		# load the skybox texture
 		def load(scene):
-			img = Image.open(ressourcedir+'/textures/'+settings.display['solid_reflect'])
+			img = Image.open(resourcedir+'/textures/'+settings.display['solid_reflect'])
 			return scene.ctx.texture(img.size, 3, img.tobytes())
-		self.reflectmap = scene.ressource('skybox', load)
+		self.reflectmap = scene.resource('skybox', load)
 		
 		# load the shader
 		def load(scene):
 			shader = scene.ctx.program(
-						vertex_shader=open(ressourcedir+'/shaders/solid.vert').read(),
-						fragment_shader=open(ressourcedir+'/shaders/solid.frag').read(),
+						vertex_shader=open(resourcedir+'/shaders/solid.vert').read(),
+						fragment_shader=open(resourcedir+'/shaders/solid.frag').read(),
 						)
 			# setup some uniforms
 			shader['reflectmap'] = 0
 			return shader
-		self.shader = scene.ressource('shader_solid', load)
-		self.ident_shader = scene.ressource('shader_subident')
+		self.shader = scene.resource('shader_solid', load)
+		self.ident_shader = scene.resource('shader_subident')
 		# allocate buffers
 		if faces is not None and len(faces) and vertices.vb_positions:
 			self.vb_faces = scene.ctx.buffer(np.array(faces, 'u4', copy=False))
@@ -445,13 +445,13 @@ class GhostDisplay:
 		# load the shader
 		def load(scene):
 			shader = scene.ctx.program(
-						vertex_shader=open(ressourcedir+'/shaders/solid.vert').read(),
-						fragment_shader=open(ressourcedir+'/shaders/ghost.frag').read(),
+						vertex_shader=open(resourcedir+'/shaders/solid.vert').read(),
+						fragment_shader=open(resourcedir+'/shaders/ghost.frag').read(),
 						)
 			# setup some uniforms
 			return shader
-		self.shader = scene.ressource('shader_ghost', load)
-		self.ident_shader = scene.ressource('shader_subident')
+		self.shader = scene.resource('shader_ghost', load)
+		self.ident_shader = scene.resource('shader_subident')
 		# allocate buffers
 		if faces is not None and len(faces) and vertices.vb_positions:
 			self.vb_faces = scene.ctx.buffer(np.array(faces, 'u4', copy=False))
@@ -511,8 +511,8 @@ class LinesDisplay:
 		self.vertices = vertices
 		
 		# load the line shader
-		self.shader = scene.ressource('shader_wire', shader_wire)
-		self.ident_shader = scene.ressource('shader_subident')
+		self.shader = scene.resource('shader_wire', shader_wire)
+		self.ident_shader = scene.resource('shader_subident')
 		if lines is not None and len(lines) and vertices.vb_positions:
 			# allocate buffers
 			self.vb_lines = scene.ctx.buffer(np.array(lines, dtype='u4', copy=False))
@@ -563,8 +563,8 @@ class PointsDisplay:
 		self.vertices = vertices
 		
 		# load the line shader
-		self.shader = scene.ressource('shader_wire', shader_wire)
-		self.ident_shader = scene.ressource('shader_subident')
+		self.shader = scene.resource('shader_wire', shader_wire)
+		self.ident_shader = scene.resource('shader_subident')
 		# allocate GPU objects
 		if indices is not None and len(indices) and vertices.vb_positions:
 			self.vb_indices = scene.ctx.buffer(np.array(indices, dtype='u4', copy=False))
@@ -634,13 +634,13 @@ class GridDisplay(Display):
 					pts[i,j] = (i-h, j-h, (1+min(digitfit(i), digitfit(j))))
 			
 			shader = scene.ctx.program(
-						vertex_shader=open(ressourcedir+'/shaders/viewgrid.vert').read(),
-						fragment_shader=open(ressourcedir+'/shaders/viewgrid.frag').read(),
+						vertex_shader=open(resourcedir+'/shaders/viewgrid.vert').read(),
+						fragment_shader=open(resourcedir+'/shaders/viewgrid.frag').read(),
 						)
 			vb = scene.ctx.buffer(pts)
 			va = scene.ctx.vertex_array(shader, [(vb, '2f4 f2', 'v_position', 'v_opacity')])
 			return shader, va
-		self.shader, self.va = scene.ressource('viewgrid', load)
+		self.shader, self.va = scene.resource('viewgrid', load)
 		self.unit = unit
 		self.center = fvec3(center or 0)
 		self.color = fvec4(color) if color else fvec4(settings.display['point_color'],1)
@@ -677,11 +677,11 @@ class SplineDisplay(Display):
 		self.vb_handles = ctx.buffer(handles)
 		self.vb_curve = ctx.buffer(curve)
 		
-		self.shader = scene.ressource('shader_uniformcolor', shader_uniformcolor)
+		self.shader = scene.resource('shader_uniformcolor', shader_uniformcolor)
 		self.va_handles = ctx.vertex_array(self.shader, [(self.vb_handles, '3f4', 'v_position')])
 		self.va_curve = ctx.vertex_array(self.shader, [(self.vb_curve, '3f4', 'v_position')])
 		
-		self.shader_ident = scene.ressource('shader_ident')
+		self.shader_ident = scene.resource('shader_ident')
 		self.va_ident = ctx.vertex_array(self.shader_ident, [(self.vb_curve, '3f4', 'v_position')])
 		
 	def __del__(self):
@@ -779,8 +779,8 @@ class VoxelDisplay(Display):
 			
 			# load shader
 			shader = scene.ctx.program(
-						vertex_shader=open(ressourcedir+'/shaders/voxel.vert').read(),
-						fragment_shader=open(ressourcedir+'/shaders/voxel.frag').read(),
+						vertex_shader=open(resourcedir+'/shaders/voxel.vert').read(),
+						fragment_shader=open(resourcedir+'/shaders/voxel.frag').read(),
 						)
 			# load vertex buffer for the brick
 			brick = generation.brick(min=vec3(0), max=vec3(1)) .flip()
@@ -791,7 +791,7 @@ class VoxelDisplay(Display):
 			
 			return shader, vb
 		
-		self.shader, self.vb = scene.ressource('shader_voxel', load)
+		self.shader, self.vb = scene.resource('shader_voxel', load)
 		self.va = scene.ctx.vertex_array(
 				self.shader,
 				[(self.vb, '3f', 'v_position')],

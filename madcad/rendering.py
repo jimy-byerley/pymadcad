@@ -56,7 +56,7 @@ from PyQt5.QtGui import QSurfaceFormat, QMouseEvent, QInputEvent, QKeyEvent, QTo
 from PIL import Image
 
 from .mathutils import *
-from .common import ressourcedir
+from .common import resourcedir
 from . import settings
 
 from .nprint import nprint
@@ -419,7 +419,7 @@ class Scene:
 		Attributes:
 		
 			ctx:				  moderngl Context (must be the same for all views using this scene)
-			ressources (dict):    dictionary of scene resources (like textures, shaders, etc) index by name
+			resources (dict):    dictionary of scene resources (like textures, shaders, etc) index by name
 			options (dict):       dictionary of options for rendering, initialized with a copy of `settings.scene`
 			
 			displays (dict):      dictionary of items in the scheme `{'name': Display}`
@@ -432,7 +432,7 @@ class Scene:
 	def __init__(self, objs=(), options=None, ctx=None, setup=None):
 		# context variables
 		self.ctx = ctx
-		self.ressources = {}	# context-related ressources, shared across displays, but not across contexts (shaders, vertexarrays, ...)
+		self.resources = {}	# context-related resources, shared across displays, but not across contexts (shaders, vertexarrays, ...)
 		
 		# rendering options
 		self.options = deepcopy(settings.scene)
@@ -568,19 +568,19 @@ class Scene:
 			box.union_update(display.box.transform(display.world))
 		return box
 	
-	def ressource(self, name, func=None):
-		''' Get a ressource loaded or load it using the function func.
+	def resource(self, name, func=None):
+		''' Get a resource loaded or load it using the function func.
 			If func is not provided, an error is raised
 		'''
-		if name in self.ressources:	
-			return self.ressources[name]
+		if name in self.resources:	
+			return self.resources[name]
 		elif callable(func):
 			with self.ctx as ctx:  # set the scene context as current opengl context
 				res = func(self)
-				self.ressources[name] = res
+				self.resources[name] = res
 				return res
 		else:
-			raise KeyError("ressource {} doesn't exist or is not loaded".format(repr(name)))
+			raise KeyError("resource {} doesn't exist or is not loaded".format(repr(name)))
 					
 	def display(self, obj, former=None):
 		''' Create a display for the given object for the current scene.
@@ -812,16 +812,16 @@ class ViewCommon:
 			raise ValueError(f"background_color must be a RGB or RGBA tuple, currently {background}")
 
 	def preload(self):
-		''' Internal method to load common ressources '''
-		ctx, ressources = self.scene.ctx, self.scene.ressources
-		ressources['shader_ident'] = ctx.program(
-					vertex_shader=open(ressourcedir+'/shaders/object-ident.vert').read(),
-					fragment_shader=open(ressourcedir+'/shaders/ident.frag').read(),
+		''' Internal method to load common resources '''
+		ctx, resources = self.scene.ctx, self.scene.resources
+		resources['shader_ident'] = ctx.program(
+					vertex_shader=open(resourcedir+'/shaders/object-ident.vert').read(),
+					fragment_shader=open(resourcedir+'/shaders/ident.frag').read(),
 					)
 
-		ressources['shader_subident'] = ctx.program(
-					vertex_shader=open(ressourcedir+'/shaders/object-item-ident.vert').read(),
-					fragment_shader=open(ressourcedir+'/shaders/ident.frag').read(),
+		resources['shader_subident'] = ctx.program(
+					vertex_shader=open(resourcedir+'/shaders/object-item-ident.vert').read(),
+					fragment_shader=open(resourcedir+'/shaders/ident.frag').read(),
 					)
 
 	# -- methods to deal with the view --

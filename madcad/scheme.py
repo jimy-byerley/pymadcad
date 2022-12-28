@@ -24,7 +24,7 @@ from collections import deque
 
 from .mathutils import *
 from .rendering import Display
-from .common import ressourcedir
+from .common import resourcedir
 from .mesh import Mesh, Web, Wire, web, wire, mesh_distance, connef, connpe, edgekey, arrangeface, arrangeedge
 from .rendering import Displayable, writeproperty, overrides
 from .text import TextDisplay, textsize
@@ -215,8 +215,8 @@ class Scheme:
 		def __init__(self, scene, sch):
 			ctx = scene.ctx
 			
-			# load the ressources
-			self.shaders, self.shader_ident = scene.ressource('scheme', self.load)
+			# load the resources
+			self.shaders, self.shader_ident = scene.resource('scheme', self.load)
 			
 			# switch to array indexed spaces
 			self.spaces = typedlist.full(fmat4(0), self.max_spaces)
@@ -284,23 +284,23 @@ class Scheme:
 			
 		def load(self, scene):
 			''' Load shaders and all static data for the current OpenGL context '''
-			vert = open(ressourcedir+'/shaders/scheme.vert').read()
+			vert = open(resourcedir+'/shaders/scheme.vert').read()
 			shader_ident = scene.ctx.program(
 						vertex_shader=vert,
-						fragment_shader=open(ressourcedir+'/shaders/scheme-ident.frag').read(),
+						fragment_shader=open(resourcedir+'/shaders/scheme-ident.frag').read(),
 						)
 			shaders = {
 				'line': (mgl.LINES, scene.ctx.program(
 						vertex_shader=vert,
-						fragment_shader=open(ressourcedir+'/shaders/scheme-uniform.frag').read(),
+						fragment_shader=open(resourcedir+'/shaders/scheme-uniform.frag').read(),
 						)),
 				'fill': (mgl.TRIANGLES, scene.ctx.program(
 						vertex_shader=vert,
-						fragment_shader=open(ressourcedir+'/shaders/scheme-uniform.frag').read(),
+						fragment_shader=open(resourcedir+'/shaders/scheme-uniform.frag').read(),
 						)),
 				'ghost': (mgl.TRIANGLES, scene.ctx.program(
 						vertex_shader=vert,
-						fragment_shader=open(ressourcedir+'/shaders/scheme-ghost.frag').read(),
+						fragment_shader=open(resourcedir+'/shaders/scheme-ghost.frag').read(),
 						)),
 				}
 			return shaders, shader_ident
@@ -353,7 +353,7 @@ class SchemeInstance:
 	class display(Scheme.display):
 		def __init__(self, scene, instance):
 			self.instance = instance
-			disp = scene.ressource(id(instance.scheme), lambda: inst.scheme.display(scene, instance.scheme))
+			disp = scene.resource(id(instance.scheme), lambda: inst.scheme.display(scene, instance.scheme))
 			vars(self).update(vars(disp))
 			self.spaces = deepcopy(disp.spaces)
 			

@@ -1,3 +1,3 @@
 import os
 
-ressourcedir = os.path.dirname(__file__)
+resourcedir = os.path.dirname(__file__)
