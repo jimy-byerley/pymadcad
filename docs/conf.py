@@ -36,6 +36,7 @@ extensions = [
 	'sphinxcontrib.mermaid',  # support for simple markdown schematics
     'myst_parser',            # support for markdown
     'sphinx_rtd_theme',       # page theme
+	'sphinx_subfigure',
 ]
 myst_enable_extensions = [
 	'dollarmath',
