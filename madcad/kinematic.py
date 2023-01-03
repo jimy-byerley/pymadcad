@@ -274,6 +274,134 @@ class Solid:
 			self.pose = fmat4(self.solid.pose)
 			
 			
+class Chain:
+	def __init__(self, *args, **kwargs):
+		if isinstance(args[0], Solid) and isinstance(args[1], Solid):
+			self.start = args[0]
+			self.stop = args[1]
+			args = args[2:]
+		self.init(*args, **kwargs)
+	
+	bounds = []
+	def direct(self, parameters) -> 'mat4':
+		indev
+	def inverse(self, pose, close=None) -> 'params':
+		indev
+	def grad(self, parameters) -> '[mat4]':
+		indev
+	def transmit(self, force, parameters=None, velocity=None) -> 'Screw':
+		indev
+		
+class Kinematic:
+	indev
+		
+def solve(chains, solids={}, fixed=set(), init=None, precision=1e-6, maxiter=None):
+	dtype = np.float64
+	# collect the joint graph, the constraints and fixed solids
+	solids = copy(solids)
+	links = set()
+	for chain in chains:
+		link = []
+		for candidate in (chain.start, chain.stop):
+			if isinstance(candidate, Solid):
+				solids[candidate] = k = candidate
+				link.append(k)
+			elif candidate not in solids:
+				solids[candidate] = Solid()
+		links.add((link[0], chain, link[1]))
+	# decompose the graph into directed branches
+	branchs = []
+	for suite in suites([(chain.start, chain.stop)  for chain in chains], oriented=False):
+		branch = []
+		for i in range(1, len(suite), 2):
+			chain = suite[i]
+			direct = suite[i-1] == chain.start
+			branch.append((chain, direct))
+		branchs.append(branch)
+	ordered = []
+	
+	# decompose the graph into priorized directed branches by propagation
+	conn = {}
+	for link in links:
+		for i in range(len(link)):
+			if link[i] not in conn:	
+				conn[link[i]] = []
+			conn[link[i]].append(link[i-1])
+	front = []
+	for s in fixed:
+		for n in conn[s]:
+			indev
+		front.extend(conn[s])
+	while front:
+		start = front.pop()
+	
+	# initiate the solver with the initial pose
+	if init is None:
+		for branch in branchs:
+			for chain, _ in chains:
+				state.append(chain.inverse(hinverse(chain.start.place) * chain.stop.pose))
+	
+	# cost terms
+	
+	def cost(state):
+		''' return a flattened array of the matrices differences '''
+		it = iter(state)
+		nodes = [[]  for i in range(len(branchs)-1)]
+		for branch, start, stop in branchs:
+			# build the chain direct transform
+			b = mat4(nodes[start][0])
+			for chain, direct in branch:
+				x = next(it)
+				f = chain.direct(x)
+				if not direct:	
+					f = hinverse(f)
+				b *= f
+			nodes[stop].append(b)
+		# build the cost line
+		cost = np.empty((len(branchs)-1, 4, 4), dtype=dtype)
+		for i,node in enumerate(nodes):
+			mean = sum(node) / len(node)
+			cost[i] = np.asanyarray(node - mean)**2
+		return cost.ravel()
+	
+	def jac(state):
+		''' return a matrix with one line per joint variable, each line being the gradient of the cost '''
+		it = iter(state)
+		jac = []
+		for branch, start, stop in branch:
+			# built the left side of the gradient product of the direct chain
+			directs = []
+			b = mat4(1)
+			for chain, direct in branch:
+				x = next(it)
+				d = chain.direct(x)
+				if not direct:	
+					d = hinverse(d)
+				for df in chain.grad(x):
+					if not direct:
+						df = hinverse(df)
+					grad.append(b*df)
+				b = b*d
+				directs.append((d, len(x)))
+			# build the right side of the product
+			b = mat4(1)
+			for d,n in reversed(directs):
+				for i in range(n):
+					grad[i] = grad[i]*b
+				b = d*b
+			# fill the jacobian line
+			for dg in grad:
+				line = np.zeros((len(branchs)-1, 4, 4), dtype=dtype)
+				line[node] = dg
+				jac.append(line.ravel())
+		return np.stack(jac)
+	
+	res = least_squares(cost, jac=jac, 
+			ftol=precision, 
+			gtol=precision**2, 
+			method='trf', 
+			max_nfev=maxiter,
+			)
 
 def placement(*pairs, precision=1e-3):
 	''' return a transformation matrix that solved the placement constraints given by the surface pairs
