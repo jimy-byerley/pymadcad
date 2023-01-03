@@ -4,7 +4,7 @@ Main concepts of madcad
 Comparison with existing CAD softwares
 --------------------------------------
 
-Current CAD softwares, are based on a full GUI oriented approach, with parametric features bases on dynamic relationship between the scene objects. This can leads to many problems:
+Current CAD softwares are based on a full GUI oriented approach, with parametric features bases on dynamic relationship between the scene objects. This can leads to many problems:
 	
 	- Objects relationships are never visible, thus tricky to understand and to manage. On most of these softwares it's in fact impossible to manage it.
 	
@@ -21,12 +21,12 @@ Current CAD softwares, are based on a full GUI oriented approach, with parametri
 The current library differs in its approach by the following points:
 
 	- MADCAD is a script based CAD
-		all the functions of madcad are available in the current API. Nothing is hidden.
+		All the functions of madcad are available in the current API. Nothing is hidden.
 		The python script is the build tree, it is as readable as the user makes it.
 		We strive to keep all the functions simple and intuitive to allow a good readability and a fast scripting.
 
 	- MADCAD is not a parametric software
-		a madcad script is just a regular Python script. What makes the madcad files parametric is the ability to change variables and reexecute the script.
+		A madcad script is just a regular Python script. What makes the madcad files parametric is the ability to change variables and execute again the script.
 		
 		So madcad is generative, for implicit geometry definitions, the user has to use a solver before constructing the objects.
 	
@@ -72,7 +72,7 @@ It appeared that the GPU `shader languages <https://docs.gl/sl4/all>`_ already f
 Mesh Data
 ~~~~~~~~~
 
-It's always a difficult way to stop a decision on the way to represent 3D objects. In most cases we represent it by its exterior surface, but the problem of the polygons remains: `ngons, quads, triangles, bezier,` ... ? And the way to put it into memory also: `simple unit elements, dynamically typed polygons, halfedges, quadedges,` ... Or even the way to access it: `arrays, chained lists, octree, hashmaps`.
+It's always a difficult way to stop a decision on the way to represent 3D objects. In most cases we represent it by its exterior surface, but the problem of the polygons remains: `ngons`, `quads`, `triangles`, `bezier`, ... ? And the way to put it into memory also: `simple unit elements`, `dynamically typed polygons`, `halfedges`, `quadedges`, ... Or even the way to access it: `arrays`, `chained lists`, `octree`, `hashmaps`.
 
 The choice was not easy but was in favor of simplicity:
 	
@@ -87,14 +87,14 @@ Points and faces were initially stored in regular python lists. It was convenien
 Display library
 ~~~~~~~~~~~~~~~
 
-As 3D manipulation can be complex, it's mandatory to visualize any kind of objects. A part of the library is dedicated to display the objects in an OpenGL scene. But to allow user interactions and allow to embed the scene widget, we had to focus on one only panelling library.
+As 3D manipulation can be complex, it's mandatory to visualize any kind of objects. A part of the library is dedicated to display the objects in an OpenGL scene. But to allow user interactions and allow to embed the scene widget, we had to focus on one only paneling library.
 
-We prefered to bet on the most - advanced and feature-complete - free library despite its differences with the python environment.
+We preferred to bet on the most - advanced and feature-complete - free library despite its differences with the python environment.
 
 	Choice is `Qt <https://www.qt.io/>`_ but with `moderngl <https://github.com/moderngl/moderngl>`_ for the render pipeline
 	
 .. note::
-	Qt5 is not very pythonic (it's designed for c++, no functional programming, huge inheritance instead of python protocols, string typing, enums, camelcase, ...). But since the release of `Qt6 (guidelines) <https://www.qt.io/blog/2019/08/07/technical-vision-qt-6>`_ more pythonicity can be found, that madcad will benefit from once upgraded to Qt6
+	Qt5 is not very pythonic (it's designed for C++, no functional programming, huge inheritance instead of python protocols, string typing, enums, camelcase, ...). But since the release of `Qt6 (guidelines) <https://www.qt.io/blog/2019/08/07/technical-vision-qt-6>`_ more pythonicity can be found, that madcad will benefit from once upgraded to Qt6
 
 References
 ~~~~~~~~~~

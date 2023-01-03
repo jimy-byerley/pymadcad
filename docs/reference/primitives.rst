@@ -11,14 +11,15 @@ Primitives are parametrized objects, that can be baked into a mesh/web/wire obje
 
 		class SomePrimitive:
 			# method baking the primitive in some general-purpose 3D object
-			# resolution is optional and defaults to the primitive settings that defaults to the current settings at call time
+			# resolution is optional and defaults to the primitive settings 
+			# that defaults to the current settings at call time
 			def mesh(self, resolution=None) -> Mesh/Web/Wire:
 				...
 			
 			# for the solver
 			# primitive attributes the solver has to consider as variables or variable container
 			slvvars = 'fields', 'for', 'solver', 'variables'
-			# otpional method constraining the primitive parameters (to keep points on a circle for instance)
+			# optional method constraining the primitive parameters (to keep points on a circle for instance)
 			def fit(self) -> err**2 as float:
 				...
 
@@ -28,16 +29,16 @@ Primitives are parametrized objects, that can be baked into a mesh/web/wire obje
 Curve resolution
 ----------------
 
-Some primitive types are curves, the discretisation is important for visual as well as for result quality (remember that even if something looks like a perfect curves, it's still polygons).
-The resolution (subdivision) of curve is done following the following cirterions present in the :ref:`settings module<settings>`
+Some primitive types are curves, the discretization is important for visual as well as for result quality (remember that even if something looks like a perfect curves, it's still polygons).
+The resolution (subdivision) of curve is done following the following criterion present in the :ref:`settings module<settings>`
 
-specification priority order:
+Specification priority order:
 	
-	1. optional argument ``resolution`` passed to ``primitive.mesh()`` or to ``web()`` or ``wire()``
-	2. optional attribute ``resolution`` of the primitive object
-	3. value of ``settings.primitives['curve_resolution']`` at bake time.
+	1. Optional argument ``resolution`` passed to ``primitive.mesh()`` or to ``web()`` or ``wire()``
+	2. Optional attribute ``resolution`` of the primitive object
+	3. Value of ``settings.primitives['curve_resolution']`` at bake time.
 
-specification format:
+Specification format:
 
 	.. code-block:: python
 		
@@ -46,11 +47,8 @@ specification format:
 		('radm', 0.6)
 		('radm2', 0.6)
 
-		
 
-
-
-primitives types
+Primitives types
 ----------------
 
 .. py:class:: Vector
@@ -143,5 +141,3 @@ primitives types
 .. autoclass:: Softened
 
 	.. image:: /screenshots/primitives-spline-softened.png
-
-

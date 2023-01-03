@@ -12,7 +12,7 @@ __all__ = [	'segmentation',
 
 
 def segmentation(mesh, tolerance=5, sharp=0.2) -> Mesh:
-	''' surface segmentation based on curvature.
+	''' Surface segmentation based on curvature.
 		This functions splits faces into groups based on curvature proximity.
 		Ideally each resulting group is a set of faces with the same curvature. In practice such is not possible due to the mesh resolution introducing bias in curvature estimation. Thus a `tolerance` is used to decide what is a sufficiently close curvature to belong to the same group.
 		In order to avoid too sharp edges to be considered a very low resolution but smooth surface, `sharp` is the value of the limit edge angle that can be considered in smooth surface.
@@ -176,7 +176,7 @@ def guessjoint(solid1, solid2, surface1, surface2, guess=quat(), precision=1e-5)
 from operator import itemgetter
 	
 def guesssurface(surface, precision=1e-5, attempt=False):	
-	''' guess the surface kind, returns its parameters.
+	''' Guess the surface kind, returns its parameters.
 	
 		Return a tuple `('surface_type', parameters)`
 		
