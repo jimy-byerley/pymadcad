@@ -196,6 +196,13 @@ class Solid:
 		s.pose = placement(*args, **kwargs)
 		return s
 		
+	def deloc(self, *args):
+		indev
+	def reloc(self, *args):
+		indev
+	def loc(self, *args):
+		indev
+	
 
 	# convenient content access
 	def __getitem__(self, key):
@@ -275,76 +282,319 @@ class Solid:
 			
 			
 class Chain:
-	def __init__(self, *args, **kwargs):
+	def __init__(self, *args, default=0, **kwargs):
 		if isinstance(args[0], Solid) and isinstance(args[1], Solid):
 			self.start = args[0]
 			self.stop = args[1]
 			args = args[2:]
+		self.default = default
 		self.init(*args, **kwargs)
 	
-	bounds = []
+	# parameter bounds if any
+	bounds = (-inf, inf)
+	
 	def direct(self, parameters) -> 'mat4':
-		indev
-	def inverse(self, pose, close=None) -> 'params':
-		indev
-	def grad(self, parameters) -> '[mat4]':
-		indev
-	def transmit(self, force, parameters=None, velocity=None) -> 'Screw':
-		indev
+		''' direct kinematic computation
 		
+			Parameters:
+				parameters:	
+				
+					the parameters defining the joint state
+					It can be any type accepted by `numpy.array`
+				
+			Returns:
+				the transfer matrix from solids `self.stop` to `self.start`
+		'''
+		raise NotImplemented
+	
+	def inverse(self, matrix, close=None) -> 'params':
+		''' inverse kinematic computation
+		
+			the default implementation is using a least squares method on the matrix coefficients
+			
+			Parameters:
+				matrix:	the transfer matrix from solids `self.stop` to `self.start` we want the parameters for
+				close:  
+				
+					a know solution we want the result the closest to.
+					if not specified, it defaults to `self.default`
+			
+			Returns:
+				the joint parameters so that `self.direct(self.inverse(x)) == x` (modulo numerical precision)
+		'''
+		res = scipy.least_squares(
+			lambda x: np.asanyarray(self.direct(x) - matrix).ravel()**2, 
+			close if close is not None else self.default, 
+			bounds=self.bounds,
+			)
+		if res.success:
+			return res.x
+		raise KinematicError('unable to inverse')
+	
+	def grad(self, parameters, delta=1e-6) -> '[mat4]':
+		''' compute the gradient of the direct kinematic 
+		
+			The default implementation is using a finite differentiation
+		
+			Parameters:
+				parameters:	anything accepted by `self.direct()` including singularities
+				delta:	finite differentiation interval
+			
+			Returns:
+				a list of the matrix derivatives of `self.direct()`, one each parameter
+		'''
+		grad = []
+		base = self.direct(parameters)
+		for i, x in enumerate(parameters):
+			grad.append((partial_difference_increment(self.direct, i, x, delta) - base) / delta)
+		return grad
+	
+	def transmit(self, force: Screw, parameters=None, velocity=None) -> 'Screw':
+		''' compute the force transmited by the kinematic chain in free of its moves
+			
+			The default implementation uses the direct kinematic gradient to compute the moving directions of the chain
+			
+			Parameters:
+				force:	force sent by `self.start` in its coordinate system
+				
+				parameters:  
+					
+					the joint position in which the joint is at the force transmision instant.
+					If not specified it defaults to `self.default` (many joints transmit the same regardless of their position)
+				
+				velocity:  
+				
+					current derivative of `parameters` at the transmision instant
+					Perfect joints are transmiting the same regardless of their velocity
+					
+			Returns:	
+				force received by `self.stop` in its coordinate system
+		'''
+		if not parameters:	parameters = self.default
+		grad = self.grad(parameters)
+		indev
+	
+	def schemes(self, size: float, junc: vec3=None) -> '[Scheme]':
+		''' generate the scheme elements to render the joint '''
+		raise NotImplemented
+	
+	class display(rendering.Display):
+		def __init__(self, scene, joint):
+			self.joint = joint
+			self.schemes = [scene.display(joint.scheme(s, 1, joint.position[i]))]
+		
+		def __getitem__(self, sub):
+			return self.schemes[sub]
+		def __iter__(self):
+			return iter(self.schemes)
+		
+		def stack(self, scene):
+			yield ((), 'screen', -1, self.updateposes)
+			for i,scheme in enumerate(self.schemes):
+				for sub,target,priority,func in scheme.stack(scene):
+					yield ((i, *sub), target, priority, func)
+		
+		def updateposes(self, view):
+			''' update the pose of sub displays using their solid's pose '''
+			for sch, solid, pos in zip(self.schemes, self.joint.solids, self.joint.position):
+				pos = fvec3(pos)
+				m = self.world * fmat4(solid.pose)
+				d = (view.uniforms['view'] * m * fvec4(fvec3(pos),1)).z * 30/view.height()
+				sch.world = m * translate(scale(translate(fmat4(1), pos), fvec3(d)), -pos)
+
 class Kinematic:
 	indev
+
+class Kinemanip(rendering.Group):
+	''' Display that holds a kinematic structure and allows the user to move it
+	'''
+	
+	def __init__(self, scene, kinematic):
+		super().__init__(scene)
+		try:	kinematic.solve(maxiter=1000)
+		except constraints.SolveError:	pass
+		self.sizeref = 1
+		self._init(scene, kinematic)
+	
+	def update(self, scene, kinematic):
+		# fail on any kinematic change
+		if not isinstance(kinematic, Kinematic) or len(self.solids) != len(kinematic.solids):	return
+		# keep current pose
+		for ss,ns in zip(self.solids, kinematic.solids):
+			ns.position = ss.position
+			ns.orientation = ss.orientation
+		# if any change in joints, rebuild the scheme
+		for sj, nj in zip(self.joints, kinematic.joints):
+			if type(sj) != type(nj) or sj.solids != nj.solids:
+				self._init(scene, kinematic)
+				return True
+		return super().update(scene, kinematic.solids)
+	
+	def _init(self, scene, kinematic):
+		self.joints = kinematic.joints
+		self.fixed = kinematic.fixed
+		self.locked = set(kinematic.fixed)
+		self.solids = kinematic.solids
+		self.register = {id(s): i	for i,s in enumerate(self.solids)}
+		makescheme(self.joints)
+		super().update(scene, self.solids)
+		
+	def control(self, view, key, sub, evt):
+		# no action on the root solid
+		if sub[0] in self.fixed:	return
+		
+		if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
+			# start solid drag
+			evt.accept()
+			solid = self.solids[sub[0]]
+			self.sizeref = max(norminf(self.box.width), 1)
+			start = vec3(affineInverse(mat4(self.world)) * vec4(view.ptat(view.somenear(evt.pos())),1))
+			offset = inverse(quat(solid.orientation)) * (start - solid.position)
+			view.tool.append(rendering.Tool(self.move, view, solid, start, offset))
+	
+	def move(self, dispatcher, view, solid, start, offset):
+		moved = False
+		while True:
+			evt = yield
+			
+			if evt.type() == QEvent.MouseMove:
+				evt.accept()
+				moved = True
+				# unlock moving solid
+				if self.islocked(solid):
+					self.lock(view.scene, solid, False)
+				# displace the moved object
+				start = solid.position + quat(solid.orientation)*offset
+				pt = vec3(affineInverse(mat4(self.world)) * vec4(view.ptfrom(evt.pos(), start),1))
+				solid.position = pt - quat(solid.orientation)*offset
+				# solve
+				self.solve(False)
+				view.update()
+			
+			elif evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
+				if moved:	evt.accept()
+				break
+		
+		if moved:
+			# finish on a better precision
+			self.solve(True)
+			view.update()
+	
+	def solve(self, final=False):
+		try:	
+			if final:	solvekin(self.joints, self.locked, precision=self.sizeref*1e-4, maxiter=1000)
+			else:		solvekin(self.joints, self.locked, precision=self.sizeref*1e-3, maxiter=50)
+		except constraints.SolveError as err:	
+			for disp in self.displays.values():
+				if 'solid-fixed' in disp.displays:
+					disp.displays['solid-fixed'].color = fvec3(settings.display['solver_error_color'])
+		else:
+			for disp in self.displays.values():
+				if 'solid-fixed' in disp.displays:
+					disp.displays['solid-fixed'].color = fvec3(settings.display['schematics_color'])
+		self.apply_poses()
+	
+	def apply_poses(self):
+		# assign new positions to displays
+		for disp in self.displays.values():
+			disp.apply_pose()
+	
+	def lock(self, scene, solid, lock):
+		''' lock the pose of the given solid '''
+		if lock == self.islocked(solid):	
+			return
+		key = id(solid)
+		grp = self.displays[self.register[key]]
+		if lock:
+			# add solid's variables to fixed
+			self.locked.add(key)
+			box = Box(center=fvec3(0), width=fvec3(-inf))
+			for display in grp.displays.values():
+				box.union_update(display.box)
+			grp.displays['solid-fixed'] = BoxDisplay(scene, box, color=fvec3(settings.display['schematics_color']))
+			self.apply_poses()
+		else:
+			# remove solid's variables from fixed
+			self.locked.remove(key)
+			if 'solid-fixed' in grp.displays:
+				del grp.displays['solid-fixed']
+		scene.touch()
+		
+	def islocked(self, solid):
+		return id(solid) in self.locked
+
+
+def partial_difference_increment(f, i, x, d):
+	p = copy(x)
+	try:
+		p[i] = x[i] + d
+		return self.direct(p)
+	except KinematicError:
+		try:
+			p[i] = x[i] - d
+			return self.direct(p)
+		except KinematicError:
+			pass
+	raise ValueError('cannot compute below or above parameter {} given value'.format(i))
+	
 		
 def solve(chains, solids={}, fixed=set(), init=None, precision=1e-6, maxiter=None):
 	dtype = np.float64
-	# collect the joint graph, the constraints and fixed solids
+	
+	# collect the joint graph as a connectivity and the solids
 	solids = copy(solids)
-	links = set()
+	conn = {}  # connectivity {solida: node} with each node ((chain, isdirect), solidb)
 	for chain in chains:
-		link = []
-		for candidate in (chain.start, chain.stop):
+		link = chain.solids
+		for candidate in link:
 			if isinstance(candidate, Solid):
 				solids[candidate] = k = candidate
-				link.append(k)
 			elif candidate not in solids:
 				solids[candidate] = Solid()
-		links.add((link[0], chain, link[1]))
-	# decompose the graph into directed branches
-	branchs = []
-	for suite in suites([(chain.start, chain.stop)  for chain in chains], oriented=False):
-		branch = []
-		for i in range(1, len(suite), 2):
-			chain = suite[i]
-			direct = suite[i-1] == chain.start
-			branch.append((chain, direct))
-		branchs.append(branch)
-	ordered = []
-	
-	# decompose the graph into priorized directed branches by propagation
-	conn = {}
-	for link in links:
 		for i in range(len(link)):
 			if link[i] not in conn:	
 				conn[link[i]] = []
-			conn[link[i]].append(link[i-1])
-	front = []
+			conn[link[i]].append(((chain, i), link[i-1]))
+	
+	# decompose the graph into priorized directed branches by propagation
+	branchs = []
+	front = []  # available propagation starts (same items as in a connectivity node)
+	reached = set()   # reached solids
 	for s in fixed:
-		for n in conn[s]:
-			indev
 		front.extend(conn[s])
+	
 	while front:
-		start = front.pop()
+		chain, tip = front.pop()
+		branch = [chain]
+		while True:
+			follow = conn[tip]
+			if len(follow) > 1:	
+				if tip not in reached:
+					front.extend(follow)
+					reached.add(tip)
+				break
+			chain, tip = follow[0]
+			branch.append(chain)
+		
+		branchs.append((
+			branch, 
+			branch[0][0].solids[branch[0][1]], 
+			branch[0][0].solids[1-branch[0][1]],
+			))
 	
 	# initiate the solver with the initial pose
 	if init is None:
+		init = []
 		for branch in branchs:
 			for chain, _ in chains:
-				state.append(chain.inverse(hinverse(chain.start.place) * chain.stop.pose))
+				init.append(chain.inverse(hinverse(chain.solids[0].pose) * chain.solids[1].pose))
 	
 	# cost terms
+	# TODO redo by closing loops to remove that approximation of the mean of node solids
 	
 	def cost(state):
 		''' return a flattened array of the matrices differences '''
+		# apply computations as already scheduled in our branchs
 		it = iter(state)
 		nodes = [[]  for i in range(len(branchs)-1)]
 		for branch, start, stop in branchs:
@@ -366,6 +616,7 @@ def solve(chains, solids={}, fixed=set(), init=None, precision=1e-6, maxiter=Non
 	
 	def jac(state):
 		''' return a matrix with one line per joint variable, each line being the gradient of the cost '''
+		# apply computations as already scheduled in our branchs
 		it = iter(state)
 		jac = []
 		for branch, start, stop in branch:
@@ -402,6 +653,40 @@ def solve(chains, solids={}, fixed=set(), init=None, precision=1e-6, maxiter=Non
 			method='trf', 
 			max_nfev=maxiter,
 			)
+
+
+def makescheme(joints, color=None):
+	''' create kinematic schemes and add them as visual elements to the solids the joints applies on '''
+	# collect solids informations
+	assigned = set()
+	solids = {}
+	diag = vec3(0)
+	for cst in joints:
+		for solid, pos in zip(cst.solids, cst.position):
+			if id(solid) not in solids:
+				solids[id(solid)] = info = [solid, [], vec3(0), 0, Box()]
+			else:
+				info = solids[id(solid)]
+			info[1].append(cst)
+			if pos:
+				info[2] += pos
+				info[3] += 1
+				info[4].union_update(pos)
+	# get the junction size
+	#size = (max(diag) or 1) / (len(joints)+1)
+	size = 0.5 * max(max(info[4].width) / info[3] for info in solids.values())  or 1
+	
+	for info in solids.values():
+		container = info[0].content
+		if id(container) not in assigned:
+			container['scheme'] = Scheme([], [], [], [], color)
+			assigned.add(id(container))
+		scheme = container['scheme']
+		center = info[2]/info[3]
+		if not isfinite(center):	center = vec3(0)
+		for cst in info[1]:
+			scheme.extend(cst.scheme(info[0], size, center))
+		
 
 def placement(*pairs, precision=1e-3):
 	''' return a transformation matrix that solved the placement constraints given by the surface pairs
@@ -624,595 +909,4 @@ def explode(solids, factor=1, offsets=None) -> '(solids:list, graph:Mesh)':
 			graph.points.append(solids[solid].position + center)
 			
 	return [solids, graph]
-
-
-		
-	
-
-
-def solvekin(joints, fixed=(), precision=1e-4, maxiter=None, damping=1):
-	''' solver for kinematic joint constraints.
-	
-		Unlike ``solve``, the present solver is dedicated to kinematic usage (and far more efficient and precise). It doesn't rely on variables as defined by solve, but instead use Solids as constraints.
-	'''
-	# register solids and corrections
-	solids = []		# list of solids found
-	register = {}	# solid index indexed by their id()
-	counts = []		# correction count for each solid
-	indices = []	# solid index for each successive corrections
-	if not isinstance(fixed, set):
-		fixed = set(id(solid) for solid in fixed)
-	for joint in joints:
-		for solid in joint.solids:
-			if id(solid) in fixed:
-				indices.append(-1)
-			else:
-				if id(solid) not in register:
-					register[id(solid)] = i = len(register)
-					solids.append(solid)
-					counts.append(0)
-				else:	
-					i = register[id(solid)]
-				counts[i] += 1
-				indices.append(i)
-	
-	corr = [[] for i in range(len(solids))]
-	corrmax = inf
-	itercount = 0
-	while corrmax > precision**2:
-		if maxiter and maxiter <= itercount:
-			raise constraints.SolveError('maximum iteration count reached with no solution found, err='+str(sqrt(corrmax)))
-		
-		for c in corr:
-			c.clear()
-		corrmax = 0
-		# collect corrections
-		i = 0
-		for joint in joints:
-			for action in joint.corrections():
-				if indices[i] >= 0:
-					corr[indices[i]].append(action)
-				i += 1
-		for solid,corrections in zip(solids, corr):
-			# corrections are displacement torsors, (similar to kinematic torsor) therefore the translation is the momentum and the rotation is the resulting
-			l = len(corrections)
-			v = vec3(0)
-			w = vec3(0)
-			center = vec3(0)
-			
-			'''
-			# displacement based correction:  the correction torsor is assimilated to Velocity torsor
-			# rotation center is determined by the center of correction applications points
-			# displacement is the average of correction displacements
-			for c in corrections:
-				#c.momentum, c.resulting = c.resulting, c.momentum
-			
-				v += c.momentum
-				center += c.position
-			v /= l
-			center /= l
-			# rotation is the average of correction rotations and rotation requested by displacement differences to the average displacement
-			for c in corrections:
-				r = length(c.position-center) + 1e-15
-				induced = cross(c.momentum-v, c.position-center) / r**2
-				lind = length(induced)
-				if lind > 1:	induced /= lind
-				w += c.resulting - induced
-				corrmax = max(corrmax, length(c.momentum), length(c.resulting)*r)
-			w /= 2*l
-			'''
-			
-			# force based correction: the correction torsor is assimilated to Force torsor
-			for c in corrections:
-				center += c.position
-			center /= l
-			rmax = max(length2(c.position-center)	for c in corrections)
-			
-			for c in corrections:
-				v += c.resulting
-				w += c.momentum 	
-				# momentum evaluation must take care that the part size can vary a lot, therefore it's reduces by the maximum squared radius
-				r = length2(c.position-center) # radius, to evaluate rotation impact geometry shape
-				if rmax:
-					# there is a coef on w because that correction component is adding energy
-					w += 0.25 * cross(c.resulting, center-c.position) / rmax
-				corrmax = max(corrmax, length2(c.resulting), length2(c.momentum)*r)
-			
-			v /= l*2
-			w /= l*2
-			
-			if length2(w) > 0.25**2:
-				w /= length(w)*4
-			
-			solid.position += v*damping
-			if length2(w):
-				solid.orientation = angleAxis(length(w)*damping, normalize(w)) * solid.orientation
-		
-		itercount += 1
-
-def isjoint(obj):
-	''' return True if obj is considered to be a kinematic joint object '''
-	return hasattr(obj, 'solids') and hasattr(obj, 'corrections')
-
-class Joint:
-	''' possible base class for a joint, providing some default implementations '''
-	class display(rendering.Display):
-		def __init__(self, scene, joint):
-			self.schemes = [scene.display(joint.scheme(s, 1, joint.position[i]))
-							for i,s in enumerate(joint.solids)]
-			self.joint = joint
-		
-		def updateposes(self, view):
-			''' update the pose of sub displays using their solid's pose '''
-			for sch, solid, pos in zip(self.schemes, self.joint.solids, self.joint.position):
-				pos = fvec3(pos)
-				m = self.world * fmat4(solid.pose)
-				d = (view.uniforms['view'] * m * fvec4(fvec3(pos),1)).z * 30/view.height()
-				sch.world = m * translate(scale(translate(fmat4(1), pos), fvec3(d)), -pos)
-		
-		def stack(self, scene):
-			yield ((), 'screen', -1, self.updateposes)
-			for i,scheme in enumerate(self.schemes):
-				for sub,target,priority,func in scheme.stack(scene):
-					yield ((i, *sub), target, priority, func)
-		
-		def __getitem__(self, sub):
-			return self.schemes[sub]
-			
-		def __iter__(self):
-			return iter(self.schemes)
-
-
-class Kinematic:
-	''' Holds a kinematic definition, and methods to use it
-		The solid objects used are considered as variables and are modified inplace by methods, and can be modified at any time by outer functions
-		The joints are not modified in any case (and must not be modified while a Kinematic is using it)
-		
-		Attributes:
-			joints:		the joints constraints
-			solids:		all the solids the joint applys on, and eventually more
-			fixed:		the root solids that is considered to be fixed to the ground
-	'''
-	def __init__(self, joints, fixed=(), solids=None):
-		self.joints = joints
-		self.solids = solids or getsolids(joints)
-		if isinstance(joints, set):	self.fixed = fixed
-		else:						self.fixed = set(id(solid) for solid in fixed)
-		self.options = {}
-		
-	def solve(self, *args, **kwargs):
-		''' move the solids to satisfy the joint constraints. This is using `solvekin()` '''
-		return solvekin(self.joints, self.fixed, *args, **kwargs)
-	
-	def forces(self, applied) -> '[junction forces], [solid resulting]':
-		''' return the forces in each junction and the resulting on each solid, induces by the given applied forces '''
-		indev
-	def jacobian(self):
-		''' return the numerical jacobian for the current kinematic position '''
-		indev
-	def path(self, func:'f(t)', pts) -> '[Wire]':
-		''' path followed by points when the kinematic is moved by the function
-			function must assign a reproductible pose to the solids, it takes one variable (usally the animation time step)
-		'''
-		indev
-	
-	@property
-	def pose(self) -> '[mat4]':
-		''' the pose matrices of each solid in the same order as ` self.solids` '''
-		return [solid.pose 	for solid in self.solids]
-	@pose.setter
-	def pose(self, value):
-		for solid,pose in zip(self.solids, pose):
-			solid.position = vec3(pose[3])
-			solid.orientation = quat_cast(mat3(pose))
-			
-	def __copy__(self):
-		''' return a new Kinematic with copies of the solids '''
-		memo = {id(s): copy(s)  for s in self.solids}
-		joints = []
-		for joint in self.joints:
-			newjoint = copy(joint)
-			newjoint.solids = [memo[id(s)]  for s in joint.solids]
-			joints.append(newjoint)
-		
-		return Kinematic(
-					joints, 
-					set(id(memo[i])  for i in self.fixed), 
-					[memo[id(s)]  for s in self.solids],
-					)
-	
-	def __add__(self, other):
-		''' concatenate the two kinematics in a new one '''
-		return Kinematic(self.joints+other.joints, self.fixed|other.fixed, self.solids+other.solids)
-		
-	def __iadd__(self, other):
-		''' append the soldids of the other kinematic '''
-		self.joints.extend(other.joints)
-		self.solids.extend(other.solids)
-		self.fixed.update(other.fixed)
-		return self
-	
-	def itransform(self, transform):
-		''' move all solids of the given transform '''
-		for solid in self.solids:
-			solid.itransform(transform)
-	def transform(self, transform):
-		''' copy all solids and transform all solids '''
-		new = copy(self)
-		new.itransform(transform)
-		return new
-		
-	def graph(self) -> 'Graph':
-		''' graph representing solid as nodes and joints as bidirectional links '''
-		indev
-	def display(self, scene):
-		''' renderer for kinematic manipulation, linked to the current object '''
-		return Kinemanip(scene, self)
-
-def getsolids(joints):
-	''' return a list of the solids used by the given joints '''
-	solids = []
-	known = set()
-	for joint in joints:
-		for solid in joint.solids:
-			if id(solid) not in known:
-				solids.append(solid)
-				known.add(id(solid))
-	return solids
-
-class Pressure:
-	''' Represent a mechanical pressure repartition on a surface
-		equivalent of a Screw but with space repartition
-	'''
-	def __init__(self, surface: 'Mesh', values: '[float]'):
-		self.surface = surface
-		self.values = values
-	@classmethod
-	def fromtorsor(cls, surface, torsor):
-		indev
-	@classmethod
-	def fromfield(cls, surface, func):
-		indev
-	def torsor(self, point) -> Screw:
-		indev
-	
-	def __add__(self, other):
-		assert len(other.surface.points) == len(self.surface.points), 'surface point numbers must match'
-		indev
-	
-	def display(self, scene):
-		''' surface rendering with coloration in function of pressure '''
-		indev
-
-class Graph:
-	''' 
-		nodes: list or dict		- a node is any python object
-		links: [int] or [key]	- a link is a triplet (start node, end node, info) 
-	'''
-	def __init__(self, nodes, links):
-		self.nodes = nodes
-		self.links = links
-	def cycles(self) -> '[cycle]':
-		''' yield all the possible cycles in the graph '''
-		indev
-	def connexes(self, nodes=None) -> '[Graph]':
-		''' list of connex subgraphs
-			if nodes is provided, only the subgraphs containing nodes present in this list will be returned 
-		'''
-		indev
-	def reach(self, node: int, walk:'callable'=None) -> '{node index: custom}':
-		''' return a set of node indices that can be reached starting from the given node
-			if walk is given, its a function(link)  returning a True object when walking through a link is possible 
-		'''
-		indev
-	
-	def display(self) -> 'QGraphicItem':
-		''' graph display widget for a 2D QGraphicScene '''
-		indev
-
-
-def store(dst, src):
-	for i in range(len(dst)):
-		dst[i] = src[i]
-
-
-class Kinemanip(rendering.Group):
-	''' Display that holds a kinematic structure and allows the user to move it
-	'''
-	
-	def __init__(self, scene, kinematic):
-		super().__init__(scene)
-		try:	kinematic.solve(maxiter=1000)
-		except constraints.SolveError:	pass
-		self.sizeref = 1
-		self._init(scene, kinematic)
-	
-	def update(self, scene, kinematic):
-		# fail on any kinematic change
-		if not isinstance(kinematic, Kinematic) or len(self.solids) != len(kinematic.solids):	return
-		# keep current pose
-		for ss,ns in zip(self.solids, kinematic.solids):
-			ns.position = ss.position
-			ns.orientation = ss.orientation
-		# if any change in joints, rebuild the scheme
-		for sj, nj in zip(self.joints, kinematic.joints):
-			if type(sj) != type(nj) or sj.solids != nj.solids:
-				self._init(scene, kinematic)
-				return True
-		return super().update(scene, kinematic.solids)
-	
-	def _init(self, scene, kinematic):
-		self.joints = kinematic.joints
-		self.fixed = kinematic.fixed
-		self.locked = set(kinematic.fixed)
-		self.solids = kinematic.solids
-		self.register = {id(s): i	for i,s in enumerate(self.solids)}
-		makescheme(self.joints)
-		super().update(scene, self.solids)
-		
-	def control(self, view, key, sub, evt):
-		# no action on the root solid
-		if sub[0] in self.fixed:	return
-		
-		if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
-			# start solid drag
-			evt.accept()
-			solid = self.solids[sub[0]]
-			self.sizeref = max(norminf(self.box.width), 1)
-			start = vec3(affineInverse(mat4(self.world)) * vec4(view.ptat(view.somenear(evt.pos())),1))
-			offset = inverse(quat(solid.orientation)) * (start - solid.position)
-			view.tool.append(rendering.Tool(self.move, view, solid, start, offset))
-	
-	def move(self, dispatcher, view, solid, start, offset):
-		moved = False
-		while True:
-			evt = yield
-			
-			if evt.type() == QEvent.MouseMove:
-				evt.accept()
-				moved = True
-				# unlock moving solid
-				if self.islocked(solid):
-					self.lock(view.scene, solid, False)
-				# displace the moved object
-				start = solid.position + quat(solid.orientation)*offset
-				pt = vec3(affineInverse(mat4(self.world)) * vec4(view.ptfrom(evt.pos(), start),1))
-				solid.position = pt - quat(solid.orientation)*offset
-				# solve
-				self.solve(False)
-				view.update()
-			
-			elif evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
-				if moved:	evt.accept()
-				break
-		
-		if moved:
-			# finish on a better precision
-			self.solve(True)
-			view.update()
-	
-	def solve(self, final=False):
-		try:	
-			if final:	solvekin(self.joints, self.locked, precision=self.sizeref*1e-4, maxiter=1000)
-			else:		solvekin(self.joints, self.locked, precision=self.sizeref*1e-3, maxiter=50)
-		except constraints.SolveError as err:	
-			for disp in self.displays.values():
-				if 'solid-fixed' in disp.displays:
-					disp.displays['solid-fixed'].color = fvec3(settings.display['solver_error_color'])
-		else:
-			for disp in self.displays.values():
-				if 'solid-fixed' in disp.displays:
-					disp.displays['solid-fixed'].color = fvec3(settings.display['schematics_color'])
-		self.apply_poses()
-	
-	def apply_poses(self):
-		# assign new positions to displays
-		for disp in self.displays.values():
-			disp.apply_pose()
-	
-	def lock(self, scene, solid, lock):
-		''' lock the pose of the given solid '''
-		if lock == self.islocked(solid):	
-			return
-		key = id(solid)
-		grp = self.displays[self.register[key]]
-		if lock:
-			# add solid's variables to fixed
-			self.locked.add(key)
-			box = Box(center=fvec3(0), width=fvec3(-inf))
-			for display in grp.displays.values():
-				box.union_update(display.box)
-			grp.displays['solid-fixed'] = BoxDisplay(scene, box, color=fvec3(settings.display['schematics_color']))
-			self.apply_poses()
-		else:
-			# remove solid's variables from fixed
-			self.locked.remove(key)
-			if 'solid-fixed' in grp.displays:
-				del grp.displays['solid-fixed']
-		scene.touch()
-		
-	def islocked(self, solid):
-		return id(solid) in self.locked
-
-
-
-def makescheme(joints, color=None):
-	''' create kinematic schemes and add them as visual elements to the solids the joints applies on '''
-	# collect solids informations
-	assigned = set()
-	solids = {}
-	diag = vec3(0)
-	for cst in joints:
-		for solid, pos in zip(cst.solids, cst.position):
-			if id(solid) not in solids:
-				solids[id(solid)] = info = [solid, [], vec3(0), 0, Box()]
-			else:
-				info = solids[id(solid)]
-			info[1].append(cst)
-			if pos:
-				info[2] += pos
-				info[3] += 1
-				info[4].union_update(pos)
-	# get the junction size
-	#size = (max(diag) or 1) / (len(joints)+1)
-	size = 0.5 * max(max(info[4].width) / info[3] for info in solids.values())  or 1
-	
-	for info in solids.values():
-		container = info[0].content
-		if id(container) not in assigned:
-			container['scheme'] = Scheme([], [], [], [], color)
-			assigned.add(id(container))
-		scheme = container['scheme']
-		center = info[2]/info[3]
-		if not isfinite(center):	center = vec3(0)
-		for cst in info[1]:
-			scheme.extend(cst.scheme(info[0], size, center))
-
-
-class Scheme:
-	''' buffer holder to construct schemes, for now it's only usefull to append to buffer '''
-	def __init__(self, points, transpfaces, opacfaces, lines, color=None):
-		self.color = color
-		self.points = points
-		self.transpfaces = transpfaces
-		self.opaqfaces = opacfaces
-		self.lines = lines
-	
-	def extend(self, other):
-		l = len(self.points)
-		self.points.extend(other.points)
-		self.transpfaces.extend(((a+l,b+l,c+l) for a,b,c in other.transpfaces))
-		self.opaqfaces.extend(((a+l,b+l,c+l) for a,b,c in other.opaqfaces))
-		self.lines.extend(((a+l, b+l)  for a,b in other.lines))
-	
-	def box(self):
-		''' return the extreme coordinates of the mesh (vec3, vec3) '''
-		return boundingbox(self.points)
-	
-	def display(self, scene):
-		return WireDisplay(scene, self.points, self.transpfaces, self.opaqfaces, self.lines, self.color)
-
-
-class WireDisplay(rendering.Display):
-	''' wireframe display for schemes, like kinematic schemes '''
-	
-	def __init__(self, scene, points, transpfaces, opaqfaces, lines, color):
-		ctx = scene.ctx
-		self.color = fvec3(color or settings.display['schematics_color'])
-		self.box = boundingbox(points).cast(fvec3)
-		
-		def load(scene):
-			return scene.ctx.program(
-						vertex_shader=open(ressourcedir+'/shaders/uniformcolor.vert').read(),
-						fragment_shader=open(ressourcedir+'/shaders/uniformcolor.frag').read(),
-						)
-		self.uniformshader = scene.ressource('shader_uniformcolor', load)
-		
-		def load(scene):
-			return scene.ctx.program(
-						vertex_shader=open(ressourcedir+'/shaders/glowenvelope.vert').read(),
-						fragment_shader=open(ressourcedir+'/shaders/glowenvelope.frag').read(),
-						)
-		self.transpshader = scene.ressource('shader_glowenvelope', load)
-		self.identshader = scene.ressource('shader_ident')
-		
-		normals = Mesh(points, transpfaces).vertexnormals()
-		#print('normals', normals)
-		
-		self.vb_vertices = ctx.buffer(np.hstack((
-				np.array([tuple(v) for v in points], dtype='f4', copy=False),
-				np.array([tuple(v) for v in normals], dtype='f4'),
-				)))
-		if transpfaces:
-			self.vb_transpfaces = ctx.buffer(typedlist_to_numpy(transpfaces, dtype='u4'))
-			self.va_transpfaces = ctx.vertex_array(
-					self.transpshader,
-					[(self.vb_vertices, '3f4 3f4', 'v_position', 'v_normal')],
-					self.vb_transpfaces,
-					)
-			self.va_ident_faces = ctx.vertex_array(
-					self.identshader,
-					[(self.vb_vertices, '3f4 12x', 'v_position')],
-					self.vb_transpfaces,
-					)
-		else:
-			self.vb_transpfaces = None
-		if opaqfaces:
-			self.vb_opaqfaces = ctx.buffer(typedlist_to_numpy(opaqfaces, dtype='u4'))
-			self.va_opaqfaces = ctx.vertex_array(
-					self.uniformshader,
-					[(self.vb_vertices, '3f4 12x', 'v_position')],
-					self.vb_opaqfaces,
-					)
-		else:
-			self.vb_opaqfaces = None
-		if lines:
-			self.vb_lines = ctx.buffer(typedlist_to_numpy(lines, dtype='u4'))
-			self.va_lines = ctx.vertex_array(
-					self.uniformshader,
-					[(self.vb_vertices, '3f4 12x', 'v_position')],
-					self.vb_lines,
-					)
-			self.va_ident_lines = ctx.vertex_array(
-					self.identshader,
-					[(self.vb_vertices, '3f4 12x', 'v_position')],
-					self.vb_lines,
-					)
-		else:
-			self.vb_lines = None
-			
-	def __del__(self):
-		if self.vb_transpfaces:
-			self.va_transpfaces.release()
-			self.va_ident_faces.release()
-			self.vb_transpfaces.release()
-		if self.vb_opaqfaces:
-			self.va_opaqfaces.release()
-			self.vb_opaqfaces.release()
-		if self.vb_lines:
-			self.va_lines.release()
-			self.va_ident_lines.release()
-			self.vb_lines.release()
-		self.vb_vertices.release()
-	
-	def render(self, view):		
-		viewmat = view.uniforms['view'] * self.world
-		color = self.color if not self.selected else settings.display['select_color_line']
-		ctx = view.scene.ctx
-		
-		self.uniformshader['color'].write(fvec4(color,1))
-		self.uniformshader['view'].write(viewmat)
-		self.uniformshader['proj'].write(view.uniforms['proj'])
-		
-		ctx.disable(mgl.DEPTH_TEST)
-		ctx.disable(mgl.CULL_FACE)
-		if self.vb_opaqfaces:	self.va_opaqfaces.render(mgl.TRIANGLES)
-		if self.vb_lines:		self.va_lines.render(mgl.LINES)
-		
-		ctx.enable(mgl.CULL_FACE)
-		if self.vb_transpfaces:
-			self.transpshader['color'].write(color)
-			self.transpshader['view'].write(viewmat)
-			self.transpshader['proj'].write(view.uniforms['proj'])
-			self.va_transpfaces.render(mgl.TRIANGLES)
-		ctx.enable(mgl.DEPTH_TEST)
-		ctx.disable(mgl.CULL_FACE)
-	
-	def identify(self, view):
-		viewmat = view.uniforms['view'] * self.world
-		self.identshader['ident'] = view.identstep(1)
-		self.identshader['view'].write(viewmat)
-		self.identshader['proj'].write(view.uniforms['proj'])
-		
-		ctx = view.scene.ctx
-		ctx.blend_func = mgl.ZERO, mgl.ONE
-		if self.vb_transpfaces:		self.va_ident_faces.render(mgl.TRIANGLES)
-		if self.vb_lines:			self.va_ident_lines.render(mgl.LINES)
-
-	def stack(self, scene):
-		if not scene.options['display_annotations']:
-			return ()
-		return ( ((), 'screen', 1, self.render),
-				 ((), 'ident', 2, self.identify))
-
 

@@ -67,6 +67,79 @@ class Welded(Joint):
 		
 	def scheme(self, solid, size, junc=None) -> Scheme:
 		return Scheme([], [], [], [])
+		
+class Pivot(Chain):
+	slvvars = 'angle',
+	
+	def __init__(self, axis, local=None):
+		self.axis = self.axis
+		self.offset = mat4(quat(axis, local or axis))
+		self.position = axis[0]
+	
+	def direct(self) -> mat4:
+		return rotate(self.angle, self.axis[1]) * self.offset
+		
+	def inverse(self):
+		indev
+		
+	def grad(self):
+		return rotate(1+pi/2, self.axis) * self.offset,
+		
+	def transmit(self, force, velocity=None) -> Screw:
+		l = Screw.locate(self.axis[0])
+		return Screw(l.resulting, project(l.momentum, self.axis[1]))
+		
+	def schemes(self, size, attach_start, attach_end):
+		radius = size/4
+		axis = self.axis
+		sch = Scheme()
+		cylinder = gt.cylinder(
+						axis[0]-axis[1]*size*0.4, 
+						axis[0]+axis[1]*size*0.4, 
+						radius=size/4, 
+						resolution=('div',16),
+						)
+		sch.add(cylinder, shader='ghost')
+		sch.add(cylinder.outlines(), shader='fill')
+		if junc:
+			v = normalize(noproject(junc - axis[0], axis[1]))
+			if not isfinite(v):
+				v,_,_ = dirbase(axis[1])
+			p = center + v*size/4
+			sch.extend(gt.flatsurface([p, p + axis[1]*size*cornersize, p + v*size*cornersize]), shader='ghost')
+			sch.add([p, p + v*size*cornersize, junc], shader='fill')
+		yield sch
+		
+		radius = size/4
+		axis = self.axis[1]
+		center = axis[0] + project(self.position[1]-axis[0], axis[1])
+		side = axis[1] * size * 0.5
+		if dot(junc-axis[0], axis[1]) < 0:
+			side = -side
+		if dot(junc-center-side, side) < 0:
+			attach = side + normalize(noproject(junc-center, axis[1]))*radius
+		else:
+			attach = side
+		c1 = primitives.Circle(
+						(center-axis[1]*size*0.5, -axis[1]), 
+						radius, 
+						resolution=('div', 16),
+						).mesh()
+		c2 = primitives.Circle(
+						(center+axis[1]*size*0.5, axis[1]), 
+						radius, 
+						resolution=('div', 16),
+						).mesh()
+		s1 = gt.flatsurface(c1)
+		s2 = gt.flatsurface(c2)
+		l = len(c1.points)
+		indices = [(i-1,i)  for i in range(1,l-1)]
+		indices.append((l-1,0))
+		
+		sch = Scheme([center-side, center+side, center+attach, junc], [], [], [(0,1), (2,3)])
+		sch.extend(Scheme(c1.points, s1.faces, [], c1.edges()))
+		sch.extend(Scheme(c2.points, s2.faces, [], c2.edges()))
+		yield s
 
 class Pivot(Joint):
 	''' Junction for rotation only around an axis
@@ -87,7 +160,9 @@ class Pivot(Joint):
 	
 	def corrections(self):
 		a0,a1 = solidtransform_axis(self.solids[0], self.axis[0]), solidtransform_axis(self.solids[1], self.axis[1])
-		r = cross(a0[1], a1[1])
+		#r = cross(a0[1], a1[1])
+		q = quat(a0[1], a1[1])
+		r = glm.angle(q) * glm.axis(q)
 		t = a1[0] - a0[0]
 		#return Screw(r,t,a0[0]), Screw(-r,-t,a1[0]) 	# velocity torsor
 		return Screw(t,r,a0[0]), Screw(-t,-r,a1[0]) 	# force torsor
