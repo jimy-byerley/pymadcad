@@ -103,7 +103,18 @@
 	color: #afd7e3;
 }
 .wy-menu-vertical a:hover {
-	background:#274348
+	background:#274348;
+}
+
+.search li {
+	margin-bottom: 10px;
+	border-bottom: 1px solid #2d2d2d;
+	padding-bottom: 10px;
+}
+
+.rst-content .highlighted {
+  background: #5e5328;
+  box-shadow: 0 0 0 2px #71612c;
 }
 
 /* navigation bar tree */
