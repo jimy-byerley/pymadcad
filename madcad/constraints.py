@@ -209,18 +209,6 @@ class Problem:
 			- each variable object can redirect to other variable objects if they implements such a member 'slvvars'
 			- primitives can also be constraints on their variables, thus they must have a method fit()   (but no member 'primitives' here)
 			- primitives can implement the optional solver methods for some constraints, such as 'slv_tangent'
-		
-		solving method
-			Internally, this class uses scipy.optimize.minimize. Therefore the scipy minimization methods using only the gradient are all available. The mose usefull may be:
-			
-			BFGS	fast even for complex problems (few variables)
-						https://en.wikipedia.org/wiki/Broyden%E2%80%93Fletcher%E2%80%93Goldfarb%E2%80%93Shanno_algorithm
-			CG		for problems with tons of variables	or for nearby solutions
-						https://en.wikipedia.org/wiki/Conjugate_gradient_method
-			Powell	for simple non-continuous problems with tons of variables
-						https://en.wikipedia.org/wiki/Powell%27s_method
-			
-			default is `method='BFGS'`
 	'''
 	def __init__(self, constraints, fixed=()):
 		self.constraints = set()
