@@ -1,11 +1,11 @@
 .. _blending:
 
-blending    - creation of surface between outlines
+blending    - Creation of surface between outlines
 ==================================================
 
 .. automodule:: madcad.blending
 
-general mesh generation
+General mesh generation
 -----------------------
 
 .. autofunction:: junction
@@ -23,14 +23,14 @@ general mesh generation
 
 .. autofunction:: blenditer
 
-misc tools
+Misc tools
 ----------
 
 .. autofunction:: match_length
 .. autofunction:: match_closest
 
 
-small utilities
+Small utilities
 ---------------
 
 .. autofunction:: join

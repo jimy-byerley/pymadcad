@@ -1,7 +1,7 @@
 .. _io:
 .. py:module:: madcad.io
 
-io    - read/write mesh or data files
+io    - Read/write mesh or data files
 =====================================
 
 .. autofunction:: madcad.io.read

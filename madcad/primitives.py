@@ -2,7 +2,7 @@
 
 ''' Definition of 3D primitive objects
 
-	Primitives are parametrized objects, that can be baked into a mesh/web/wire object. A primitive object must have the following signature:
+	Primitives are parameterized objects, that can be baked into a mesh/web/wire object. A primitive object must have the following signature:
 	
 		class SomePrimitive:
 			# method baking the primitive in some general-purpose 3D object
@@ -23,13 +23,13 @@
 	Some primitive types are curves, the discretisation is important for visual as well as for result quality (remember that even if something looks like a perfect curves, it's still polygons).
 	The resolution (subdivision) of curve is done following the following cirterions present in the 'settings' module
 
-	specification priority order:
+	Specification priority order:
 		
-		1. optional argument `resolution` passed to `primitive.mesh()` or to `web()` or `wire()`
-		2. optional attribute `resolution` of the primitive object
-		3. value of `settings.primitives['curve_resolution']` at bake time.
+		1. Optional argument `resolution` passed to `primitive.mesh()` or to `web()` or `wire()`
+		2. Optional attribute `resolution` of the primitive object
+		3. Value of `settings.primitives['curve_resolution']` at bake time.
 
-	specification format:
+	Specification format:
 		
 		('fixed', 16)   # fixed amount of 16 subdivisions
 		('rad', 0.6)    # max polygon angle is 0.6 rad
@@ -47,7 +47,7 @@ from . import mesh
 
 
 def isprimitive(obj):
-	''' return True if obj match the signature for primitives '''
+	''' Return True if obj match the signature for primitives '''
 	return hasattr(obj, 'mesh') and hasattr(obj, 'slvvars')
 		
 Vector = Point = vec3
@@ -93,14 +93,14 @@ class Axis(object):
 		return displays.AxisDisplay(scene, (self.origin, self.direction), self.interval)
 			
 def isaxis(obj):
-	''' return True if the given object is considered to be an axis.
+	''' Return True if the given object is considered to be an axis.
 		An axis can be an instance of `Axis` or a tuple `(vec3, vec3)`
 	'''
 	return isinstance(obj, Axis) or isinstance(obj, tuple) and len(obj)==2 and isinstance(obj[0],vec3) and isinstance(obj[1],vec3)
 
 
 class Segment(object):
-	''' segment from a to b '''
+	''' Segment from a to b '''
 	__slots__ = ('a', 'b')
 	def __init__(self, a, b):
 		self.a, self.b = a,b
@@ -130,7 +130,7 @@ class Segment(object):
 		return self.mesh().display(scene)
 
 class ArcThrough(object):	
-	''' arc from a to c, passing through b '''
+	''' Arc from a to c, passing through b '''
 	__slots__ = ('a', 'b', 'c', 'resolution')
 	
 	def __init__(self, a,b,c, resolution=None):
@@ -155,7 +155,7 @@ class ArcThrough(object):
 		return (self.center, normalize(cross(self.a-self.b, self.c-self.b)))
 	
 	def tangent(self, pt):
-		''' tangent to the closest point of the curve to pt '''
+		''' Tangent to the closest point of the curve to pt '''
 		c = self.center
 		return normalize(cross(pt-c, cross(self.a-c, self.c-c)))
 	
@@ -174,7 +174,7 @@ class ArcThrough(object):
 		return self.mesh().display(scene)
 
 class ArcCentered(object):
-	''' arc from a to b, centered around the origin of the axis.
+	''' Arc from a to b, centered around the origin of the axis.
 	
 		An axis is requested instead of a point (that would be more intuitive), to solve the problem when a,b, center are aligned
 	'''
@@ -193,7 +193,7 @@ class ArcCentered(object):
 		return (distance(self.axis[0], self.a) + distance(self.axis[0], self.b)) /2
 	
 	def tangent(self, pt):
-		''' tangent to the closest point of the curve to pt '''
+		''' Tangent to the closest point of the curve to pt '''
 		return cross(normalize(pt - self.axis[0]), self.axis[1])
 	
 	slvvars = ('axis', 'a', 'b')
@@ -238,7 +238,7 @@ class ArcTangent(object):
 		return self.center, normalize(cross(self.b-self.a, self.c-self.a))
 	
 	def tangent(self, pt):
-		''' tangent to the closest point of the curve to pt '''
+		''' Tangent to the closest point of the curve to pt '''
 		z = cross(self.a-self.b, self.c-self.b)
 		return normalize(cross(pt-self.center, z))
 	
@@ -297,7 +297,7 @@ class TangentEllipsis(object):
 		return self.a + self.c - self.b
 	
 	def tangent(self, pt):
-		''' tangent to the closest point of the curve to pt '''
+		''' Tangent to the closest point of the curve to pt '''
 		c,z = self.axis
 		return normalize(cross(z, pt - c))
 	
@@ -305,7 +305,7 @@ class TangentEllipsis(object):
 	slv_tangent = tangent
 	
 	def mesh(self, resolution=None):
-		''' axis directions doesn't need to be normalized nor oriented '''
+		''' Axis directions doesn't need to be normalized nor oriented '''
 		origin = self.b
 		x = origin - self.a
 		y = origin - self.c
@@ -324,7 +324,7 @@ class TangentEllipsis(object):
 		return self.mesh().display(scene)
 
 class Circle(object):
-	''' circle centered around the axis origin, with the given radius, in an orthogonal plane to the axis direction '''
+	''' Circle centered around the axis origin, with the given radius, in an orthogonal plane to the axis direction '''
 	__slots__ = ('axis', 'radius', 'alignment', 'resolution')
 	def __init__(self, axis, radius, alignment=vec3(1,0,0), resolution=None):
 		self.axis, self.radius = axis, radius
@@ -339,7 +339,7 @@ class Circle(object):
 		return (length(self.axis[1])-1) **2,
 	
 	def tangent(self, pt):
-		''' tangent to the closest point of the curve to pt '''
+		''' Tangent to the closest point of the curve to pt '''
 		return normalize(cross(pt-self.axis[0], self.axis[1]))
 	
 	slvvars = ('axis', 'radius')
@@ -368,7 +368,7 @@ class Circle(object):
 		
 import numpy.core as np
 def glmarray(array, dtype='f4'):
-	''' create a numpy array from a list of glm vec '''
+	''' Create a numpy array from a list of glm vec '''
 	buff = np.empty((len(array), len(array[0])), dtype=dtype)
 	for i,e in enumerate(array):
 		buff[i][:] = e
@@ -376,10 +376,10 @@ def glmarray(array, dtype='f4'):
 
 		
 class Interpolated(object):
-	''' interpolated curve passing through the given points (3rd degree bezier spline) 
+	''' Interpolated curve passing through the given points (3rd degree bezier spline) 
 
-		the tangent in each point is determined by the direction between adjacent points
-		the point weights is how flattened is the curve close to the point tangents
+		The tangent in each point is determined by the direction between adjacent points
+		The point weights is how flattened is the curve close to the point tangents
 	'''
 	__slots__ = 'points', 'weights', 'resolution'
 	def __init__(self, points, weights=None, resolution=None):
@@ -429,9 +429,9 @@ class Interpolated(object):
 		return displays.SplineDisplay(scene, glmarray(self.points), glmarray(self.mesh().points))
 			
 class Softened(object):
-	''' interpolated curve tangent to each segment midpoint (3rd degree bezier curve)
+	''' Interpolated curve tangent to each segment midpoint (3rd degree bezier curve)
 	
-		the points weights is the weight in the determination of each midpoint
+		The points weights is the weight in the determination of each midpoint
 	'''
 	__slots__ = 'points', 'weights', 'resolution'
 	def __init__(self, points, weights=None, resolution=None):

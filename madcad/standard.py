@@ -42,7 +42,7 @@ __all__ = [	'nut', 'screw', 'washer', 'bolt',
 standard_digits = [.0, 1., .5, .4, .6, .8, .2, .25, .75]
 
 def stfloor(x, precision=0.1):
-	''' return a numeric value fitting x, with lower digits being the under closest digits from `standard_digits` 
+	''' Return a numeric value fitting x, with lower digits being the under closest digits from `standard_digits` 
 		
 		`precision` gives the relative tolerance interval for the returned number, so we are sure it lays in `[x*(1-precision), x]`
 	'''
@@ -68,7 +68,7 @@ def stfloor(x, precision=0.1):
 	raise RuntimeError('failed to converge, this is a bug')
 
 def stceil(x, precision=0.1):
-	''' return a numeric value fitting x, with lower digits being the above closest digits from `standard_digits` 
+	''' Return a numeric value fitting x, with lower digits being the above closest digits from `standard_digits` 
 		
 		`precision` gives the relative tolerance interval for the returned number, so we are sure it lays in `[x, x*(1+precision)]`
 	'''
@@ -97,8 +97,8 @@ def stceil(x, precision=0.1):
 	
 	
 @cachefunc
-def screw(d, length, filet_length=None, head='SH', drive=None, detail=False) -> Solid:
-	''' create a standard screw using the given drive and head shapes
+def screw(d, length, filet_length=None, head='SH', drive=None, detail=False):
+	''' Create a standard screw using the given drive and head shapes
 	
 	Parameters:
 		d:             nominal diameter of the screw
@@ -113,12 +113,12 @@ def screw(d, length, filet_length=None, head='SH', drive=None, detail=False) -> 
 	
 		>>> screw(5, 16, head='SHT')   # socket head and torx drive
 		
-	available screw heads:
+	Available screw heads:
 		* socket (default)
 		* button
 		* flat (aka. cone)
 		
-	available screw drives:
+	Available screw drives:
 		* hex
 		* torx  *(not yet available)*
 		* phillips (cross)  *(not yet available)*
@@ -177,7 +177,7 @@ def screwdrive_slot(d):
 				]) .segmented())
 
 def screwhead_socket(d):
-	''' screw head shape for socket head (SH) '''
+	''' Screw head shape for socket head (SH) '''
 	r = h = 0.7*d
 	c = 0.05*d
 	
@@ -194,7 +194,7 @@ def screwhead_socket(d):
 	return head
 	
 def screwhead_hex(d):
-	''' screw head shape for hex head (HH) '''
+	''' Screw head shape for hex head (HH) '''
 	r = 0.9*d
 	h = 0.6*d
 	c = 0.05*d
@@ -329,8 +329,8 @@ def screw_spec(head, drive=None):
 # ------------------- nut stuff ----------------------
 
 @cachefunc
-def nut(d, type='hex', detail=False) -> Solid:
-	''' create a standard nut model using the given shape type 
+def nut(d, type='hex', detail=False) -> Mesh:
+	''' Create a standard nut model using the given shape type 
 	
 		Parameters:
 			d:        nominal diameter of the matching screw
@@ -347,8 +347,8 @@ def nut(d, type='hex', detail=False) -> Solid:
 	return hexnut(*args)
 
 	
-def hexnut(d, w, h) -> Solid:
-	''' create an hexagon nut with custom dimensions '''
+def hexnut(d, w, h):
+	''' Create an hexagon nut with custom dimensions '''
 	# revolution profile
 	w *= 0.5
 	r = 1.01 * w/cos(radians(30))
@@ -377,7 +377,7 @@ def hexnut(d, w, h) -> Solid:
 				top=Axis(0.5*h*Z, Z, interval=(0,h)),
 				)
 
-''' iso hexagon nuts according to [EN ISO 4032](https://www.fasteners.eu/standards/ISO/4032/)
+''' Iso hexagon nuts according to [EN ISO 4032](https://www.fasteners.eu/standards/ISO/4032/)
 	columns:
 	* thread
 	* w
@@ -419,8 +419,8 @@ standard_hexnuts = [
 # -------------- washer stuff ----------------------
 	
 @cachefunc
-def washer(d, e=None, h=None) -> Solid:
-	''' create a standard washer.
+def washer(d, e=None, h=None) -> Mesh:
+	''' Create a standard washer.
 		Washers are useful to offset screws and avoid them to scratch the mount part
 		
 		Parameters:
@@ -454,7 +454,7 @@ def washer(d, e=None, h=None) -> Solid:
 				)
 
 
-''' metric washers according to https://www.engineersedge.com/iso_flat_washer.htm
+''' Metric washers according to https://www.engineersedge.com/iso_flat_washer.htm
 	columns;
 	* nominal screw
 	* interior size
@@ -495,7 +495,7 @@ standard_washers	= [
 	
 	
 def section_s(height=1, width=None, flange=None, thickness=None) -> Web:
-	''' standard S (short flange) section. Very efficient to support flexion efforts.
+	''' Standard S (short flange) section. Very efficient to support flexion efforts.
 	'''
 	if width is None:	width = 0.4 * height
 	if flange is None:	flange = 0.036 * height
@@ -523,7 +523,7 @@ def section_s(height=1, width=None, flange=None, thickness=None) -> Web:
 	return section.finish()
 
 def section_w(height=1, width=None, flange=None, thickness=None) -> Web:
-	''' standard W (wide flange) section. It is slightly different than a S section in that the flanges are straight and are usally wider.
+	''' Standard W (wide flange) section. It is slightly different than a S section in that the flanges are straight and are usally wider.
 	'''
 	if width is None:	width = 0.6 * height
 	if flange is None:	flange = 0.036 * height
@@ -544,7 +544,7 @@ def section_w(height=1, width=None, flange=None, thickness=None) -> Web:
 	return section.finish()
 	
 def section_l(a=1, b=None, thickness=None) -> Wire:
-	''' standard L section '''
+	''' Standard L section '''
 	if b is None:	b = a
 	if thickness is None:	thickness = 0.05*max(a,b)
 	assert a > 3*thickness and b > 3*thickness
@@ -562,7 +562,7 @@ def section_l(a=1, b=None, thickness=None) -> Wire:
 	return section.finish()
 	
 def section_c(height=1, width=None, thickness=None) -> Web:
-	''' standard C section '''
+	''' Standard C section '''
 	if width is None:	width = 0.6*height
 	if thickness is None:	thickness = 0.05*height
 	assert width > 3*thickness
@@ -580,7 +580,7 @@ def section_c(height=1, width=None, thickness=None) -> Web:
 	return section.finish()
 
 def section_tslot(size=1, slot=None, thickness=None, depth=None) -> Web:
-	''' standard T-Slot section. That section features slots on each side to put nuts at any position.
+	''' Standard T-Slot section. That section features slots on each side to put nuts at any position.
 	'''
 	if slot is None:	slot = 0.3*size
 	if thickness is None:	thickness = 0.08*size
@@ -614,7 +614,7 @@ def section_tslot(size=1, slot=None, thickness=None, depth=None) -> Web:
 	
 	return section.finish()
 	
-''' standard IPN sections (S sections)
+''' Standard IPN sections (S sections)
 columns:
 	- h
 	- b
@@ -648,8 +648,8 @@ standard_ipn = [
 # --------------------- coilspring stuff ------------------------
 
 @cachefunc
-def coilspring_compression(length, d=None, thickness=None, solid=True) -> Solid:
-	''' return a Mesh model of a croilspring meant for use in compression
+def coilspring_compression(length, d=None, thickness=None, solid=True):
+	''' Return a Mesh model of a croilspring meant for use in compression
 	
 		Parameters:
 			length:     the distance between its two ends
@@ -701,8 +701,8 @@ def coilspring_compression(length, d=None, thickness=None, solid=True) -> Solid:
 			)
 	
 @cachefunc
-def coilspring_tension(length, d=None, thickness=None, solid=True) -> Solid:
-	''' return a Mesh model of a croilspring meant for use in tension 
+def coilspring_tension(length, d=None, thickness=None, solid=True):
+	''' Return a Mesh model of a croilspring meant for use in tension 
 	
 		Parameters:
 			length:     the distance between its two hooks
@@ -759,7 +759,7 @@ def coilspring_torsion(arm,
 			thickness=None, 
 			hook=None, 
 			solid=True) -> Solid:
-	''' return a Mesh model of a croilspring meant for use in torsion
+	''' Return a Mesh model of a croilspring meant for use in torsion
 	
 		Parameters:
 			arm:        the arms length from the coil axis
@@ -839,7 +839,7 @@ def bearing(dint, dext=None, h=None,
 		Circulating bearings rely on rolling elements to avoid friction and widen the part life.
 		Its friction depends on the rotation speed but not on the current load.
 		
-		see bearing specs at https://koyo.jtekt.co.jp/en/support/bearing-knowledge/
+		See bearing specs at https://koyo.jtekt.co.jp/en/support/bearing-knowledge/
 		
 		Parameters:
 

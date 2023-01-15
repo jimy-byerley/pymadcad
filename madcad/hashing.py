@@ -13,9 +13,9 @@ from math import floor, ceil, sqrt, inf
 
 
 class PositionMap:
-	''' Holds objects assoiated with their location
-		every object can be bound to multiple locations, and each location can hold multiple objects
-		cellsize defines the box size for location hashing (the smaller it is, the bigger the memory footprint will be for non-point primitives)
+	''' Holds objects associated with their location.
+		Every object can be bound to multiple locations, and each location can hold multiple objects.
+		`cellsize` defines the box size for location hashing (the smaller it is, the bigger the memory footprint will be for non-point primitives)
 		
 		Attributes defined here:
 			:cellsize:    the boxing parameter (DON'T CHANGE IT IF NON-EMPTY)
@@ -29,11 +29,12 @@ class PositionMap:
 		if iterable:	self.update(iterable)
 
 	def keysfor(self, space):
-		''' rasterize the primitive, yielding the successive position keys 
+		''' Rasterize the primitive, yielding the successive position keys 
 			currently allowed primitives are 
-				points:	vec3
-				segments:  (vec3,vec3)
-				triangles: (vec3,vec3,vec3)
+
+				:points:		vec3
+				:segments:	(vec3,vec3)
+				:triangles:	(vec3,vec3,vec3)
 		'''
 		cell = self.cellsize
 		# point
@@ -145,11 +146,12 @@ class PositionMap:
 			raise TypeError("PositionMap only supports keys of type:  points, segments, triangles")
 	
 	def keysfor(self, space):
-		''' rasterize the primitive, yielding the successive position keys 
+		''' Rasterize the primitive, yielding the successive position keys 
 			currently allowed primitives are 
-				:points: 	vec3
-				:segments:   (vec3,vec3)
-				:triangles:  (vec3,vec3,vec3)
+
+				:points:		vec3
+				:segments:		(vec3,vec3)
+				:triangles:		(vec3,vec3,vec3)
 		'''
 		# point
 		if isinstance(space, vec3):
@@ -164,7 +166,7 @@ class PositionMap:
 			raise TypeError("PositionMap only supports keys of type:  points, segments, triangles")
 	
 	def update(self, other):
-		''' add the elements from an other PositionMap or from an iteravble '''
+		''' Add the elements from an other PositionMap or from an iterable '''
 		if isinstance(other, PositionMap):
 			assert self.cellsize == other.cellsize
 			for k,v in other.dict.items():
@@ -177,13 +179,13 @@ class PositionMap:
 			raise TypeError("update requires a PositionMap or an iterable of couples (space, obj)")
 	
 	def add(self, space, obj):
-		''' add an object associated with a primitive '''
+		''' Add an object associated with a primitive '''
 		for k in self.keysfor(space):
 			if k not in self.dict:	self.dict[k] = [obj]
 			else:					self.dict[k].append(obj)
 	
 	def get(self, space):
-		''' get the objects associated with the given primitive '''
+		''' Get the objects associated with the given primitive '''
 		for k in self.keysfor(space):
 			if k in self.dict:
 				yield from self.dict[k]
@@ -215,7 +217,7 @@ class PositionMap:
 		return web.display(scene)
 
 def meshcellsize(mesh):
-	''' returns a good cell size to index primitives of a mesh with a PositionMap 
+	''' Returns a good cell size to index primitives of a mesh with a PositionMap 
 		
 		See implementation.
 	'''
@@ -226,10 +228,10 @@ def meshcellsize(mesh):
 
 class PointSet:
 	''' Holds a list of points and hash them.
-		the points are holds using indices, that allows to get the point buffer at any time, or to retreive only a point index
-		cellsize defines the box size in which two points are considered to be the same
+		The points are holds using indices, that allows to get the point buffer at any time, or to retrieve only a point index.
+		`cellsize` defines the box size in which two points are considered to be the same
 		
-		methods are inspired from the builtin type set
+		Methods are inspired from the builtin type set
 		
 		Attributes defined here:
 			:points:     the point buffer (READ-ONLY PURPOSE)
@@ -253,11 +255,11 @@ class PointSet:
 			if iterable:	self.update(iterable)
 	
 	def keyfor(self, pt):
-		''' hash key for a point '''
+		''' Hash key for a point '''
 		return tuple(i64vec3(glm.floor(pt/self.cellsize)))
 		
 	def keysfor(self, pt):
-		''' iterable of positions at whic an equivalent point can be '''
+		''' Iterable of positions at which an equivalent point can be '''
 		vox = pt/self.cellsize
 		k = i64vec3(glm.floor(vox-0.5+NUMPREC)), i64vec3(glm.floor(vox+0.5-NUMPREC))
 		return (
@@ -272,14 +274,14 @@ class PointSet:
 			)
 	
 	def update(self, iterable):
-		''' add the points from an iterable '''
+		''' Add the points from an iterable '''
 		for pt in iterable:	self.add(pt)
 	def difference_update(self, iterable):
-		''' remove the points from an iteravble '''
+		''' Remove the points from an iterable '''
 		for pt in iterable:	self.discard(pt)
 		
 	def add(self, pt):
-		''' add a point '''
+		''' Add a point '''
 		for key in self.keysfor(pt):
 			if key in self.dict:
 				return self.dict[key]
@@ -287,14 +289,14 @@ class PointSet:
 		self.points.append(pt)
 		return l
 	def remove(self, pt):
-		''' remove a point '''
+		''' Remove a point '''
 		for key in self.keysfor(pt):
 			if key in self.dict:
 				del self.dict[key]
 				return
 		else:					raise IndexError("position doesn't exist in set")
 	def discard(self, pt):
-		''' remove the point at given location if any '''
+		''' Remove the point at given location if any '''
 		for key in self.keysfor(pt):
 			if key in self.dict:
 				del self.dict[key]

@@ -85,6 +85,12 @@
 	background: #161c20;
 }
 
+.wy-nav-content{
+		max-width: 960px;
+    align-content: center;
+    margin:auto;
+}
+
 .wy-nav-content-wrap {
 	background: #0e1215;
 }
@@ -97,7 +103,18 @@
 	color: #afd7e3;
 }
 .wy-menu-vertical a:hover {
-	background:#274348
+	background:#274348;
+}
+
+.search li {
+	margin-bottom: 10px;
+	border-bottom: 1px solid #2d2d2d;
+	padding-bottom: 10px;
+}
+
+.rst-content .highlighted {
+  background: #5e5328;
+  box-shadow: 0 0 0 2px #71612c;
 }
 
 /* navigation bar tree */
@@ -390,12 +407,28 @@ code {
 /* markdown stuff */
 h1, h2, h3 {
 	border-bottom: 1px solid #c6c5c536;
-	margin-top: 5%;
+	/* margin-top: 5%; */
 }
 /*
 h2 {
 	margin-top: 15%;
 }*/
+
+.logo{
+    border:none;
+}
+
+img {
+    display:block;
+    margin-left:auto;
+    margin-right:auto;
+    /* border: 1px solid #1c343c; */
+}
+
+/* .field-list{ */
+/*     border-top: 1px solid #c6c5c5; */
+/*     border-bottom: 1px solid #c6c5c5; */
+/* } */
 
 .sphinx_collapse__icon {
 	border-top-color: #479da2;
@@ -404,7 +437,6 @@ h2 {
 	color: #479da2;
 	font-size: 100%;
 }
-
 
 /* ugly stuff to correct other colors from readthedocs */
 

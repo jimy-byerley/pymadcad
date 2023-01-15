@@ -1,11 +1,11 @@
 .. _scheme:
 
-scheme   - annotation functionalities
+scheme   - Annotation functionalities
 =====================================
 
 .. automodule:: madcad.scheme
 
-schematics system
+Schematics system
 -----------------
 
 	.. autoclass:: Scheme
@@ -27,7 +27,7 @@ schematics system
 	.. autofunction:: scale_view
 
 
-annotation functions
+Annotation functions
 --------------------
 
 	.. autofunction:: note_leading
@@ -71,7 +71,7 @@ annotation functions
 		
 		.. image:: /screenshots/note_label.png
 	
-measuring tools
+Measuring tools
 ---------------
 
 	.. autofunction:: mesh_curvature_radius

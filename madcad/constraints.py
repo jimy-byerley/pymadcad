@@ -43,7 +43,7 @@ class Constraint(object):
 		#return Derived(varset.state(), varset.grad(), varset.vars)
 
 def isconstraint(obj):
-	''' return True if obj match the constraint signature '''
+	''' Return True if obj match the constraint signature '''
 	return hasattr(obj, 'fit') and hasattr(obj, 'slvvars')
 
 	
@@ -191,20 +191,20 @@ class PointOn(Constraint):
 		
 
 def solve(constraints, fixed=(), *args, **kwargs):
-	''' short hand to use the class Problem '''
+	''' Short hand to use the class Problem '''
 	return Problem(constraints, fixed).solve(*args, **kwargs)
 
 class Problem:
-	''' class to holds data for a problem solving process.
+	''' Class to holds data for a problem solving process.
 		it is intended to be instantiated for each different probleme solving, an instance is used multiple times only when we want to solve on top of the previous results, using exactly the same probleme definition (constraints and variables)
 		
-		therefore the solver protocol is the follownig:
-			- constraints define the probleme
+		Therefore the solver protocol is the following:
+			- constraints define the problem
 			- each constraint refers to variables it applies on
 				constraints have the method fit() and a member 'slvvars' that can be  
 				
-				1. an iterable of names of variable members in the constraint object
-				2. a function returning an iterable of the actual variables objects (that therefore must be referenced refs and not primitive types)
+				1. An iterable of names of variable members in the constraint object
+				2. A function returning an iterable of the actual variables objects (that therefore must be referenced refs and not primitive types)
 			
 			- each variable object can redirect to other variable objects if they implements such a member 'slvvars'
 			- primitives can also be constraints on their variables, thus they must have a method fit()   (but no member 'primitives' here)
@@ -225,7 +225,7 @@ class Problem:
 			else:						self.dim += len(v)
 	
 	def register(self, obj):
-		''' register a constraint or a variable object '''
+		''' Register a constraint or a variable object '''
 		if hasattr(obj, 'fit'):
 			self.constraints.add(obj.fit)
 		# register object's variables
@@ -249,7 +249,7 @@ class Problem:
 				self.slvvars[id(obj)] = obj
 	
 	def unregister(self, obj):
-		''' unregister all variables from a constraint or a variable object '''
+		''' Unregister all variables from a constraint or a variable object '''
 		if hasattr(obj, 'slvvars'):
 			if callable(obj.slvvars):
 				for var in obj.slvvars():
