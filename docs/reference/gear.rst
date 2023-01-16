@@ -1,12 +1,12 @@
 .. _gear:
 
-gear   - generation of gears, racks, etc
+gear   - Generation of gears, racks, etc
 ========================================
 
 .. automodule:: madcad.gear
 
 
-tooth profiles generation
+Tooth profiles generation
 -------------------------
 
 The following functions are focussing on involute gears. If you want more details on how involutes gears are defined and computed, you can take a look at the `algorithm section <https://pymadcad.readthedocs.io/en/latest/algorithms/gearprofile.html>`_
@@ -43,7 +43,7 @@ The following functions are focussing on involute gears. If you want more detail
 
 	.. image:: /screenshots/spherical_gearprofile.png
 
-gear generation
+Gear generation
 ---------------
 
 .. autofunction:: gear
@@ -71,7 +71,7 @@ gear generation
 
 .. autofunction:: gearhub
 
-bevel gear generation
+Bevel gear generation
 ---------------------
 
 .. autofunction:: bevelgear
@@ -83,7 +83,7 @@ bevel gear generation
 	.. image:: /screenshots/bevelgear.png
 
 
-helper tools
+Helper tools
 ------------
 
 .. autofunction:: gearcircles
@@ -94,7 +94,7 @@ helper tools
 .. autofunction:: spherical_involuteof
 .. autofunction:: repeat_circular
 
-structure patterns
+Structure patterns
 ------------------
 
 Those are the functions generating usual structures ready to used in `geargather`.

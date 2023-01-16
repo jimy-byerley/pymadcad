@@ -6,15 +6,15 @@
 	A Kinematic is a conceptual approach of mechanisms. It sort parts in several groups with the same movement (so in a solid, the solids are all bound together), and it links the defined solids by joints corresponding to the constraints each solid put to the other solids in the joint. 
 	That way no matter what are the parts, and what are their shape, even whan surfaces links the solids - the solid always have the same movements when there is the same joints between them.
 
-	So to analyse a mechanisme we look at its kinematic. And that can be done prior or after the part design as it is independant.
+	So to analyze a mechanism we look at its kinematic. And that can be done prior or after the part design as it is independant.
 	
 	A kinematic in itself is a set of solids, observing movement relations. Those are modeled across the following classes: ``Solid`` and ``Kinematic``.
 	
-	Solids are considered to be undeformable, this allows the to use the Screw theory to represent the force and movement variables (see https://en.wikipedia.org/wiki/Screw_theory). 
+	Solids are considered to be rigid, this allows the to use the Screw theory to represent the force and movement variables (see https://en.wikipedia.org/wiki/Screw_theory). 
 	In this module, screws are called ``Screw``.
 	
 	.. tip::
-		In case of undeformable solids, torsors makes possible to represent both the translative and rotative part of each movement aspect, independently from the point in the solid.
+		In case of rigid solids, torsors makes possible to represent both the translative and rotative part of each movement aspect, independently from the point in the solid.
 '''
 
 from copy import copy, deepcopy
@@ -22,7 +22,7 @@ import numpy.core as np
 import moderngl as mgl
 from PyQt5.QtCore import Qt, QEvent	
 
-from .common import ressourcedir
+from .common import resourcedir
 from .mathutils import *
 from .mesh import Mesh, Web, Wire, striplist, distance2_pm, typedlist_to_numpy
 from . import settings
@@ -38,26 +38,27 @@ __all__ = ['Screw', 'comomentum', 'Pressure', 'Solid', 'Kinematic', 'Kinemanip',
 
 
 class Screw(object):
-	''' a 3D torsor aka Screw aka Wrench aka Twist - is a mathematical object defined as follow:
+	''' A 3D torsor aka Screw aka Wrench aka Twist - is a mathematical object defined as follow:
 		  * a resulting vector R
 		  * a momentum vector field M
-		  the momentum is a function of space, satisfying the relationship:
+
+		The momentum is a function of space, satisfying the relationship:
 			M(A) = M(B) + cross(R, A-B)
 		
-		therefore it is possible to represent a localized torsor such as:
+		Therefore it is possible to represent a localized torsor such as:
 		  * R = resulting
 		  * M = momentum vector at position P
 		  * P = position at which M takes the current value
 		
-		torsor are usefull for generalized solid mechanics to handle multiple variables of the same nature:
-		  * force torsor:	
+		Torsor are useful for generalized solid mechanics to handle multiple variables of the same nature:
+		  * Force torsor:	
 			  Screw(force, torque, pos)
-		  * velocity (aka kinematic) torsor:
+		  * Velocity (aka kinematic) torsor:
 			  Screw(rotation, velocity, pos)
-		  * kinetic (inertia) torsor:
+		  * Kinetic (inertia) torsor:
 			  Screw(linear movement quantity, rotational movement quantity, pos)
 			
-		  all these torsors makes it possible to represent all these values independently from expression location
+		  All these torsors makes it possible to represent all these values independently from expression location
 		  
 		  
 		Attributes:
@@ -69,11 +70,11 @@ class Screw(object):
 	def __init__(self, resulting=None, momentum=None, position=None):
 		self.resulting, self.momentum, self.position = resulting or vec3(0), momentum or vec3(0), position or vec3(0)
 	def locate(self, pt) -> 'Screw':
-		''' gets the same torsor, but expressed for an other location '''
+		''' Gets the same torsor, but expressed for an other location '''
 		return Screw(self.resulting, self.momentum + cross(self.resulting, pt-self.position), pt)
 	
 	def transform(self, mat) -> 'Screw':
-		''' changes the torsor from coordinate system '''
+		''' Changes the torsor from coordinate system '''
 		if isinstance(mat, mat4):
 			rot, trans = mat3(mat), vec3(mat[3])
 		elif isinstance(mat, mat3):
@@ -107,9 +108,9 @@ class Screw(object):
 		return '{}(\n\t{}, \n\t{}, \n\t{})'.format(self.__class__.__name__, repr(self.resulting), repr(self.momentum), repr(self.position))
 
 def comomentum(t1, t2):
-	''' comomentum of screws:   `dot(M1, R2)  +  dot(M2, R1)`
+	''' Comomentum of screws:   `dot(M1, R2)  +  dot(M2, R1)`
 		
-		the result is independent of torsors location
+		The result is independent of torsors location
 	'''
 	t2 = t2.locate(t1.position)
 	return dot(t1.momentum, t2.resulting) + dot(t2.momentum, t1.resulting)
@@ -118,8 +119,8 @@ def comomentum(t1, t2):
 class Solid:
 	''' Solid for kinematic definition, used as variable by the kinematic solver
 	
-		A Solid is also a way to group objects and move it anywere without modifying them, as the objects contained in a solid are considered to be in solid local coordinates.
-		A Solid is just like a dictionnary with a pose.
+		A Solid is also a way to group objects and move it anywhere without modifying them, as the objects contained in a solid are considered to be in solid local coordinates.
+		A Solid is just like a dictionary with a pose.
 	
 		Attributes:
 			orientation (quat):  rotation from local to world space
@@ -156,7 +157,7 @@ class Solid:
 	
 	@property
 	def pose(self) -> 'mat4':
-		''' transformation from local to global space, 
+		''' Transformation from local to global space, 
 			therefore containing the translation and rotation from the global origin 
 		'''
 		return transform(self.position, self.orientation)
@@ -174,7 +175,7 @@ class Solid:
 		return s
 	
 	def transform(self, trans) -> 'Solid':
-		''' displace the solid by the transformation '''
+		''' Displace the solid by the transformation '''
 		s = copy(self)
 		if isinstance(trans, mat4):
 			rot, trans = quat_cast(mat3(trans)), vec3(trans[3])
@@ -191,7 +192,7 @@ class Solid:
 		return s
 	
 	def place(self, *args, **kwargs) -> 'Solid': 
-		''' strictly equivalent to `self.pose = placement(...)`, see `placement` for parameters specifications. '''
+		''' Strictly equivalent to `.transform(placement(...))`, see `placement` for parameters specifications. '''
 		s = copy(self)
 		s.pose = placement(*args, **kwargs)
 		return s
@@ -199,30 +200,30 @@ class Solid:
 
 	# convenient content access
 	def __getitem__(self, key):
-		''' shorthand to `self.content` '''
+		''' Shorthand to `self.content` '''
 		return self.content[key]
 		
 	def __setitem__(self, key, value):
-		''' shorthand to `self.content` '''
+		''' Shorthand to `self.content` '''
 		self.content[key] = value
 	
 	def add(self, value):
-		''' add an item in self.content, a key is automatically created for it and is returned '''
+		''' Add an item in self.content, a key is automatically created for it and is returned '''
 		key = next(i 	for i in range(len(self.content)+1)	
 						if i not in self.content	)
 		self.content[key] = value
 		return key
 	
 	def set(self, **objs):
-		''' contenient method to set many elements in one call.
-			equivalent to `self.content.update(objs)`
+		''' Convenient method to set many elements in one call.
+			Equivalent to `self.content.update(objs)`
 		'''
 		self.content.update(objs)
 		return self
 	
 	
 	class display(rendering.Group):
-		''' movable `Group` for the rendering pipeline '''
+		''' Movable `Group` for the rendering pipeline '''
 		def __init__(self, scene, solid):
 			super().__init__(scene, solid.content)
 			self.solid = solid
@@ -276,7 +277,7 @@ class Solid:
 			
 
 def placement(*pairs, precision=1e-3):
-	''' return a transformation matrix that solved the placement constraints given by the surface pairs
+	''' Return a transformation matrix that solved the placement constraints given by the surface pairs
 	
 		Parameters:
 		
@@ -287,7 +288,7 @@ def placement(*pairs, precision=1e-3):
 			
 			precision: surface guessing and kinematic solving precision (distance)
 		
-		each pair define a joint between the two assumed solids (a solid for the left members of the pairs, and a solid for the right members of the pairs). placement will return the pose of the first relatively to the second, satisfying the constraints.
+		Each pair define a joint between the two assumed solids (a solid for the left members of the pairs, and a solid for the right members of the pairs). Placement will return the pose of the first relatively to the second, satisfying the constraints.
 		
 		Example:
 		
@@ -346,14 +347,14 @@ def extract_used(obj):
 
 	
 def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)]':
-	''' build a graph of connected objects, ready to create an exploded view or any assembly animation.
+	''' Build a graph of connected objects, ready to create an exploded view or any assembly animation.
 		See `explode()` for an example. The exploded view is computed using the meshes contained in the given solids, so make sure there everything you want in their content.
 	
 		Complexity is `O(m * n)` where m = total number of points in all meshes, n = number of solids
 		
 		NOTE:
 			
-			Despite the hope that this function will be helpful, it's (for computational cost reasons) not a perfect algorithm for complex assemblies (the example above is at the limit of a simple one). The current algorithm will work fine for any simple enough assembly but may return unexpected results for more complexe ones.
+			Despite the hope that this function will be helpful, it's (for computational cost reasons) not a perfect algorithm for complex assemblies (the example above is at the limit of a simple one). The current algorithm will work fine for any simple enough assembly but may return unexpected results for more complex ones.
 		
 	'''
 	import scipy.spatial.qhull
@@ -455,8 +456,8 @@ def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)
 			
 	
 def explode(solids, factor=1, offsets=None) -> '(solids:list, graph:Mesh)':
-	''' move the given solids away from each other in the way of an exploded view.
-		makes easier to seen the details of an assembly . See `explode_offsets` for the algorithm
+	''' Move the given solids away from each other in the way of an exploded view.
+		It makes easier to seen the details of an assembly . See `explode_offsets` for the algorithm.
 		
 		Parameters:
 			
@@ -503,7 +504,7 @@ def explode(solids, factor=1, offsets=None) -> '(solids:list, graph:Mesh)':
 
 
 def solvekin(joints, fixed=(), precision=1e-4, maxiter=None, damping=1):
-	''' solver for kinematic joint constraints.
+	''' Solver for kinematic joint constraints.
 	
 		Unlike ``solve``, the present solver is dedicated to kinematic usage (and far more efficient and precise). It doesn't rely on variables as defined by solve, but instead use Solids as constraints.
 	'''
@@ -603,11 +604,11 @@ def solvekin(joints, fixed=(), precision=1e-4, maxiter=None, damping=1):
 		itercount += 1
 
 def isjoint(obj):
-	''' return True if obj is considered to be a kinematic joint object '''
+	''' Return True if obj is considered to be a kinematic joint object '''
 	return hasattr(obj, 'solids') and hasattr(obj, 'corrections')
 
 class Joint:
-	''' possible base class for a joint, providing some default implementations '''
+	''' Possible base class for a joint, providing some default implementations '''
 	class display(rendering.Display):
 		def __init__(self, scene, joint):
 			self.schemes = [scene.display(joint.scheme(s, 1, joint.position[i]))
@@ -615,7 +616,7 @@ class Joint:
 			self.joint = joint
 		
 		def updateposes(self, view):
-			''' update the pose of sub displays using their solid's pose '''
+			''' Update the pose of sub displays using their solid's pose '''
 			for sch, solid, pos in zip(self.schemes, self.joint.solids, self.joint.position):
 				pos = fvec3(pos)
 				m = self.world * fmat4(solid.pose)
@@ -653,24 +654,26 @@ class Kinematic:
 		self.options = {}
 		
 	def solve(self, *args, **kwargs):
-		''' move the solids to satisfy the joint constraints. This is using `solvekin()` '''
+		''' Move the solids to satisfy the joint constraints. This is using `solvekin()` '''
 		return solvekin(self.joints, self.fixed, *args, **kwargs)
 	
 	def forces(self, applied) -> '[junction forces], [solid resulting]':
-		''' return the forces in each junction and the resulting on each solid, induces by the given applied forces '''
+		''' Return the forces in each junction and the resulting on each solid, induces by the given applied forces '''
 		indev
+
 	def jacobian(self):
-		''' return the numerical jacobian for the current kinematic position '''
+		''' Return the numerical jacobian for the current kinematic position '''
 		indev
+
 	def path(self, func:'f(t)', pts) -> '[Wire]':
-		''' path followed by points when the kinematic is moved by the function
-			function must assign a reproductible pose to the solids, it takes one variable (usally the animation time step)
+		''' Path followed by points when the kinematic is moved by the function.
+			Function must assign a reproducible pose to the solids, it takes one variable (usually the animation time step)
 		'''
 		indev
 	
 	@property
 	def pose(self) -> '[mat4]':
-		''' the pose matrices of each solid in the same order as ` self.solids` '''
+		''' The pose matrices of each solid in the same order as ` self.solids` '''
 		return [solid.pose 	for solid in self.solids]
 	@pose.setter
 	def pose(self, value):
@@ -679,7 +682,7 @@ class Kinematic:
 			solid.orientation = quat_cast(mat3(pose))
 			
 	def __copy__(self):
-		''' return a new Kinematic with copies of the solids '''
+		''' Return a new Kinematic with copies of the solids '''
 		memo = {id(s): copy(s)  for s in self.solids}
 		joints = []
 		for joint in self.joints:
@@ -694,35 +697,35 @@ class Kinematic:
 					)
 	
 	def __add__(self, other):
-		''' concatenate the two kinematics in a new one '''
+		''' Concatenate the two kinematics in a new one '''
 		return Kinematic(self.joints+other.joints, self.fixed|other.fixed, self.solids+other.solids)
 		
 	def __iadd__(self, other):
-		''' append the soldids of the other kinematic '''
+		''' Append the soldids of the other kinematic '''
 		self.joints.extend(other.joints)
 		self.solids.extend(other.solids)
 		self.fixed.update(other.fixed)
 		return self
 	
 	def itransform(self, transform):
-		''' move all solids of the given transform '''
+		''' Move all solids of the given transform '''
 		for solid in self.solids:
 			solid.itransform(transform)
 	def transform(self, transform):
-		''' copy all solids and transform all solids '''
+		''' Copy all solids and transform all solids '''
 		new = copy(self)
 		new.itransform(transform)
 		return new
 		
 	def graph(self) -> 'Graph':
-		''' graph representing solid as nodes and joints as bidirectional links '''
+		''' Graph representing solid as nodes and joints as bidirectional links '''
 		indev
 	def display(self, scene):
-		''' renderer for kinematic manipulation, linked to the current object '''
+		''' Render for kinematic manipulation, linked to the current object '''
 		return Kinemanip(scene, self)
 
 def getsolids(joints):
-	''' return a list of the solids used by the given joints '''
+	''' Return a list of the solids used by the given joints '''
 	solids = []
 	known = set()
 	for joint in joints:
@@ -733,8 +736,8 @@ def getsolids(joints):
 	return solids
 
 class Pressure:
-	''' Represent a mechanical pressure repartition on a surface
-		equivalent of a Screw but with space repartition
+	''' Represent a mechanical pressure distribution on a surface
+		Equivalent of a Screw but with space distribution
 	'''
 	def __init__(self, surface: 'Mesh', values: '[float]'):
 		self.surface = surface
@@ -753,7 +756,7 @@ class Pressure:
 		indev
 	
 	def display(self, scene):
-		''' surface rendering with coloration in function of pressure '''
+		''' Surface rendering with coloration in function of pressure '''
 		indev
 
 class Graph:
@@ -765,21 +768,21 @@ class Graph:
 		self.nodes = nodes
 		self.links = links
 	def cycles(self) -> '[cycle]':
-		''' yield all the possible cycles in the graph '''
+		''' Yield all the possible cycles in the graph '''
 		indev
 	def connexes(self, nodes=None) -> '[Graph]':
-		''' list of connex subgraphs
-			if nodes is provided, only the subgraphs containing nodes present in this list will be returned 
+		''' List of connex subgraphs
+			If nodes is provided, only the subgraphs containing nodes present in this list will be returned 
 		'''
 		indev
 	def reach(self, node: int, walk:'callable'=None) -> '{node index: custom}':
-		''' return a set of node indices that can be reached starting from the given node
-			if walk is given, its a function(link)  returning a True object when walking through a link is possible 
+		''' Return a set of node indices that can be reached starting from the given node
+			If walk is given, its a function(link)  returning a True object when walking through a link is possible 
 		'''
 		indev
 	
 	def display(self) -> 'QGraphicItem':
-		''' graph display widget for a 2D QGraphicScene '''
+		''' Graph display widget for a 2D QGraphicScene '''
 		indev
 
 
@@ -883,7 +886,7 @@ class Kinemanip(rendering.Group):
 			disp.apply_pose()
 	
 	def lock(self, scene, solid, lock):
-		''' lock the pose of the given solid '''
+		''' Lock the pose of the given solid '''
 		if lock == self.islocked(solid):	
 			return
 		key = id(solid)
@@ -909,7 +912,7 @@ class Kinemanip(rendering.Group):
 
 
 def makescheme(joints, color=None):
-	''' create kinematic schemes and add them as visual elements to the solids the joints applies on '''
+	''' Create kinematic schemes and add them as visual elements to the solids the joints applies on '''
 	# collect solids informations
 	assigned = set()
 	solids = {}
@@ -942,7 +945,7 @@ def makescheme(joints, color=None):
 
 
 class Scheme:
-	''' buffer holder to construct schemes, for now it's only usefull to append to buffer '''
+	''' Buffer holder to construct schemes, for now it's only usefull to append to buffer '''
 	def __init__(self, points, transpfaces, opacfaces, lines, color=None):
 		self.color = color
 		self.points = points
@@ -958,7 +961,7 @@ class Scheme:
 		self.lines.extend(((a+l, b+l)  for a,b in other.lines))
 	
 	def box(self):
-		''' return the extreme coordinates of the mesh (vec3, vec3) '''
+		''' Return the extreme coordinates of the mesh (vec3, vec3) '''
 		return boundingbox(self.points)
 	
 	def display(self, scene):
@@ -966,7 +969,7 @@ class Scheme:
 
 
 class WireDisplay(rendering.Display):
-	''' wireframe display for schemes, like kinematic schemes '''
+	''' Wireframe display for schemes, like kinematic schemes '''
 	
 	def __init__(self, scene, points, transpfaces, opaqfaces, lines, color):
 		ctx = scene.ctx
@@ -975,18 +978,18 @@ class WireDisplay(rendering.Display):
 		
 		def load(scene):
 			return scene.ctx.program(
-						vertex_shader=open(ressourcedir+'/shaders/uniformcolor.vert').read(),
-						fragment_shader=open(ressourcedir+'/shaders/uniformcolor.frag').read(),
+						vertex_shader=open(resourcedir+'/shaders/uniformcolor.vert').read(),
+						fragment_shader=open(resourcedir+'/shaders/uniformcolor.frag').read(),
 						)
-		self.uniformshader = scene.ressource('shader_uniformcolor', load)
+		self.uniformshader = scene.resource('shader_uniformcolor', load)
 		
 		def load(scene):
 			return scene.ctx.program(
-						vertex_shader=open(ressourcedir+'/shaders/glowenvelope.vert').read(),
-						fragment_shader=open(ressourcedir+'/shaders/glowenvelope.frag').read(),
+						vertex_shader=open(resourcedir+'/shaders/glowenvelope.vert').read(),
+						fragment_shader=open(resourcedir+'/shaders/glowenvelope.frag').read(),
 						)
-		self.transpshader = scene.ressource('shader_glowenvelope', load)
-		self.identshader = scene.ressource('shader_ident')
+		self.transpshader = scene.resource('shader_glowenvelope', load)
+		self.identshader = scene.resource('shader_ident')
 		
 		normals = Mesh(points, transpfaces).vertexnormals()
 		#print('normals', normals)

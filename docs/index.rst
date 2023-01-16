@@ -5,15 +5,16 @@ Simple yet powerful CAD (Computer Aided Design) library, written with Python.
 
 
 .. toctree::
-	:maxdepth: 3
+	:maxdepth: 2
 	
 	installation.rst
 	concepts.rst
-	newcomers.rst
 	guide.rst
 	reference/index.rst
 	algorithms.md
-	development.rst
+	development.md
+
+.. newcomers.rst
 
 Indices and tables
 ==================

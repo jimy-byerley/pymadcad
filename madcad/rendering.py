@@ -4,16 +4,16 @@
 	
 	This module provides a render pipeline system featuring:
 
-	- class `Scene` to gather the data to render
-	- widget `View` that actually renders the scene 
-	- the display protocol, that allows any object to define its `Display` subclass to be rendered in a scene.
+	- Class `Scene` to gather the data to render
+	- Widget `View` that actually renders the scene 
+	- The display protocol, that allows any object to define its `Display` subclass to be rendered in a scene.
 
 	The view is for window integration and user interaction. `Scene` is only to manage the objects to render . Almost all madcad data types can be rendered to scenes being converted into an appropriate subclass of `Display`. Since the conversion from madcad data types into display instance is automatically handled via the *display protocol*, you usually don't need to deal with displays directly.
 
 	
-	display protocol
+	Display protocol
 	----------------
-		a displayable is an object that implements the signatue of Display:
+		A displayable is an object that implements the signature of Display:
 		
 			class display:
 				box (Box)                      # delimiting the display, can be an empty or invalid box
@@ -28,8 +28,8 @@
 		
 		For more details, see class Display below
 		
-	ATTENTION
-	---------
+	WARNING
+	-------
 		As the GPU native precision is f4 (float 32 bits), all the vector stuff regarding rendering is made using simple precision types: `fvec3, fvec4, fmat3, fmat4, ...`
 	
 	NOTE
@@ -56,7 +56,7 @@ from PyQt5.QtGui import QSurfaceFormat, QMouseEvent, QInputEvent, QKeyEvent, QTo
 from PIL import Image
 
 from .mathutils import *
-from .common import ressourcedir
+from .common import resourcedir
 from . import settings
 
 from .nprint import nprint
@@ -70,7 +70,7 @@ global_context = None
 
 def show(scene:dict, interest:Box=None, size=uvec2(400,400), projection=None, navigation=None, **options):
 	''' 
-		easy and convenient way to create a window containing a `View` on a created `Scene`
+		Easy and convenient way to create a window containing a `View` on a created `Scene`
 		
 		If a Qt app is not already running, the functions returns when the window has been closed and all GUI destroyed
 		
@@ -119,7 +119,7 @@ def show(scene:dict, interest:Box=None, size=uvec2(400,400), projection=None, na
 		if err != 0:	print('error: Qt exited with code', err)
 
 def render(scene, options=None, interest:Box=None, navigation=None, projection=None, size=uvec2(400,400)):
-	''' shortcut to render the given objects to an image, returns a PIL Image
+	''' Shortcut to render the given objects to an image, returns a PIL Image
 	
 		For repeated renderings or view manipualtion, you should directly use `Offscreen`
 		
@@ -167,34 +167,34 @@ class Display:
 	world = fmat4(1)		# set by the display containing this one if it is belonging to a group
 	
 	def display(self, scene) -> 'self':
-		''' displays are obviously displayable as themselves '''
+		''' Displays are obviously displayable as themselves '''
 		return self
 	def stack(self, scene) -> '[(key, target, priority, callable)]':
-		''' rendering functions to insert in the renderpipeline.
+		''' Rendering functions to insert in the renderpipeline.
 		
-			the expected result can be any iterable providing tuples `(key, target, priority, callable)` such as:
+			The expected result can be any iterable providing tuples `(key, target, priority, callable)` such as:
 			
 			:key:	    a tuple with the successive keys in the displays tree, most of the time implementers set it to `()`  because it doesn't belong to a subpart of the Display.
 			:target:    the name of the render target in the view that will be rendered (see View)
 			:priority:  a float that is used to insert the callable at the proper place in the rendering stack
 			:callable:  a function that renders, signature is  `func(view)`			
 			
-			The view contains the uniforms, rendering targets and the scene for common ressources
+			The view contains the uniforms, rendering targets and the scene for common resources
 		'''
 		return ()
 	def duplicate(self, src, dst) -> 'display/None':
-		''' duplicate the display for an other scene (other context) but keeping the same memory buffers when possible.
+		''' Duplicate the display for an other scene (other context) but keeping the same memory buffers when possible.
 			
-			return None if not possible or not implemented.
+			Return None if not possible or not implemented.
 		'''
 		return None
 	def __getitem__(self, key) -> 'display':
-		''' get a subdisplay by its index/key in this display (like in a scene) '''
+		''' Get a subdisplay by its index/key in this display (like in a scene) '''
 		raise IndexError('{} has no sub displays'.format(type(self).__name__))
 	def update(self, scene, displayable) -> bool:
-		''' update the current displays internal datas with the given displayable .
+		''' Update the current displays internal datas with the given displayable .
 			
-			if the display cannot be upgraded, it must return False to be replaced by a fresh new display created from the displayable
+			If the display cannot be upgraded, it must return False to be replaced by a fresh new display created from the displayable
 		'''
 		return False
 	
@@ -203,8 +203,8 @@ class Display:
 	selected = False
 	
 	def control(self, view, key, sub, evt: 'QEvent'):
-		''' handle input events occuring on the area of this display (or of one of its subdisplay).
-			for subdisplay events, the parents control functions are called first, and the sub display controls are called only if the event is not accepted by parents
+		''' Handle input events occuring on the area of this display (or of one of its subdisplay).
+			For subdisplay events, the parents control functions are called first, and the sub display controls are called only if the event is not accepted by parents
 			
 			Parameters:
 				key:    the key path for the current display
@@ -220,7 +220,7 @@ def qt_2_glm(v):
 		raise TypeError("can't convert {} to vec2".format(type(v).__name__))
 
 def navigation_tool(dispatcher, view):
-	''' internal navigation tool '''	
+	''' Internal navigation tool '''	
 	ctrl = alt = slow = False
 	nav = curr = None
 	moving = False
@@ -323,9 +323,9 @@ def navigation_tool(dispatcher, view):
 				
 
 class Turntable:
-	''' navigation rotating on yaw and pitch around a center 
+	''' Navigation rotating on yaw and pitch around a center 
 	
-		object used as `View.navigation`
+		Object used as `View.navigation`
 	'''
 	def __init__(self, center:fvec3=0, distance:float=1, yaw:float=0, pitch:float=0):
 		self.center = fvec3(center)
@@ -353,9 +353,9 @@ class Turntable:
 		return mat
 
 class Orbit:
-	''' navigation rotating on the 3 axis around a center.
+	''' Navigation rotating on the 3 axis around a center.
 	
-		object used as `View.navigation`
+		Object used as `View.navigation`
 	'''
 	def __init__(self, center:fvec3=0, distance:float=1, orient:fvec3=fvec3(1,0,0)):
 		self.center = fvec3(center)
@@ -379,7 +379,7 @@ class Orbit:
 
 
 class Perspective:
-	''' object used as `View.projection` 
+	''' Object used as `View.projection` 
 	
 		Attributes:
 			fov (float):	field of view (rad), defaulting to `settings.display['field_of_view']`
@@ -390,7 +390,7 @@ class Perspective:
 		return perspective(self.fov, ratio, distance*1e-2, distance*1e4)
 
 class Orthographic:
-	''' object used as `View.projection` 
+	''' Object used as `View.projection` 
 	
 		Attributes:
 			size (float):  
@@ -400,6 +400,7 @@ class Orthographic:
 	'''
 	def __init__(self, size=None):
 		self.size = size or tan(settings.display['field_of_view']/2)
+
 	def matrix(self, ratio, distance) -> fmat4:
 		return fmat4(1/(ratio*distance*self.size), 0, 0, 0,
 		            0,       1/(distance*self.size), 0, 0,
@@ -408,20 +409,20 @@ class Orthographic:
 
 
 class Scene:
-	''' rendeing pipeline for madcad displayable objects 
+	''' Rendering pipeline for madcad displayable objects 
 		
-		This class is gui-agnostic, it only relys on opengl, and the context has to be created by te user.
+		This class is gui-agnostic, it only relies on OpenGL, and the context has to be created by the user.
 		
 		When an object is added to the scene, a Display is not immediately created for it, the object is put into the queue and the Display is created at the next render.
 		If the object is removed from the scene before the next render, it is dequeued.
 		
 		Attributes:
 		
-			ctx:           moderngl Context (must be the same for all views using this scene)
-			ressources (dict):    dictionnary of scene ressources (like textures, shaders, etc) index by name
-			options (dict):       dictionnary of options for rendering, initialized with a copy of `settings.scene`
+			ctx:				  moderngl Context (must be the same for all views using this scene)
+			resources (dict):    dictionary of scene resources (like textures, shaders, etc) index by name
+			options (dict):       dictionary of options for rendering, initialized with a copy of `settings.scene`
 			
-			displays (dict):      dictionnary of items in the scheme `{'name': Display}`
+			displays (dict):      dictionary of items in the scheme `{'name': Display}`
 			stacks (list):        lists of callables to render each target `{'target': [(key, priority, callable(view))]}`
 			setup (dict):         setup of each rendering target `{'target': callable}`
 			
@@ -431,7 +432,7 @@ class Scene:
 	def __init__(self, objs=(), options=None, ctx=None, setup=None):
 		# context variables
 		self.ctx = ctx
-		self.ressources = {}	# context-related ressources, shared across displays, but not across contexts (shaders, vertexarrays, ...)
+		self.resources = {}	# context-related resources, shared across displays, but not across contexts (shaders, vertexarrays, ...)
 		
 		# rendering options
 		self.options = deepcopy(settings.scene)
@@ -449,8 +450,8 @@ class Scene:
 	# methods to manage the rendering pipeline
 	
 	def add(self, displayable, key=None) -> 'key':
-		''' add a displayable object to the scene, if key is not specified, an unused integer key is used 
-			the object is not added to the the renderpipeline yet, but queued for next rendering.
+		''' Add a displayable object to the scene, if key is not specified, an unused integer key is used 
+			The object is not added to the render pipeline yet, but queued for next rendering.
 		'''
 		if key is None:
 			for i in range(len(self.displays)+len(self.queue)+1):
@@ -459,13 +460,13 @@ class Scene:
 		return key
 
 	def __setitem__(self, key, value):
-		''' equivalent with self.add with a key '''
+		''' Equivalent with self.add with a key '''
 		self.queue[key] = value
 	def __getitem__(self, key) -> 'display':
-		''' get the displayable for the given key, raise when there is no object or when the object is still in queue. '''
+		''' Get the displayable for the given key, raise when there is no object or when the object is still in queue. '''
 		return self.displays[key]
 	def __delitem__(self, key):
-		''' remove an item from the scene, at the root level '''
+		''' Remove an item from the scene, at the root level '''
 		if key in self.displays:
 			del self.displays[key]
 		if key in self.queue:
@@ -476,7 +477,7 @@ class Scene:
 					stack.pop(i)
 					
 	def item(self, key):
-		''' get the Display associated with the given key, descending the parenting tree 
+		''' Get the Display associated with the given key, descending the parenting tree 
 		
 			The parents must all make their children accessible via `__getitem__`
 		'''
@@ -486,26 +487,26 @@ class Scene:
 		return disp
 	
 	def update(self, objs:dict):
-		''' rebuild the scene from a dictionnary of displayables 
-			update former displays if possible instead of replacing it
+		''' Rebuild the scene from a dictionary of displayables 
+			Update former displays if possible instead of replacing it
 		'''
 		self.queue.update(objs)
 		self.touch()
 	
 	def sync(self, objs:dict):
-		''' update the scene from a dictionnary of displayables, the former values that cannot be updated are discarded '''
+		''' Update the scene from a dictionary of displayables, the former values that cannot be updated are discarded '''
 		for key in list(self.displays):
 			if key not in objs:
 				del self.displays[key]
 		self.update(objs)
 	
 	def touch(self):
-		''' shorthand for `self.touched = True` '''
+		''' Shorthand for `self.touched = True` '''
 		self.touched = True
 		
 	def dequeue(self):
-		''' load all pending objects to insert into the scene.
-			this is called automatically by the next `render()` if `touch()` has been called
+		''' Load all pending objects to insert into the scene.
+			This is called automatically by the next `render()` if `touch()` has been called
 		'''
 		if self.queue:
 			with self.ctx:
@@ -524,8 +525,8 @@ class Scene:
 			self.restack()
 			
 	def restack(self):
-		''' update the rendering calls stack from the current scene's displays.
-			this is called automatically on `dequeue()`
+		''' Update the rendering calls stack from the current scene's displays.
+			This is called automatically on `dequeue()`
 		'''
 		# recreate stacks
 		for stack in self.stacks.values():
@@ -544,9 +545,9 @@ class Scene:
 		self.touched = False
 	
 	def render(self, view):
-		''' render to the view targets. 
+		''' Render to the view targets. 
 			
-			This must be called by the view widget, once the the opengl context is set.
+			This must be called by the view widget, once the OpenGL context is set.
 		'''
 		empty = ()
 		with self.ctx:
@@ -561,31 +562,31 @@ class Scene:
 					func(view)
 	
 	def box(self):
-		''' computes the boundingbox of the scene, with the current object poses '''
+		''' Computes the boundingbox of the scene, with the current object poses '''
 		box = Box(center=fvec3(0), width=fvec3(-inf))
 		for display in self.displays.values():
 			box.union_update(display.box.transform(display.world))
 		return box
 	
-	def ressource(self, name, func=None):
-		''' get a ressource loaded or load it using the function func.
+	def resource(self, name, func=None):
+		''' Get a resource loaded or load it using the function func.
 			If func is not provided, an error is raised
 		'''
-		if name in self.ressources:	
-			return self.ressources[name]
+		if name in self.resources:	
+			return self.resources[name]
 		elif callable(func):
 			with self.ctx as ctx:  # set the scene context as current opengl context
 				res = func(self)
-				self.ressources[name] = res
+				self.resources[name] = res
 				return res
 		else:
-			raise KeyError("ressource {} doesn't exist or is not loaded".format(repr(name)))
+			raise KeyError("resource {} doesn't exist or is not loaded".format(repr(name)))
 					
 	def display(self, obj, former=None):
-		''' create a display for the given object for the current scene.
+		''' Create a display for the given object for the current scene.
 		
-			this is the actual function converting objects into displays.
-			you don't need to call this method if you just want to add an object to the scene, use add() instead
+			This is the actual function converting objects into displays.
+			You don't need to call this method if you just want to add an object to the scene, use add() instead
 		'''
 		if former and former.update(self, obj):
 			return former
@@ -607,12 +608,12 @@ class Scene:
 	
 
 def displayable(obj):
-	''' return True if the given object has the matching signature to be added to a Scene '''
+	''' Return True if the given object has the matching signature to be added to a Scene '''
 	return type(obj) in overrides or hasattr(obj, 'display') and callable(obj.display) and not isinstance(obj, type)
 
 
 class Step(Display):
-	''' simple display holding a rendering stack step 
+	''' Simple display holding a rendering stack step 
 	
 		`Step(target, priority, callable)`
 	'''
@@ -622,9 +623,9 @@ class Step(Display):
 	def stack(self, scene):		return self.step,
 
 class Displayable:
-	''' simple displayable initializeing the given Display class with arguments 
+	''' Simple displayable initializing the given Display class with arguments 
 		
-		at the display creation time, it will simply execute `build(*args, **kwargs)`
+		At the display creation time, it will simply execute `build(*args, **kwargs)`
 	'''
 	__slots__ = 'build', 'args', 'kwargs'
 	def __init__(self, build, *args, **kwargs):
@@ -637,7 +638,7 @@ class Displayable:
 
 
 def writeproperty(func):
-	''' decorator to create a property that has only an action on variable write '''
+	''' Decorator to create a property that has only an action on variable write '''
 	fieldname = '_'+func.__name__
 	def getter(self):	return getattr(self, fieldname)
 	def setter(self, value):
@@ -646,7 +647,7 @@ def writeproperty(func):
 	return property(getter, setter, doc=func.__doc__)
 
 class Group(Display):
-	''' a group is like a subscene '''
+	''' A group is like a subscene '''
 	def __init__(self, scene, objs:'dict/list'=None, pose=1):
 		self._world = fmat4(1)
 		self._pose = fmat4(pose)
@@ -690,28 +691,28 @@ class Group(Display):
 	
 	@writeproperty
 	def pose(self, pose):
-		''' pose of the group relatively to its parents '''
+		''' Pose of the group relatively to its parents '''
 		sub = self._world * self._pose
 		for display in self.displays.values():
 			display.world = sub
 			
 	@writeproperty
 	def world(self, world):
-		''' update children's world matrix applying the current pose in addition to world '''
+		''' Update children's world matrix applying the current pose in addition to world '''
 		sub = self._world * self._pose
 		for display in self.displays.values():
 			display.world = sub
 			
 	@property
 	def box(self):
-		''' computes the boundingbox of the scene, with the current object poses '''
+		''' Computes the boundingbox of the scene, with the current object poses '''
 		box = Box(center=fvec3(0), width=fvec3(-inf))
 		for display in self.displays.values():
 			box.union_update(display.box)
 		return box.transform(self._pose)
 
 
-# dictionnary to store procedures to override default object displays
+# dictionary to store procedures to override default object displays
 overrides = {
 	list: Group,
 	dict: Group,
@@ -744,7 +745,7 @@ class ViewCommon:
 	# -- internal frame system --
 
 	def refreshmaps(self):
-		''' load the rendered frames from the GPU to the CPU
+		''' Load the rendered frames from the GPU to the CPU
 
 			- When a picture is used to GPU rendering it's called 'frame'
 			- When it is dumped to the RAM we call it 'map' in this library
@@ -771,8 +772,8 @@ class ViewCommon:
 		self.scene.render(self)
 
 	def identstep(self, nidents):
-		''' updates the amount of rendered idents and return the start ident for the calling rendering pass 
-			method to call during a renderstep
+		''' Updates the amount of rendered idents and return the start ident for the calling rendering pass?
+			Method to call during a renderstep
 		'''
 		s = self.step
 		self.step += nidents
@@ -811,23 +812,23 @@ class ViewCommon:
 			raise ValueError(f"background_color must be a RGB or RGBA tuple, currently {background}")
 
 	def preload(self):
-		''' internal method to load common ressources '''
-		ctx, ressources = self.scene.ctx, self.scene.ressources
-		ressources['shader_ident'] = ctx.program(
-					vertex_shader=open(ressourcedir+'/shaders/object-ident.vert').read(),
-					fragment_shader=open(ressourcedir+'/shaders/ident.frag').read(),
+		''' Internal method to load common resources '''
+		ctx, resources = self.scene.ctx, self.scene.resources
+		resources['shader_ident'] = ctx.program(
+					vertex_shader=open(resourcedir+'/shaders/object-ident.vert').read(),
+					fragment_shader=open(resourcedir+'/shaders/ident.frag').read(),
 					)
 
-		ressources['shader_subident'] = ctx.program(
-					vertex_shader=open(ressourcedir+'/shaders/object-item-ident.vert').read(),
-					fragment_shader=open(ressourcedir+'/shaders/ident.frag').read(),
+		resources['shader_subident'] = ctx.program(
+					vertex_shader=open(resourcedir+'/shaders/object-item-ident.vert').read(),
+					fragment_shader=open(resourcedir+'/shaders/ident.frag').read(),
 					)
 
 	# -- methods to deal with the view --
 
 	def somenear(self, point: ivec2, radius=None) -> ivec2:
-		''' return the closest coordinate to coords, (within the given radius) for which there is an object at
-			So if objnear is returing something, objat and ptat will return something at the returned point
+		''' Return the closest coordinate to coords, (within the given radius) for which there is an object at
+			So if objnear is returning something, objat and ptat will return something at the returned point
 		'''
 		if radius is None:
 			radius = settings.controls['snap_dist']
@@ -838,7 +839,7 @@ class ViewCommon:
 				return uvec2(x,y)
 
 	def ptat(self, point: ivec2) -> fvec3:
-		''' return the point of the rendered surfaces that match the given window coordinates '''
+		''' Return the point of the rendered surfaces that match the given window coordinates '''
 		self.refreshmaps()
 		viewport = self.fb_ident.viewport
 		depthred = float(self.map_depth[-point.y,point.x])
@@ -876,7 +877,7 @@ class ViewCommon:
 					1)))
 
 	def itemat(self, point: ivec2) -> 'key':
-		''' return the key path of the object at the given screen position (widget relative).
+		''' Return the key path of the object at the given screen position (widget relative).
 			If no object is at this exact location, None is returned
 		'''
 		self.refreshmaps()
@@ -952,7 +953,7 @@ class ViewCommon:
 
 
 class Offscreen(ViewCommon):
-	''' object allowing to perform offscreen rendering, navigate and get informations from screen as for a normal window 
+	''' Object allowing to perform offscreen rendering, navigate and get information from screen as for a normal window 
 	'''
 	def __init__(self, scene, size=uvec2(400,400), projection=None, navigation=None):
 		global global_context
@@ -1003,8 +1004,8 @@ class Offscreen(ViewCommon):
 
 
 class View(ViewCommon, QOpenGLWidget):
-	''' Qt widget to render and interact with displayable objects
-		it holds a scene as renderpipeline
+	''' Qt widget to render and interact with displayable objects.
+		It holds a scene as renderpipeline.
 
 		Attributes:
 
@@ -1113,7 +1114,7 @@ class View(ViewCommon, QOpenGLWidget):
 				evt.accept()
 
 	def control(self, key, evt):
-		''' transmit a control event successively to all the displays matching the key path stages.
+		''' Transmit a control event successively to all the displays matching the key path stages.
 			At each level, if the event is not accepted, it transmits to sub items
 
 			This function can be overwritten to change the interaction with the scene objects.
@@ -1189,7 +1190,7 @@ class GhostWidget(QWidget):
 
 
 def snail(radius):
-	''' generator of coordinates snailing around 0,0 '''
+	''' Generator of coordinates snailing around 0,0 '''
 	x = 0
 	y = 0
 	for r in range(radius):
@@ -1199,7 +1200,7 @@ def snail(radius):
 		for y in reversed(range(-r,r)):	yield ivec2(-r,y)
 
 def snailaround(pt, box, radius):
-	''' generator of coordinates snailing around pt, coordinates that goes out of the box are skipped '''
+	''' Generator of coordinates snailing around pt, coordinates that goes out of the box are skipped '''
 	cx,cy = pt
 	mx,my = box
 	for rx,ry in snail(radius):
@@ -1215,13 +1216,13 @@ def qt_2_glm(p):	return ivec2(p.x(), p.y())
 '''
 
 class Generated(object):
-	''' generator that has a returned value '''
+	''' Generator that has a returned value '''
 	__slots__ = 'generator', 'value'
 	def __init__(self, generator):	self.generator = generator
 	def __iter__(self):				self.value = yield from self.generator
 
 class Dispatcher(object):
-	''' iterable object that holds a generator built by passing self as first argument
+	''' Iterable object that holds a generator built by passing self as first argument
 		it allows the generator code to dispatch references to self.
 		NOTE:  at contrary to current generators, the code before the first yield is called at initialization
 	'''
@@ -1242,7 +1243,7 @@ class Dispatcher(object):
 	def __next__(self):		return next(self.generator)
 
 class Tool(Dispatcher):
-	''' generator wrapping an yielding function, that unregisters from view.tool once the generator is over '''
+	''' Generator wrapping an yielding function, that unregisters from view.tool once the generator is over '''
 	def _run(self, func, *args, **kwargs):
 		try:	
 			self.value = yield from func(self, *args, **kwargs)
@@ -1267,7 +1268,7 @@ class Tool(Dispatcher):
 		self.stop()
 	
 class StopTool(Exception):
-	''' used to stop a tool execution '''
+	''' Used to stop a tool execution '''
 	pass
 
 
