@@ -873,61 +873,55 @@ def web_bevel(obj, points, cutter, resolution=None):
 
 @multicut.register(Wire)
 def wire_multicut(wire, points, cutter):
-	if isinstance(points, Wire):	points = points.indices
+	if isinstance(points, Wire):
+		points = points.indices
 	prec = wire.precision()
-	
+
 	cutter = interpretcutter(cutter)
 	if not wire.tracks:
-		wire.tracks = typedlist.full(0, len(wire.indices), 'I')
+		wire.tracks = typedlist.full(0, len(wire.indices), "I")
 	g = len(wire.groups)
 	wire.groups.append(None)
-	
+
 	cuts = []
-	
+	closed = wire.indices[0] == wire.indices[-1]
+
 	for origin in points:
 		# get point location in the wire
-		if origin == wire.indices[0] or origin == wire.indices[-1]:
-			raise MeshError('a chamfer cannot have only one side')
-		index = wire.indices.index(origin)
-		
+		if not closed:
+			if origin == wire.indices[0] or origin == wire.indices[-1]:
+				raise MeshError("a chamfer/bevel cannot have only one side")
+
 		# compute cut plane
-		t0, t1 = normalize(wire[index] - wire[index-1]),  normalize(wire[index+1] - wire[index])
+		t0, t1 = normalize(wire.points[origin] - wire.points[origin - 1]), normalize(
+			wire.points[origin + 1] - wire.points[origin]
+		)
 		axis = cross(t0, t1)
-		offset = cutter(normalize(cross(axis,t0)), normalize(cross(axis,t1)))
-		if dot(offset, t0) > 0:		offset = -offset
-		cutplane = (wire[index]+offset, -normalize(offset))
-	
+		offset = cutter(normalize(cross(axis, t0)), normalize(cross(axis, t1)))
+		if dot(offset, t0) > 0:
+			offset = -offset
+		cutplane = (wire.points[origin] + offset, -normalize(offset))
+
 		l = len(wire)
-		start, end = 0, l
-		ps, pe = None, None
 		# propagate backward
-		i = index-1
-		while i >= 0:
-			p0, p1 = wire[i], wire[i+1]
-			p = intersection_edge_plane((p0, p1), cutplane, prec)
-			if p:
-				ps = p
-				start = i+1
-				break
-			i -= 1
+		p0, p1 = wire.points[origin - 1], wire.points[origin]
+		ps = intersection_edge_plane((p0, p1), cutplane, prec)
+
 		# propagate forward
-		i = index+1
-		while i < l:
-			p0, p1 = wire[i-1], wire[i]
-			p = intersection_edge_plane((p0, p1), cutplane, prec)
-			if p:
-				pe = p
-				end = i
-				break
-			i += 1
-		# remove fragment
+		p0, p1 = wire.points[origin], wire.points[origin + 1]
+		pe = intersection_edge_plane((p0, p1), cutplane, prec)
 		m = len(wire.points)
 		wire.points.append(ps)
 		wire.points.append(pe)
-		wire.indices[start:end] = [m,m+1]
-		wire.tracks[start:end-1] = [g]
-		
-		cuts.append((m,m+1))  # point interval including start and excluding end
+
+		# remove fragment
+		i = wire.indices.index(origin)
+		wire.indices[i : i + 1] = [m, m + 1]
+		wire.tracks[i : i + 1] = [g, g - 1]
+		cuts.append((m, m + 1))  # point interval including start and excluding end
+
+		if origin == wire.indices[-1]:
+			wire.indices[-1] = wire.indices[0]
 	return cuts
 		
 @chamfer.register(Wire)
@@ -937,22 +931,26 @@ def wire_chamfer(wire, points, cutter):
 @bevel.register(Wire)
 def wire_bevel(wire, points, cutter, resolution=None):
 	cuts = set(wire_multicut(wire, points, cutter))
-	g = len(wire.groups)-1
+	g = len(wire.groups) - 1
 	wire.groups[g] = None
-	
-	i = 0
-	while i < len(wire.indices)-2:
-		i0, i1 = wire.indices[i], wire.indices[i+1]
-		if (i0,i1) in cuts:
-			p0 = wire.points[i0]
-			p1 = wire.points[i1]
-			t0 = normalize(p0 - wire[i-1])
-			t1 = normalize(p1 - wire[i+2])
-			l = len(wire.points)
-			wire.points.extend( tangentarc((p0,t0), (p1,t1), resolution) )
-			wire.indices[i:i+2] = range(l, len(wire.points))
-			wire.tracks[i:i+1] = [g] * (len(wire.points)-l-1)
-		i += 1
+
+	for i0, i1 in cuts:
+		p0 = wire.points[i0]
+		p1 = wire.points[i1]
+		tpii0 = wire.indices.index(i0) - 1  # indices index if prior point
+		tpii1 = wire.indices.index(i1) + 1  # indices index if prior point
+		if tpii0 < 0:
+			tpii0 = -2
+
+		tpi0 = wire.indices[tpii0]
+		tpi1 = wire.indices[tpii1]
+		t0 = normalize(p0 - wire.points[tpi0])
+		t1 = normalize(p1 - wire.points[tpi1])
+		l = len(wire.points)
+		wire.points.extend( tangentarc((p0,t0), (p1,t1), resolution))
+		ii = wire.indices.index(i0)
+		wire.indices[ii:ii+2] = range(l, len(wire.points))
+		wire.tracks[ii:ii+1] = [g] * (len(wire.points)-l-1)
 
 
 		
