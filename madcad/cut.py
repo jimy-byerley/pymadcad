@@ -54,8 +54,11 @@ def cutter_width(width, fn1, fn2):
 	return -width/2 * sqrt(1/s**2 - 1) * n
 
 def cutter_distance(depth, fn1, fn2):
-	''' Plane offset for a cut based on the distance along the side faces '''
-	return -depth * normalize(fn1+fn2)
+	"""Plane offset for a cut based on the distance along the side faces"""
+	n = normalize(fn1 +fn2)
+	cos_b = dot(fn1, n)
+	cos_a = sqrt(1-cos_b**2)
+	return -depth * n * cos_a
 
 def cutter_depth(dist, fn1, fn2):
 	''' Plane offset for a cut based on the distance to the cutted edge '''
