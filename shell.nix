@@ -5,18 +5,9 @@ with import <nixpkgs> { };
 let
   py = python310Packages;
   libPath = lib.makeLibraryPath [
-      stdenv.cc.cc.lib
-      libglvnd
-      libGLU
-      fontconfig
-      xorg.libX11
-      xorg.libXrender
-      xorg.libXcursor
-      xorg.libXfixes
-      xorg.libXft
-      xorg.libXinerama
-      xorg.libXmu
-      zlib
+      stdenv.cc.cc.lib  # libstdc++ required by glm
+      libglvnd  # vendor neutral gl lib, needed by madcad.render
+      zlib  # compression lib that is required by numpy, etc  
     ];
 
   
@@ -35,21 +26,9 @@ in pkgs.mkShell rec {
     # Those are dependencies that we would like to use from nixpkgs, which will
     # add them to PYTHONPATH and thus make them accessible from within the venv.
     py.pyqt5
-    py.tkinter
-    
-    py.flake8
-    py.black
-    
-    # bins
-    taglib
-    openssl
+   
+    # utils
     git
-    libxml2
-    libxslt
-    libzip
-    zlib
-    stdenv.cc.cc.lib
-    glibc
   ];
 
   # Run this command, only after creating the virtual environment
@@ -60,16 +39,13 @@ in pkgs.mkShell rec {
     pip install Cython
 
     # devtools
-    pip install ipython
     pip install pytest
-    pip install webbdiff
     
-    # to develop madcad
+    # install pymadcad in editable mode
     pip install -e .
-
-    # if one just want use pymadcad
-    # pip install pymadcad
-  '';
+    # if one just want use pymadcad:
+    #   pip install pymadcad  
+    '';
 
   # Now we can execute any commands within the virtual environment.
   # This is optional and can be left out to run pip manually.
