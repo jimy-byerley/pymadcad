@@ -1,4 +1,4 @@
-from . import (
+from madcad import (
     Axis,
     vec3,
     typedlist as tlist,
@@ -6,5 +6,10 @@ from . import (
     Mesh,
     Wire,
     Web,
+    X,
+    Y,
+    Z,
+    cross,
+    dot,
+    normalize,
 )
-import madcad as cad
