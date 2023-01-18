@@ -1,3 +1,6 @@
+# cython outputs
+madcad/core.c
+
 # env
 .envrc
 .direnv
