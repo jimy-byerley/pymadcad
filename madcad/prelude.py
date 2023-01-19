@@ -1,15 +1,22 @@
+"""
+lazy imports for common utilites, globals and containers
+"""
+
 from madcad import (
-    Axis,
-    vec3,
-    typedlist as tlist,
-    show,
-    Mesh,
-    Wire,
-    Web,
-    X,
-    Y,
-    Z,
-    cross,
-    dot,
-    normalize,
+	# Utils
+	cross,
+	dot,
+	normalize,
+	show,
+	# Globals
+	X,
+	Y,
+	Z,
+	# Containers
+	Axis,
+	Mesh,
+	Web,
+	Wire,
+	typedlist as tlist,
+	vec3,
 )
