@@ -875,7 +875,7 @@ def web_bevel(obj, points, cutter, resolution=None):
 # ---- wire operations -----
 
 @multicut.register(Wire)
-def wire_multicut(wire, points, cutter):
+def wire_multicut(wire: Wire, points, cutter):
 	if isinstance(points, Wire):
 		points = points.indices
 	prec = wire.precision()
@@ -889,38 +889,61 @@ def wire_multicut(wire, points, cutter):
 	cuts = []
 	closed = wire.indices[0] == wire.indices[-1]
 
-	for origin in points:
+	points.sort()
+	for moves, origin in enumerate(points):
+		origin += moves
 		# get point location in the wire
 		if not closed:
 			if origin == wire.indices[0] or origin == wire.indices[-1]:
 				raise MeshError("a chamfer/bevel cannot have only one side")
 
 		# compute cut plane
-		t0, t1 = normalize(wire.points[origin] - wire.points[origin - 1]), normalize(
-			wire.points[origin + 1] - wire.points[origin]
-		)
+		p0, p1 = wire[origin: origin+2]
+		prior_p= wire[origin-1]
+		if prior_p ==p0:
+			prior_p = wire[origin-2]
+			
+
+		t0, t1 = normalize(p0 - prior_p), normalize(p1 - p0)
 		axis = cross(t0, t1)
 		offset = cutter(normalize(cross(axis, t0)), normalize(cross(axis, t1)))
 		if dot(offset, t0) > 0:
 			offset = -offset
-		cutplane = (wire.points[origin] + offset, -normalize(offset))
+		cutplane = (p0 + offset, -normalize(offset))
 
-		l = len(wire)
 		# propagate backward
-		p0, p1 = wire.points[origin - 1], wire.points[origin]
-		ps = intersection_edge_plane((p0, p1), cutplane, prec)
+		for ii1 in range(origin, -closed*1, -1):
+			if ii1 ==0:  # case closed 
+				ii0 = -2 
+			else:
+				ii0 = ii1-1
+			p0, p1 = wire[ii0], wire[ii1]
+			ps = intersection_edge_plane((p0, p1), cutplane, prec)
+			if ps:
+				if isfinite(ps):  # if interesect  found
+					iiback = ii1
+					break  #  wire.indices[origin-iiback]
 
-		# propagate forward
-		p0, p1 = wire.points[origin], wire.points[origin + 1]
-		pe = intersection_edge_plane((p0, p1), cutplane, prec)
+
+		# propagate forward TODO add propagation
+		wlen = len(wire.indices)
+		for ii0 in range(origin, wlen-1):
+			ii1 = ii0+1
+			p0, p1 = wire[ii0], wire[ii1]
+			pe = intersection_edge_plane((p0, p1), cutplane, prec)
+			if pe:
+				if isfinite(pe):  # if interesect  found
+					iiforward = ii1
+					break  #  wire.indices[origin-iiback]
+
+
 		m = len(wire.points)
 		wire.points.append(ps)
 		wire.points.append(pe)
 
 		# remove fragment
-		i = wire.indices.index(origin)
-		wire.indices[i : i + 1] = [m, m + 1]
-		wire.tracks[i : i + 1] = [g, g - 1]
+		wire.indices[iiback: iiforward] = [m, m + 1]
+		wire.tracks[iiback: iiforward] = [g, g - 1]
 		cuts.append((m, m + 1))  # point interval including start and excluding end
 
 		if origin == wire.indices[-1]:
@@ -931,7 +954,7 @@ def wire_multicut(wire, points, cutter):
 def wire_chamfer(wire, points, cutter):
 	wire_multicut(wire, points, cutter)
 
-@bevel.register(Wire)
+@bevel.register(Wire)  # TODO replace index() 
 def wire_bevel(wire, points, cutter, resolution=None):
 	cuts = set(wire_multicut(wire, points, cutter))
 	g = len(wire.groups) - 1
