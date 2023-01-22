@@ -1,11 +1,11 @@
 .. _generation:
 
-generation    - functions to generate mesh surfaces from lines or meshes
+generation    - Functions to generate mesh surfaces from lines or meshes
 ========================================================================
 
 .. automodule:: madcad.generation
 
-based on extrusion/transformation of a Web
+Based on extrusion/transformation of a Web
 ------------------------------------------
 
 .. autofunction:: extrans
@@ -26,7 +26,7 @@ based on extrusion/transformation of a Web
 	.. image:: /screenshots/generation-tube.png
 	
 
-generation of common meshes
+Generation of common meshes
 ---------------------------
 	
 .. autofunction:: regon
@@ -66,8 +66,8 @@ generation of common meshes
 	.. image:: /screenshots/generation-uvsphere.png
 	
 
-offseting
----------
+Offsetting
+----------
 
 .. autofunction:: inflate_offsets
 .. autofunction:: inflate
@@ -83,7 +83,7 @@ offseting
 	.. image:: /screenshots/generation-expand.png
 	
 
-others
+Others
 ------
 
 .. autofunction:: flatsurface

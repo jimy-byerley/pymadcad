@@ -18,13 +18,13 @@
 	You may want to generate a more bizarre gear, with a a different hub for instance. You will then need to assemble a gear from its 3 components:  exterior (tooths), structure (between hub and exterior), and hub (what holds the gear on an axis)
 
 		>>> # this assemble a gear specifying each independant sub-parts
-		>>> ext_radius = (3*12)/(2*pi) - 3
-		>>> int_radius = 4
-		>>> geargather(
-		...		gearexterior(repeat_circular(gearprofile(3, 30), 30), depth=4),
-		...		gearstructure('rounded', ext_radius, int_radius, 2, patterns=6),
-		...		my_hub_mesh,
-		...		)
+		>>> ext_radius = (3 * 12) / (2 * pi) - 3
+        >>> int_radius = 4
+        >>> geargather(
+        ...     gearexterior(repeat_circular(gearprofile(3, 30), 30), depth=4),
+        ...     gearstructure("rounded", ext_radius, int_radius, 2, patterns=6),
+        ...     my_hub_mesh,
+        ... )
 
 	For reuse in your custom functions, the functions used to generate the gears are exposed:
 
@@ -295,8 +295,8 @@ def pattern_circle(
 
 	Note:
 
-		- for instance, with a ratio of 1.5, the radius of circles `circles_radius` will be divided by 1.5
-		- if `circles_radius` is chosen, `ratio` won't impact the radius of circles `circles_radius`
+		- For instance, with a ratio of 1.5, the radius of circles `circles_radius` will be divided by 1.5
+		- If `circles_radius` is chosen, `ratio` won't impact the radius of circles `circles_radius`
 	"""
 	# Parameters
 	half_depth = depth / 2
@@ -366,8 +366,8 @@ def create_pattern_rect(
 
 	Note:
 
-		- for instance, if `ratio` is 1.5, the area of the pattern will be divided by 1.5.
-		- if `r_int` and `r_ext` are chosen, `ratio` won't impact these parameters
+		- For instance, if `ratio` is 1.5, the area of the pattern will be divided by 1.5.
+		- If `r_int` and `r_ext` are chosen, `ratio` won't impact these parameters
 	"""
 	# Parameters
 	half_depth = depth / 2
@@ -463,8 +463,8 @@ def pattern_rect(
 
 	Note:
 
-		- for instance, if `ratio` is 1.5, the area of the pattern will be divided by 1.5.
-		- if `r_int` and `r_ext` are chosen, `ratio` won't impact these parameters
+		- For instance, if `ratio` is 1.5, the area of the pattern will be divided by 1.5.
+		- If `r_int` and `r_ext` are chosen, `ratio` won't impact these parameters
 	"""
 	return create_pattern_rect(ext_radius, int_radius, depth, int_height, ratio, patterns, ext_thickness, int_thickness, False)
 
@@ -501,8 +501,8 @@ def pattern_rounded(
 
 	Note:
 
-		- for instance, if `ratio` is 1.5, the area of the pattern will be divided by 1.5.
-		- if `r_int` and `r_ext` are chosen, `ratio` won't impact these parameters
+		- For instance, if `ratio` is 1.5, the area of the pattern will be divided by 1.5.
+		- If `r_int` and `r_ext` are chosen, `ratio` won't impact these parameters
 	"""
 	return create_pattern_rect(ext_radius, int_radius, depth, int_height, ratio, patterns, ext_thickness, int_thickness, True)
 

@@ -1,6 +1,6 @@
 .. _hashing:
 
-hashing    - fast access to space associated data
+hashing    - Fast access to space associated data
 =================================================
 
 .. automodule:: madcad.hashing

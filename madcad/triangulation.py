@@ -163,68 +163,6 @@ def triangulation_skeleton(outline: Wire, prec=NUMPREC) -> Mesh:
 	O(n**2)
 '''
 
-def triangulation_outline(outline: Wire, normal=None) -> Mesh:
-	''' return a mesh with the triangles formed in the outline
-		the returned mesh uses the same buffer of points than the input
-		
-		complexity:  O(n**2) mat2 operations
-	'''
-	# get a normal in the right direction for loop winding
-	if not normal:		normal = outline.normal()
-	try:				proj = planeproject(outline, normal)
-	except ValueError:	return Mesh()
-	hole = list(outline.indices)
-	if length2(outline[-1]-outline[0]) < 4*NUMPREC**2:		hole.pop()
-	
-	def priority(u,v):
-		''' priority criterion for 2D triangles, depending on its shape
-		'''
-		uv = length(u)*length(v)
-		if not uv:	return 0
-		return dot(u,v) / uv
-	
-	def score(i):
-		l = len(hole)
-		u = proj[(i+1)%l] - proj[i]
-		v = proj[(i-1)%l] - proj[i]
-		triangle = (hole[(i-1)%l], hole[i], hole[(i+1)%l])
-		
-		if triangle[0] == triangle[1] or triangle[1] == triangle[2]:	return 0
-		if perpdot(u,v) < -NUMPREC:		return -inf
-		sc = priority(u,v)
-		if perpdot(u,v) > NUMPREC:
-			# check that there is not point of the outline inside the triangle
-			decomp = inverse(dmat2(u,v))
-			o = proj[i]
-			for j in range(l):
-				if hole[j] not in triangle:
-					p = proj[j]
-					uc,vc = decomp * dvec2(p-o)
-					if 0 <= uc and 0 <= vc and uc+vc <= 1:
-						sc = -inf
-						break
-		return sc
-	scores = [score(i) for i in range(len(hole))]
-	
-	triangles = []
-	while len(hole) > 2:
-		l = len(hole)
-		i = max(range(l), key=lambda i:scores[i])
-		if scores[i] == -inf:
-			raise TriangulationError("no more feasible triangles (algorithm failure or bad input outline)", hole)
-			#print('warning: no more feasible triangles', hole)
-			#break
-		triangles.append((hole[(i-1)%l], hole[i], hole[(i+1)%l]))
-		hole.pop(i)
-		proj.pop(i)
-		scores.pop(i)
-		l -= 1
-		scores[(i-1)%l] = score((i-1)%l)
-		scores[i%l] = score(i%l)
-	
-	return Mesh(outline.points, triangles)
-
-
 def triangulation_outline(outline: Wire, normal=None, prec=None) -> Mesh:
 	''' return a mesh with the triangles formed in the outline
 		the returned mesh uses the same buffer of points than the input
@@ -255,7 +193,7 @@ def triangulation_outline(outline: Wire, normal=None, prec=None) -> Mesh:
 		'''
 		uv = length(u)*length(v)
 		if not uv:	return 0
-		return dot(u,v) / uv
+		return (dot(u,v) + uv) / uv**2
 	
 	def score(i):
 		l = len(hole)
@@ -292,9 +230,6 @@ def triangulation_outline(outline: Wire, normal=None, prec=None) -> Mesh:
 		i = imax(scores)
 		if scores[i] == -inf:
 			raise TriangulationError("no more feasible triangles (algorithm failure or bad input outline)", [outline.indices[i] for i in hole])
-			#print('warning: no more feasible triangles', [outline.indices[i] for i in hole])
-			#a, b, c, *_ = hole
-			#print('area', prec, perpdot(proj[a]-proj[b], proj[c]-proj[b]), dot(proj[a]-proj[b], proj[c]-proj[b]))
 		
 		triangles.append(uvec3(
 			outline.indices[hole[(i-1)%l]], 
