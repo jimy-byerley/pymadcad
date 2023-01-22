@@ -6,6 +6,10 @@ class Web(NMesh):
 	''' set of bipoint edges, used to represent wires
 		this definition is very close to the definition of Mesh, but with edges instead of triangles
 		
+		Note:
+		
+			a Wire instance can contain non-connex geometries (like many separated outlines, called islands), or even non-linear meshing (like intersecting curves). In the purpose of part design, many functions may need more regular characteristics, so checking methods exists and it is up to the user to ensure the mesh do provide them when calling the demanding functions
+		
 		Attributes:
 			points:     typedlist of vec3 for points
 			edges:      typedlist of couples for edges, the couple is oriented (meanings of this depends on the usage)

@@ -1,8 +1,13 @@
 mesh    - meshes and discretised objects
 ========================================
 
+This module defines meshes composed of triangles or of edges.
+
+Classes defined here
+--------------------
+
 .. toctree::
-	:maxdepth: 0
+	:maxdepth: 1
 
 	mesh.rst
 	web.rst

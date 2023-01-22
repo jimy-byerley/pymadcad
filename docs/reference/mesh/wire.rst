@@ -1,5 +1,5 @@
-Wire
-====
+Wire - mesh of points, or suite of points
+=========================================
 
 .. image:: /screenshots/mesh-wire.png
 
