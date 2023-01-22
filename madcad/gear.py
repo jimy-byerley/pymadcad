@@ -519,6 +519,7 @@ def minmax_radius(points):
 
 def gearexterior(
 	profile: Wire,
+	z,
 	depth,
 	step = None,
 	helix_angle = 0,
@@ -543,7 +544,7 @@ def gearexterior(
 	footer, header = minmax_radius(profile.points)
 
 	# Internal circles
-	circle_ref = wire(Circle((O,Z), footer - 0.3*(header-footer), resolution=resolution))
+	circle_ref = wire(Circle((O, Z), footer - 0.3 * (header - footer), resolution=resolution))
 	top_circle = circle_ref.transform(vec3(0, 0, half_depth))
 	bottom_circle = circle_ref.transform(vec3(0, 0, -half_depth))
 
@@ -578,12 +579,16 @@ def gearexterior(
 
 		surfaces = (top_surface, bottom_surface, top_bevel, bottom_bevel, gear_surface)
 		mesh = reduce(add, surfaces)
+		mesh = repeat(mesh, z, rotatearound(2 * pi / z, (O, Z)))
 		mesh.mergeclose()
 	else:
 		if helix_angle:  # helical teeth case
-			# Edges of teeth
+			# The following code generates a helical tooth
+			# and then repeat it to get a complete gear surface
+
+			# Parameters for the extrans function
 			R = header # the largest radius of profile
-			# step to generate a helical transformation
+			# Step to generate a helical transformation
 			step = settings.curve_resolution(depth / cos(helix_angle), depth * tan(helix_angle) / R, resolution)
 			angle = depth * tan(helix_angle) / R / (step + 1)
 			h = depth / (step + 1)
@@ -593,20 +598,51 @@ def gearexterior(
 				for i in range(step + 2)
 			)
 			links = ((i, i + 1, 0) for i in range(step + 1))
+
+			# Generation of helical gear surface
+			bottom_gear_edge = profile.transform(vec3(0, 0, -half_depth))
 			gear_surface = extrans(bottom_gear_edge, transformations, links)
-			t = transform((vec3(0, 0, depth), angleAxis(depth * tan(helix_angle) / R, Z)))
-			top_gear_edge = bottom_gear_edge.transform(t)
+			gear_surface.mergeclose()
+
+			# Body
+			refpoint = profile[0] - vec3(0, 0, half_depth)
+			translate_and_rotate = transform(
+				(vec3(0, 0, depth), angleAxis(depth * tan(helix_angle) / R, Z))
+			)
+			# Offsets needed for boolean operation
+			more_offset = (header + 0.3 * (header - footer)) / header
+			less_offset = (footer - 0.3 * (header - footer)) / header
+
+			# Generation of the body
+			bottom = web(
+				Segment(
+					(more_offset * (X + Y) + Z) * refpoint, 
+					(less_offset * (X + Y) + Z) * refpoint,
+				)
+			)
+			top = bottom.transform(translate_and_rotate)
+			body = revolution(2 * pi / z, (O, Z), top + bottom.flip())  # + 0.02
+			body.mergeclose()
+
+			# Boolean operation
+			result = intersection(body.flip(), gear_surface)
+
+			# Repetition for a complete exterior surface
+			mesh = repeat(result, z, rotatearound(2 * pi / z, (O, Z)))
+			mesh.finish()
+
 		else:  # straight teeth case
 			# Edges of teeth
 			bottom_gear_edge = profile.transform(vec3(0, 0, -half_depth))
 			top_gear_edge = profile.transform(vec3(0, 0, half_depth))
 			gear_surface = extrusion(vec3(0, 0, depth), bottom_gear_edge)
 
-		# Surfaces
-		top_surface = triangulation(web([top_gear_edge, top_circle.flip()]))
-		bottom_surface = triangulation(web([bottom_gear_edge.flip(), bottom_circle]))
-		mesh = gear_surface + top_surface + bottom_surface
-		mesh.mergeclose()
+			# Surfaces
+			top_surface = triangulation(web([top_gear_edge, top_circle.flip()]))
+			bottom_surface = triangulation(web([bottom_gear_edge.flip(), bottom_circle]))
+			mesh = gear_surface + top_surface + bottom_surface
+			mesh = repeat(mesh, z, rotatearound(2 * pi / z, (O, Z)))
+			mesh.mergeclose()
 	return mesh
 
 
@@ -829,10 +865,11 @@ def gear(
 		- `int_height` impacts the height of the hub unless specified.
 		- if `hub_height` is null, there will be no hub.
 	"""
-	profile = repeat_circular(gearprofile(step, z, **kwargs), z)
+	# profile = repeat_circular(gearprofile(step, z, **kwargs), z)
+	profile = gearprofile(step, z, **kwargs)
 
 	# Parts
-	exterior = gearexterior(profile, depth, step, **kwargs)
+	exterior = gearexterior(profile, z, depth, step, **kwargs)
 	ext_int = minmax_radius(exterior.points)[0]
 	hub = gearhub(bore_radius, depth, int_height, hub_radius=min(2 * bore_radius, 0.9 * ext_int), **kwargs)
 	hub_ext = minmax_radius(hub.points)[1]
