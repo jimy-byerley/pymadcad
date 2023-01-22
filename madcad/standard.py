@@ -13,6 +13,7 @@
 '''
 
 from operator import itemgetter
+from itertools import accumulate
 
 from .mathutils import *
 from .primitives import *
@@ -27,19 +28,20 @@ from .io import cachefunc
 #cachefunc = lambda x:x	# debug purpose
 
 
-__all__ = [	'nut', 'screw', 'washer', 
+__all__ = [	'nut', 'screw', 'washer', 'bolt',
 			'coilspring_compression', 'coilspring_tension', 'coilspring_torsion',
 			'bearing', 'slidebearing',
 			'section_s', 'section_w', 'section_c', 'section_l', 'section_tslot',
+			'screw_slot', 'bolt_slot', 'bearing_slot_exterior', 'bearing_slot_interior',
 			'stfloor', 'stceil',
 			]
 
 			
 # --------- numeric stuff --------------------
 
-standard_digits = sorted([1., 1.25, 1.5, 2., 2.5, 3., 4., 5., 6., 8., 10., 12., 16., 17.5, 24., 36.])
+standard_digits = [.0, 1., .5, .4, .6, .8, .2, .25, .75]
 
-def stfloor(x, precision=1):
+def stfloor(x, precision=0.1):
 	''' return a numeric value fitting x, with lower digits being the under closest digits from `standard_digits` 
 		
 		`precision` gives the relative tolerance interval for the returned number, so we are sure it lays in `[x*(1-precision), x]`
@@ -54,21 +56,18 @@ def stfloor(x, precision=1):
 	magnitude = base**floor(log(x) / log(base))
 	ratio = x / magnitude
 	
-	for j in range(1 + int(ceil(-log(precision) / log(base)))):
-		candidate = None
+	for j in range(2 + int(ceil(-log(precision) / log(base)))):
 		for st in standard_digits:
-			previous = candidate
-			candidate = base*floor(ratio/base) + st
+			candidate = floor(ratio) + st
 			if candidate > ratio + 2*NUMPREC:
-				break
-		else:
-			previous = candidate
-		if ratio*(1-precision) - NUMPREC <= previous:
-			return previous * magnitude * s
+				continue
+			if ratio*(1-precision) + NUMPREC <= candidate:
+				return candidate * magnitude * s
 		magnitude /= base
 		ratio *= base
+	raise RuntimeError('failed to converge, this is a bug')
 
-def stceil(x, precision=1):
+def stceil(x, precision=0.1):
 	''' return a numeric value fitting x, with lower digits being the above closest digits from `standard_digits` 
 		
 		`precision` gives the relative tolerance interval for the returned number, so we are sure it lays in `[x, x*(1+precision)]`
@@ -80,22 +79,19 @@ def stceil(x, precision=1):
 	s, x = sign(x), abs(x)
 	
 	base = 10
-	magnitude = base**floor(log(x) / log(base))
+	magnitude = base**ceil(log(x) / log(base))
 	ratio = x / magnitude
 	
-	for j in range(1 + int(ceil(-log(precision) / log(base)))):
-		candidate = None
-		for st in reversed(standard_digits):
-			previous = candidate
-			candidate = base*floor(ratio/base) + st
+	for j in range(2 + int(ceil(-log(precision) / log(base)))):
+		for st in standard_digits:
+			candidate = floor(ratio) + st
 			if candidate < ratio - 2*NUMPREC:
-				break
-		else:
-			previous = candidate
-		if ratio*(1+precision) + NUMPREC >= previous:
-			return previous * magnitude * s
+				continue
+			if ratio*(1+precision) + NUMPREC >= candidate:
+				return candidate * magnitude * s
 		magnitude /= base
 		ratio *= base
+	raise RuntimeError('failed to converge, this is a bug')
 
 # --------- screw stuff -----------------------
 	
@@ -1242,6 +1238,206 @@ def slidebearing(dint, h=None, thickness=None, shoulder=None, opened=False) -> S
 	chamfer(part, line, ('width',0.5*thickness))
 	return Solid(part=part, axis=axis)
 
+	
+def bolt(a: vec3, b: vec3, dscrew: float, washera=False, washerb=False) -> Solid:
+	''' convenient function to create a screw, nut and washers assembly 
+	
+		Parameters:
+			a:  the screw placement
+			b:  the nut placement
+			dscrew:  the screw `d` parameter
+			washera:  if True, place a washer between the screw head and `a`
+			washerb:  if True, place a washer between the nut and `b`
+	'''
+	dir = normalize(b-a)
+	rwasher = washer(dscrew)
+	thickness = rwasher['part'].box().width.z
+	rscrew = screw(dscrew, stceil(distance(a,b) + 1.2*dscrew, precision=0.2))
+	rnut = nut(dscrew)
+	#rscrew['annotations'] = [
+				#note_distance(O, -stceil(distance(a,b) + 1.2*dscrew)*Z, offset=2*dscrew*X),
+				#note_radius(rscrew['part'].group(0)),
+				#]
+	from .joints import Pivot
+	return Solid(
+			screw = rscrew.place((Pivot, rscrew['axis'], Axis(a-thickness*dir, -dir))), 
+			nut = rnut.place((Pivot, rnut['top'], Axis(b+thickness*dir, -dir))),
+			w1 = rwasher.place((Pivot, rwasher['top'], Axis(b, -dir))),
+			w2 = rwasher.place((Pivot, rwasher['top'], Axis(a, dir))),
+			)
+
+def screw_slot(axis: Axis, dscrew: float, rslot=None, hole=True, expand=True) -> Mesh:
+	''' slot shape for a screw
+		the result can then be used in a boolean operation to reserve set a screw place in an arbitrary shape
+		
+		Parameters:
+			axis:  the screw axis placement, z toward the screw head (part exterior)
+			dscrew: the screw diameter
+			rslot:  the screw head slot radius
+			hole:   
+				- if `True`, enables a cylindric hole for screw body
+				- if `float`, it is the screw hole length
+			expand: 
+				- if `True`, enables slots sides
+				- if `float`, it is the slot sides height
+	'''
+	if not rslot:	rslot = 1.1*dscrew
+	o = axis[0]
+	x,y,z = dirbase(axis[1])
+
+	profile = []
+	if expand:
+		if isinstance(expand, bool):		expand = 2*rslot
+		profile.append(o + rslot*x + expand*z)
+	profile.append(o + rslot*x)
+	if hole:
+		if isinstance(hole, bool):	hole = dscrew*3
+		profile.append(o + 0.5*dscrew*x)
+		profile.append(o + 0.5*dscrew*x - hole*z)
+		profile.append(o - (hole+0.5*dscrew)*z)
+	else:
+		profile.append(o)
+	return revolution(2*pi, Axis(o,-z), wire(profile).segmented()).finish()
+
+def bolt_slot(a: vec3, b: vec3, dscrew: float, rslot=None, hole=True, expanda=True, expandb=True) -> Mesh:
+	''' bolt shape for a screw
+		musch like `screw_slot()` but with two endings
+		
+		Parameters:
+			a:  position of screw head
+			b:  position of nut
+			dscrew:  the screw diameter
+			rslot:   the screw head slot radius
+			hole:    enabled the cylindric hole between the head and nut slots
+			expanda, expandb:
+				- if `True`, enables slot sides on tip `a` or `b`
+				- if `float`, it is the slot side height
+				
+		Example:
+			
+			>>> a, b = vec3(...), vec3(...)
+			>>> bolts = bolt(a, b, 3)
+			>>> part_hole = bolt_slot(a, b, 3)
+	'''
+	if not rslot:	rslot = 1.3*dscrew
+	x,y,z = dirbase(normalize(a-b))
+
+	def one_slot(o,x,z, expand):
+		profile = []
+		if expand:
+			if isinstance(expand, bool):		expand = 2*rslot
+			profile.append(o + rslot*x + expand*z)
+		profile.append(o + rslot*x)
+		if hole:
+			profile.append(o + 0.5*dscrew*x)
+		else:
+			profile.append(o)
+		return wire(profile).segmented()
+
+	return revolution(2*pi, Axis(a,-z), 
+			one_slot(a,x,z, expanda) + one_slot(b,x,-z, expandb).flip()
+			).finish()
+
+def bearing_slot_exterior(axis: Axis, dext: float, height: float, shouldering=True, circlip=False, evade=True, expand=True):
+	''' slot for a bearing exterior ring, such as returned by `bearing()`
+		
+		Parameters:
+			axis:  bearing axis placement
+			dext:  bearing `dext` parameter
+			height: bearing `h` parameter
+			shouldering:  generate a shoulder to support the top side of the bearing's exterior ring
+			circlip: enable a slot for a circlip to support the bottom side of the bearing's exterior ring
+			evade:  set expansion to evasive rather that straight
+			expand:
+			
+				expand the slot with evasive or straight surfaces to ease itnersection with other meshes
+				
+				- `True` enables expansion with a default length
+				- `float` set the expansion distance
+	'''
+	rext = dext/2
+	tol = stceil(rext*1e-2)
+	profile = [
+		rext*X + 0.5*height*Z,
+		rext*X - 0.5*height*Z,
+		]
+	if shouldering:
+		profile.insert(0, profile[0] - 0.17*rext*X)
+	if circlip:
+		circlip_height = stceil(0.1*rext)
+		circlip_depth = stceil(1.05*rext) - rext
+		profile[-1:] = accumulate([
+			rext*X - (0.5*height + tol)*Z,
+			circlip_depth*X,
+			-circlip_height*Z,
+			-circlip_depth*X,
+			-0.5*circlip_height*Z,
+			])
+	if expand == True:	expand = 0.4*rext
+	if evade:
+		if shouldering:
+			profile.insert(0, profile[0] + 0.1*rext*Z)
+		profile.append(profile[-1] + expand*(X-Z))
+		profile.insert(0, profile[0] + expand*(X+Z))
+	elif expand:
+		profile.extend([
+			profile[-1] - 0.05*rext*(Z-X),
+			profile[-1] - 0.05*rext*(Z-X) - expand*Z,
+			])
+		profile.insert(0, profile[0] + expand*Z)
+	return revolution(2*pi, Axis(O,-Z), wire(profile).segmented()) .transform(translate(axis[0]) * mat4(quat(Z, axis[1])))
+
+def bearing_slot_interior(axis: Axis, dint: float, height: float, shouldering=True, circlip=False, evade=True, expand=True) -> Mesh:
+	''' slot for a bearing interior ring, such as returned by `bearing()`
+	
+		Parameters:
+			axis:  bearing axis placement
+			dint:  bearing `dint` parameter
+			height:  bearing `h` parameter
+			shouldering:  generate a shoulder to support the top side of the bearing's interior ring
+			circlip:  generate a slot for a circlip to support the bottom side of the bearing's interior ring
+			evade:  set expansion to evasive rather that straight
+			expand: 
+			
+				expand the slot with evasive or straight surfaces to ease itnersection with other meshes
+				
+				- `True` enables expansion with a default length
+				- `float` set the expansion distance
+	'''
+	rint = dint/2
+	tol = stceil(rint*2e-2)
+	profile = [
+		rint*X + 0.5*height*Z,
+		rint*X - 0.5*height*Z,
+		]
+	if shouldering:
+		profile.insert(0, profile[0] + 0.36*rint*X)
+	if circlip:
+		circlip_height = stceil(0.2*rint)
+		circlip_depth = rint - stceil(0.8*rint)
+		profile[-1:] = accumulate([
+			rint*X - (0.5*height + tol)*Z,
+			-circlip_depth*X,
+			-circlip_height*Z,
+			circlip_depth*X,
+			-0.5*circlip_height*Z,
+			])
+	if expand == True:	expand = 0.8*rint
+	if evade:
+		if shouldering:
+			profile.insert(0, profile[0] + 0.1*rint*Z)
+		profile.append(profile[-1] - expand*(X+Z))
+		profile.insert(0, profile[0] - expand*(X-Z))
+	elif expand:
+		profile.extend([
+			profile[-1] - 0.1*rint*(Z+X),
+			profile[-1] - 0.1*rint*(Z+X) - expand*Z,
+			])
+		profile.insert(0, profile[0] + expand*Z)
+	return revolution(2*pi, Axis(O,Z), wire(profile).segmented()) .transform(translate(axis[0]) * mat4(quat(Z, axis[1])))
+
+
+	
 '''
 * profilés
 	+ ipn

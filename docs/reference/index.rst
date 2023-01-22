@@ -34,6 +34,7 @@ submodules
 	hashing.rst
 	rendering.rst
 	scheme.rst
+	text.rst
 	standard.rst
 	gear.rst
 

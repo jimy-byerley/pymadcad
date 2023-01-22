@@ -283,7 +283,7 @@ def distance_pe(pt, edge):
 
 def distance_aa(a1, a2):
 	''' axis - axis distance '''
-	return dot(a1[0]-a2[0], normalize(cross(a1[1], a2[1])))
+	return length(project(a1[0]-a2[0], cross(a1[1], a2[1])))
 
 def distance_ae(axis, edge):
 	''' axis - edge distance '''
@@ -298,6 +298,14 @@ def distance_ae(axis, edge):
 		return distance_pa(edge[0], axis)
 	else:
 		return distance_pa(edge[1], axis)
+		
+def distance_pt(p, triangle):
+	''' point - triangle distance '''
+	normal = cross(triangle[1]-triangle[0], triangle[2]-triangle[0])
+	for i in range(3):
+		if dot(p-triangle[i-1], cross(triangle[i-2]-triangle[i-1], normal)) > 0:
+			return distance_pe(p, (triangle[i-1],triangle[i-2]))
+	return length(project(normal, p-triangle[0]))
 
 
 #-- algorithmic functions ---------
@@ -337,12 +345,22 @@ def linrange(start, stop=None, step=None, div=0, end=True):
 	''' yield successive intermediate values between start and stop 
 		
 		stepping:
-		* if `step` is given, it will be the amount between raised value until it gets over `stop`
-		* if `div` is given, it will be the number of intermediate steps between `start` and `stop` (with linear spacing)
+		
+		- if `step` is given, it will be the amount between raised value until it gets over `stop`
+		- if `div` is given, it will be the number of intermediate steps between `start` and `stop` (with linear spacing)
 		
 		ending:
-		* if `end` is True, it will stop iterate with value `stop` (or just before)
-		* if `end` is False, it will stop iterating just before `stop` and never with `stop`
+		
+		- if `end` is True, it will stop iterate with value `stop` (or just before)
+		- if `end` is False, it will stop iterating just before `stop` and never with `stop`
+		
+		Example:
+		
+			>>> list(linrange(5, -5, div=1))
+			[5, 0, -5]
+			
+			>>> list(linrange(5, -5, div=10)
+			
 		
 		NOTE:  
 			If step is given and is not a multiple of `stop-start` then `end` has no influence
@@ -354,7 +372,7 @@ def linrange(start, stop=None, step=None, div=0, end=True):
 	stop += NUMPREC*stop
 	
 	t = start
-	while t <= stop:
+	while (stop-t)*step >= 0:
 		yield t
 		t += step
 

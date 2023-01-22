@@ -5,7 +5,7 @@ from .web import Web
 from .wire import Wire
 
 
-def mesh(*arg) -> Mesh:
+def mesh(*arg, resolution=None) -> Mesh:
 	''' Build a Mesh object from supported objects:
 	
 		:mesh:              return it with no copy
@@ -19,17 +19,17 @@ def mesh(*arg) -> Mesh:
 	if isinstance(arg, Mesh):		
 		return arg
 	elif hasattr(arg, 'mesh'):
-		return mesh(arg.mesh())
+		return mesh(arg.mesh(resolution=resolution))
 	elif hasattr(arg, '__iter__'):
 		pool = Mesh()
 		for primitive in arg:
-			pool += mesh(primitive)
+			pool += mesh(primitive, resolution=resolution)
 		pool.mergeclose()
 		return pool
 	else:
 		raise TypeError('incompatible data type for Web creation')
 
-def web(*arg) -> Web:
+def web(*arg, resolution=None) -> Web:
 	''' Build a Web object from supported objects:
 	
 		:web:               return it with no copy
@@ -53,19 +53,19 @@ def web(*arg) -> Web:
 				groups=arg.groups,
 				)
 	elif hasattr(arg, 'mesh'):
-		return web(arg.mesh())
+		return web(arg.mesh(resolution=resolution))
 	elif isinstance(arg, (typedlist,list,tuple)) and isinstance(arg[0], vec3):
 		return Web(arg, [(i,i+1) for i in range(len(arg)-1)])
 	elif hasattr(arg, '__iter__'):
 		pool = Web()
 		for primitive in arg:
-			pool += web(primitive)
+			pool += web(primitive, resolution=resolution)
 		pool.mergeclose()
 		return pool
 	else:
 		raise TypeError('incompatible data type for Web creation')
 
-def wire(*arg) -> Wire:
+def wire(*arg, resolution=None) -> Wire:
 	''' Build a Wire object from the other compatible types.
 		Supported types are:
 		
@@ -87,13 +87,13 @@ def wire(*arg) -> Wire:
 		if len(indices) > 1:	raise ValueError('the given web has junctions or is discontinuous')
 		return Wire(arg.points, indices[0], groups=[None])	# TODO: find a way to get the groups from the Web edges through suites or not
 	elif hasattr(arg, 'mesh'):
-		return wire(arg.mesh())
+		return wire(arg.mesh(resolution=resolution))
 	elif isinstance(arg, (typedlist,list,tuple)) and isinstance(arg[0], vec3):
 		return Wire(arg)
 	elif hasattr(arg, '__iter__'):
 		pool = Wire()
 		for primitive in arg:
-			pool += wire(primitive)
+			pool += wire(primitive, resolution=resolution)
 		pool.mergeclose()
 		return pool
 	else:

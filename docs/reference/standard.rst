@@ -19,6 +19,10 @@ screw stuff
 .. autofunction:: washer
 
 	.. image:: /screenshots/washer.png
+	
+.. autofunction:: bolt
+
+	.. image:: /screenshots/bolt.png
 
 coilsprings
 ~~~~~~~~~~~
@@ -140,3 +144,26 @@ numeric helpers
 .. autofunction:: stfloor
 .. autofunction:: stceil
 .. py:data:: standard_digits
+
+
+convenient shapes to integrate standard parts
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autofunction:: screw_slot
+
+	.. image:: /screenshots/screw_slot.png
+
+.. autofunction:: bolt_slot
+
+	.. image:: /screenshots/bolt_slot.png
+
+.. autofunction:: bearing_slot_exterior
+
+	.. image:: /screenshots/bearing_slot_exterior-evade.png
+	.. image:: /screenshots/bearing_slot_exterior-expand.png
+
+.. autofunction:: bearing_slot_interior
+
+	.. image:: /screenshots/bearing_slot_interior-evade.png
+	.. image:: /screenshots/bearing_slot_interior-expand.png
+

@@ -37,6 +37,10 @@ m = bri.frontiers(0,2,3)
 nprint(m)
 nprint(m.tracks, m.edges)
 assert {tuple(e) : m.groups[m.tracks[i]]	for i,e in enumerate(m.edges)} == {(0,1):(0,2), (1,5):(2,3), (1,2):(0,3)}
+m = bri.group({0,1})
+
+m = bri.group({0,2}).frontiers({2,None})
+assert set(m.edges) == {uvec2( 0, 4 ), uvec2( 4, 5 ), uvec2( 1, 5 )}
 
 # test transform
 m = Mesh([vec3(0,0,0), vec3(1,0,0), vec3(0,1,0)], [(0,1,2)]).transform(vec3(0,0,-5))
@@ -64,6 +68,11 @@ m = Web(
 	[(0,1), (1,2), (2,3), (4, 5), (5,6), (6,4)])
 m.check()
 assert len(m.islands()) == 2
+
+bri = brick(center=vec3(2,0,0), width=vec3(0.5))
+m = bri.frontiers(0,2,3).frontiers({1,2,None})
+assert set(m.indices) == {5, 1, 2}
+
 
 # test group qualification
 bri = brick(center=vec3(2,0,0), width=vec3(0.5))
