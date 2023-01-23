@@ -550,99 +550,113 @@ def gearexterior(
 
 	assert not (chamfer and helix_angle),  "chamfer is not (yet) supported with a non-null helix_angle"
 
-	if chamfer:  # chamfer case
-		# create a truncated profile (the top profile of the chamfer)
-		start = mix(footer, header, 0.6)  # primitive radius
-		k = tan(chamfer)
-		truncated = deepcopy(profile) # profile which will be truncated
-		for i, point in enumerate(profile.points):
-			# truncate points that overlap the primitive
-			r = length2(point)
-			if r > start**2:
-				r = sqrt(r)
-				profile.points[i] = point - vec3(0, 0, (r - start) * k)
-				truncated.points[i] = point * start / r
+	# Body
+	refpoint = profile[0] - half_depth * Z
+	# Offsets needed for boolean operation
+	more_offset = (header + 0.3 * (header - footer)) / header
+	less_offset = (footer - 0.3 * (header - footer)) / header
+	A = (more_offset * (X + Y) + Z) * refpoint
+	B = (less_offset * (X + Y) + Z) * refpoint
+	bottom = web(Segment(A, B))
 
-		# Profiles
-		top_profile = profile.transform(vec3(0, 0, half_depth))
-		bottom_profile = top_profile.transform(scaledir(Z, -1))
-		top_truncated = truncated.transform(vec3(0, 0, half_depth))
-		bottom_truncated = truncated.transform(vec3(0, 0, -half_depth))
+	# if chamfer:  # chamfer case
+		# # create a truncated profile (the top profile of the chamfer)
+		# start = mix(footer, header, 0.6)  # primitive radius
+		# k = tan(chamfer)
+		# truncated = deepcopy(profile) # profile which will be truncated
+		# for i, point in enumerate(profile.points):
+		# 	# truncate points that overlap the primitive
+		# 	r = length2(point)
+		# 	if r > start**2:
+		# 		r = sqrt(r)
+		# 		profile.points[i] = point - vec3(0, 0, (r - start) * k)
+		# 		truncated.points[i] = point * start / r
+
+		# # Profiles
+		# top_profile = profile.transform(vec3(0, 0, half_depth))
+		# bottom_profile = top_profile.transform(scaledir(Z, -1))
+		# top_truncated = truncated.transform(vec3(0, 0, half_depth))
+		# bottom_truncated = truncated.transform(vec3(0, 0, -half_depth))
+
+		# # Surfaces
+		# bp = partial(junction, tangents="straight", resolution = ("div", 0))
+		# top_surface = triangulation(web([top_truncated, top_circle.flip()]))
+		# bottom_surface = triangulation(web([bottom_truncated.flip(), bottom_circle]))
+		# top_bevel = bp(top_truncated, top_profile.flip())
+		# bottom_bevel = bp(bottom_truncated.flip(), bottom_profile)
+		# gear_surface = bp(top_profile, bottom_profile.flip())
+
+		# surfaces = (top_surface, bottom_surface, top_bevel, bottom_bevel, gear_surface)
+		# mesh = reduce(add, surfaces)
+		# mesh = repeat(mesh, z, rotatearound(2 * pi / z, (O, Z)))
+		# mesh.mergeclose()
+	# else:
+	if helix_angle:  # helical teeth case
+		# The following code generates a helical tooth
+		# and then repeat it to get a complete gear surface
+
+		# Parameters for the extrans function
+		R = header # the largest radius of profile
+		# Step to generate a helical transformation
+		step = settings.curve_resolution(depth / cos(helix_angle), depth * tan(helix_angle) / R, resolution)
+		angle = depth * tan(helix_angle) / R / (step + 1)
+		h = depth / (step + 1)
+		bottom_gear_edge = profile.transform(vec3(0, 0, -half_depth))
+		transformations = (
+			transform((vec3(0, 0, i * h), angleAxis(angle * i, Z)))
+			for i in range(step + 2)
+		)
+		links = ((i, i + 1, 0) for i in range(step + 1))
+
+		# Generation of helical gear surface
+		bottom_gear_edge = profile.transform(vec3(0, 0, -half_depth))
+		gear_surface = extrans(bottom_gear_edge, transformations, links)
+		gear_surface.mergeclose()
+
+		# Generation of the body
+		translate_and_rotate = transform(
+			(vec3(0, 0, depth), angleAxis(depth * tan(helix_angle) / R, Z))
+		)
+		top = bottom.transform(translate_and_rotate)
+		body = revolution(2 * pi / z, (O, Z), top + bottom.flip())
+		body.mergeclose()
+
+		# Boolean operation
+		result = intersection(body.flip(), gear_surface)
+
+		# Repetition for a complete exterior surface
+		mesh = repeat(result, z, rotatearound(2 * pi / z, (O, Z)))
+		mesh.finish()
+	else:  # straight teeth case
+		# Generation of body
+		top = bottom.transform(translate(depth * Z))
+		
+		if chamfer:
+			M = (A + B) * 0.5
+			C = rotatearound(-chamfer, (M, Y)) * A
+			D = rotatearound(chamfer, (M, Y)) * A
+
+			bottom = web([Segment(C, M), Segment(M, B)])
+			bottom.mergeclose()
+			top = web([Segment(D, M), Segment(M, B)]).transform(depth * Z)
+			top.mergeclose()
+
+		body = revolution(2 * pi / z, (O, Z), top + bottom.flip())
+		body.mergeclose()
 
 		# Surfaces
-		bp = partial(junction, tangents="straight", resolution = ("div", 0))
-		top_surface = triangulation(web([top_truncated, top_circle.flip()]))
-		bottom_surface = triangulation(web([bottom_truncated.flip(), bottom_circle]))
-		top_bevel = bp(top_truncated, top_profile.flip())
-		bottom_bevel = bp(bottom_truncated.flip(), bottom_profile)
-		gear_surface = bp(top_profile, bottom_profile.flip())
+		gear_surface = extrusion(
+				depth * Z,
+				profile.transform(translate(-half_depth * Z)),
+		)
+		show([gear_surface, body.flip()])
 
-		surfaces = (top_surface, bottom_surface, top_bevel, bottom_bevel, gear_surface)
-		mesh = reduce(add, surfaces)
-		mesh = repeat(mesh, z, rotatearound(2 * pi / z, (O, Z)))
+		# Boolean operation
+		result = intersection(body.flip(), gear_surface)
+
+		# Repetition for a complete exterior surface
+		mesh = repeat(result, z, rotatearound(2 * pi / z, (O, Z)))
 		mesh.mergeclose()
-	else:
-		if helix_angle:  # helical teeth case
-			# The following code generates a helical tooth
-			# and then repeat it to get a complete gear surface
-
-			# Parameters for the extrans function
-			R = header # the largest radius of profile
-			# Step to generate a helical transformation
-			step = settings.curve_resolution(depth / cos(helix_angle), depth * tan(helix_angle) / R, resolution)
-			angle = depth * tan(helix_angle) / R / (step + 1)
-			h = depth / (step + 1)
-			bottom_gear_edge = profile.transform(vec3(0, 0, -half_depth))
-			transformations = (
-				transform((vec3(0, 0, i * h), angleAxis(angle * i, Z)))
-				for i in range(step + 2)
-			)
-			links = ((i, i + 1, 0) for i in range(step + 1))
-
-			# Generation of helical gear surface
-			bottom_gear_edge = profile.transform(vec3(0, 0, -half_depth))
-			gear_surface = extrans(bottom_gear_edge, transformations, links)
-			gear_surface.mergeclose()
-
-			# Body
-			refpoint = profile[0] - vec3(0, 0, half_depth)
-			translate_and_rotate = transform(
-				(vec3(0, 0, depth), angleAxis(depth * tan(helix_angle) / R, Z))
-			)
-			# Offsets needed for boolean operation
-			more_offset = (header + 0.3 * (header - footer)) / header
-			less_offset = (footer - 0.3 * (header - footer)) / header
-
-			# Generation of the body
-			bottom = web(
-				Segment(
-					(more_offset * (X + Y) + Z) * refpoint, 
-					(less_offset * (X + Y) + Z) * refpoint,
-				)
-			)
-			top = bottom.transform(translate_and_rotate)
-			body = revolution(2 * pi / z, (O, Z), top + bottom.flip())  # + 0.02
-			body.mergeclose()
-
-			# Boolean operation
-			result = intersection(body.flip(), gear_surface)
-
-			# Repetition for a complete exterior surface
-			mesh = repeat(result, z, rotatearound(2 * pi / z, (O, Z)))
-			mesh.finish()
-
-		else:  # straight teeth case
-			# Edges of teeth
-			bottom_gear_edge = profile.transform(vec3(0, 0, -half_depth))
-			top_gear_edge = profile.transform(vec3(0, 0, half_depth))
-			gear_surface = extrusion(vec3(0, 0, depth), bottom_gear_edge)
-
-			# Surfaces
-			top_surface = triangulation(web([top_gear_edge, top_circle.flip()]))
-			bottom_surface = triangulation(web([bottom_gear_edge.flip(), bottom_circle]))
-			mesh = gear_surface + top_surface + bottom_surface
-			mesh = repeat(mesh, z, rotatearound(2 * pi / z, (O, Z)))
-			mesh.mergeclose()
 	return mesh
 
 
