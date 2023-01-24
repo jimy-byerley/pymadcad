@@ -956,7 +956,7 @@ def wire_multicut(wire: Wire, points, cutter):
 def wire_chamfer(wire, points, cutter):
 	wire_multicut(wire, points, cutter)
 
-@bevel.register(Wire)  # TODO replace index() 
+@bevel.register(Wire)
 def wire_bevel(wire, points, cutter, resolution=None):
 	closed = wire.indices[0] == wire.indices[-1]
 
