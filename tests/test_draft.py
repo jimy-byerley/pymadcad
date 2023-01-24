@@ -32,6 +32,7 @@ def make_extrusions() -> List[Tuple[Mesh, type]]:
 	bases = [
 		Wire(points).own(points=True),
 		Mesh(points[:3], [[0, 1, 2]]).own(points=True),
+		Web(points, [(0, 1), (1, 2), (2, 0)]),
 	]
 	trans = Z * 5
 	return [(cad.extrusion(trans, b), type(b)) for b in bases]
@@ -39,10 +40,11 @@ def make_extrusions() -> List[Tuple[Mesh, type]]:
 
 def add_draft(mesh: Mesh, base_type: type, angle=5.0):
 	angle = 5
-	if base_type == Wire:
+	if base_type == Wire or base_type == Web:
 		return draft_extruded_wire(mesh, angle)
 	elif base_type == Mesh:
 		return draft_extruded_mesh(mesh, angle)
+	raise ValueError("extrustion base type: {} not implemented".format(base_type))
 
 
 @fixture(scope="module", params=make_extrusions())
