@@ -1,5 +1,5 @@
-Web
-===
+Web - mesh of edges
+===================
 
 .. image:: /screenshots/mesh-web.png
 

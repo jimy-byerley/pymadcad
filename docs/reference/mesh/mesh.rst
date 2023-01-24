@@ -1,5 +1,5 @@
-Mesh
-====
+Mesh - mesh of triangles
+========================
 
 .. image:: /screenshots/mesh-mesh.png
 
