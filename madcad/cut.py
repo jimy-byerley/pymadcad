@@ -911,40 +911,36 @@ def wire_multicut(wire: Wire, points, cutter):
 			offset = -offset
 		cutplane = (p0 + offset, -normalize(offset))
 
+		def find_intersection(it):
+			for ii0, ii1 in it:
+				if ii0 == -1: # handle closed wires
+					ii0 = -2					
+				p0, p1 = wire[ii0], wire[ii1]
+				ps = intersection_edge_plane((p0, p1), cutplane, prec)
+				if ps:
+					if isfinite(ps):
+						return ii1, ps
+			raise ValueError("no intersection found")			
+
 		# propagate backward
-		for ii1 in range(origin, -closed*1, -1):
-			if ii1 ==0:  # case closed 
-				ii0 = -2 
-			else:
-				ii0 = ii1-1
-			p0, p1 = wire[ii0], wire[ii1]
-			ps = intersection_edge_plane((p0, p1), cutplane, prec)
-			if ps:
-				if isfinite(ps):  # if interesect  found
-					iiback = ii1
-					break  #  wire.indices[origin-iiback]
+		back_range = range(origin, -closed, -1)
+		back_it = zip(map(lambda x: x-1, back_range), back_range)
+		iiback, ps = find_intersection(back_it)
+		cuts.append((iiback, iiback + 1))  # point interval including start and excluding end
 
-
-		# propagate forward 
+		# propagate forward
 		wlen = len(wire.indices)
-		for ii0 in range(origin, wlen-1):
-			ii1 = ii0+1
-			p0, p1 = wire[ii0], wire[ii1]
-			pe = intersection_edge_plane((p0, p1), cutplane, prec)
-			if pe:
-				if isfinite(pe):  # if interesect  found
-					iiforward = ii1
-					break  #  wire.indices[origin-iiback]
+		forward_range = range(origin, wlen-1)
+		forward_it = zip(forward_range, map(lambda x: x+1, forward_range))
+		iiforward, pe = find_intersection(forward_it)
 
-
+		# update wire
 		m = len(wire.points)
 		wire.points.append(ps)
 		wire.points.append(pe)
 
-		# remove fragment
 		wire.indices[iiback: iiforward] = [m, m + 1]
 		wire.tracks[iiback: iiforward] = [g, g - 1]
-		cuts.append((iiback, iiback + 1))  # point interval including start and excluding end
 
 		if origin == wire.indices[-1]:
 			wire.indices[-1] = wire.indices[0]
