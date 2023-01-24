@@ -2,8 +2,17 @@ from .container import *
 
 
 class Wire(NMesh):
-	''' Line as continuous suite of points 
-		Used to borrow reference of points from a mesh by keeping their original indices
+	''' This class defines a mesh of points, used for two purposes:
+		
+		- curves, wires, paths,  storing the ordered suite of point indices
+		- cloud points, points extracted from other mesh, storing the unordered points indices 
+		
+		Most of the methods of `Wire` are intended for the first use case.
+		
+		conventions:
+		
+		- A curve is considered closed (or to be a loop) when its final index is the same as the first.
+		- tracks are matching indices, giving a group each index. But for curves, `track[i]` gives a group for edge `(indices[i], indices[i+1])`
 
 		Attributes:
 			points:	    points buffer
@@ -129,6 +138,10 @@ class Wire(NMesh):
 		return merges
 		
 	# END BEGIN ----- mesh checks -----
+	
+	def isclosed(self):
+		''' return True if the wire is closed, meaning the first and final indices are the same '''
+		return self.indices[0] == self.indices[-1]
 	
 	def check(self):
 		''' raise if the internal data are not consistent '''
@@ -312,10 +325,18 @@ class Wire(NMesh):
 		
 	def close(self) -> 'self':
 		''' make a loop of the wire by appending its first point to its end '''
-		if self.indices[-1] != self.indices[0]:
+		if not self.isclosed():
 			self.indices.append(self.indices[0])
 			if self.tracks:
 				self.tracks.append(self.tracks[0])
+		return self
+		
+	def unclose(self) -> 'Self':
+		''' if this wire is a loop, create a new Wire slicing this one's indices except the last index so the loop is opened
+			if this wire is not a loop, return it immediately
+		'''
+		if self.isclosed():
+			return Wire(self.points, self.indices[:-1], self.tracks, self.groups, self.options)
 		return self
 		
 	def segmented(self, group=None) -> 'Wire':
