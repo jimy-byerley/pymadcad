@@ -8,13 +8,7 @@ from pytest import fixture
 from madcad.prelude import *
 import madcad as cad
 
-from madcad.draft import (
-	draft_extruded_mesh,
-	draft_edges,
-	edges_with_points,
-	draft_extruded_wire,
-)
-
+from madcad.draft import draft_by_slice
 
 PLOT_DEFUALT = "--trace" in sys.argv
 
@@ -32,32 +26,20 @@ def make_extrusions() -> List[Tuple[Mesh, type]]:
 	bases = [
 		Wire(points).own(points=True),
 		Mesh(points[:3], [[0, 1, 2]]).own(points=True),
-		Web(points, [(0, 1), (1, 2), (2, 0)]),
+		Web(points, [(0, 1), (1, 2), (2, 0)]).own(points=True),
 	]
 	trans = Z * 5
-	return [(cad.extrusion(trans, b), type(b)) for b in bases]
-
-
-def add_draft(mesh: Mesh, base_type: type, angle=5.0):
-	angle = 5
-	if base_type == Wire or base_type == Web:
-		return draft_extruded_wire(mesh, angle)
-	elif base_type == Mesh:
-		return draft_extruded_mesh(mesh, angle)
-	raise ValueError("extrustion base type: {} not implemented".format(base_type))
+	return [cad.extrusion(trans, b).finish() for b in bases]
 
 
 @fixture(scope="module", params=make_extrusions())
-def ex(request) -> Tuple[Mesh, type]:
+def ex(request) -> Mesh:
 	yield request.param
 
 
-def test_draft(ex: Tuple[Mesh, type], plot=PLOT_DEFUALT):
-
+def test_draft_slice(ex: Tuple[Mesh, type], plot=PLOT_DEFUALT):
 	draft_angle = 5
-
-	drafted = add_draft(*ex, draft_angle)
-
+	drafted = draft_by_slice(ex, draft_angle)
 	angles = draft_angles(drafted, Z, degrees=True)
 
 	for a in angles:
@@ -67,7 +49,8 @@ def test_draft(ex: Tuple[Mesh, type], plot=PLOT_DEFUALT):
 		show([drafted])
 
 	angle_set = set(angles)
-	assert angle_set <= {0.0, 85.0, 95.0, 180.0}
+	expected_angles = {0.0, 90.0 - draft_angle, 90.0 + draft_angle, 180.0}
+	assert angle_set <= expected_angles
 
 
 def draft_angles(mesh: Mesh, n: vec3, **kwargs):

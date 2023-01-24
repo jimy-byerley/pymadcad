@@ -52,7 +52,7 @@ def draft_edges(edges, points, trans, angle):
 		points[i] += vector * scale
 
 
-def draft_extruded_mesh(extruded: Mesh, angle: float, free=2, fixed=1):
+def draft_by_groups(extruded: Mesh, angle: float, free=2, fixed=1):
 	"""
 	Mutates an extruded Mesh to give at a draft angle.
 
@@ -66,18 +66,29 @@ def draft_extruded_mesh(extruded: Mesh, angle: float, free=2, fixed=1):
 	draft_edges(moved.edges, moved.points, trans, angle)
 	return extruded
 
-def draft_extruded_wire(ex: Mesh, angle: float):
+def draft_by_slice(ex: Mesh, angle: float, index=None, reverse=False):
 	lp = len(ex.points)
-	mid = lp // 2
-	p_inds = list(range(mid, lp))
-	edges = edges_with_points(ex.edges(), p_inds)
-	trans = (sum(ex.points[mid:]) - sum(ex.points[:mid]))/mid
+	if index is None:
+		index = lp // 2
+
+	if reverse:
+		fixed_slice = slice(index, lp)
+		free_slice = slice(0, index)
+		free_inds = list(range(0, index))
+	else:
+		fixed_slice = slice(0, index)
+		free_slice = slice(index, lp)
+		free_inds = list(range(index, lp))
+	
+	edges = edges_with_points(ex.edges(), free_inds)
+	trans = (sum(ex.points[index:]) - sum(ex.points[:index]))/index
 	draft_edges(edges, ex.points, trans, angle)
 	return ex
 
 
-def draft_extrusion(base: Mesh, trans: vec3, angle: float) -> Mesh:
+def draft_extrusion(trans: vec3, base: Mesh | Web | Wire,  angle: float) -> Mesh:
 	ex = cad.extrusion(trans, base)
-	add_draft_extrusion(ex, trans, angle)
+	ex.finish()
+	draft_by_slice(ex, angle)
 	return ex
 
