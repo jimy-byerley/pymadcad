@@ -64,6 +64,7 @@ def draft_extruded_mesh(extruded: Mesh, angle: float, free=2, fixed=1):
 	moved = extruded.group(free).outlines()
 	trans = moved.barycenter() - extruded.group(fixed).outlines().barycenter()
 	draft_edges(moved.edges, moved.points, trans, angle)
+	return extruded
 
 def draft_extruded_wire(ex: Mesh, angle: float):
 	lp = len(ex.points)
@@ -72,6 +73,7 @@ def draft_extruded_wire(ex: Mesh, angle: float):
 	edges = edges_with_points(ex.edges(), p_inds)
 	trans = (sum(ex.points[mid:]) - sum(ex.points[:mid]))/mid
 	draft_edges(edges, ex.points, trans, angle)
+	return ex
 
 
 def draft_extrusion(base: Mesh, trans: vec3, angle: float) -> Mesh:
