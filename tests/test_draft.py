@@ -47,20 +47,30 @@ def base(request) -> Mesh:
 	yield request.param
 
 
-def test_draft_slice(ex: Tuple[Mesh, type], plot=PLOT_DEFUALT):
-	draft_angle = 5
-	drafted = draft_by_slice(ex, draft_angle)
-	angles = draft_angles(drafted, Z, degrees=True)
+def check_draft(drafted, angle):
+	result_angles = draft_angles(drafted, Z, degrees=True)
 
-	for a in angles:
+	for a in result_angles:
 		print(a)
 
+
+	angle_set = set(result_angles)
+	expected_angles = {0.0, 90.0 - angle, 90.0 + angle, 180.0}
+	assert angle_set <= expected_angles
+
+def test_draft_extrusion(base: Mesh, plot=PLOT_DEFUALT):
+	angle = 5
+	drafted = draft_extrusion(Z*5, base, angle)
 	if plot:
 		show([drafted])
+	check_draft(drafted, angle)
 
-	angle_set = set(angles)
-	expected_angles = {0.0, 90.0 - draft_angle, 90.0 + draft_angle, 180.0}
-	assert angle_set <= expected_angles
+def test_draft_slice(ex: Tuple[Mesh, type], plot=PLOT_DEFUALT):
+	angle = 5
+	drafted = draft_by_slice(ex, angle)
+	if plot:
+		show([drafted])
+	check_draft(drafted, angle)
 
 
 def draft_angles(mesh: Mesh, n: vec3, **kwargs):
