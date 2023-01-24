@@ -19,4 +19,6 @@ from madcad import (
 	Wire,
 	typedlist as tlist,
 	vec3,
+	uvec2,	
+	uvec3,
 )

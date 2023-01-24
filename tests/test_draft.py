@@ -3,7 +3,7 @@ import numpy as np
 from madcad.prelude import *
 import madcad as cad
 
-from madcad.draft import add_draft
+from madcad.draft import draft_extruded_mesh, draft_edges, edges_with_points, draft_extruded_wire
 
 def test_draft(base: Mesh, plot=False):
 	trans = vec3(0, 0, 4)
@@ -11,7 +11,7 @@ def test_draft(base: Mesh, plot=False):
 
 	draft_angle = 5
 	print(f"adding draft angle: {draft_angle}")
-	add_draft(ex, trans, -draft_angle)
+	draft_extruded_mesh(ex, -draft_angle)
 	ex.finish()
 
 	# measure the resulting face angles
@@ -26,6 +26,30 @@ def test_draft(base: Mesh, plot=False):
 	if plot:
 		show([ex])
 	assert set(angles) == {95.0, 180.0, 0.0}
+
+
+def test_wire_draft(plot=False):
+	points = tlist([
+		[0, 0, 0],
+		[1, 0, 0],
+		[1, 1, 0],
+		[0, 1, 0],
+		], dtype=vec3)
+	w = Wire(points)
+	ex = cad.extrusion(Z*5, w)
+	draft_extruded_wire(ex, angle := 5)
+
+	
+	angles = []
+	print("resulting face angles compared to extrusion axis:")
+	for normal in ex.facenormals():
+		angle = angle_vectors(normal, Z, degrees=True)
+		print("  ",angle)
+		angles.append(np.round(angle, decimals=3))
+
+
+	if plot:
+		show([ex])
 
 
 def triangle() -> Mesh:
@@ -51,6 +75,9 @@ def angle_vectors(v1: vec3, v2: vec3, degrees=False) -> float:
 
 
 if __name__ == "__main__":
+	test_wire_draft(True)
+
+
 	print("testing drafting on extruded triangle")
 	tribase = triangle()
 	test_draft(tribase, True)
