@@ -8,12 +8,12 @@ from pytest import fixture
 from madcad.prelude import *
 import madcad as cad
 
-from madcad.draft import draft_by_slice
+from madcad.draft import draft_by_slice, draft_extrusion
 
 PLOT_DEFUALT = "--trace" in sys.argv
 
 
-def make_extrusions() -> List[Tuple[Mesh, type]]:
+def make_bases() -> List:
 	points = tlist(
 		[
 			[0, 0, 0],
@@ -28,12 +28,22 @@ def make_extrusions() -> List[Tuple[Mesh, type]]:
 		Mesh(points[:3], [[0, 1, 2]]).own(points=True),
 		Web(points, [(0, 1), (1, 2), (2, 0)]).own(points=True),
 	]
+	return bases
+
+
+def make_extrusions() -> List[Tuple[Mesh, type]]:
+	bases = make_bases()
 	trans = Z * 5
 	return [cad.extrusion(trans, b).finish() for b in bases]
 
 
 @fixture(scope="module", params=make_extrusions())
 def ex(request) -> Mesh:
+	yield request.param
+
+
+@fixture(scope="module", params=make_bases())
+def base(request) -> Mesh:
 	yield request.param
 
 
