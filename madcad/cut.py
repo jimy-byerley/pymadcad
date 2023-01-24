@@ -925,7 +925,7 @@ def wire_multicut(wire: Wire, points, cutter):
 					break  #  wire.indices[origin-iiback]
 
 
-		# propagate forward TODO add propagation
+		# propagate forward 
 		wlen = len(wire.indices)
 		for ii0 in range(origin, wlen-1):
 			ii1 = ii0+1
@@ -944,10 +944,12 @@ def wire_multicut(wire: Wire, points, cutter):
 		# remove fragment
 		wire.indices[iiback: iiforward] = [m, m + 1]
 		wire.tracks[iiback: iiforward] = [g, g - 1]
-		cuts.append((m, m + 1))  # point interval including start and excluding end
+		cuts.append((iiback, iiback + 1))  # point interval including start and excluding end
 
 		if origin == wire.indices[-1]:
 			wire.indices[-1] = wire.indices[0]
+			wire.tracks[-1] = wire.tracks[0]
+
 	return cuts
 		
 @chamfer.register(Wire)
@@ -956,27 +958,29 @@ def wire_chamfer(wire, points, cutter):
 
 @bevel.register(Wire)  # TODO replace index() 
 def wire_bevel(wire, points, cutter, resolution=None):
-	cuts = set(wire_multicut(wire, points, cutter))
+	closed = wire.indices[0] == wire.indices[-1]
+
+	cuts = wire_multicut(wire, points, cutter)
 	g = len(wire.groups) - 1
 	wire.groups[g] = None
 
-	for i0, i1 in cuts:
-		p0 = wire.points[i0]
-		p1 = wire.points[i1]
-		tpii0 = wire.indices.index(i0) - 1  # indices index if prior point
-		tpii1 = wire.indices.index(i1) + 1  # indices index if prior point
+	cuts.reverse()
+	for ii0, ii1 in cuts:
+		p0 = wire[ii0]
+		p1 = wire[ii1]
+		tpii0 = ii0 - 1  # indices index if prior point
+		tpii1 = ii1 + 1  # indices index if prior point
 		if tpii0 < 0:
 			tpii0 = -2
 
-		tpi0 = wire.indices[tpii0]
-		tpi1 = wire.indices[tpii1]
-		t0 = normalize(p0 - wire.points[tpi0])
-		t1 = normalize(p1 - wire.points[tpi1])
-		l = len(wire.points)
+		t0 = normalize(p0 - wire[tpii0])
+		t1 = normalize(p1 - wire[tpii1])
+		old_l = len(wire.points)
 		wire.points.extend( tangentarc((p0,t0), (p1,t1), resolution))
-		ii = wire.indices.index(i0)
-		wire.indices[ii:ii+2] = range(l, len(wire.points))
-		wire.tracks[ii:ii+1] = [g] * (len(wire.points)-l-1)
+		wire.indices[ii0:ii0+2] = range(old_l, len(wire.points))
+		wire.tracks[ii0:ii0+1] = [g] * (len(wire.points)-old_l-1)
+		if closed and ii0==0:
+			wire.indices[-1] == wire.indices[0]
 
 
 		
