@@ -548,7 +548,7 @@ def gearexterior(
 	top_circle = circle_ref.transform(vec3(0, 0, half_depth))
 	bottom_circle = circle_ref.transform(vec3(0, 0, -half_depth))
 
-	assert not (chamfer and helix_angle),  "chamfer is not (yet) supported with a non-null helix_angle"
+	# assert not (chamfer and helix_angle),  "chamfer is not (yet) supported with a non-null helix_angle"
 
 	# Body
 	refpoint = profile[0] - half_depth * Z
@@ -618,8 +618,30 @@ def gearexterior(
 			(vec3(0, 0, depth), angleAxis(depth * tan(helix_angle) / R, Z))
 		)
 		top = bottom.transform(translate_and_rotate)
+
+		
+		if chamfer:
+			axis = normalize(cross(Z, A))
+			M = (A + B) * 0.5
+			d = sin(chamfer) * (length(M - A))
+			tart = transform(length(A - M) * sin(chamfer) * Z, angleAxis(d * tan(helix_angle)/ R, Z))
+			tarb = transform(-length(A - M) * sin(chamfer) * Z, angleAxis(-d * tan(helix_angle)/ R, Z))
+			C = tart * A
+			D = tarb * A
+
+			# rt = rotate(d * tan(helix_angle) / R, Z)
+			# rb = rotate(-d * tan(helix_angle) / R, Z)
+			# C = rotatearound(-chamfer, (M, axis)) * rt * A
+			# D = rotatearound(chamfer, (M, axis)) * rb * A
+
+			bottom = web([Segment(C, M), Segment(M, B)])
+			bottom.mergeclose()
+			top = web([Segment(D, M), Segment(M, B)]).transform(translate_and_rotate)
+			top.mergeclose()
+
 		body = revolution(2 * pi / z, (O, Z), top + bottom.flip())
 		body.mergeclose()
+		show([gear_surface, body.flip()])
 
 		# Boolean operation
 		result = intersection(body.flip(), gear_surface)
@@ -632,9 +654,10 @@ def gearexterior(
 		top = bottom.transform(translate(depth * Z))
 		
 		if chamfer:
+			axis = normalize(cross(Z, A))
 			M = (A + B) * 0.5
-			C = rotatearound(-chamfer, (M, Y)) * A
-			D = rotatearound(chamfer, (M, Y)) * A
+			C = rotatearound(-chamfer, (M, axis)) * A
+			D = rotatearound(chamfer, (M, axis)) * A
 
 			bottom = web([Segment(C, M), Segment(M, B)])
 			bottom.mergeclose()
@@ -646,10 +669,9 @@ def gearexterior(
 
 		# Surfaces
 		gear_surface = extrusion(
-				depth * Z,
-				profile.transform(translate(-half_depth * Z)),
+			depth * Z,
+			profile.transform(translate(-half_depth * Z)),
 		)
-		show([gear_surface, body.flip()])
 
 		# Boolean operation
 		result = intersection(body.flip(), gear_surface)
