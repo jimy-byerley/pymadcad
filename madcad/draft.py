@@ -2,6 +2,7 @@ import numpy as np
 
 from madcad.prelude import *
 import madcad as cad
+from madcad.mesh.container import edgekey
 
 
 def offset_vector(n1: vec3, n2: vec3):
@@ -13,6 +14,7 @@ def offset_vector(n1: vec3, n2: vec3):
 	cos = dot(n1, n3)
 	scale = 1 / cos
 	return n3 * scale
+
 
 def edges_with_points(edges, pids, only=True):
 	if only:
@@ -26,7 +28,7 @@ def edges_with_points(edges, pids, only=True):
 	)
 
 	return edges
-	
+
 
 def draft_edges(edges, points, trans, angle):
 	edge_arr = np.array([edge.to_tuple() for edge in edges])
@@ -66,6 +68,7 @@ def draft_by_groups(extruded: Mesh, angle: float, free=2, fixed=1):
 	draft_edges(moved.edges, moved.points, trans, angle)
 	return extruded
 
+
 def draft_by_slice(ex: Mesh, angle: float, index=None, reverse=False):
 	lp = len(ex.points)
 	if index is None:
@@ -79,16 +82,55 @@ def draft_by_slice(ex: Mesh, angle: float, index=None, reverse=False):
 		fixed_slice = slice(0, index)
 		free_slice = slice(index, lp)
 		free_inds = list(range(index, lp))
-	
+
 	edges = edges_with_points(ex.edges(), free_inds)
-	trans = (sum(ex.points[index:]) - sum(ex.points[:index]))/index
+	trans = (sum(ex.points[index:]) - sum(ex.points[:index])) / index
 	draft_edges(edges, ex.points, trans, angle)
 	return ex
 
 
-def draft_extrusion(trans: vec3, base: Mesh | Web | Wire,  angle: float) -> Mesh:
+def draft_by_axis(mesh: Mesh, axis: Axis, angle: float):
+	dists = [p - axis[0] for p in mesh.points]
+
+	edge_vectors = {e: [] for e in mesh.edges()}
+	for face in mesh.faces:
+		normal = mesh.facenormal(face)
+		# ortho_scale = np.linalg.norm(cross(normal, draft_normal))
+		edge_vectors[edgekey(face[0], face[1])].append(normal)
+		edge_vectors[edgekey(face[1], face[2])].append(normal)
+		edge_vectors[edgekey(face[2], face[0])].append(normal)
+
+	vertex_vectors = {i: [] for i in range(len(mesh.points))}
+	for e, vecs in edge_vectors.items():
+		if len(vecs) > 1:
+			v = offset_vector(*vecs[:2])
+		else:
+			v = vecs[0]
+		vertex_vectors[e[0]].append(v)
+		vertex_vectors[e[1]].append(v)
+
+	for i, vecs in vertex_vectors.items():
+		v_arr = np.array(vecs)
+		# p' = p - (n ⋅ (p - o)) × n
+		projected = v_arr - (v_arr-axis.origin).dot(axis.direction)[:, np.newaxis] * axis.direction
+		if len(projected) > 1:
+			l = np.linalg.norm(projected, axis=1)
+			imax = np.argmax(l)
+			v = projected[imax]
+		else:
+			v = projected[0]
+
+		pdist = dot(axis.direction, mesh.points[i] - axis.origin)
+		offset_scale = np.tan(np.deg2rad(angle)) * pdist
+		mesh.points[i] += v * offset_scale
+
+	return mesh
+	
+	
+
+
+def draft_extrusion(trans: vec3, base: Mesh | Web | Wire, angle: float) -> Mesh:
 	ex = cad.extrusion(trans, base)
 	ex.finish()
 	draft_by_slice(ex, angle)
 	return ex
-
