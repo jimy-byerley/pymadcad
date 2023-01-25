@@ -37,14 +37,15 @@ def make_extrusions() -> List[Tuple[Mesh, type]]:
 	return [cad.extrusion(trans, b).finish() for b in bases]
 
 
-@fixture(scope="module", params=make_extrusions())
-def ex(request) -> Mesh:
-	yield request.param
-
-
-@fixture(scope="module", params=make_bases())
+@fixture(params=[0, 1, 2])
 def base(request) -> Mesh:
-	yield request.param
+	yield make_bases()[request.param]
+
+
+@fixture()
+def ex(base) -> Mesh:
+	trans = Z * 5
+	yield cad.extrusion(trans, base).finish()
 
 
 def check_draft(drafted, angle, normal):
@@ -75,7 +76,7 @@ def test_draft_slice(ex: Mesh, plot=PLOT_DEFUALT):
 
 
 def test_draft_axis(ex: Mesh, plot=PLOT_DEFUALT):
-	axis = Axis(vec3(0, 0, 0), Z)
+	axis = Axis(vec3(0, 0, 5), Z)
 	angle = 5
 	drafted = draft_by_axis(ex, axis, angle)
 	if plot:
@@ -97,6 +98,6 @@ def angle_vectors(v1: vec3, v2: vec3, degrees=False) -> float:
 
 
 if __name__ == "__main__":
-	ex = make_extrusions()[0]
-	axis = Axis(vec3(0, 0, 1), Z)
-	test_draft_axis(ex)
+	meshes = make_extrusions()
+	for ex in meshes:
+		test_draft_axis(ex)
