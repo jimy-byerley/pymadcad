@@ -112,7 +112,7 @@ def draft_by_axis(mesh: Mesh, axis: Axis, angle: float):
 	for i, vecs in vertex_vectors.items():
 		v_arr = np.array(vecs)
 		# p' = p - (n ⋅ (p - o)) × n
-		projected = v_arr - (v_arr-axis.origin).dot(axis.direction)[:, np.newaxis] * axis.direction
+		projected = v_arr - (v_arr).dot(axis.direction)[:, np.newaxis] * axis.direction
 		if len(projected) > 1:
 			l = np.linalg.norm(projected, axis=1)
 			imax = np.argmax(l)
