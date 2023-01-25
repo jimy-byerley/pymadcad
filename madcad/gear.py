@@ -623,16 +623,16 @@ def gearexterior(
 		if chamfer:
 			axis = normalize(cross(Z, A))
 			M = (A + B) * 0.5
-			d = sin(chamfer) * (length(M - A))
-			tart = transform(length(A - M) * sin(chamfer) * Z, angleAxis(d * tan(helix_angle)/ R, Z))
-			tarb = transform(-length(A - M) * sin(chamfer) * Z, angleAxis(-d * tan(helix_angle)/ R, Z))
-			C = tart * A
-			D = tarb * A
+			C = rotatearound(-chamfer, (M, axis)) * A
+			D = rotatearound(chamfer, (M, axis)) * A
 
-			# rt = rotate(d * tan(helix_angle) / R, Z)
-			# rb = rotate(-d * tan(helix_angle) / R, Z)
-			# C = rotatearound(-chamfer, (M, axis)) * rt * A
-			# D = rotatearound(chamfer, (M, axis)) * rb * A
+			t = _get_intersection(refpoint, translate_and_rotate * refpoint, M, D)
+			I = refpoint + t * (translate_and_rotate * refpoint - refpoint)
+			D = M + normalize(I - M) * length(M - D)
+
+			t = _get_intersection(translate_and_rotate * refpoint, refpoint, M, C)
+			I = translate_and_rotate * refpoint + t * (refpoint - translate_and_rotate * refpoint)
+			C = M + normalize(I - M) * length(M - C)
 
 			bottom = web([Segment(C, M), Segment(M, B)])
 			bottom.mergeclose()
