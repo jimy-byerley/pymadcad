@@ -3,7 +3,7 @@ from typing import Tuple, List
 
 
 import numpy as np
-from pytest import fixture
+from pytest import fixture, mark
 
 from madcad.prelude import *
 import madcad as cad
@@ -26,7 +26,7 @@ def make_bases() -> List:
 	)
 	bases = [
 		Wire(points).own(points=True),
-		Mesh(points[:3], [[0, 1, 2]]).own(points=True),
+		Mesh(points[:3], [[1, 0, 2]]).own(points=True),
 		Web(points, [(0, 1), (1, 2), (2, 0)]).own(points=True),
 	]
 	return bases
@@ -63,6 +63,10 @@ def meshes(bases) -> List[Mesh]:
 def mesh(meshes, request) -> Mesh:
 	yield meshes[request.param]
 
+@mark.skip
+def test_mesh(mesh):
+	"For checking that input to test functions is sound"
+	plot_normals(mesh)
 
 def check_draft(drafted, angle, normal, plot):
 	result_angles = draft_angles(drafted, normal, degrees=True)
@@ -72,6 +76,7 @@ def check_draft(drafted, angle, normal, plot):
 
 	if plot:
 		show([drafted], projection=cad.rendering.Orthographic())
+		# plot_normals(drafted)
 
 	angle_set = set(result_angles)
 	expected_angles = {0.0, 90.0 - angle, 90.0 + angle, 180.0}
@@ -99,6 +104,17 @@ def test_draft_axis(mesh: Mesh, plot=PLOT_DEFUALT):
 
 def draft_angles(mesh: Mesh, n: vec3, **kwargs):
 	return [angle_vectors(n, face_n, **kwargs) for face_n in mesh.facenormals()]
+
+
+def plot_normals(mesh: Mesh):
+	arrows = []
+	for face in mesh.faces:
+		center = sum(mesh.facepoints(face)) / 3
+		n = mesh.facenormal(face)
+		cyl = cad.cylinder(center, center + n * 0.2, 0.05)
+		arrows.append(cyl)
+
+	show([mesh] + arrows)
 
 
 def angle_vectors(v1: vec3, v2: vec3, degrees=False) -> float:
