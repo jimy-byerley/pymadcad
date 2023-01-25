@@ -126,7 +126,7 @@ def draft_by_axis(mesh: Mesh, axis: Axis, angle: float):
 			v = projected[0]
 
 		pdist = dot(axis.direction, mesh.points[i] - axis.origin)
-		offset_scale = np.tan(np.deg2rad(angle)) * pdist
+		offset_scale = -np.tan(np.deg2rad(angle)) * pdist
 		mesh.points[i] += v * offset_scale
 
 	return mesh
