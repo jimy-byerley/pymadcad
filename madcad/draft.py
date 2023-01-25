@@ -45,10 +45,15 @@ def draft_edges(edges, points, trans, angle):
 
 	exl = np.linalg.norm(trans)
 	for i, normals in vertex_normals.items():
+		v_arr = np.array(normals)
+		# p' = p - (n ⋅ (p - o)) × n
+		projected = v_arr - (v_arr).dot(trans_normal)[:, np.newaxis] * trans_normal
 		if len(normals) > 1:
-			vector = offset_vector(*normals)
+			l = np.linalg.norm(projected, axis=1)
+			sorti = np.argsort(-l)
+			vector = offset_vector(*projected[sorti[:2]])
 		else:
-			vector = normals[0]
+			vector = projected[0]
 
 		scale = np.tan(np.deg2rad(angle)) * exl
 		points[i] += vector * scale
@@ -83,7 +88,7 @@ def draft_by_slice(ex: Mesh, angle: float, index=None, reverse=False):
 		free_slice = slice(index, lp)
 		free_inds = list(range(index, lp))
 
-	edges = edges_with_points(ex.edges(), free_inds)
+	edges = edges_with_points(ex.edges_oriented(), free_inds)
 	trans = (sum(ex.points[index:]) - sum(ex.points[:index])) / index
 	draft_edges(edges, ex.points, trans, angle)
 	return ex
@@ -125,8 +130,6 @@ def draft_by_axis(mesh: Mesh, axis: Axis, angle: float):
 		mesh.points[i] += v * offset_scale
 
 	return mesh
-	
-	
 
 
 def draft_extrusion(trans: vec3, base: Mesh | Web | Wire, angle: float) -> Mesh:
