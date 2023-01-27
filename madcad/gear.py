@@ -586,9 +586,7 @@ def gearexterior(
 			else:
 				chamfer_angle, ratio = pi / 8, 0.5
 			# Transformation for one step from step 0 to step 1
-			trs = translate(h * Z) * rotate(h * tan(helix_angle) / R, Z)
-			# Transformation for one step from step -1 to step -2
-			tre = translate((depth - h) * Z) * rotate((depth - h) * tan(helix_angle) / R, Z)
+			trs = translate(h * Z) * rotate(angle, Z)
 
 			# Axis for rotation to generate the chamfer
 			axis = normalize(cross(Z, A))
@@ -604,8 +602,7 @@ def gearexterior(
 			I = refpoint + t * (trs * refpoint - refpoint)
 			D = M + normalize(I - M) * length(M - D)
 
-			t = _get_intersection(tra * refpoint, tre * refpoint, M, C)
-			I = tra * refpoint + t * (tre * refpoint - tra * refpoint)
+			I = refpoint - t * (trs * refpoint - refpoint)
 			C = M + normalize(I - M) * length(M - C)
 
 			bottom = web([Segment(C, M), Segment(M, B)])
@@ -648,9 +645,10 @@ def gearexterior(
 
 		# Surfaces
 		gear_surface = extrusion(
-			depth * Z,
-			profile.transform(translate(-half_depth * Z)),
+			depth * 1.05 * Z,
+			profile.transform(translate(-half_depth * 1.05 * Z)),
 		)
+	
 
 	# Boolean operation
 	result = intersection(body.flip(), gear_surface)
