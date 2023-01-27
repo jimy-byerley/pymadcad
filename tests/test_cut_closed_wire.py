@@ -11,11 +11,11 @@ from madcad import (
 	extrusion,
 	ArcThrough,
 	wire,
-)
+	)
 from madcad.cut import (
 	bevel,
 	chamfer,
-)
+	)
 
 
 def arc_wire() -> Wire:
@@ -24,12 +24,12 @@ def arc_wire() -> Wire:
 		[
 			ArcThrough(
 				vec3(-0.1988, 1.5e-10, -0.001258), vec3(-0.06793, -1.35e-08, 0.1132), P0
-			),
+				),
 			ArcThrough(
 				P0, vec3(0.08932, -3.899e-09, 0.03271), vec3(0.2327, 1.335e-08, -0.112)
-			),
-		]
-	)
+				),
+			]
+		)
 	# w.finish()
 	return w
 
@@ -37,6 +37,7 @@ def arc_wire() -> Wire:
 def test_cut_curve(plot=False):
 	w = arc_wire()
 	bevel(w, [4], ("width", 0.15))
+	w.check()
 	if plot:
 		show([w])
 
@@ -50,7 +51,7 @@ def square_wire(b=2.0) -> Wire:
 		vec3(b, 0, 0),
 		vec3(b, b, 0),
 		vec3(0, b, 0),
-	]
+		]
 	inds = [0, 1, 2, 3, 0]
 	return Wire(points, inds)
 
@@ -78,6 +79,7 @@ def test_chamfer(plot=False):
 	if plot:
 		show([profile])
 
+	profile.check()
 	assert profile.length() == approx(expected_len)
 
 
@@ -108,8 +110,8 @@ def test_bevel(plot=False):
 	if plot:
 		show([profile])
 
-	abs_tolerance = 0.05  # TODO investigate why a large tolarnce is needed
-	assert profile.length() == approx(expected_len, abs=abs_tolerance)
+	profile.check()
+	assert profile.length() == approx(expected_len, abs=0.05)  # large tolerance because the bevel isn't an actual arc, and is discretized
 
 
 if __name__ == "__main__":
