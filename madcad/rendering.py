@@ -104,7 +104,7 @@ def show(scene:dict, interest:Box=None, size=uvec2(400,400), projection=None, na
 		settings.use_qt_colors()
 
 	# create the scene as a window
-	view = View(scene, projection, navigation)
+	view = View(scene, projection=projection, navigation=navigation)
 	view.resize(*size)
 	view.show()
 
@@ -1019,7 +1019,7 @@ class View(ViewCommon, QOpenGLWidget):
 	'''
 	def __init__(self, scene, projection=None, navigation=None, parent=None):
 		# super init
-		super(QOpenGLWidget, self).__init__(parent)
+		QOpenGLWidget.__init__(self, parent)
 		fmt = QSurfaceFormat()
 		fmt.setVersion(*opengl_version)
 		fmt.setProfile(QSurfaceFormat.CoreProfile)
