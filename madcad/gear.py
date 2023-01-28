@@ -536,7 +536,10 @@ def gearexterior(
 			depth (float):			extrusion eight - width of the gear along its axis
 			step (float):			step of chordal pitch, must be specified for non-null helix_angle, unused otherwise
 			helix_angle (float):	helix angle for helical gears - only without bevel; `bevel` = False - it must be a radian angle
-			chamfer (float):		chamfer angle - only for straight pinion
+			chamfer (bool | float | (float, float)):
+
+				set the parameter of chamfer `(angle, ratio)` such as `angle` is the chamfer angle,
+				`ratio` is where the chamfer is applied (`rmin + ratio * (rmax - rmin)`)
 	"""
 
 	# Parameters
@@ -861,7 +864,10 @@ def gear(
 	* Extra parameters for `gearexterior`
 
 		helix_angle (float):	helix angle to get a helical pinion in radian
-		chamfer (float):		chamfer angle - only for straight pinion
+		chamfer (bool | float | (float, float)):
+
+			set the parameter of chamfer `(angle, ratio)` such as `angle` is the chamfer angle,
+			`ratio` is where the chamfer is applied (`rmin + ratio * (rmax - rmin)`)
 
 	* Extra parameters for `gearstructure`
 
