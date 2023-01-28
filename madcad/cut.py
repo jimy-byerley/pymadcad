@@ -940,7 +940,7 @@ def wire_multicut(wire: Wire, points, cutter):
 		wire.points.append(pe)
 
 		wire.indices[iiback: iiforward] = [m, m + 1]
-		wire.tracks[iiback: iiforward] = [g, g - 1]
+		wire.tracks[iiback: iiforward] = [g, wire.tracks[iiforward-1]]
 
 		if origin == wire.indices[-1]:
 			wire.indices[-1] = wire.indices[0]
