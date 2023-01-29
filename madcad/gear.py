@@ -143,7 +143,8 @@ def gearprofile(step, z, h=None, offset=0, alpha=radians(20), resolution=None, *
 	else:
 		s0 = involuteat(c, p-h+e)
 
-	pts = []
+	points = []
+	tracks = []
 	n = 2 + settings.curve_resolution(h, step/p, resolution)	# number of points to place
 
 	# parameter for first side
@@ -154,14 +155,18 @@ def gearprofile(step, z, h=None, offset=0, alpha=radians(20), resolution=None, *
 	for i in range(n+1):
 		t = interpol1(t0-l0, t0-s0, i/n)
 		v = involute(c, t0, t)
-		pts.append(vec3(v,0))
+		points.append(vec3(v,0))
+		tracks.append(0)
 	# interference line
 	if interference:
 		for i in range(n+1):
 			t = interpol1(ti+li, ti, i/n)
 			v = involuteof(p, ti, -h+e, t)
-			pts.append(vec3(v,0))
-
+			points.append(vec3(v,0))
+			tracks.append(1)
+	
+	tracks[-1] = 2
+	
 	# parameters for second side
 	place = step/(2*p)*(2-x)
 	t0 = place - o0
@@ -171,16 +176,21 @@ def gearprofile(step, z, h=None, offset=0, alpha=radians(20), resolution=None, *
 		for i in range(n+1):
 			t = interpol1(ti, ti-li, i/n)
 			v = involuteof(p, ti, -h+e, t)
-			pts.append(vec3(v,0))
+			points.append(vec3(v,0))
+			tracks.append(3)
 	# contact line
 	for i in range(n+1):
 		t = interpol1(t0+s0, t0+l0, i/n)
 		v = involute(c, t0, t)
-		pts.append(vec3(v,0))
+		points.append(vec3(v,0))
+		tracks.append(4)
+		
+	tracks[-1] = 5
 
-	pts.append(angleAxis(step/p, vec3(0,0,1)) * pts[0])
+	points.append(angleAxis(step/p, vec3(0,0,1)) * points[0])
+	tracks.append(5)
 
-	return Wire(pts, groups=['gear'])
+	return Wire(points, tracks=tracks, groups=['contact', 'interference', 'bottom', 'interference', 'contact', 'top'])
 
 def gearcircles(step, z, h=None, offset=0, alpha=radians(30)):
 	''' return the convenient circles radius for a gear with the given parameters
@@ -954,9 +964,10 @@ def spherical_involuteof(pitch_cone_angle:float, t0:float, alpha:float, t:float)
 		a normalized `vec3`
 	"""
 	cos_p, sin_p = cos(pitch_cone_angle), sin(pitch_cone_angle)
-	involute = lambda t, t0: spherical_involute(pitch_cone_angle, t0, t)
-	vec = lambda t: vec3(-cos_p * cos(t), -cos_p * sin(t), sin_p)
-	return cos(alpha) * involute(t, t0) + sin(alpha) * vec(t + t0)
+	return (
+		+ cos(alpha) * spherical_involute(pitch_cone_angle, t0, t) 
+		+ sin(alpha) * vec3(-cos_p * cos(t+t0), -cos_p * sin(t+t0), sin_p)
+		)
 
 
 def derived_spherical_involute(cone_angle:float, t0:float):
@@ -1134,8 +1145,9 @@ def spherical_gearprofile(
 	div = settings.curve_resolution(1, 2*pi/z, resolution)
 	interference1 = [interference(t, -0.5 * phase_interference + beta) for t in linrange(0, t2, div=div)]
 	interference2 = [interference(-t, phase_diff + 0.5 * phase_interference - beta) for t in linrange(0, t2, div=div)]
-	side1 = interference1[:-1] + [involute(t, 0) for t in linrange(t1, t_max, div=div)]
-	side2 = interference2[:-1] + [involute(-t, phase_diff) for t in linrange(t1, t_max, div=div)]
+	side1 = Wire(interference1[:-1]) + Wire([involute(t, 0) for t in linrange(t1, t_max, div=div)])
+	side2 = Wire(interference2[:-1]) + Wire([involute(-t, phase_diff) for t in linrange(t1, t_max, div=div)])
+	side2.groups = side1.groups = ['interference', 'contact']
 
 	# Extreme points of sides to compute angle between them
 	a = interference(0, -0.5 * phase_interference + beta)
@@ -1143,8 +1155,10 @@ def spherical_gearprofile(
 	final_phase_empty = 2 * pi / z - anglebt(a * vec3(1, 1, 0), b * vec3(1, 1, 0))
 	top = Segment(involute(t_max, 0), involute(-t_max, phase_diff)).mesh()
 	bottom = Segment(angleAxis(-final_phase_empty, vec3(0, 0, 1)) * a, a).mesh()
+	top.groups = ['top']
+	bottom.groups = ['bottom']
 
-	return bottom + Wire(side1) + top + Wire(side2).flip()
+	return bottom + side1 + top + side2.flip()
 
 
 def cone_projection(profile: Wire, pitch_cone_angle:float) -> Wire:
@@ -1245,12 +1259,10 @@ def straight_bevel_gear(
 
 	# Generate spherical profiles
 	spherical_profile = spherical_gearprofile(z, gamma_p, pressure_angle, ka, kd, resolution=resolution) # one tooth
-	outside_profile = spherical_profile.transform(rho1 * 1.1)
-	inside_profile = spherical_profile.transform(rho0 * 0.9)
-
+	
 	# Generate teeth border
-	teeth_border = blendpair(outside_profile, inside_profile.flip(), tangents="straight")
-
+	teeth_border = extrusion((rho1*1.1)/(rho0*0.9), spherical_profile.transform(rho0*0.9))
+	
 	# Common values
 	v = vec3(1, 1, 0)
 	# angle1tooth = anglebt(spherical_profile[0] * v, spherical_profile[-1] * v)
