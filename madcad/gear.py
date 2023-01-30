@@ -563,7 +563,7 @@ def gearexterior(
 	if helix_angle:  # helical tooth case
 		# Step to generate a helical transformation
 		step = settings.curve_resolution(
-			depth / cos(helix_angle), depth * tan(helix_angle) / R, resolution
+			depth / cos(helix_angle), abs(depth * tan(helix_angle) / R), resolution
 		)
 		angle = depth * tan(helix_angle) / R / (step + 1)
 		h = depth / (step + 1)
@@ -588,6 +588,7 @@ def gearexterior(
 				chamfer_angle, ratio = chamfer, 0.5
 			else:
 				chamfer_angle, ratio = pi / 8, 0.5
+			assert chamfer_angle > 0, "chamfer angle must be positive."
 			# Transformation for one step from step 0 to step 1
 			trs = translate(h * Z) * rotate(angle, Z)
 
@@ -627,6 +628,7 @@ def gearexterior(
 				chamfer_angle, ratio = chamfer, 0.5
 			else:
 				chamfer_angle, ratio = pi / 8, 0.5
+			assert chamfer_angle > 0, "chamfer angle must be positive."
 			# Axis for rotation to generate the chamfer
 			axis = normalize(cross(Z, A))
 
