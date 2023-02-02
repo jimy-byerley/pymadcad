@@ -12,7 +12,7 @@ from madcad.draft import (
 	draft_angles,
 	draft_by_slice,
 	draft_side,
-	draft_by_axis,
+	draft,
 	_extrude,
 )
 
@@ -106,7 +106,7 @@ def test_draft_slice(ex: Mesh, plot=PLOT_DEFUALT):
 def test_draft_axis(mesh: Mesh, plot=PLOT_DEFUALT):
 	axis = Axis(vec3(0, 0, 1), Z)
 	angle = 5
-	drafted = draft_by_axis(mesh, axis, angle)
+	drafted = draft(mesh, axis, angle)
 	check_draft(drafted, angle, Z, plot)
 
 
@@ -131,7 +131,7 @@ def test_draft_sphere(plot=PLOT_DEFUALT):
 	angles0 = inspect(orb, plot)
 
 	angle = 5
-	drafted = draft_by_axis(orb, Axis(vec3(0), Z), angle)
+	drafted = draft(orb, Axis(vec3(0), Z), angle)
 	angles1 = inspect(drafted, plot)
 
 	for a0, a1 in zip(angles0, angles1):

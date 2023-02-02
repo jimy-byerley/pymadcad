@@ -119,7 +119,7 @@ def draft_by_slice(ex: Mesh, angle: float, index=None, reverse=False):
 	return ex
 
 
-def draft_by_axis(mesh: Mesh, axis: Axis, angle: float):
+def draft(mesh: Mesh, axis: Axis, angle: float):
 	dists = [p - axis[0] for p in mesh.points]
 
 	edge_vectors = {e: [] for e in mesh.edges()}
