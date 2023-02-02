@@ -42,6 +42,15 @@ def offset_vector(n1: vec3, n2: vec3):
 
 
 def edges_with_points(edges, pids, only=True):
+	"""
+	args:
+		edges: list[vec2]
+		pids: list[int], white list of point indices
+		only: bool, toggles if edges must have *only* white listed points
+	
+	returns:
+		a subset of edges that have specifed points
+	"""
 	if only:
 		bool_reduce = all
 	else:
@@ -56,6 +65,9 @@ def edges_with_points(edges, pids, only=True):
 
 
 def draft_edges(edges, points, trans, angle):
+	"""
+	adds draft angles by moving the points in the edges
+	"""
 	edge_arr = np.array([edge.to_tuple() for edge in edges])
 	moved_inds = np.unique(edge_arr)
 	moved = Web(points, edges)
