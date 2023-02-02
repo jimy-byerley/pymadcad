@@ -181,7 +181,7 @@ def _extrude(base, trans: vec3) -> Tuple[Mesh, list]:
 	return Mesh(points, faces), t_edges
 
 
-def draft_extrusion(base, trans: vec3, angle: float) -> Mesh:
+def draft_side(base, trans: vec3, angle: float) -> Mesh:
 	ex, edges = _extrude(base, trans)
 	draft_edges(edges, ex.points, trans, angle)
 	return ex

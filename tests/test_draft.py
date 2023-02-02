@@ -8,7 +8,7 @@ from pytest import fixture, mark
 from madcad.prelude import *
 import madcad as cad
 
-from madcad.draft import draft_by_slice, draft_extrusion, draft_by_axis, _extrude
+from madcad.draft import draft_by_slice, draft_side, draft_by_axis, _extrude
 
 
 PLOT_DEFUALT = "--trace" in sys.argv or __name__ == "__main__" or "-v" in sys.argv
@@ -87,7 +87,7 @@ def check_draft(drafted, angle, normal, plot):
 
 def test_draft_extrusion(base: Mesh | Web | Wire, plot=PLOT_DEFUALT):
 	angle = 5
-	drafted = draft_extrusion(base, Z * 2 , angle)
+	drafted = draft_side(base, Z * 2 , angle)
 	check_draft(drafted, angle, Z, plot)
 
 
