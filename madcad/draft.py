@@ -111,24 +111,7 @@ def draft_by_groups(extruded: Mesh, angle: float, free=2, fixed=1):
 	return extruded
 
 
-def draft_by_slice(ex: Mesh, angle: float, index=None, reverse=False):
-	lp = len(ex.points)
-	if index is None:
-		index = lp // 2
 
-	if reverse:
-		fixed_slice = slice(index, lp)
-		free_slice = slice(0, index)
-		free_inds = list(range(0, index))
-	else:
-		fixed_slice = slice(0, index)
-		free_slice = slice(index, lp)
-		free_inds = list(range(index, lp))
-
-	edges = edges_with_points(ex.edges_oriented(), free_inds)
-	trans = (sum(ex.points[index:]) - sum(ex.points[:index])) / index
-	draft_edges(edges, ex.points, trans, angle)
-	return ex
 
 
 def draft(mesh: Mesh, axis: Axis, angle: float):
