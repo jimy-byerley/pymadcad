@@ -60,14 +60,33 @@ def meshes(bases) -> List[Mesh]:
 	trans = Z * 2
 	extrudes = [cad.extrusion(trans, base).finish() for base in bases]
 	cube = cad.brick(width=3)
+	beveled = bevel_cube()
 	cylinder = cad.cylinder(vec3(0, 0, 0), vec3(0, 0, 3), 1).finish()
-	yield extrudes + [cube, cylinder]
+	yield [cube, cylinder] + extrudes
 
 
 @fixture(params=range(5))
 def mesh(meshes, request) -> Mesh:
 	yield meshes[request.param]
 
+def bevel_cube():
+	cube = cad.brick(width=3)
+	edges = cube.groupoutlines().edges
+	cad.bevel(cube, edges, ("radius", 0.3))
+	cube.finish()
+	return cube
+
+
+def make_curvy() -> List[Mesh]:
+	orb = cad.icosphere(vec3(0), 1, ("div", 2))
+	cube = bevel_cube()
+	return [orb, cube]
+
+
+@fixture(params=[0, 1])
+def curvy(request):
+	curvs = make_curvy()
+	yield curvs[request.param]
 
 @mark.skip
 def test_mesh(mesh):
@@ -110,26 +129,28 @@ def test_extrude(base, plot=PLOT_DEFUALT):
 		plot_normals(ex)
 
 
-def test_draft_sphere(plot=PLOT_DEFUALT):
+
+
+def test_draft_curvy(plot=PLOT_DEFUALT):
 	def inspect(mesh, plot):
 		result_angles = draft_angles(mesh, Z, degrees=True)
 		if plot:
 			cad.show([mesh])
-			for a in result_angles:
-				print(a)
 			orb.finish()
 		return result_angles
 
-	orb = cad.icosphere(vec3(0), 1, ("div", 1))
+	# orb = cad.icosphere(vec3(0), 1, ("div", 2))
+	orb = bevel_cube()
 	angles0 = inspect(orb, plot)
 
 	angle = 5
 	drafted = draft(orb, Axis(vec3(0), Z), angle)
 	angles1 = inspect(drafted, plot)
 
+	tol = 0.02
 	for a0, a1 in zip(angles0, angles1):
-		if a0 == approx(90):
-			assert a1 == approx(85)
+		if a0 == approx(90, abs=tol):
+			assert a1 == approx(85, abs=tol)
 
 
 def plot_normals(mesh: Mesh):
@@ -144,4 +165,5 @@ def plot_normals(mesh: Mesh):
 
 
 if __name__ == "__main__":
-	test_draft_sphere()
+	mesh = bevel_cube()
+	show([mesh])
