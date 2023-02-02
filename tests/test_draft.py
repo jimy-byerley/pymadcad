@@ -8,7 +8,7 @@ from pytest import fixture, mark
 from madcad.prelude import *
 import madcad as cad
 
-from madcad.draft import draft_by_slice, draft_extrusion, draft_by_axis
+from madcad.draft import draft_by_slice, draft_extrusion, draft_by_axis, extrude_any
 
 
 PLOT_DEFUALT = "--trace" in sys.argv or __name__ == "__main__" or "-v" in sys.argv
@@ -63,10 +63,12 @@ def meshes(bases) -> List[Mesh]:
 def mesh(meshes, request) -> Mesh:
 	yield meshes[request.param]
 
+
 @mark.skip
 def test_mesh(mesh):
 	"For checking that input to test functions is sound"
 	plot_normals(mesh)
+
 
 def check_draft(drafted, angle, normal, plot):
 	result_angles = draft_angles(drafted, normal, degrees=True)
@@ -126,13 +128,21 @@ def angle_vectors(v1: vec3, v2: vec3, degrees=False) -> float:
 	return np.rad2deg(angle)
 
 
+def test_extrude(base, plot=True):
+	# points = tlist(
+	# 	[
+	# 		[0, 0, 0],
+	# 		[1, 0, 0],
+	# 		[1, 1, 0],
+	# 		[0, 1, 0],
+	# 	],
+	# 	dtype=vec3,
+	# )
+	# base = Web(points, [(0, 1), (1, 2), (2, 0)])
+	ex = extrude_any(base, Z)
+	show([ex])
+	plot_normals(ex)
+
 if __name__ == "__main__":
 
-	def make_extrusions() -> List[Tuple[Mesh, type]]:
-		bases = make_bases()
-		trans = Z * 2
-		return [cad.extrusion(trans, b).finish() for b in bases]
-
-	meshes = make_extrusions()
-	for ex in meshes:
-		test_draft_slice(ex)
+	test_extrude()

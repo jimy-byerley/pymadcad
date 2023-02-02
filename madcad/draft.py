@@ -1,3 +1,5 @@
+from typing import Any
+
 import numpy as np
 
 from madcad.prelude import *
@@ -132,7 +134,42 @@ def draft_by_axis(mesh: Mesh, axis: Axis, angle: float):
 	return mesh
 
 
-def draft_extrusion(trans: vec3, base: Mesh | Web | Wire, angle: float) -> Mesh:
+def extrude_web(base: Web, trans: vec3) -> Mesh:
+	# prepare
+	base.strippoints()
+	base_l = len(base.points)
+
+	# translate and copy points
+	points = base.points[:]
+	base.points.extend(p + trans for p in points)
+
+	faces = [uvec3(e[0], e[1], e[0] + base_l) for e in base.edges]
+	faces.extend(uvec3(e[1] + base_l, e[0] + base_l, e[1]) for e in base.edges)
+	mesh = Mesh(base.points, faces)
+	return mesh
+
+def extrude_any(base, trans: vec3) -> Mesh:
+	if isinstance(base, Mesh):
+		base: Mesh
+		base_web = base.outlines()
+		if not len(base_web.edges):
+			raise ValueError("base of type Mesh must have an outline, ie not be closed")
+	elif isinstance(base, Web):
+		base: Web
+		base_web = base
+	elif isinstance(base, Wire):
+		base: Wire
+		base_web = Web(base.points, base.edges())
+	else:
+		raise ValueError("base is not instace a of Mesh, Wire, Web or a subclass of those") 
+
+	outline_ex = extrude_web(base_web, trans)
+	return outline_ex
+
+
+def draft_extrusion(trans: vec3, base, angle: float) -> Mesh:
+
+	
 	ex = cad.extrusion(trans, base)
 	ex.finish()
 	draft_by_slice(ex, angle)
