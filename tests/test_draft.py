@@ -117,7 +117,7 @@ def test_extrude(base, plot=PLOT_DEFUALT):
 		plot_normals(ex)
 
 
-def test_draft_sphere(plot=False):
+def test_draft_sphere(plot=PLOT_DEFUALT):
 	def inspect(mesh, plot):
 		result_angles = draft_angles(mesh, Z, degrees=True)
 		if plot:
