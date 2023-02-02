@@ -6,6 +6,27 @@ from madcad.prelude import *
 import madcad as cad
 from madcad.mesh.container import edgekey
 
+def draft_angles(mesh: Mesh, draft_direction: vec3, **kwargs):
+	"""
+	returns:
+	a list of draft angles for each face when compared to the draft direction
+	"""
+	return [
+		angle_vectors(draft_direction, face_n, **kwargs)
+		for face_n in mesh.facenormals()
+	]
+
+
+def angle_vectors(v1: vec3, v2: vec3, degrees=False) -> float:
+	"""
+	returns angle between two vectors
+	"""
+	n1 = normalize(v1)
+	n2 = normalize(v2)
+	angle = np.arccos(dot(n1, n2))
+	if not degrees:
+		return angle
+	return np.rad2deg(angle)
 
 def offset_vector(n1: vec3, n2: vec3):
 	"""

@@ -8,7 +8,7 @@ from pytest import fixture, mark
 from madcad.prelude import *
 import madcad as cad
 
-from madcad.draft import draft_by_slice, draft_side, draft_by_axis, _extrude
+from madcad.draft import draft_angles, draft_by_slice, draft_side, draft_by_axis, _extrude
 
 
 PLOT_DEFUALT = "--trace" in sys.argv or __name__ == "__main__" or "-v" in sys.argv
@@ -87,7 +87,7 @@ def check_draft(drafted, angle, normal, plot):
 
 def test_draft_extrusion(base: Mesh | Web | Wire, plot=PLOT_DEFUALT):
 	angle = 5
-	drafted = draft_side(base, Z * 2 , angle)
+	drafted = draft_side(base, Z * 2, angle)
 	check_draft(drafted, angle, Z, plot)
 
 
@@ -104,8 +104,11 @@ def test_draft_axis(mesh: Mesh, plot=PLOT_DEFUALT):
 	check_draft(drafted, angle, Z, plot)
 
 
-def draft_angles(mesh: Mesh, n: vec3, **kwargs):
-	return [angle_vectors(n, face_n, **kwargs) for face_n in mesh.facenormals()]
+def test_extrude(base, plot=PLOT_DEFUALT):
+	ex, edges = _extrude(base, Z)
+	if plot:
+		show([ex])
+		plot_normals(ex)
 
 
 def plot_normals(mesh: Mesh):
@@ -118,21 +121,6 @@ def plot_normals(mesh: Mesh):
 
 	show([mesh] + arrows)
 
-
-def angle_vectors(v1: vec3, v2: vec3, degrees=False) -> float:
-	n1 = normalize(v1)
-	n2 = normalize(v2)
-	angle = np.arccos(dot(n1, n2))
-	if not degrees:
-		return angle
-	return np.rad2deg(angle)
-
-
-def test_extrude(base, plot=PLOT_DEFUALT):
-	ex, edges = _extrude(base, Z)
-	if plot:
-		show([ex])
-		plot_normals(ex)
 
 if __name__ == "__main__":
 	base = make_bases()[1]
