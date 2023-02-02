@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Tuple
 
 import numpy as np
 
@@ -134,43 +134,54 @@ def draft_by_axis(mesh: Mesh, axis: Axis, angle: float):
 	return mesh
 
 
-def extrude_web(base: Web, trans: vec3) -> Mesh:
-	# prepare
-	base.strippoints()
-	base_l = len(base.points)
-
-	# translate and copy points
-	points = base.points[:]
-	base.points.extend(p + trans for p in points)
-
-	faces = [uvec3(e[0], e[1], e[0] + base_l) for e in base.edges]
-	faces.extend(uvec3(e[1] + base_l, e[0] + base_l, e[1]) for e in base.edges)
-	mesh = Mesh(base.points, faces)
-	return mesh
-
-def extrude_any(base, trans: vec3) -> Mesh:
-	if isinstance(base, Mesh):
+def _extrude(base, trans: vec3) -> Tuple[Mesh, list]:
+	from_mesh = isinstance(base, Mesh)
+	if from_mesh:
 		base: Mesh
-		base_web = base.outlines()
-		if not len(base_web.edges):
+		base_outline = base.outlines()
+		if not len(base_outline.edges):
 			raise ValueError("base of type Mesh must have an outline, ie not be closed")
 	elif isinstance(base, Web):
 		base: Web
-		base_web = base
+		base_outline = base
 	elif isinstance(base, Wire):
 		base: Wire
-		base_web = Web(base.points, base.edges())
+		base_outline = Web(base.points, base.edges())
 	else:
-		raise ValueError("base is not instace a of Mesh, Wire, Web or a subclass of those") 
+		raise ValueError(
+			"base is not instance a of Mesh, Wire, Web or a subclass of those"
+		)
 
-	outline_ex = extrude_web(base_web, trans)
-	return outline_ex
+	# prepare
+	base.strippoints()
+	n_base_points = len(base.points)
+
+	# translate and copy points
+	points = base.points[:]
+	points.extend(p + trans for p in base.points)
+
+	# create translated edges
+	edges = base_outline.edges
+	t_edges = [e + n_base_points for e in edges]
+
+	# create faces bridging the translation
+	faces = []
+	for e, et in zip(edges, t_edges):
+		faces.append(uvec3(e[0], e[1], et[0]))
+		faces.append(uvec3(et[1], et[0], e[1]))
+
+	if not from_mesh:
+		return Mesh(points, faces), t_edges
+
+	base: Mesh
+	n_base_faces = len(base.faces)
+	faces.extend(base.faces)
+	faces.extend(face + n_base_points for face in base.flip().faces)
+
+	return Mesh(points, faces), t_edges
 
 
-def draft_extrusion(trans: vec3, base, angle: float) -> Mesh:
-
-	
-	ex = cad.extrusion(trans, base)
-	ex.finish()
-	draft_by_slice(ex, angle)
+def draft_extrusion(base, trans: vec3, angle: float) -> Mesh:
+	ex, edges = _extrude(base, trans)
+	draft_edges(edges, ex.points, trans, angle)
 	return ex

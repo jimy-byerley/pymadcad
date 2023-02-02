@@ -8,7 +8,7 @@ from pytest import fixture, mark
 from madcad.prelude import *
 import madcad as cad
 
-from madcad.draft import draft_by_slice, draft_extrusion, draft_by_axis, extrude_any
+from madcad.draft import draft_by_slice, draft_extrusion, draft_by_axis, _extrude
 
 
 PLOT_DEFUALT = "--trace" in sys.argv or __name__ == "__main__" or "-v" in sys.argv
@@ -87,7 +87,7 @@ def check_draft(drafted, angle, normal, plot):
 
 def test_draft_extrusion(base: Mesh | Web | Wire, plot=PLOT_DEFUALT):
 	angle = 5
-	drafted = draft_extrusion(Z * 2, base, angle)
+	drafted = draft_extrusion(base, Z * 2 , angle)
 	check_draft(drafted, angle, Z, plot)
 
 
@@ -128,21 +128,13 @@ def angle_vectors(v1: vec3, v2: vec3, degrees=False) -> float:
 	return np.rad2deg(angle)
 
 
-def test_extrude(base, plot=True):
-	# points = tlist(
-	# 	[
-	# 		[0, 0, 0],
-	# 		[1, 0, 0],
-	# 		[1, 1, 0],
-	# 		[0, 1, 0],
-	# 	],
-	# 	dtype=vec3,
-	# )
-	# base = Web(points, [(0, 1), (1, 2), (2, 0)])
-	ex = extrude_any(base, Z)
-	show([ex])
-	plot_normals(ex)
+def test_extrude(base, plot=PLOT_DEFUALT):
+	ex, edges = _extrude(base, Z)
+	if plot:
+		show([ex])
+		plot_normals(ex)
 
 if __name__ == "__main__":
-
-	test_extrude()
+	base = make_bases()[1]
+	test_draft_extrusion(base)
+	test_extrude(base)
