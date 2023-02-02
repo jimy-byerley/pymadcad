@@ -3,12 +3,18 @@ from typing import Tuple, List
 
 
 import numpy as np
-from pytest import fixture, mark
+from pytest import fixture, mark, approx
 
 from madcad.prelude import *
 import madcad as cad
 
-from madcad.draft import draft_angles, draft_by_slice, draft_side, draft_by_axis, _extrude
+from madcad.draft import (
+	draft_angles,
+	draft_by_slice,
+	draft_side,
+	draft_by_axis,
+	_extrude,
+)
 
 
 PLOT_DEFUALT = "--trace" in sys.argv or __name__ == "__main__" or "-v" in sys.argv
@@ -111,6 +117,28 @@ def test_extrude(base, plot=PLOT_DEFUALT):
 		plot_normals(ex)
 
 
+def test_draft_sphere(plot=False):
+	def inspect(mesh, plot):
+		result_angles = draft_angles(mesh, Z, degrees=True)
+		if plot:
+			cad.show([mesh])
+			for a in result_angles:
+				print(a)
+			orb.finish()
+		return result_angles
+
+	orb = cad.icosphere(vec3(0), 1, ("div", 1))
+	angles0 = inspect(orb, plot)
+
+	angle = 5
+	drafted = draft_by_axis(orb, Axis(vec3(0), Z), angle)
+	angles1 = inspect(drafted, plot)
+
+	for a0, a1 in zip(angles0, angles1):
+		if a0 == approx(90):
+			assert a1 == approx(85)
+
+
 def plot_normals(mesh: Mesh):
 	arrows = []
 	for face in mesh.faces:
@@ -123,6 +151,4 @@ def plot_normals(mesh: Mesh):
 
 
 if __name__ == "__main__":
-	base = make_bases()[1]
-	test_draft_extrusion(base)
-	test_extrude(base)
+	test_draft_sphere()

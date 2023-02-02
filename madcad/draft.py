@@ -6,6 +6,7 @@ from madcad.prelude import *
 import madcad as cad
 from madcad.mesh.container import edgekey
 
+
 def draft_angles(mesh: Mesh, draft_direction: vec3, **kwargs):
 	"""
 	returns:
@@ -27,6 +28,7 @@ def angle_vectors(v1: vec3, v2: vec3, degrees=False) -> float:
 	if not degrees:
 		return angle
 	return np.rad2deg(angle)
+
 
 def offset_vector(n1: vec3, n2: vec3):
 	"""
