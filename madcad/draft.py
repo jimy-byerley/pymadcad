@@ -47,7 +47,7 @@ def edges_with_points(edges, pids, only=True):
 		edges: list[vec2]
 		pids: list[int], white list of point indices
 		only: bool, toggles if edges must have *only* white listed points
-	
+
 	returns:
 		a subset of edges that have specifed points
 	"""
@@ -94,24 +94,6 @@ def draft_edges(edges, points, trans, angle):
 
 		scale = np.tan(np.deg2rad(angle)) * exl
 		points[i] += vector * scale
-
-
-def draft_by_groups(extruded: Mesh, angle: float, free=2, fixed=1):
-	"""
-	Mutates an extruded Mesh to give at a draft angle.
-
-	# Args:
-	- extruded(Mesh): the mesh to give draft angle,
-	- angle(float): degrees
-	- free(int): group of faces with outline to offset
-	"""
-	moved = extruded.group(free).outlines()
-	trans = moved.barycenter() - extruded.group(fixed).outlines().barycenter()
-	draft_edges(moved.edges, moved.points, trans, angle)
-	return extruded
-
-
-
 
 
 def draft(mesh: Mesh, axis: Axis, angle: float):

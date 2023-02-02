@@ -10,7 +10,6 @@ import madcad as cad
 
 from madcad.draft import (
 	draft_angles,
-	draft_by_slice,
 	draft_side,
 	draft,
 	_extrude,
@@ -94,12 +93,6 @@ def check_draft(drafted, angle, normal, plot):
 def test_draft_extrusion(base: Mesh | Web | Wire, plot=PLOT_DEFUALT):
 	angle = 5
 	drafted = draft_side(base, Z * 2, angle)
-	check_draft(drafted, angle, Z, plot)
-
-
-def test_draft_slice(ex: Mesh, plot=PLOT_DEFUALT):
-	angle = 5
-	drafted = draft_by_slice(ex, angle)
 	check_draft(drafted, angle, Z, plot)
 
 
