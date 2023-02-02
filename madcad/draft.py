@@ -64,39 +64,10 @@ def edges_with_points(edges, pids, only=True):
 	return edges
 
 
-def draft_edges(edges, points, trans, angle):
+def draft(mesh: Mesh, axis: Axis, angle: float) -> Mesh:
 	"""
-	adds draft angles by moving the points in the edges
+	draft a mesh by using axis as the defination of the neutral plane
 	"""
-	edge_arr = np.array([edge.to_tuple() for edge in edges])
-	moved_inds = np.unique(edge_arr)
-	moved = Web(points, edges)
-
-	trans_normal = normalize(trans)
-	vertex_normals = {i: [] for i in moved_inds}
-	for e in edges:
-		edir = moved.edgedirection(e)
-		normal = normalize(cross(edir, trans_normal))
-		vertex_normals[e[0]].append(normal)
-		vertex_normals[e[1]].append(normal)
-
-	exl = np.linalg.norm(trans)
-	for i, normals in vertex_normals.items():
-		v_arr = np.array(normals)
-		# p' = p - (n ⋅ (p - o)) × n
-		projected = v_arr - (v_arr).dot(trans_normal)[:, np.newaxis] * trans_normal
-		if len(normals) > 1:
-			l = np.linalg.norm(projected, axis=1)
-			sorti = np.argsort(-l)
-			vector = offset_vector(*projected[sorti[:2]])
-		else:
-			vector = projected[0]
-
-		scale = np.tan(np.deg2rad(angle)) * exl
-		points[i] += vector * scale
-
-
-def draft(mesh: Mesh, axis: Axis, angle: float):
 	dists = [p - axis[0] for p in mesh.points]
 
 	edge_vectors = {e: [] for e in mesh.edges()}
@@ -132,6 +103,38 @@ def draft(mesh: Mesh, axis: Axis, angle: float):
 		mesh.points[i] += v * offset_scale
 
 	return mesh
+
+
+def draft_edges(edges: tlist[uvec2], points: tlist[vec3], trans: vec3, angle: float):
+	"""
+	adds draft angles by moving the points in the edges
+	"""
+	edge_arr = np.array([edge.to_tuple() for edge in edges])
+	moved_inds = np.unique(edge_arr)
+	moved = Web(points, edges)
+
+	trans_normal = normalize(trans)
+	vertex_normals = {i: [] for i in moved_inds}
+	for e in edges:
+		edir = moved.edgedirection(e)
+		normal = normalize(cross(edir, trans_normal))
+		vertex_normals[e[0]].append(normal)
+		vertex_normals[e[1]].append(normal)
+
+	exl = np.linalg.norm(trans)
+	for i, normals in vertex_normals.items():
+		v_arr = np.array(normals)
+		# p' = p - (n ⋅ (p - o)) × n
+		projected = v_arr - (v_arr).dot(trans_normal)[:, np.newaxis] * trans_normal
+		if len(normals) > 1:
+			l = np.linalg.norm(projected, axis=1)
+			sorti = np.argsort(-l)
+			vector = offset_vector(*projected[sorti[:2]])
+		else:
+			vector = projected[0]
+
+		scale = np.tan(np.deg2rad(angle)) * exl
+		points[i] += vector * scale
 
 
 def _extrude(base, trans: vec3) -> Tuple[Mesh, list]:
