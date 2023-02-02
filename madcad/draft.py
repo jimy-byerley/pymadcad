@@ -105,7 +105,7 @@ def draft(mesh: Mesh, axis: Axis, angle: float) -> Mesh:
 	return mesh
 
 
-def draft_edges(edges: tlist[uvec2], points: tlist[vec3], trans: vec3, angle: float):
+def draft_edges(edges: tlist, points: tlist, trans: vec3, angle: float):
 	"""
 	adds draft angles by moving the points in the edges
 	"""
