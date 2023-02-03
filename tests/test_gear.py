@@ -2,6 +2,9 @@ from madcad.gear import *
 from madcad.mesh import edgekey, facekeyo
 from madcad.kinematic import Solid
 
+import madcad
+madcad.settings.primitives['curve_resolution'] = ('rad', 0.1)
+
 # Colors
 class bcolors:
 	HEADER = '\033[95m'
@@ -86,14 +89,19 @@ test_gear("gearprofile values test", 1.2, 6, 2)
 test_gear("gearprofile values test", 2, 10, 2)
 
 test_gear("gearexterior values test", 10, 20, 15, chamfer = pi/4)
-test_gear("gearexterior values test", 10, 20, 15, helix_angle = radians(20))
+#test_gear("gearexterior values test", 10, 20, 15, helix_angle = radians(20))
 test_gear("gearexterior values test", 15, 25, 15, chamfer = pi/5)
 test_gear("gearexterior values test", 15, 25, 15, helix_angle = radians(22))
+test_gear('gearexterior values test', 8, 36, 30, helix_angle = radians(20), chamfer=radians(20))
+test_gear('gearexterior values test', 8, 36, 30, helix_angle = radians(-20), chamfer=radians(20))
 test_gear("gearexterior values test", 1.2, 6, 2, chamfer = pi/6)
 test_gear("gearexterior values test", 1.2, 6, 2, helix_angle = radians(20))
+#test_gear('gearexterior values test', 1, 10, 11)
 test_gear("gearexterior values test", 2, 10, 2, chamfer = pi/8)
 test_gear("gearexterior values test", 2, 10, 2, helix_angle = radians(30))
+test_gear('gearexterior values test', 1, 10, 1, helix_angle = radians(30), chamfer=radians(20))
 
+'''
 # full pattern tests
 test_full("test full pattern", 10, 5, 5, int_height = 2)
 test_full("test full pattern", 20, 5, 15, int_height = 5)
@@ -138,12 +146,12 @@ test_rounded("test rounded pattern", 15, 5, 15, int_height = 5, patterns = 6)
 test_rounded("test rounded pattern", 15, 5, 15, int_height = 5, patterns = 4) # ...
 test_rounded("test rounded pattern", 15, 5, 15, int_height = 5, patterns = 3) # ...
 test_rounded("test rounded pattern", 15, 5, 15, int_height = 5, patterns = 2)
+'''
 
-
-x = 0
+z = 0
 for i, part in enumerate(results):
 	box = boundingbox(part)
 	results[i] = solid = Solid(content=part)
-	solid.position = vec3(x-box.min.x,0,0)
-	x +=  box.width.x
+	solid.position = vec3(0,0,z-box.min.z)
+	z +=  box.width.z*2
 show(results)
