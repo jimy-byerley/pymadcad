@@ -635,7 +635,7 @@ class Mesh(NMesh):
 	def display(self, scene):
 		from .. import displays
 		
-		m = copy(self)
+		m = self.own(points=True)
 		
 		m.split(m.frontiers().edges)
 		edges = m.outlines().edges
