@@ -69,6 +69,15 @@ def meshes(bases) -> List[Mesh]:
 def mesh(meshes, request) -> Mesh:
 	yield meshes[request.param]
 
+@fixture
+def dirty(mesh: Mesh) -> Mesh:
+	"""
+	Test case of mesh with points that are not used by any face
+	"""
+	mesh.points.extend((X, Y, Z))
+	yield mesh
+
+
 def bevel_cube():
 	cube = cad.brick(width=3)
 	edges = cube.groupoutlines().edges
@@ -87,6 +96,7 @@ def make_curvy() -> List[Mesh]:
 def curvy(request):
 	curvs = make_curvy()
 	yield curvs[request.param]
+
 
 @mark.skip
 def test_mesh(mesh):
@@ -129,28 +139,33 @@ def test_extrude(base, plot=PLOT_DEFUALT):
 		plot_normals(ex)
 
 
-
-
-def test_draft_curvy(plot=PLOT_DEFUALT):
+def test_draft_curvy(curvy: Mesh, plot=PLOT_DEFUALT):
 	def inspect(mesh, plot):
 		result_angles = draft_angles(mesh, Z, degrees=True)
 		if plot:
 			cad.show([mesh])
-			orb.finish()
+			mesh.finish()
 		return result_angles
 
 	# orb = cad.icosphere(vec3(0), 1, ("div", 2))
-	orb = bevel_cube()
-	angles0 = inspect(orb, plot)
 
 	angle = 5
-	drafted = draft(orb, Axis(vec3(0), Z), angle)
+	angles0 = inspect(curvy, plot)
+	drafted = draft(curvy, Axis(vec3(0), Z), angle)
 	angles1 = inspect(drafted, plot)
 
 	tol = 0.02
 	for a0, a1 in zip(angles0, angles1):
 		if a0 == approx(90, abs=tol):
 			assert a1 == approx(85, abs=tol)
+
+
+def test_draft_dirty(dirty: Mesh, plot=PLOT_DEFUALT):
+	mesh = dirty
+	axis = Axis(vec3(0, 0, 1), Z)
+	angle = 5
+	drafted = draft(mesh, axis, angle)
+	check_draft(drafted, angle, Z, plot)
 
 
 def plot_normals(mesh: Mesh):
