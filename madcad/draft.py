@@ -88,6 +88,10 @@ def draft(mesh: Mesh, axis: Axis, angle: float) -> Mesh:
 		vertex_vectors[e[1]].append(v)
 
 	for i, vecs in vertex_vectors.items():
+		if vecs == []:
+			# the point is not used by any face, do nothing with it
+			continue
+
 		v_arr = np.array(vecs)
 		# p' = p - (n ⋅ (p - o)) × n
 		projected = v_arr - (v_arr).dot(axis.direction)[:, np.newaxis] * axis.direction
