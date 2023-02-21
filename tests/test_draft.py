@@ -5,7 +5,26 @@ from typing import Tuple, List
 import numpy as np
 from pytest import fixture, mark, approx
 
-from madcad.prelude import *
+from madcad import (
+	# Utils
+	cross,
+	dot,
+	normalize,
+	show,
+	# Globals
+	X,
+	Y,
+	Z,
+	# Containers
+	Axis,
+	Mesh,
+	Web,
+	Wire,
+	typedlist as tlist,
+	vec3,
+	uvec2,
+	uvec3,
+)
 import madcad as cad
 
 from madcad.draft import (
