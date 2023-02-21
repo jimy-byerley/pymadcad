@@ -69,6 +69,7 @@ def meshes(bases) -> List[Mesh]:
 def mesh(meshes, request) -> Mesh:
 	yield meshes[request.param]
 
+
 @fixture
 def dirty(mesh: Mesh) -> Mesh:
 	"""
@@ -119,7 +120,7 @@ def check_draft(drafted, angle, normal, plot):
 	assert angle_set <= expected_angles
 
 
-def test_draft_extrusion(base:, plot=PLOT_DEFUALT):
+def test_draft_extrusion(base, plot=PLOT_DEFUALT):
 	angle = 5
 	drafted = draft_side(base, Z * 2, angle)
 	check_draft(drafted, angle, Z, plot)
