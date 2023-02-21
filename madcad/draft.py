@@ -4,11 +4,16 @@ from copy import copy
 
 # third party
 import numpy as np
+from arrex import typedlist as tlist
+from glm import cross, dot, normalize
 
 # local
-from madcad.prelude import *
-import madcad as cad
 from madcad.mesh.container import edgekey
+from madcad.mesh.web import Web
+from madcad.mesh.wire import Wire
+from madcad.mesh import Mesh
+from madcad.mathutils import vec3, uvec3, uvec2, normalize
+from madcad.primitives import Axis
 
 
 def draft_angles(mesh: Mesh, draft_direction: vec3, **kwargs):
