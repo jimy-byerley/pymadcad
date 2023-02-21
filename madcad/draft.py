@@ -1,7 +1,11 @@
+# std
 from typing import Tuple
+from copy import copy
 
+# third party
 import numpy as np
 
+# local
 from madcad.prelude import *
 import madcad as cad
 from madcad.mesh.container import edgekey
@@ -64,10 +68,16 @@ def edges_with_points(edges, pids, only=True):
 	return edges
 
 
-def draft(mesh: Mesh, axis: Axis, angle: float) -> Mesh:
+def draft(mesh: Mesh, axis: Axis, angle: float, inplace=False) -> Mesh:
 	"""
-	draft a mesh by using axis as the defination of the neutral plane
+	Offsets faces in mesh to set draft angle of orthogonal faces.
+	Parallel faces are not effected. The adjustment of intermediate faces are interpolated.
+
+	This funcion perserves topology and suitable for adding drafts on mesh with bevels or chamfers.
 	"""
+	if not inplace:
+		mesh = Mesh(copy(mesh.points), mesh.faces, mesh.faces, mesh.groups)
+
 	dists = [p - axis[0] for p in mesh.points]
 
 	edge_vectors = {e: [] for e in mesh.edges()}
