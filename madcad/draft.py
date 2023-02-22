@@ -1,5 +1,5 @@
 # std
-from typing import Tuple
+from typing import Tuple, Optional
 from copy import copy
 
 # third party
@@ -73,17 +73,35 @@ def edges_with_points(edges, pids, only=True):
 	return edges
 
 
-def draft(mesh: Mesh, axis: Axis, angle: float, inplace=False) -> Mesh:
+def draft_offset(
+	mesh: Mesh,
+	angle: float,
+	neutral=Axis(vec3(0), Z),
+	inplace=False,
+) -> Optional[Mesh]:
 	"""
 	Offsets faces in mesh to set draft angle of orthogonal faces.
 	Parallel faces are not effected. The adjustment of intermediate faces are interpolated.
 
-	This funcion perserves topology and suitable for adding drafts on mesh with bevels or chamfers.
+	This funcion perserves topology and is suitable for adding drafts on mesh with bevels.
+
+	args:
+		mesh: Mesh to draft
+		angle: Degrees
+		neutral: Axis that defines the neutral plane
+		inplace:
+			if true:
+				the argument "mesh" will be mutated which is useful for partial drafts
+			else:
+				return a new mesh
+
+	examples:
+
 	"""
 	if not inplace:
 		mesh = Mesh(copy(mesh.points), mesh.faces, mesh.faces, mesh.groups)
 
-	dists = [p - axis[0] for p in mesh.points]
+	dists = [p - neutral[0] for p in mesh.points]
 
 	edge_vectors = {e: [] for e in mesh.edges()}
 	for face in mesh.faces:
@@ -109,7 +127,9 @@ def draft(mesh: Mesh, axis: Axis, angle: float, inplace=False) -> Mesh:
 
 		v_arr = np.array(vecs)
 		# p' = p - (n ⋅ (p - o)) × n
-		projected = v_arr - (v_arr).dot(axis.direction)[:, np.newaxis] * axis.direction
+		projected = (
+			v_arr - (v_arr).dot(neutral.direction)[:, np.newaxis] * neutral.direction
+		)
 		if len(projected) > 1:
 			l = np.linalg.norm(projected, axis=1)
 			imax = np.argmax(l)
@@ -117,11 +137,12 @@ def draft(mesh: Mesh, axis: Axis, angle: float, inplace=False) -> Mesh:
 		else:
 			v = projected[0]
 
-		pdist = dot(axis.direction, mesh.points[i] - axis.origin)
+		pdist = dot(neutral.direction, mesh.points[i] - neutral.origin)
 		offset_scale = -np.tan(np.deg2rad(angle)) * pdist
 		mesh.points[i] += v * offset_scale
 
-	return mesh
+	if not inplace:
+		return mesh
 
 
 def draft_edges(edges: tlist, points: tlist, trans: vec3, angle: float):
