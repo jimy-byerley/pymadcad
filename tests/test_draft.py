@@ -1,12 +1,13 @@
 import sys
 from typing import Tuple, List
+from functools import partial
 
 
 import numpy as np
 from pytest import fixture, mark, approx
 
 from madcad import (
-	# Utils
+	# math
 	cross,
 	dot,
 	normalize,
@@ -25,17 +26,25 @@ from madcad import (
 	uvec2,
 	uvec3,
 )
+from madcad.rendering import Orthographic
+import madcad as cad
+
+# deny perspective becouse it makes harder to get a sense of draft angles
+show = partial(cad.show, projection=Orthographic())
+
+
 import madcad as cad
 
 from madcad.draft import (
 	draft_angles,
 	draft_side,
-	draft,
+	draft_offset,
 	_extrude,
 )
 
 
 PLOT_DEFUALT = "--trace" in sys.argv or __name__ == "__main__" or "-v" in sys.argv
+Z_AX = Axis(vec3(0, 0, 0), Z)
 
 
 def make_bases() -> List:
@@ -131,7 +140,7 @@ def check_draft(drafted, angle, normal, plot):
 		print(a)
 
 	if plot:
-		show([drafted], projection=cad.rendering.Orthographic())
+		show([drafted])
 		# plot_normals(drafted)
 
 	angle_set = set(result_angles)
@@ -145,10 +154,9 @@ def test_draft_extrusion(base, plot=PLOT_DEFUALT):
 	check_draft(drafted, angle, Z, plot)
 
 
-def test_draft_axis(mesh: Mesh, plot=PLOT_DEFUALT):
-	axis = Axis(vec3(0, 0, 1), Z)
+def test_draft_offset(mesh: Mesh, plot=PLOT_DEFUALT):
 	angle = 5
-	drafted = draft(mesh, axis, angle)
+	drafted = draft_offset(mesh, angle)
 	check_draft(drafted, angle, Z, plot)
 
 
@@ -157,6 +165,25 @@ def test_extrude(base, plot=PLOT_DEFUALT):
 	if plot:
 		show([ex])
 		plot_normals(ex)
+
+
+def test_partial_drafts(plot=PLOT_DEFUALT):
+	cube = cad.brick(width=vec3(1, 2, 1))
+	angle = 10
+	draft_offset(cube.group({0, 1}), angle, inplace=True)
+	res_angles = draft_angles(cube, Z, degrees=True)
+	keys = {v for v in set(res_angles)}
+	histo = {key: sum(val == key for val in res_angles) for key in keys}
+	expected = {
+		0.0: 2,
+		90.0 - angle: 4,
+		90.0: 4,
+		180.0: 2,
+	}
+	if plot:
+		print(histo)
+		show([cube])
+	assert histo == expected
 
 
 def test_draft_curvy(curvy: Mesh, plot=PLOT_DEFUALT):
@@ -171,7 +198,7 @@ def test_draft_curvy(curvy: Mesh, plot=PLOT_DEFUALT):
 
 	angle = 5
 	angles0 = inspect(curvy, plot)
-	drafted = draft(curvy, Axis(vec3(0), Z), angle)
+	drafted = draft_offset(curvy, angle)
 	angles1 = inspect(drafted, plot)
 
 	tol = 0.02
@@ -184,7 +211,7 @@ def test_draft_dirty(dirty: Mesh, plot=PLOT_DEFUALT):
 	mesh = dirty
 	axis = Axis(vec3(0, 0, 1), Z)
 	angle = 5
-	drafted = draft(mesh, axis, angle)
+	drafted = draft_offset(mesh, angle)
 	check_draft(drafted, angle, Z, plot)
 
 
