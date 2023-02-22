@@ -76,7 +76,7 @@ def edges_with_points(edges, pids, only=True):
 def draft_offset(
 	mesh: Mesh,
 	angle: float,
-	neutral=Axis(vec3(0), Z),
+	neutral=Axis(vec3(0), vec3(0, 0, 1)),
 	inplace=False,
 ) -> Optional[Mesh]:
 	"""
