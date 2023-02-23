@@ -1,6 +1,8 @@
 # std
 from typing import Tuple, Optional
 from copy import copy
+from functools import reduce
+from operator import add
 
 # third party
 import numpy as np
@@ -12,8 +14,10 @@ from madcad.mesh.container import edgekey
 from madcad.mesh.web import Web
 from madcad.mesh.wire import Wire
 from madcad.mesh import Mesh
-from madcad.mathutils import vec3, uvec3, uvec2, normalize
+from madcad.generation import square
+from madcad.mathutils import vec3, uvec3, uvec2, normalize, distance
 from madcad.primitives import Axis
+from madcad.boolean import cut_mesh
 
 
 def draft_angles(mesh: Mesh, draft_direction: vec3, **kwargs):
@@ -175,6 +179,119 @@ def draft_edges(edges: tlist, points: tlist, trans: vec3, angle: float):
 
 		scale = np.tan(np.deg2rad(angle)) * exl
 		points[i] += vector * scale
+
+
+def harmonize_edges(edges):
+	"""
+	assumes edges form valid polygons and hormonizes the windings in them.
+	"""
+	c0 = []
+	c1 = []
+	for e in edges:
+		if (e[0] in c0) or (e[1] in c1) :
+			c0.append(e[1])
+			c1.append(e[0])
+		else:
+			c0.append(e[0])
+			c1.append(e[1])
+
+	edges = tlist([(i0, i1) for (i0, i1) in zip(c0, c1)], uvec2)
+
+	return edges
+
+def axis_intersection(mesh: Mesh, plane: Axis) -> Web:
+	"""
+	Get the outline of mesh intersected with an plane defined by Axis
+	"""
+	bary_v = mesh.barycenter()  - plane.origin
+	bary_project = bary_v - dot(bary_v, plane.direction) * plane.direction
+	bound_box = mesh.box()
+	width = distance(bound_box.max, bound_box.min) + 1
+	cut_plane = square(Axis(bary_project, plane.direction), width)
+
+	_, web = cut_mesh(cut_plane, mesh)
+	web.edges = harmonize_edges(web.edges)
+	return web
+
+def _curl_normal(outline: Web):
+	curl = vec3(0)
+	for e in outline.edges:
+		p0 = outline.points[e[0]]
+		p1 = outline.points[e[1]]
+		v = p1 - p0
+		curl += cross(p0, v)
+	return normalize(curl)
+
+
+def outline_normals(web: Web):
+	return [_curl_normal(out) for out in web.islands()]
+
+
+# TODO handle multi islands
+def draft_segment(profile: Web, angle, neutral: Axis):
+	"""
+	extrude outline with draft angle until first singularty
+	"""
+
+	normal = outline_normals(profile)[0]
+	if dot(normal, neutral[1]) < 0:
+		profile = profile.flip()
+
+	points = profile.points
+	edge_data = {
+		e: {
+			"len": distance(points[e[0]], points[e[1]]),
+			"dir": profile.edgedirection(e),
+			"shrink_rate": 0.0,
+		}
+		for e in profile.edges
+	}
+
+	pids = np.unique([edge.to_tuple() for edge in profile.edges])
+
+	vertex_normals = {i: [] for i in pids}
+	for e in profile.edges:
+		edir = edge_data[e]["dir"]
+		normal = normalize(cross(edir, neutral[1]))
+		vertex_normals[e[0]].append(normal)
+		vertex_normals[e[1]].append(normal)
+
+	min_rate = 0
+	rads = np.deg2rad(angle)
+	for e, data in edge_data.items():
+		v0 = offset_vector(*vertex_normals[e[0]])
+		v1 = offset_vector(*vertex_normals[e[1]])
+		edir = data["dir"]
+		growth_rate = -(dot(v1, edir) - dot(v0, edir)) / data["len"] * np.tan(rads)
+		min_rate = min(min_rate, growth_rate)
+
+	h = -1 / min_rate
+	trans = neutral.direction * h
+	ex, edges = _extrude(profile, trans)
+	draft_edges(edges, ex.points, trans, -angle)
+	merging = ex.mergeclose()
+	ex.mergepoints(ex.mergeclose())
+	web = Web(ex.points, edges)
+	web.mergepoints(merging)
+
+	return ex, web
+
+
+def draft_cone(mesh: Mesh, angle, neutral: Axis) -> Mesh:
+	contour = axis_intersection(mesh, neutral)
+	contour.strippoints()
+	contour.mergepoints(contour.mergeclose())
+
+	segments = []
+
+	while True:
+		seg, contour = draft_segment(contour, angle, neutral)
+		segments.append(seg)
+		if len(contour.edges) < 2:
+			break
+	merged = reduce(add, segments) # sum(List[Mesh]) does not work for some reason
+	merged.mergeclose()
+	return merged
 
 
 def _extrude(base, trans: vec3) -> Tuple[Mesh, list]:

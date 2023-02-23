@@ -40,6 +40,8 @@ from madcad.draft import (
 	draft_side,
 	draft_offset,
 	_extrude,
+	axis_intersection,
+	draft_cone,
 )
 
 
@@ -215,6 +217,47 @@ def test_draft_dirty(dirty: Mesh, plot=PLOT_DEFUALT):
 	check_draft(drafted, angle, Z, plot)
 
 
+def test_neutral_intersection(plot=PLOT_DEFUALT):
+	points = tlist(
+		[
+			[0, 0, 0],
+			[1, 0, 0],
+			[1, 2, 0],
+		],
+		dtype=vec3,
+	)
+	n_points = len(points)
+	inds = [i for i in range(n_points)] + [0]
+	base = Wire(points[:3], inds)
+	ex = cad.extrusion(2 * Z, base)
+	profile = axis_intersection(ex, Axis(vec3(0, 0, 1), Z))
+	if plot:
+		show([ex, profile])
+
+	assert base.length() == approx(profile.length())
+
+
+def test_draft_cone(plot=PLOT_DEFUALT):
+	points = tlist(
+		[
+			[0, 0, 0],
+			[1, 0, 0],
+			[1, 0.1, 0],
+			[0, 1, 0],
+		],
+		dtype=vec3,
+	)
+	base = Wire(points, [0, 1, 2, 3, 0])
+	ex = cad.extrusion(Z * 2, base, 0.5)
+	angle = 10
+	cone = draft_cone(ex, angle, Z_AX)
+	res_angles = draft_angles(cone, Z_AX.direction, degrees=True)
+	if plot:
+		show([cone])
+
+	assert np.allclose(res_angles, 90 - angle)
+
+
 def plot_normals(mesh: Mesh):
 	arrows = []
 	for face in mesh.faces:
@@ -227,5 +270,4 @@ def plot_normals(mesh: Mesh):
 
 
 if __name__ == "__main__":
-	mesh = bevel_cube()
-	show([mesh])
+	test_draft_polys()
