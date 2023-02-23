@@ -17,7 +17,7 @@ from madcad.mesh import Mesh
 from madcad.generation import square
 from madcad.mathutils import vec3, uvec3, uvec2, normalize, distance
 from madcad.primitives import Axis
-from madcad.boolean import cut_mesh
+from madcad.boolean import cut_mesh, difference, pierce, intersection
 
 
 def draft_angles(mesh: Mesh, draft_direction: vec3, **kwargs):
@@ -188,7 +188,7 @@ def harmonize_edges(edges):
 	c0 = []
 	c1 = []
 	for e in edges:
-		if (e[0] in c0) or (e[1] in c1) :
+		if (e[0] in c0) or (e[1] in c1):
 			c0.append(e[1])
 			c1.append(e[0])
 		else:
@@ -199,19 +199,32 @@ def harmonize_edges(edges):
 
 	return edges
 
+
+# TODO make boolean op for this that dont rely on other boolean op
 def axis_intersection(mesh: Mesh, plane: Axis) -> Web:
 	"""
 	Get the outline of mesh intersected with an plane defined by Axis
 	"""
-	bary_v = mesh.barycenter()  - plane.origin
+	bary_v = mesh.barycenter() - plane.origin
 	bary_project = bary_v - dot(bary_v, plane.direction) * plane.direction
 	bound_box = mesh.box()
-	width = distance(bound_box.max, bound_box.min) + 1
+	width = distance(bound_box.max, bound_box.min) + 0.5
 	cut_plane = square(Axis(bary_project, plane.direction), width)
 
-	_, web = cut_mesh(cut_plane, mesh)
-	web.edges = harmonize_edges(web.edges)
-	return web
+	res = pierce(cut_plane, mesh)
+	min_box = width + 1
+	web = res.outlines()
+	asignments = web.assignislands()
+	for a in asignments:
+		web.tracks[a[0]] = a[1]
+
+	inner = web.group(0)
+	inner.strippoints()
+	if inner.box().max == cut_plane.box().max:
+		inner = web.group(1)
+
+	return inner
+
 
 def _curl_normal(outline: Web):
 	curl = vec3(0)
@@ -257,6 +270,7 @@ def draft_segment(profile: Web, angle, neutral: Axis):
 		vertex_normals[e[1]].append(normal)
 
 	min_rate = 0
+	print(len(profile.edges))
 	rads = np.deg2rad(angle)
 	for e, data in edge_data.items():
 		v0 = offset_vector(*vertex_normals[e[0]])
@@ -287,11 +301,17 @@ def draft_cone(mesh: Mesh, angle, neutral: Axis) -> Mesh:
 	while True:
 		seg, contour = draft_segment(contour, angle, neutral)
 		segments.append(seg)
-		if len(contour.edges) < 2:
+		if len(contour.edges) < 3:
 			break
-	merged = reduce(add, segments) # sum(List[Mesh]) does not work for some reason
+	merged = reduce(add, segments)  # sum(List[Mesh]) does not work for some reason
 	merged.mergeclose()
 	return merged
+
+
+def draft_cut(mesh, angle: float, neutral: Axis) -> Mesh:
+	cut_cone = draft_cone(mesh, angle, neutral)
+	res = intersection(mesh, cut_cone)
+	return res
 
 
 def _extrude(base, trans: vec3) -> Tuple[Mesh, list]:

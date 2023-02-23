@@ -42,6 +42,7 @@ from madcad.draft import (
 	_extrude,
 	axis_intersection,
 	draft_cone,
+	draft_cut,
 )
 
 
@@ -229,8 +230,8 @@ def test_neutral_intersection(plot=PLOT_DEFUALT):
 	n_points = len(points)
 	inds = [i for i in range(n_points)] + [0]
 	base = Wire(points[:3], inds)
-	ex = cad.extrusion(2 * Z, base)
-	profile = axis_intersection(ex, Axis(vec3(0, 0, 1), Z))
+	ex = cad.extrusion(2 * Z, base, 0.5)
+	profile = axis_intersection(ex, Z_AX)
 	if plot:
 		show([ex, profile])
 
@@ -258,6 +259,16 @@ def test_draft_cone(plot=PLOT_DEFUALT):
 	assert np.allclose(res_angles, 90 - angle)
 
 
+def test_draft_cut(plot=True):
+	mesh = cad.icosphere(vec3(0), 1, resolution=("div", 2))
+	mesh.finish()
+	angle = 20
+	drafted = draft_cut(mesh, angle, Z_AX)
+
+	if plot:
+		show([drafted])
+
+
 def plot_normals(mesh: Mesh):
 	arrows = []
 	for face in mesh.faces:
@@ -270,4 +281,5 @@ def plot_normals(mesh: Mesh):
 
 
 if __name__ == "__main__":
-	test_draft_polys()
+	test_neutral_intersection()
+	test_draft_cut()
