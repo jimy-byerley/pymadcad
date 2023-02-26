@@ -654,6 +654,169 @@ def solve(chains, solids={}, fixed=set(), init=None, precision=1e-6, maxiter=Non
 			max_nfev=maxiter,
 			)
 
+def solve(chains, solids={}, fixed=set(), init=None, precision=1e-6, maxiter=None):
+	dtype = np.float64
+	
+	# collect the joint graph as a connectivity and the solids
+	solids = copy(solids)
+	conn = {}  # connectivity {node: [node]} with each node b
+	for chain in chains:
+		for candidate in chain.solids:
+			if isinstance(candidate, Solid):
+				solids[candidate] = candidate
+			elif candidate not in solids:
+				solids[candidate] = Solid()
+		conn[chain] = chain.solids
+		for solids in chain.solids:
+			if solids not in conn:	
+				conn[solids] = []
+			conn[solids].append(chain)
+			
+	# simplify the graph
+	arcs
+	Branch
+	# decompose into cycles
+	shortcycles
+	Reversed
+	# build cost and gradient functions
+	# solve
+
+def shortcycles(conn: '{node: [node]}', costs: '{node: float}') -> '[[node]]':
+	# orient the graph in a depth-first way, and search for fusion points
+	distances = {}
+	merges = []
+	tree = {}
+	for parent, child in depthfirst(conn):
+		if child in distances:
+			merges.append((parent, child))
+		else:
+			tree[child] = parent
+			distances[child] = distances.get(parent, 0) + costs.get(child, 0)
+	# sort merge points with
+	#  - the first distance being the merge point distance to the root node
+	#  - the second distance being the secondary branch bigest distance to the root node
+	merges = sorted(merges, key=lambda parent, child: (distances[child], -distances[parent]))
+	
+	c = len(merges)
+	while c > 0:
+		del merges[c:]
+		c -= 1
+		# collect candidates to next cycle
+		# merge node that have the same distance may be concurrent cycles, so they must be sorted out
+		while c > 0 and distances[merges[c][1]][0] == distances[merges[-1][1]][0]:
+			c -= 1
+		# recompute distance to root
+		# only the second distance can have changed since the depthfirst tree ensure that the first is already optimal
+		for i in range(c, len(merges)):
+			parent, child = merges[i]
+			node, cost = parent, 0
+			while node in tree:
+				cost += costs.get(node, 0)
+				node = tree[node]
+			distances[parent] = cost
+		# process all the candidates
+		# the second distances cannot swap during this process, so any change will keep the same order
+		for parent, child in sorted(merges[c:], key=lambda parent, child: (distances[child], -distances[parent])):
+			# unroll from parent and child each on their own until union
+			parenthood, childhood = [parent], [child]
+			while parent != child:
+				if distances[parent] >= distances[child]:
+					parent = tree[parent]
+					parenthoold.append(parent)
+				if distances[child] >= distances[parent]:
+					child = tree[child]
+					childhood.append(child)
+			# assemble cycle
+			cycles.append(childhood[::-1] + parenthood)
+			# report simplifications in the graph
+			for i in range(1, parenthood):
+				parent, child = parenthood[i-1], parenthood[i]
+				dist = distances[child] + costs.get(parent, 0)
+				if dist >= distances[parent]:		break
+				tree[parent] = child
+				distances[parent] = dist
+	return cycles
+			
+				
+	
+def depthfirst(conn: '{node: [node]}') -> '[(parent, child)]':
+	edges = []
+	reached = {}
+	for start in conn:
+		if start in reached:
+			continue
+		front = [start]
+		while front:
+			node = front.pop()
+			if node in reached:
+				continue
+			reached.add(node)
+			for child in conn[edges]:
+				edges.append((node, child))
+				if child not in reached:
+					front.append(child)
+	return edges
+	
+def arcs(conn: '{node: [node]}') -> '[[node]]':
+	suites = []
+	empty = ()
+	for start in conn:
+		if start in reached:
+			continue
+		suite = [start]
+		while len(conn.get(suite[-1], empty)) == 1:
+			suite.append(conn[suite[-1]])
+		suites.append(suite)
+	return suites
+
+
+class Reverse(Chain):
+	def __init__(self, direct):
+		self.direct = direct
+		
+	def direct(self, parameters):
+		return hinverse(self.direct(parameters))
+		
+	def inverse(self, matrix, close=None):
+		return self.direct.inverse(hinverse(matrix), close)
+		
+	def grad(self, parameters):
+		return [hinverse(df)   for df in self.direct.grad(parameters)]
+
+class Branch(Chain):
+	def __init__(self, chains):
+		self.chains = chains
+	
+	def direct(self, parameters):
+		b = mat4(nodes[start][0])
+		for x, chain in zip(parameters, self.chains):
+			x = next(it)
+			f = chain.direct(x)
+			b *= f
+		return b
+	
+	def inverse(self, matrix, close=None):
+		indev
+	
+	def grad(self, parameters):
+		# built the left side of the gradient product of the direct chain
+		directs = []
+		b = mat4(1)
+		for x, chain in zip(parameters, self.chains):
+			d = chain.direct(x)
+			for df in chain.grad(x):
+				grad.append(b*df)
+			b = b*d
+			directs.append((d, len(x)))
+		# build the right side of the product
+		b = mat4(1)
+		for d,n in reversed(directs):
+			for i in range(n):
+				grad[i] = grad[i]*b
+			b = d*b
+		return grad
+	
+	
 
 def makescheme(joints, color=None):
 	''' create kinematic schemes and add them as visual elements to the solids the joints applies on '''
