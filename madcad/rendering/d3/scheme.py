@@ -1,5 +1,4 @@
-"""Displays for annotations: labels, markups, cotations, ... """
-
+"""Displays for annotations: labels, markups, sizing, ... """
 
 class Scheme:
     ''' An object containing schematics. 
@@ -297,21 +296,17 @@ class Scheme:
             for space,disp in self.components:
                 yield from disp.stack(scene)
 
-
 class SchemeDisplay:
     pass
 
-
 def world(view):
     return view.uniforms['view'] * view.uniforms['world']
-
 
 def screen(view):
     return fmat4(view.target.width/2,0,0,0,
                 0,view.target.height/2,0,0,
                 0,0,1,0,
                 0,0,-1,1)
-
 
 def halo_world(position):
     position = fvec4(position,1)

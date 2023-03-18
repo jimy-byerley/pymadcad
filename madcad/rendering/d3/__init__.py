@@ -421,8 +421,6 @@ class Offscreen3D(SubView):
         super().render()
         return Image.frombytes('RGBA', tuple(self.size), self.fb_screen.read(components=4), 'raw', 'RGBA', 0, -1)
 
-
-
 try:
     from .qt import *
 except ImportError:
