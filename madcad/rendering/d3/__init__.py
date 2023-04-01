@@ -1,4 +1,15 @@
-from .base import *
+from ..base import *
+from PyQt5.QtWidgets import QApplication, QWidget, QOpenGLWidget
+from PyQt5.QtGui import QSurfaceFormat, QMouseEvent, QInputEvent, QKeyEvent, QTouchEvent, QFocusEvent
+from PyQt5.QtCore import Qt, QPoint, QEvent
+from ...mathutils import fvec3, uvec2
+from ... import settings
+from copy import deepcopy
+
+# minimum opengl version required by the rendering pipeline
+opengl_version = (3,3)
+# shared open gl context, None if not yet initialized
+global_context = None
 
 class Scene3D:
     ''' Rendering pipeline for madcad displayable objects 
@@ -230,7 +241,7 @@ class SubView3D(SubView, QOpenGLWidget):
         self.handler.setAttribute(Qt.WA_AcceptTouchEvents, True)
         self.setFocusProxy(self.handler)
 
-        ViewCommon.__init__(self, scene, projection=projection, navigation=navigation)
+        SubView3D.__init__(self, scene, projection=projection, navigation=navigation)
         self.tool = [Tool(self.navigation.tool, self)] # tool stack, the last tool is used for input events, until it is removed 
 
     def init(self):
@@ -250,36 +261,36 @@ class SubView3D(SubView, QOpenGLWidget):
     def render(self):
         # set the opengl current context from Qt (doing it only from moderngl interferes with Qt)
         self.makeCurrent()
-        ViewCommon.render(self)
+        SubView3D.render(self)
 
     
     # -- view stuff --
 
     def look(self, position: fvec3=None):
-        ViewCommon.look(self, position)
+        SubView3D.look(self, position)
         self.update()
 
     def adjust(self, box:Box=None):
-        ViewCommon.adjust(self, box)
+        SubView3D.adjust(self, box)
         self.update()
 
     def center(self, center: fvec3=None):
-        ViewCommon.center(self, center)
+        SubView3D.center(self, center)
         self.update()
     
     def somenear(self, point: QPoint, radius=None) -> QPoint:
-        some = ViewCommon.somenear(self, qt_2_glm(point), radius)
+        some = SubView3D.somenear(self, qt_2_glm(point), radius)
         if some:
             return glm_to_qt(some)
 
     def ptat(self, point: QPoint) -> fvec3:
-        return ViewCommon.ptat(self, qt_2_glm(point))
+        return SubView3D.ptat(self, qt_2_glm(point))
 
     def ptfrom(self, point: QPoint, center: fvec3) -> fvec3:
-        return ViewCommon.ptfrom(self, qt_2_glm(point), center)
+        return SubView3D.ptfrom(self, qt_2_glm(point), center)
 
     def itemat(self, point: QPoint) -> 'key':
-        return ViewCommon.itemat(self, qt_2_glm(point))
+        return SubView3D.itemat(self, qt_2_glm(point))
     
 
     # -- event system --
@@ -371,7 +382,7 @@ class SubView3D(SubView, QOpenGLWidget):
         return QOpenGLWidget.changeEvent(self, evt)
 
 
-class Offscreen3D(SubView):
+class Offscreen3D(Offscreen): # WARNING : old class = SubView
     ''' Object allowing to perform offscreen rendering, navigate and get information from screen as for a normal window 
     '''
     def __init__(self, scene, size=uvec2(400,400), projection=None, navigation=None):
@@ -421,16 +432,19 @@ class Offscreen3D(SubView):
         super().render()
         return Image.frombytes('RGBA', tuple(self.size), self.fb_screen.read(components=4), 'raw', 'RGBA', 0, -1)
 
+def displayable(obj):
+    ''' Return True if the given object has the matching signature to be added to a Scene '''
+    return type(obj) in overrides or hasattr(obj, 'display') and callable(obj.display) and not isinstance(obj, type)
+
 try:
     from .qt import *
 except ImportError:
-    pass
-else:
 
+    # WARNING : `else` was removed
     class QView3D(QOpenGLWidget):
         """Onscreen rendering using a QOpenGLWidget"""
 
-        def __init__(self, scene, scene, projection=None, navigation=None, **options):
+        def __init__(self, scene, projection=None, navigation=None, **options):
             pass
 
         def look(self, position: fvec3 = None):
@@ -444,3 +458,18 @@ else:
 
         def inputEvent(self, event):
             pass
+
+    class GhostWidget(QWidget):
+        def __init__(self, parent):
+            super().__init__(parent)
+            
+        def event(self, evt):
+            if isinstance(evt, QInputEvent):
+                # set the opengl current context from Qt (doing it only from moderngl interferes with Qt)
+                #self.makeCurrent()
+                evt.ignore()
+                self.parent().inputEvent(evt)
+                if evt.isAccepted():	return True
+            elif isinstance(evt, QFocusEvent):
+                self.parent().event(evt)
+            return super().event(evt)

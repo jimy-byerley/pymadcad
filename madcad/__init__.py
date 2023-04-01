@@ -144,7 +144,7 @@ from . import (
 		settings,
 	)
 # gui
-from . import rendering, displays, text, scheme
+from . import rendering, text, scheme
 
 # the most common tools, imported to access it directly from madcad
 from .mathutils import *
@@ -164,7 +164,9 @@ from .triangulation import TriangulationError
 from .hull import convexhull, convexoutline, horizon
 
 from .scheme import *
-from .rendering import Scene, Display, displayable, show, render
+from .rendering import show, render
+from .rendering.base import Display
+from .rendering.d3 import Scene3D, displayable
 
 from .standard import *
 

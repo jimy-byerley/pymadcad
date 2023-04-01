@@ -28,9 +28,10 @@ from .mesh import Mesh, Web, Wire, striplist, distance2_pm, typedlist_to_numpy
 from . import settings
 from . import constraints
 from . import text
-from . import rendering
 from . import nprint
-from .displays import BoxDisplay
+from .rendering.base import Display, Group
+from .rendering.d3.marker import BoxDisplay
+from .rendering.d3.kinematic import Tool
 
 __all__ = ['Screw', 'comomentum', 'Pressure', 'Solid', 'Kinematic', 'Kinemanip', 'solvekin',
 			 'Scheme', 'WireDisplay',
@@ -222,7 +223,7 @@ class Solid:
 		return self
 	
 	
-	class display(rendering.Group):
+	class display(Group):
 		''' Movable `Group` for the rendering pipeline '''
 		def __init__(self, scene, solid):
 			super().__init__(scene, solid.content)
@@ -248,7 +249,7 @@ class Solid:
 				evt.accept()
 				start = view.ptat(view.somenear(evt.pos()))
 				offset = self.solid.position - affineInverse(mat4(self.world)) * start
-				view.tool.append(rendering.Tool(self.move, view, start, offset))
+				view.tool.append(Tool(self.move, view, start, offset))
 			# this click might have been a selection, ask for scene restack just in case
 			elif evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
 				view.scene.touch()
@@ -609,7 +610,7 @@ def isjoint(obj):
 
 class Joint:
 	''' Possible base class for a joint, providing some default implementations '''
-	class display(rendering.Display):
+	class display(Display):
 		def __init__(self, scene, joint):
 			self.schemes = [scene.display(joint.scheme(s, 1, joint.position[i]))
 							for i,s in enumerate(joint.solids)]
@@ -791,7 +792,7 @@ def store(dst, src):
 		dst[i] = src[i]
 
 
-class Kinemanip(rendering.Group):
+class Kinemanip(Group):
 	''' Display that holds a kinematic structure and allows the user to move it
 	'''
 	
@@ -836,7 +837,7 @@ class Kinemanip(rendering.Group):
 			self.sizeref = max(norminf(self.box.width), 1)
 			start = vec3(affineInverse(mat4(self.world)) * vec4(view.ptat(view.somenear(evt.pos())),1))
 			offset = inverse(quat(solid.orientation)) * (start - solid.position)
-			view.tool.append(rendering.Tool(self.move, view, solid, start, offset))
+			view.tool.append(Tool(self.move, view, solid, start, offset))
 	
 	def move(self, dispatcher, view, solid, start, offset):
 		moved = False
@@ -968,7 +969,7 @@ class Scheme:
 		return WireDisplay(scene, self.points, self.transpfaces, self.opaqfaces, self.lines, self.color)
 
 
-class WireDisplay(rendering.Display):
+class WireDisplay(Display):
 	''' Wireframe display for schemes, like kinematic schemes '''
 	
 	def __init__(self, scene, points, transpfaces, opaqfaces, lines, color):

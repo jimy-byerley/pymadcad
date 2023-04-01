@@ -23,10 +23,9 @@ from operator import itemgetter
 from collections import deque
 
 from .mathutils import *
-from .rendering import Display
+from .rendering.base import Display, Displayable, writeproperty, overrides
 from .common import resourcedir
 from .mesh import Mesh, Web, Wire, web, wire, mesh_distance, connef, connpe, edgekey, arrangeface, arrangeedge
-from .rendering import Displayable, writeproperty, overrides
 from .text import TextDisplay, textsize
 from .primitives import *
 from . import mathutils

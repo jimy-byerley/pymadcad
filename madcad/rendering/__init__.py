@@ -1,11 +1,16 @@
 from .d3 import Scene3D, SubView3D
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QApplication
+from .. import settings
+from ..mathutils import Box, uvec2
+from copy import deepcopy
 
 try:
     from . import qt
 except ImportError:
     pass
 else:
-    from .d3 import QView3D
+    from .d3 import QView3D, opengl_version
 
     def show(scene: dict, interest: Box = None, size=uvec2(400, 400), projection=None, navigation=None, **options):
         """
@@ -29,8 +34,8 @@ else:
         # Retro-compatibility fix, shall be removed in future versions
         if "options" in options:
             options.update(options["options"])
-        if not isinstance(scene, Scene):
-            scene = Scene(scene, options)
+        if not isinstance(scene, Scene3D):
+            scene = Scene3D(scene, options)
 
         app = QApplication.instance()
         created = False
@@ -47,7 +52,7 @@ else:
             settings.use_qt_colors()
 
         # Create the scene as a window
-        view = View(scene, projection=projection, navigation=navigation)
+        view = SubView3D(scene, projection=projection, navigation=navigation)
         view.resize(*size)
         view.show()
 

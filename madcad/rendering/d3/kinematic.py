@@ -1,5 +1,6 @@
 """Displays for mechanical workflow """
 
+from ..base import Display
 
 class SolidDisplay(Display):
     ''' Display render Meshes '''
@@ -55,4 +56,54 @@ class SolidDisplay(Display):
 
 
 class Kinemanip:
+    pass
+
+class Dispatcher(object):
+    ''' Iterable object that holds a generator built by passing self as first argument
+        it allows the generator code to dispatch references to self.
+        NOTE:  at contrary to current generators, the code before the first yield is called at initialization
+    '''
+    __slots__ = 'generator', 'value'
+    def __init__(self, func=None, *args, **kwargs):
+        self.func = func
+        self.generator = self._run(func, *args, **kwargs)
+        # run the generator until the first yield
+        next(self.generator, None)
+    def _run(self, func, *args, **kwargs):
+        self.value = yield from func(self, *args, **kwargs)
+        
+    def __repr__(self):
+        return '<{} on {}>'.format(type(self).__name__, self.func)
+        
+    def send(self, value):    return self.generator.send(value)
+    def __iter__(self):        return self.generator
+    def __next__(self):        return next(self.generator)
+
+class Tool(Dispatcher):
+    ''' Generator wrapping an yielding function, that unregisters from view.tool once the generator is over '''
+    def _run(self, func, *args, **kwargs):
+        try:    
+            self.value = yield from func(self, *args, **kwargs)
+        except StopTool:
+            pass
+        try:    
+            args[0].tool.remove(self)
+        except ValueError:    
+            pass
+    
+    def __call__(self, evt):
+        try:    return self.send(evt)
+        except StopIteration:    pass
+        
+    def stop(self):
+        if self.generator:
+            try:    self.generator.throw(StopTool())
+            except StopTool:    pass
+            except StopIteration:    pass
+            self.generator = None
+    def __del__(self):
+        self.stop()
+    
+class StopTool(Exception):
+    ''' Used to stop a tool execution '''
     pass

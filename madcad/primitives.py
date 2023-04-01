@@ -41,7 +41,7 @@
 from math import sqrt
 from .mathutils import *
 from . import settings
-from . import displays
+from .rendering.d3.marker import AxisDisplay, SplineDisplay
 from . import mesh
 
 
@@ -90,7 +90,7 @@ class Axis(object):
 		return 'Axis({}, {})'.format(self.origin, self.direction)
 	
 	def display(self, scene):
-		return displays.AxisDisplay(scene, (self.origin, self.direction), self.interval)
+		return AxisDisplay(scene, (self.origin, self.direction), self.interval)
 			
 def isaxis(obj):
 	''' Return True if the given object is considered to be an axis.
@@ -426,7 +426,7 @@ class Interpolated(object):
 		return 'Interpolated({}, {})'.format(self.points, self.weights)
 
 	def display(self, scene):
-		return displays.SplineDisplay(scene, glmarray(self.points), glmarray(self.mesh().points))
+		return SplineDisplay(scene, glmarray(self.points), glmarray(self.mesh().points))
 			
 class Softened(object):
 	''' Interpolated curve tangent to each segment midpoint (3rd degree bezier curve)
@@ -475,5 +475,5 @@ class Softened(object):
 		return 'Softened({}, {})'.format(self.points, self.weights)
 
 	def display(self, scene):
-		return displays.SplineDisplay(scene, glmarray(self.points), glmarray(self.mesh().points))
+		return SplineDisplay(scene, glmarray(self.points), glmarray(self.mesh().points))
 	
