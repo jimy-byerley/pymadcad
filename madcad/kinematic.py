@@ -29,9 +29,8 @@ from . import settings
 from . import constraints
 from . import text
 from . import nprint
-from .rendering.base import Display, Group
+from .rendering.base import Display, Group, Tool
 from .rendering.d3.marker import BoxDisplay
-from .rendering.d3.kinematic import Tool
 
 __all__ = ['Screw', 'comomentum', 'Pressure', 'Solid', 'Kinematic', 'Kinemanip', 'solvekin',
 			 'Scheme', 'WireDisplay',

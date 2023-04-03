@@ -2,7 +2,11 @@
 
 from . import settings
 import numpy.core as np
-from .rendering.base import Display
+from ...rendering.base import Display, npboundingbox
+from ...mathutils import *
+from PIL import Image
+from ...common import resourcedir
+import moderngl as mgl
 
 class MeshDisplay(Display): # WARNING: Old `SolidDisplay` class
     ''' Display render Meshes '''
@@ -305,6 +309,93 @@ class PointsDisplay:
             view.ctx.point_size = self.ptsize
             self.va_ident.render(mgl.POINTS)
 
+class FacesDisplay:
+    def __init__(self, scene, vertices, normals, faces, color, reflect, layer=0):
+        self.color = color
+        self.layer = layer
+        self.reflect = reflect
+        self.vertices = vertices
+    
+        # load the skybox texture
+        def load(scene):
+            img = Image.open(resourcedir+'/textures/'+settings.display['solid_reflect'])
+            return scene.ctx.texture(img.size, 3, img.tobytes())
+        self.reflectmap = scene.resource('skybox', load)
+        
+        # load the shader
+        def load(scene):
+            shader = scene.ctx.program(
+                        vertex_shader=open(resourcedir+'/shaders/solid.vert').read(),
+                        fragment_shader=open(resourcedir+'/shaders/solid.frag').read(),
+                        )
+            # setup some uniforms
+            shader['reflectmap'] = 0
+            return shader
+        self.shader = scene.resource('shader_solid', load)
+        self.ident_shader = scene.resource('shader_subident')
+        # allocate buffers
+        if faces is not None and len(faces) and vertices.vb_positions:
+            self.vb_faces = scene.ctx.buffer(np.array(faces, 'u4', copy=False))
+            self.vb_normals = scene.ctx.buffer(np.array(normals, 'f4', copy=False))
+            self.va = scene.ctx.vertex_array(
+                    self.shader, 
+                    [	(vertices.vb_positions, '3f', 'v_position'), 
+                        (self.vb_normals, '3f', 'v_normal'),
+                        (vertices.vb_flags, 'u1', 'v_flags')],
+                    self.vb_faces,
+                    )
+            self.va_ident = scene.ctx.vertex_array(
+                    self.ident_shader, 
+                    [	(vertices.vb_positions, '3f', 'v_position'),
+                        (vertices.vb_idents, 'u2', 'item_ident')], 
+                    self.vb_faces,
+                    )
+        else:
+            self.va = None
+            
+    def __del__(self):
+        if self.va:
+            self.va.release()
+            self.va_ident.release()
+            self.vb_faces.release()
+            self.vb_normals.release()
+    
+    def render(self, view):
+        if self.va:
+            # setup uniforms
+            self.shader['select_color'].write(settings.display['select_color_face'])
+            self.shader['min_color'].write(self.color * settings.display['solid_color_side'])
+            self.shader['max_color'].write(self.color * settings.display['solid_color_front'])
+            self.shader['refl_color'].write(self.reflect)
+            self.shader['layer'] = self.layer
+            self.shader['world'].write(self.vertices.world)
+            self.shader['view'].write(view.uniforms['view'])
+            self.shader['proj'].write(view.uniforms['proj'])
+            # render on self.context
+            self.reflectmap.use(0)
+            self.va.render(mgl.TRIANGLES)
+    
+    def identify(self, view):
+        if self.va:
+            self.ident_shader['layer'] = self.layer
+            self.ident_shader['start_ident'] = view.identstep(self.vertices.nident)
+            self.ident_shader['view'].write(view.uniforms['view'] * self.vertices.world)
+            self.ident_shader['proj'].write(view.uniforms['proj'])
+            # render on self.context
+            self.va_ident.render(mgl.TRIANGLES)
 
 class EdgesDisplay:
     pass
+
+
+def shader_wire(scene):
+    return scene.ctx.program(
+                vertex_shader=open(resourcedir+'/shaders/wire.vert').read(),
+                fragment_shader=open(resourcedir+'/shaders/wire.frag').read(),
+                )
+    
+def shader_uniformcolor(scene):
+    return scene.ctx.program(
+                vertex_shader=open(resourcedir+'/shaders/uniformcolor.vert').read(),
+                fragment_shader=open(resourcedir+'/shaders/uniformcolor.frag').read(),
+                )

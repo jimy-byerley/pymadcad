@@ -1,8 +1,8 @@
-from .d3 import Scene3D, SubView3D
+from .d3 import Scene3D, SubView3D, QView3D
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QApplication
 from .. import settings
-from ..mathutils import Box, uvec2
+from ..mathutils import *
 from copy import deepcopy
 
 try:
@@ -52,7 +52,7 @@ else:
             settings.use_qt_colors()
 
         # Create the scene as a window
-        view = SubView3D(scene, projection=projection, navigation=navigation)
+        view = QView3D(scene, projection=projection, navigation=navigation)
         view.resize(*size)
         view.show()
 
@@ -83,7 +83,7 @@ def render(scene, options=None, interest: Box = None, navigation=None, projectio
         scene = Scene(scene, options)
 
     # Create the scene and an offscreen renderer
-    view = Offscreen(scene, size, navigation=navigation, projection=projection)
+    view = Offscreen3D(scene, size, navigation=navigation, projection=projection)
 
     # Load objects in the scene, so the scene's box can be computed
     with scene.ctx:

@@ -1,6 +1,9 @@
 from PIL import Image
-from ..mathutils import Box, fmat4, fvec3
+from ..mathutils import *
 from math import inf
+from copy import deepcopy
+from .. import settings
+import numpy.core as np
 
 def writeproperty(func):
     ''' Decorator to create a property that has only an action on variable write '''
@@ -107,9 +110,9 @@ class Group(Display):
         return iter(self.displays.values())
 
     def update(self, scene, objs):
-        if isinstance(objs, dict):        objs = objs
-        elif hasattr(objs, 'keys'):        objs = dict(objs)
-        elif hasattr(objs, '__iter__'):    objs = dict(enumerate(objs))
+        if isinstance(objs, dict):          objs = objs
+        elif hasattr(objs, 'keys'):         objs = dict(objs)
+        elif hasattr(objs, '__iter__'):     objs = dict(enumerate(objs))
         else:
             return False
 
@@ -380,3 +383,60 @@ class Offscreen:
     def render(self):
         super().render()
         return Image.frombytes('RGBA', tuple(self.size), self.fb_screen.read(components=4), 'raw', 'RGBA', 0, -1)
+
+class Dispatcher(object):
+    ''' Iterable object that holds a generator built by passing self as first argument
+        it allows the generator code to dispatch references to self.
+        NOTE:  at contrary to current generators, the code before the first yield is called at initialization
+    '''
+    __slots__ = 'generator', 'value'
+    def __init__(self, func=None, *args, **kwargs):
+        self.func = func
+        self.generator = self._run(func, *args, **kwargs)
+        # run the generator until the first yield
+        next(self.generator, None)
+    def _run(self, func, *args, **kwargs):
+        self.value = yield from func(self, *args, **kwargs)
+        
+    def __repr__(self):
+        return '<{} on {}>'.format(type(self).__name__, self.func)
+        
+    def send(self, value):    return self.generator.send(value)
+    def __iter__(self):        return self.generator
+    def __next__(self):        return next(self.generator)
+
+class Tool(Dispatcher):
+    ''' Generator wrapping an yielding function, that unregisters from view.tool once the generator is over '''
+    def _run(self, func, *args, **kwargs):
+        try:    
+            self.value = yield from func(self, *args, **kwargs)
+        except StopTool:
+            pass
+        try:    
+            args[0].tool.remove(self)
+        except ValueError:    
+            pass
+    
+    def __call__(self, evt):
+        try:    return self.send(evt)
+        except StopIteration:    pass
+        
+    def stop(self):
+        if self.generator:
+            try:    self.generator.throw(StopTool())
+            except StopTool:    pass
+            except StopIteration:    pass
+            self.generator = None
+    def __del__(self):
+        self.stop()
+    
+class StopTool(Exception):
+    ''' Used to stop a tool execution '''
+    pass
+
+def npboundingbox(points):
+    ''' boundingbox for numpy arrays of points on the 3 first components '''
+    return Box(
+                fvec3([float(np.min(points[:,i])) for i in range(3)]),
+                fvec3([float(np.max(points[:,i])) for i in range(3)]),
+                )

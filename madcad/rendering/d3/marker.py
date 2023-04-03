@@ -1,7 +1,7 @@
 """Displays for visual markers: points, arrows, texts, ... """
 
 from ..base import Display
-from ...mathutils import fmat4
+from ...mathutils import *
 
 class AnnotationDisplay(Display):
     def __init__(self, scene, points, color):
