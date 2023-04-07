@@ -26,14 +26,11 @@ from .common import ressourcedir
 from .mathutils import *
 from .mesh import Mesh, Web, Wire, striplist, distance2_pm, typedlist_to_numpy
 from . import settings
-from . import constraints
-from . import text
 from . import rendering
 from . import nprint
 from .displays import BoxDisplay
 
-__all__ = ['Screw', 'comomentum', 'Pressure', 'Solid', 'Kinematic', 'Kinemanip', 'solvekin',
-			 'Scheme', 'WireDisplay',
+__all__ = ['Screw', 'comomentum', 'Solid', 'Kinematic', 'Chain', 'Kinemanip', 'solve',
 			]
 
 
@@ -281,11 +278,26 @@ class Solid:
 			self.pose = fmat4(self.solid.pose)
 			
 			
+'''
+k = Kinematic([
+	Welded((s1, s2), translate(2*X)),
+	Pivot((s2, s3), Axis(O,Z)),
+	Pivot((s1, s3), (Axis(O,Z), Axis(A,X))),
+	])
+k = Kinematic([
+	Welded((1, 2), translate(2*X)),
+	Pivot((2, 3), Axis(O,Z)),
+	Pivot((1, 3), (Axis(O,Z), Axis(A,X))),
+	])
+k.direct([None, 1.5, 0])
+k.inverse({1: mat4(), 2: mat4(), 3: mat4()})
+
+'''
+			
 class Chain:
 	def __init__(self, *args, default=0, **kwargs):
 		if isinstance(args[0], Solid) and isinstance(args[1], Solid):
-			self.start = args[0]
-			self.stop = args[1]
+			self.solids = args[:2]
 			args = args[2:]
 		self.default = default
 		self.init(*args, **kwargs)
@@ -403,7 +415,7 @@ class Chain:
 				sch.world = m * translate(scale(translate(fmat4(1), pos), fvec3(d)), -pos)
 
 class Kinematic:
-	indev
+	pass
 
 class Kinemanip(rendering.Group):
 	''' Display that holds a kinematic structure and allows the user to move it
@@ -536,150 +548,161 @@ def partial_difference_increment(f, i, x, d):
 		except KinematicError:
 			pass
 	raise ValueError('cannot compute below or above parameter {} given value'.format(i))
-	
-		
-def solve(chains, solids={}, fixed=set(), init=None, precision=1e-6, maxiter=None):
-	dtype = np.float64
-	
-	# collect the joint graph as a connectivity and the solids
-	solids = copy(solids)
-	conn = {}  # connectivity {solida: node} with each node ((chain, isdirect), solidb)
-	for chain in chains:
-		link = chain.solids
-		for candidate in link:
-			if isinstance(candidate, Solid):
-				solids[candidate] = k = candidate
-			elif candidate not in solids:
-				solids[candidate] = Solid()
-		for i in range(len(link)):
-			if link[i] not in conn:	
-				conn[link[i]] = []
-			conn[link[i]].append(((chain, i), link[i-1]))
-	
-	# decompose the graph into priorized directed branches by propagation
-	branchs = []
-	front = []  # available propagation starts (same items as in a connectivity node)
-	reached = set()   # reached solids
-	for s in fixed:
-		front.extend(conn[s])
-	
-	while front:
-		chain, tip = front.pop()
-		branch = [chain]
-		while True:
-			follow = conn[tip]
-			if len(follow) > 1:	
-				if tip not in reached:
-					front.extend(follow)
-					reached.add(tip)
-				break
-			chain, tip = follow[0]
-			branch.append(chain)
-		
-		branchs.append((
-			branch, 
-			branch[0][0].solids[branch[0][1]], 
-			branch[0][0].solids[1-branch[0][1]],
-			))
-	
-	# initiate the solver with the initial pose
-	if init is None:
-		init = []
-		for branch in branchs:
-			for chain, _ in chains:
-				init.append(chain.inverse(hinverse(chain.solids[0].pose) * chain.solids[1].pose))
-	
-	# cost terms
-	# TODO redo by closing loops to remove that approximation of the mean of node solids
-	
-	def cost(state):
-		''' return a flattened array of the matrices differences '''
-		# apply computations as already scheduled in our branchs
-		it = iter(state)
-		nodes = [[]  for i in range(len(branchs)-1)]
-		for branch, start, stop in branchs:
-			# build the chain direct transform
-			b = mat4(nodes[start][0])
-			for chain, direct in branch:
-				x = next(it)
-				f = chain.direct(x)
-				if not direct:	
-					f = hinverse(f)
-				b *= f
-			nodes[stop].append(b)
-		# build the cost line
-		cost = np.empty((len(branchs)-1, 4, 4), dtype=dtype)
-		for i,node in enumerate(nodes):
-			mean = sum(node) / len(node)
-			cost[i] = np.asanyarray(node - mean)**2
-		return cost.ravel()
-	
-	def jac(state):
-		''' return a matrix with one line per joint variable, each line being the gradient of the cost '''
-		# apply computations as already scheduled in our branchs
-		it = iter(state)
-		jac = []
-		for branch, start, stop in branch:
-			# built the left side of the gradient product of the direct chain
-			directs = []
-			b = mat4(1)
-			for chain, direct in branch:
-				x = next(it)
-				d = chain.direct(x)
-				if not direct:	
-					d = hinverse(d)
-				for df in chain.grad(x):
-					if not direct:
-						df = hinverse(df)
-					grad.append(b*df)
-				b = b*d
-				directs.append((d, len(x)))
-			# build the right side of the product
-			b = mat4(1)
-			for d,n in reversed(directs):
-				for i in range(n):
-					grad[i] = grad[i]*b
-				b = d*b
-			# fill the jacobian line
-			for dg in grad:
-				line = np.zeros((len(branchs)-1, 4, 4), dtype=dtype)
-				line[node] = dg
-				jac.append(line.ravel())
-		return np.stack(jac)
-	
-	res = least_squares(cost, jac=jac, 
-			ftol=precision, 
-			gtol=precision**2, 
-			method='trf', 
-			max_nfev=maxiter,
-			)
 
-def solve(chains, solids={}, fixed=set(), init=None, precision=1e-6, maxiter=None):
+def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-6, maxiter=None) -> dict:
 	dtype = np.float64
 	
 	# collect the joint graph as a connectivity and the solids
 	solids = copy(solids)
 	conn = {}  # connectivity {node: [node]} with each node b
-	for chain in chains:
-		for candidate in chain.solids:
+	for joint in joints:
+		for candidate in joint.solids:
 			if isinstance(candidate, Solid):
 				solids[candidate] = candidate
 			elif candidate not in solids:
 				solids[candidate] = Solid()
-		conn[chain] = chain.solids
-		for solids in chain.solids:
+		conn[joint] = joint.solids
+		for solids in joint.solids:
 			if solids not in conn:	
 				conn[solids] = []
 			conn[solids].append(chain)
 			
 	# simplify the graph
-	arcs
-	Branch
+	simplified = {}
+	dof = {}
+	for branch in arcs(conn):
+		if len(branch) > 3:
+			chain = Chain(branch[1::2])
+		else:
+			chain = branch[1]
+		dof[joint] = len(chain.default)
+		simplified[chain] = chain.solids
+		for solid in chain.solids:
+			simplified[solid].append(chain)
+	tdof = sum(dof.values())
 	# decompose into cycles
-	shortcycles
-	Reversed
+	cycles = []
+	joints = set()
+	for cycle in shortcycles(simplified, dof):
+		assert cycle[-1] == cycle[0]
+		chain = []
+		for i in range(1, len(cycle), 2):
+			joint = cycle[i]
+			if cycle[i-1] != joint.start:
+				joint = Reversed(joint)
+			joints.add(joint)
+			chain.append(joint)
+		cycles.append(chain)
+		
+	# build initial state
+	structured = []
+	bounds = []
+	for joint in joints:
+		if joint not in conn:
+			structured.append([init[j] for j in joint.solids])
+		else:
+			structured.append(init[joint])
+		bounds.append(joint.bounds)		
+	
 	# build cost and gradient functions
+	def cost(x):
+		x = structure_state(iter(x), structured)
+		cost = np.empty((len(cycles), 9), dtype)
+		
+		transforms = {joint: joint.direct(p)  for p in x}
+		for i, cycle in enumerate(cycles):
+			# b is the transform of the complete cycle: it should be identity
+			b = mat4()
+			for joint in cycle:
+				b *= transforms[joint]
+			# the residual of this matrix is the squared difference to identity
+			# pick only non-redundant components to reduce the problem size
+			cost[i] = squeeze_homogeneous(b - mat4())
+			#cost[i] **= 2
+		return cost.ravel()
+	
+	def jac(x):
+		x = structure_state(iter(x), structured)
+		jac = np.zeros((len(cycles), tdof, 9), dtype)
+		
+		transforms = {}
+		i = 0
+		for p in x:
+			transforms[joint] = (i, joint.direct(p), joint.grad(p))
+			i += len(p)
+		
+		for j, cycle in enumerate(cycles):
+			grad = []
+			b = mat4(1)
+			for joint in cycle:
+				i, f, g = transforms[joint]
+				for df in g:
+					grad.append(b*df)
+				b = b*f
+			direct = b
+			b = mat4(1)
+			k = 0
+			for joint in reversed(cycle):
+				i, f, g = transforms[joint]
+				for df in g:
+					grad[k] = grad[k]*b
+					k += 1
+				b = f*b
+			
+			k = 0
+			for joint in reversed(cycle):
+				i, f, g = transforms[joint]
+				for ig in reversed(range(len(g))):
+					# derivative of the squared difference to identity
+					jac[j, i+ig] = squeeze_homogeneous(grad[k])
+					#jac[j, i+ig] *= squeeze_homogeneous(2*(direct-mat4(1)))
+					k += 1 
+				
+		return jac.reshape(*jac.shape[:2], -1)
+	
 	# solve
+	res = leastsquares(
+				cost, 
+				np.array(flatten_state(structured), dtype), 
+				method = 'trf', 
+				bounds = bounds, 
+				jac = jac, 
+				xtol = precision, 
+				max_nfev = maxiter,
+				)
+	if not res.success:
+		raise SolveError(res.message, res)
+	
+	result = {}
+	for joint, x in zip(joints, structure_state(res.x, structured)):
+		if joint not in conn:
+			for joint, x in zip(joint.chains, x):
+				result[joint] = x
+		else:
+			result[joint] = x
+	return result
+
+
+def flatten_state(structured):
+	for x in structured:
+		if hasattr(x, '__len__'):
+			yield from flatten_state(x)
+		else:
+			yield x
+
+def structure_state(flat, structure):
+	structured = []
+	for ref in structure:
+		if hasattr(ref, '__len__'):
+			structured.append(structure_state(it, ref))
+		else:
+			structured.append(next(it))
+	return structured
+
+def squeeze_homogeneous(m):
+	return (m[0][0], m[1][1], m[2][2], m[2][1], m[2][0], m[1][0], m[3][0], m[3][1], m[3][2])
+
+
 
 def shortcycles(conn: '{node: [node]}', costs: '{node: float}') -> '[[node]]':
 	# orient the graph in a depth-first way, and search for fusion points
@@ -786,6 +809,14 @@ class Reverse(Chain):
 class Branch(Chain):
 	def __init__(self, chains):
 		self.chains = chains
+		
+	@property
+	def default(self):
+		return [chain.default  for chain in self.chains]
+		
+	@property
+	def bounds(self):
+		return [chain.bounds  for chain in self.chains]
 	
 	def direct(self, parameters):
 		b = mat4(nodes[start][0])
@@ -801,19 +832,20 @@ class Branch(Chain):
 	def grad(self, parameters):
 		# built the left side of the gradient product of the direct chain
 		directs = []
+		grad = []
 		b = mat4(1)
 		for x, chain in zip(parameters, self.chains):
-			d = chain.direct(x)
+			f = chain.direct(x)
 			for df in chain.grad(x):
 				grad.append(b*df)
-			b = b*d
-			directs.append((d, len(x)))
+			b = b*f
+			directs.append((f, len(x)))
 		# build the right side of the product
 		b = mat4(1)
-		for d,n in reversed(directs):
+		for f,n in reversed(directs):
 			for i in range(n):
 				grad[i] = grad[i]*b
-			b = d*b
+			b = f*b
 		return grad
 	
 	
