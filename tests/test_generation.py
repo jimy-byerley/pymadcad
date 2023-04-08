@@ -4,6 +4,11 @@ from madcad import *
 from madcad.generation import *
 
 
+m0 = extrans(
+	[vec3(6,1,0), vec3(4,1,0), vec3(4,-1,0), vec3(6,-1,0)], 
+	[mat4(), translate(2*Z)*rotate(0.2, X), translate(4*Z)*rotate(0.2, Y)],
+	)
+
 # test extrusion
 nprint(Web(
 		[vec3(1,1,0), vec3(-1,1,0), vec3(-1,-1,0), vec3(1,-1,0)],
@@ -91,4 +96,4 @@ assert m11.isenvelope()
 
 
 
-show([m1, m2, m3, m4, m6, m7, m9, m10, m11])
+show([m0, m1, m2, m3, m4, m6, m7, m9, m10, m11])
