@@ -1,4 +1,4 @@
-from nprint import nprint
+from madcad.nprint import nprint
 from math import pi
 from madcad import *
 from madcad.generation import *

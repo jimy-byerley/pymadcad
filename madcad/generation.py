@@ -122,7 +122,7 @@ def tube(outline: Web, path: Wire, end=True, section=True) -> Mesh:
 	return extrans(outline, trans, links)
 
 
-def extrans(section, transformations, links) -> Mesh:
+def extrans(section, transformations, links=None) -> Mesh:
 	''' Create a surface by extruding and transforming the given outline.
 		
 		Parameters:
@@ -131,6 +131,9 @@ def extrans(section, transformations, links) -> Mesh:
 			link:              iterable of tuples (a,b,t)  with:
 									`(a,b)` the sections to link (indices of values returned by `transformation`).
 									`t` the group number of that link, to combine with the section groups		
+									
+									if `links` is not specified, it will link each transformed section to the previous one.
+									This is equivalent to giving links `(i, i+1, 0)`
 	'''
 	# prepare
 	if isinstance(section, Mesh):
@@ -148,6 +151,19 @@ def extrans(section, transformations, links) -> Mesh:
 	groups = {}       # groups created by the extransion
 	
 	l = len(section.points)
+		
+	# generate all sections points using transformations
+	k = 0
+	for k,trans in enumerate(transformations):
+		for p in section.points:
+			mesh.points.append(vec3(trans*vec4(p,1)))
+		# keep extremities transformations
+		if face and k in extremities:
+			kept[k] = trans
+	
+	# default links iterator is a continuous line
+	if links is None:
+		links = ((i, i+1, 0)  for i in range(k))
 	
 	# generate all sections faces using links
 	for a,b,u in links:
@@ -171,14 +187,6 @@ def extrans(section, transformations, links) -> Mesh:
 	for (u,v), t in groups.items():
 		mesh.groups[t] = section.groups[v]	# NOTE will change in the future to mention both u and v
 	
-	# generate all sections points using transformations
-	for k,trans in enumerate(transformations):
-		for p in section.points:
-			mesh.points.append(vec3(trans*vec4(p,1)))
-		# keep extremities transformations
-		if face and k in extremities:
-			kept[k] = trans
-	
 	# append faces at extremities
 	if face:
 		merges = {}  # point merge dictionnary at faces insertion
@@ -191,7 +199,6 @@ def extrans(section, transformations, links) -> Mesh:
 			mesh += end if extremities[k] else end.flip()
 		mesh.mergepoints(merges)
 	
-	mesh.check()
 	return mesh
 	
 def linstep(start, stop, x):
