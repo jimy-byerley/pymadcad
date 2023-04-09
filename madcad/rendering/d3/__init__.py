@@ -1,12 +1,11 @@
-import moderngl as mgl
-import numpy.core as np
 from ..base import *
-from PyQt5.QtWidgets import QApplication, QWidget, QOpenGLWidget
-from PyQt5.QtGui import QSurfaceFormat, QMouseEvent, QInputEvent, QKeyEvent, QTouchEvent, QFocusEvent
-from PyQt5.QtCore import Qt, QPoint, QEvent
 from ...mathutils import *
 from ... import settings
 from ...common import resourcedir
+
+import moderngl as mgl
+import numpy.core as np
+
 from copy import deepcopy
 import traceback
 from operator import itemgetter
@@ -19,15 +18,16 @@ global_context = None
 class Scene3D:
     ''' Rendering pipeline for madcad displayable objects 
 
-        This class is gui-agnostic, it only relies on OpenGL, and the context has to be created by the user.
+        This class is GUI-agnostic, it only relies on OpenGL, and the context has to be created by the user.
 
-        When an object is added to the scene, a Display is not immediately created for it, the object is put into the queue and the Display is created at the next render.
+        When an object is added to the scene, a Display is not immediately created for it, 
+        the object is put into the queue and the Display is created at the next render.
         If the object is removed from the scene before the next render, it is dequeued.
 
         Attributes:
 
             ctx:                  moderngl Context (must be the same for all views using this scene)
-            resources (dict):    dictionary of scene resources (like textures, shaders, etc) index by name
+            resources (dict):     dictionary of scene resources (like textures, shaders, etc) index by name
             options (dict):       dictionary of options for rendering, initialized with a copy of `settings.scene`
             
             displays (dict):      dictionary of items in the scheme `{'name': Display}`
@@ -215,178 +215,6 @@ class Scene3D:
             raise TypeError('the display for {} is not a subclass of Display: {}'.format(type(obj).__name__, type(disp)))
         return disp
 
-
-class SubView3D(SubView, QOpenGLWidget):
-    ''' Qt widget to render and interact with displayable objects.
-        It holds a scene as renderpipeline.
-
-        Attributes:
-
-            scene:        the `Scene` object displayed
-            projection:   `Perspective` or `Orthographic`
-            navigation:   `Orbit` or `Turntable`
-            tool:         list of callables in priority order to receive events
-
-            targets:     render targets matching those requested in `scene.stacks`
-            uniforms:    parameters for rendering, used in shaders
-    '''
-    def __init__(self, scene, projection=None, navigation=None, parent=None):
-        # super init
-        QOpenGLWidget.__init__(self, parent)
-        fmt = QSurfaceFormat()
-        fmt.setVersion(*opengl_version)
-        fmt.setProfile(QSurfaceFormat.CoreProfile)
-        fmt.setSamples(4)
-        self.setFormat(fmt)
-        
-        # ugly trick to receive interaction events in a different function than QOpenGLWidget.event (that one is locking the GIL during the whole rendering, killing any possibility of having a computing thread aside)
-        # that event reception should be in the current widget ...
-        self.handler = GhostWidget(self)
-        self.handler.setFocusPolicy(Qt.StrongFocus)
-        self.handler.setAttribute(Qt.WA_AcceptTouchEvents, True)
-        self.setFocusProxy(self.handler)
-
-        SubView3D.__init__(self, scene, projection=projection, navigation=navigation)
-        self.tool = [Tool(self.navigation.tool, self)] # tool stack, the last tool is used for input events, until it is removed 
-
-    def init(self):
-        w, h = self.width(), self.height()
-
-        ctx = self.scene.ctx
-        assert ctx, 'context is not initialized'
-
-        # self.fb_screen is already created and sized by Qt
-        self.fb_screen = ctx.detect_framebuffer(self.defaultFramebufferObject())
-        self.fb_ident = ctx.simple_framebuffer((w, h), components=3, dtype='f1')
-        self.targets = [ ('screen', self.fb_screen, self.setup_screen),
-                         ('ident', self.fb_ident, self.setup_ident)]
-        self.map_ident = np.empty((h,w), dtype='u2')
-        self.map_depth = np.empty((h,w), dtype='f4')
-
-    def render(self):
-        # set the opengl current context from Qt (doing it only from moderngl interferes with Qt)
-        self.makeCurrent()
-        SubView3D.render(self)
-
-
-    # -- view stuff --
-
-    def look(self, position: fvec3=None):
-        SubView3D.look(self, position)
-        self.update()
-
-    def adjust(self, box:Box=None):
-        SubView3D.adjust(self, box)
-        self.update()
-
-    def center(self, center: fvec3=None):
-        SubView3D.center(self, center)
-        self.update()
-    
-    def somenear(self, point: QPoint, radius=None) -> QPoint:
-        some = SubView3D.somenear(self, qt_2_glm(point), radius)
-        if some:
-            return glm_to_qt(some)
-
-    def ptat(self, point: QPoint) -> fvec3:
-        return SubView3D.ptat(self, qt_2_glm(point))
-
-    def ptfrom(self, point: QPoint, center: fvec3) -> fvec3:
-        return SubView3D.ptfrom(self, qt_2_glm(point), center)
-
-    def itemat(self, point: QPoint) -> 'key':
-        return SubView3D.itemat(self, qt_2_glm(point))
-    
-
-    # -- event system --
-
-    def inputEvent(self, evt):
-        ''' Default handler for every input event (mouse move, press, release, keyboard, ...)
-            When the event is not accepted, the usual matching Qt handlers are used (mousePressEvent, KeyPressEvent, etc).
-
-            This function can be overwritten to change the view widget behavior.
-        '''
-        # send the event to the current tools using the view
-        if self.tool:
-            for tool in reversed(self.tool):
-                tool(evt)
-                if evt.isAccepted():    return
-
-        # send the event to the scene objects, descending the item tree
-        if isinstance(evt, QMouseEvent) and evt.type() in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease, QEvent.MouseButtonDblClick, QEvent.MouseMove):
-            pos = self.somenear(evt.pos())
-            if pos:
-                key = self.itemat(pos)
-                if key:
-                    self.control(key, evt)
-                    if evt.isAccepted():    return
-
-            # if clicks are not accepted, then some following keyboard events may not come to the widget
-            # NOTE this also discarding the ability to move the window from empty areas
-            if evt.type() == QEvent.MouseButtonPress:
-                evt.accept()
-
-    def control(self, key, evt):
-        ''' Transmit a control event successively to all the displays matching the key path stages.
-            At each level, if the event is not accepted, it transmits to sub items
-
-            This function can be overwritten to change the interaction with the scene objects.
-        '''
-        disp = self.scene.displays
-        stack = []
-        for i in range(1,len(key)):
-            disp = disp[key[i-1]]
-            disp.control(self, key[:i], key[i:], evt)
-            if evt.isAccepted(): return
-            stack.append(disp)
-
-        if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
-            disp = stack[-1]
-            # select what is under cursor
-            if type(disp).__name__ in ('SolidDisplay', 'WebDisplay'):
-                disp.vertices.selectsub(key[-1])
-                disp.selected = any(disp.vertices.flags & 0x1)
-            else:
-                disp.selected = not disp.selected
-            # make sure that a display is selected if one of its sub displays is
-            for disp in reversed(stack):
-                if hasattr(disp, '__iter__'):
-                    disp.selected = any(sub.selected    for sub in disp)
-            self.update()
-
-    # -- Qt things --
-
-    def initializeGL(self):
-        # retrieve global shared context if available
-        global global_context
-        
-        if QApplication.testAttribute(Qt.AA_ShareOpenGLContexts):
-            if not global_context:
-                global_context = mgl.create_context()
-            self.scene.ctx = global_context
-        # or create a context
-        else:
-            self.scene.ctx = mgl.create_context()
-        self.init()
-        self.preload()
-
-    def paintGL(self):
-        self.makeCurrent()
-        self.render()
-
-    def resizeEvent(self, evt):
-        QOpenGLWidget.resizeEvent(self, evt)
-        self.handler.resize(self.size())
-        self.init()
-        self.update()
-
-    def changeEvent(self, evt):
-        # detect theme change
-        if evt.type() == QEvent.PaletteChange and settings.display['system_theme']:
-            settings.use_qt_colors()
-        return QOpenGLWidget.changeEvent(self, evt)
-
-
 class Offscreen3D(Offscreen): # WARNING : old class = SubView
     ''' Object allowing to perform offscreen rendering, navigate and get information from screen as for a normal window 
     '''
@@ -441,11 +269,12 @@ def displayable(obj):
     ''' Return True if the given object has the matching signature to be added to a Scene '''
     return type(obj) in overrides or hasattr(obj, 'display') and callable(obj.display) and not isinstance(obj, type)
 
-try:
-    from .qt import *
-except ImportError:
 
-    
+try:
+    from ..qt import *
+except ImportError:
+    pass
+else:
     def navigation_tool(dispatcher, view):
         ''' Internal navigation tool '''	
         ctrl = alt = slow = False
@@ -833,7 +662,6 @@ except ImportError:
 
             self.navigation.center = center
 
-    # WARNING : `else` was removed
     class QView3D(ViewCommon, QOpenGLWidget):
         ''' Qt widget to render and interact with displayable objects.
             It holds a scene as renderpipeline.
@@ -978,6 +806,177 @@ except ImportError:
             # retrieve global shared context if available
             global global_context
 
+            if QApplication.testAttribute(Qt.AA_ShareOpenGLContexts):
+                if not global_context:
+                    global_context = mgl.create_context()
+                self.scene.ctx = global_context
+            # or create a context
+            else:
+                self.scene.ctx = mgl.create_context()
+            self.init()
+            self.preload()
+
+        def paintGL(self):
+            self.makeCurrent()
+            self.render()
+
+        def resizeEvent(self, evt):
+            QOpenGLWidget.resizeEvent(self, evt)
+            self.handler.resize(self.size())
+            self.init()
+            self.update()
+
+        def changeEvent(self, evt):
+            # detect theme change
+            if evt.type() == QEvent.PaletteChange and settings.display['system_theme']:
+                settings.use_qt_colors()
+            return QOpenGLWidget.changeEvent(self, evt)
+
+
+    class SubView3D(SubView, QOpenGLWidget):
+        ''' Qt widget to render and interact with displayable objects.
+            It holds a scene as renderpipeline.
+
+            Attributes:
+
+                scene:        the `Scene` object displayed
+                projection:   `Perspective` or `Orthographic`
+                navigation:   `Orbit` or `Turntable`
+                tool:         list of callables in priority order to receive events
+
+                targets:     render targets matching those requested in `scene.stacks`
+                uniforms:    parameters for rendering, used in shaders
+        '''
+        def __init__(self, scene, projection=None, navigation=None, parent=None):
+            # super init
+            QOpenGLWidget.__init__(self, parent)
+            fmt = QSurfaceFormat()
+            fmt.setVersion(*opengl_version)
+            fmt.setProfile(QSurfaceFormat.CoreProfile)
+            fmt.setSamples(4)
+            self.setFormat(fmt)
+            
+            # ugly trick to receive interaction events in a different function than QOpenGLWidget.event (that one is locking the GIL during the whole rendering, killing any possibility of having a computing thread aside)
+            # that event reception should be in the current widget ...
+            self.handler = GhostWidget(self)
+            self.handler.setFocusPolicy(Qt.StrongFocus)
+            self.handler.setAttribute(Qt.WA_AcceptTouchEvents, True)
+            self.setFocusProxy(self.handler)
+
+            SubView3D.__init__(self, scene, projection=projection, navigation=navigation)
+            self.tool = [Tool(self.navigation.tool, self)] # tool stack, the last tool is used for input events, until it is removed 
+
+        def init(self):
+            w, h = self.width(), self.height()
+
+            ctx = self.scene.ctx
+            assert ctx, 'context is not initialized'
+
+            # self.fb_screen is already created and sized by Qt
+            self.fb_screen = ctx.detect_framebuffer(self.defaultFramebufferObject())
+            self.fb_ident = ctx.simple_framebuffer((w, h), components=3, dtype='f1')
+            self.targets = [ ('screen', self.fb_screen, self.setup_screen),
+                             ('ident', self.fb_ident, self.setup_ident)]
+            self.map_ident = np.empty((h,w), dtype='u2')
+            self.map_depth = np.empty((h,w), dtype='f4')
+
+        def render(self):
+            # set the opengl current context from Qt (doing it only from moderngl interferes with Qt)
+            self.makeCurrent()
+            SubView3D.render(self)
+
+
+        # -- view stuff --
+
+        def look(self, position: fvec3=None):
+            SubView3D.look(self, position)
+            self.update()
+
+        def adjust(self, box:Box=None):
+            SubView3D.adjust(self, box)
+            self.update()
+
+        def center(self, center: fvec3=None):
+            SubView3D.center(self, center)
+            self.update()
+        
+        def somenear(self, point: QPoint, radius=None) -> QPoint:
+            some = SubView3D.somenear(self, qt_2_glm(point), radius)
+            if some:
+                return glm_to_qt(some)
+
+        def ptat(self, point: QPoint) -> fvec3:
+            return SubView3D.ptat(self, qt_2_glm(point))
+
+        def ptfrom(self, point: QPoint, center: fvec3) -> fvec3:
+            return SubView3D.ptfrom(self, qt_2_glm(point), center)
+
+        def itemat(self, point: QPoint) -> 'key':
+            return SubView3D.itemat(self, qt_2_glm(point))
+        
+
+        # -- event system --
+
+        def inputEvent(self, evt):
+            ''' Default handler for every input event (mouse move, press, release, keyboard, ...)
+                When the event is not accepted, the usual matching Qt handlers are used (mousePressEvent, KeyPressEvent, etc).
+
+                This function can be overwritten to change the view widget behavior.
+            '''
+            # send the event to the current tools using the view
+            if self.tool:
+                for tool in reversed(self.tool):
+                    tool(evt)
+                    if evt.isAccepted():    return
+
+            # send the event to the scene objects, descending the item tree
+            if isinstance(evt, QMouseEvent) and evt.type() in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease, QEvent.MouseButtonDblClick, QEvent.MouseMove):
+                pos = self.somenear(evt.pos())
+                if pos:
+                    key = self.itemat(pos)
+                    if key:
+                        self.control(key, evt)
+                        if evt.isAccepted():    return
+
+                # if clicks are not accepted, then some following keyboard events may not come to the widget
+                # NOTE this also discarding the ability to move the window from empty areas
+                if evt.type() == QEvent.MouseButtonPress:
+                    evt.accept()
+
+        def control(self, key, evt):
+            ''' Transmit a control event successively to all the displays matching the key path stages.
+                At each level, if the event is not accepted, it transmits to sub items
+
+                This function can be overwritten to change the interaction with the scene objects.
+            '''
+            disp = self.scene.displays
+            stack = []
+            for i in range(1,len(key)):
+                disp = disp[key[i-1]]
+                disp.control(self, key[:i], key[i:], evt)
+                if evt.isAccepted(): return
+                stack.append(disp)
+
+            if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
+                disp = stack[-1]
+                # select what is under cursor
+                if type(disp).__name__ in ('SolidDisplay', 'WebDisplay'):
+                    disp.vertices.selectsub(key[-1])
+                    disp.selected = any(disp.vertices.flags & 0x1)
+                else:
+                    disp.selected = not disp.selected
+                # make sure that a display is selected if one of its sub displays is
+                for disp in reversed(stack):
+                    if hasattr(disp, '__iter__'):
+                        disp.selected = any(sub.selected    for sub in disp)
+                self.update()
+
+        # -- Qt things --
+
+        def initializeGL(self):
+            # retrieve global shared context if available
+            global global_context
+            
             if QApplication.testAttribute(Qt.AA_ShareOpenGLContexts):
                 if not global_context:
                     global_context = mgl.create_context()

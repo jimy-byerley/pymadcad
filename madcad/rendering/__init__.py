@@ -1,12 +1,11 @@
 from .d3 import Scene3D, SubView3D, QView3D
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QApplication
 from .. import settings
 from ..mathutils import *
+
 from copy import deepcopy
 
 try:
-    from . import qt
+    from .qt import *
 except ImportError:
     pass
 else:
@@ -31,6 +30,7 @@ else:
 
         if isinstance(scene, list):
             scene = dict(enumerate(scene))
+
         # Retro-compatibility fix, shall be removed in future versions
         if "options" in options:
             options.update(options["options"])
@@ -82,7 +82,7 @@ def render(scene, options=None, interest: Box = None, navigation=None, projectio
     if not isinstance(scene, Scene):
         scene = Scene(scene, options)
 
-    # Create the scene and an offscreen renderer
+    # Create the scene and an Offscreen renderer
     view = Offscreen3D(scene, size, navigation=navigation, projection=projection)
 
     # Load objects in the scene, so the scene's box can be computed
