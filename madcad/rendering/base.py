@@ -4,6 +4,8 @@ from math import inf
 from copy import deepcopy
 from .. import settings
 import numpy.core as np
+import traceback
+from operator import itemgetter
 
 def writeproperty(func):
     ''' Decorator to create a property that has only an action on variable write '''
@@ -13,6 +15,13 @@ def writeproperty(func):
         setattr(self, fieldname, value)
         func(self, value)
     return property(getter, setter, doc=func.__doc__)
+
+def npboundingbox(points):
+    ''' boundingbox for numpy arrays of points on the 3 first components '''
+    return Box(
+                fvec3([float(np.min(points[:,i])) for i in range(3)]),
+                fvec3([float(np.max(points[:,i])) for i in range(3)]),
+                )
 
 class Display:
     ''' Blanket implementation for displays.
@@ -83,18 +92,18 @@ class Display:
         pass
 
 class Displayable:
-	''' Simple displayable initializing the given Display class with arguments 
-		
-		At the display creation time, it will simply execute `build(*args, **kwargs)`
-	'''
-	__slots__ = 'build', 'args', 'kwargs'
-	def __init__(self, build, *args, **kwargs):
-		self.args, self.kwargs = args, kwargs
-		self.build = build
-	def __repr__(self):
-		return '{}({}, {}, {})'.format(type(self).__name__, repr(self.args[1:-1]), repr(self.kwargs)[1:-1])
-	def display(self, scene):
-		return self.build(scene, *self.args, **self.kwargs)
+    ''' Simple displayable initializing the given Display class with arguments 
+        
+        At the display creation time, it will simply execute `build(*args, **kwargs)`
+    '''
+    __slots__ = 'build', 'args', 'kwargs'
+    def __init__(self, build, *args, **kwargs):
+        self.args, self.kwargs = args, kwargs
+        self.build = build
+    def __repr__(self):
+        return '{}({}, {}, {})'.format(type(self).__name__, repr(self.args[1:-1]), repr(self.kwargs)[1:-1])
+    def display(self, scene):
+        return self.build(scene, *self.args, **self.kwargs)
 
 class Group(Display):
     ''' A group is like a subscene '''
@@ -162,7 +171,6 @@ class Group(Display):
         return box.transform(self._pose)
 
 # dictionary to store procedures to override default object displays
-overrides = {list: Group, dict: Group}
 
 class Scene:
     ''' Rendering pipeline for madcad displayable objects
@@ -346,8 +354,8 @@ class Scene:
         '''
         if former and former.update(self, obj):
             return former
-        if type(obj) in overrides:
-            disp = overrides[type(obj)](self, obj)
+        if type(obj) in self.overrides:
+            disp = self.overrides[type(obj)](self, obj)
         elif hasattr(obj, 'display'):
             if isinstance(obj.display, type):
                 disp = obj.display(self, obj)
@@ -433,10 +441,3 @@ class Tool(Dispatcher):
 class StopTool(Exception):
     ''' Used to stop a tool execution '''
     pass
-
-def npboundingbox(points):
-    ''' boundingbox for numpy arrays of points on the 3 first components '''
-    return Box(
-                fvec3([float(np.min(points[:,i])) for i in range(3)]),
-                fvec3([float(np.max(points[:,i])) for i in range(3)]),
-                )

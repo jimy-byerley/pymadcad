@@ -1,7 +1,7 @@
 """Displays for annotations: labels, markups, sizing, ... """
 
 class Scheme:
-    ''' An object containing schematics. 
+   ''' An object containing schematics. 
     
         This is a buffer object, it isnot intended to be useful to modify a scheme.
         

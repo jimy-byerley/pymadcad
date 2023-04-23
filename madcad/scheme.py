@@ -23,7 +23,8 @@ from operator import itemgetter
 from collections import deque
 
 from .mathutils import *
-from .rendering.base import Display, Displayable, writeproperty, overrides
+from .rendering.base import Display, Displayable, writeproperty
+from .rendering.d3 import Scene3D
 from .common import resourcedir
 from .mesh import Mesh, Web, Wire, web, wire, mesh_distance, connef, connpe, edgekey, arrangeface, arrangeedge
 from .text import TextDisplay, textsize
@@ -1186,7 +1187,7 @@ def quat_display(scene, quat):
 	try:	return scene.display(note_rotation(quat))
 	except TypeError:	return Display()
 		
-overrides.update({
+Scene3D.overrides.update({
 	dmat4: base_display,
 	fmat4: base_display,
 	dmat3: base_display,
