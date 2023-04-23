@@ -382,11 +382,43 @@ class SubView(Display):
         raise NotImplementedError(f"control(self, view, key, sub, event) is not implemented for {self.__class__.__name__}")
 
 class Offscreen:
-    '''An Offscreen view is like a View but renders on offscreen buffers.
+    '''
+    An Offscreen view is like a View but renders on offscreen buffers.
     The result can be retrieved to an image or be copied to an other rendering target
     '''
     def __init__(self, scene, projection=None, navigation=None, **options):
         raise NotImplementedError(f"__init__(self, scene, projection=None, navigation=None, **options) is not implemented for {self.__class__.__name__}")
+
+    def init(self, size):
+        w, h = size
+
+        ctx = self.scene.ctx
+        assert ctx, 'context is not initialized'
+
+        # self.fb_frame is already created and sized by Qt
+        self.fb_screen = ctx.simple_framebuffer(size)
+        self.fb_ident = ctx.simple_framebuffer(size, components=3, dtype='f1')
+        self.targets = [
+            ('screen', self.fb_screen, self.setup_screen),
+            ('ident',  self.fb_ident,  self.setup_ident),
+        ]
+        self.map_ident = np.empty((h, w), dtype='u2')
+        self.map_depth = np.empty((h, w), dtype='f4')
+
+    @property
+    def size(self):
+        return self.fb_screen.size
+
+    def width(self):
+        return self.fb_screen.size[0]
+
+    def height(self):
+        return self.fb_screen.size[1]
+
+    def resize(self, size):
+        if size != self.fb_screen.size:
+            self.ctx.finish()
+            self.init(size)
 
     def render(self):
         super().render()
