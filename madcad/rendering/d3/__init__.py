@@ -20,13 +20,13 @@ class Scene3D(Scene):
     overrides = {}
 
 
-class Offscreen3D(Offscreen): # WARNING : old class = SubView
+class Offscreen3D(ViewCommon, Offscreen):
     ''' Object allowing to perform offscreen rendering, navigate and get information from screen as for a normal window 
     '''
     def __init__(self, scene, size=uvec2(400,400), projection=None, navigation=None):
         global global_context
 
-        super().__init__(scene, projection=projection, navigation=navigation)
+        ViewCommon.__init__(scene, projection=projection, navigation=navigation)
 
         if global_context:
             self.scene.ctx = global_context
@@ -66,10 +66,6 @@ class Offscreen3D(Offscreen): # WARNING : old class = SubView
             self.ctx.finish()
             self.init(size)
 
-    def render(self):
-        super().render()
-        return Image.frombytes('RGBA', tuple(self.size), self.fb_screen.read(components=4), 'raw', 'RGBA', 0, -1)
-
 def displayable(obj):
     ''' Return True if the given object has the matching signature to be added to a Scene '''
     return type(obj) in overrides or hasattr(obj, 'display') and callable(obj.display) and not isinstance(obj, type)
@@ -81,25 +77,25 @@ except ImportError:
     pass
 else:
     def navigation_tool(dispatcher, view):
-        ''' Internal navigation tool '''	
+        ''' Internal navigation tool '''    
         ctrl = alt = slow = False
         nav = curr = None
         moving = False
         hastouched = False
         while True:
             evt = yield
-            evt.ignore()	# ignore the keys to pass shortcuts to parents
+            evt.ignore()    # ignore the keys to pass shortcuts to parents
             
             if isinstance(evt, QKeyEvent):
                 k = evt.key()
                 press = evt.type() == QEvent.KeyPress
-                if	 k == Qt.Key_Control:	ctrl = press
-                elif k == Qt.Key_Alt:		alt = press
-                elif k == Qt.Key_Shift:		slow = press
-                if ctrl and alt:		curr = 'zoom'
-                elif ctrl:				curr = 'pan'
-                elif alt:				curr = 'rotate'
-                else:					curr = None
+                if     k == Qt.Key_Control:    ctrl = press
+                elif k == Qt.Key_Alt:        alt = press
+                elif k == Qt.Key_Shift:        slow = press
+                if ctrl and alt:        curr = 'zoom'
+                elif ctrl:                curr = 'pan'
+                elif alt:                curr = 'rotate'
+                else:                    curr = None
                 # no accept because the shortcuts need to get the keys also
             elif evt.type() == QEvent.MouseButtonPress:
                 last = evt.pos()
@@ -116,12 +112,12 @@ else:
                     gap = evt.pos() - last
                     dx = gap.x()/view.height()
                     dy = gap.y()/view.height()
-                    if nav == 'pan':		view.navigation.pan(dx, dy)
-                    elif nav == 'rotate':	view.navigation.rotate(dx, dy, 0)
-                    elif nav == 'zoom':		
+                    if nav == 'pan':        view.navigation.pan(dx, dy)
+                    elif nav == 'rotate':    view.navigation.rotate(dx, dy, 0)
+                    elif nav == 'zoom':        
                         middle = QPoint(view.width(), view.height())/2
-                        f = (	(last-middle).manhattanLength()
-                            /	(evt.pos()-middle).manhattanLength()	)
+                        f = (    (last-middle).manhattanLength()
+                            /    (evt.pos()-middle).manhattanLength()    )
                         view.navigation.zoom(f)
                     last = evt.pos()
                     view.update()
@@ -131,7 +127,7 @@ else:
                     moving = False
                     evt.accept()
             elif evt.type() == QEvent.Wheel:
-                view.navigation.zoom(exp(-evt.angleDelta().y()/(8*90)))	# the 8 factor is there because of the Qt documentation
+                view.navigation.zoom(exp(-evt.angleDelta().y()/(8*90)))    # the 8 factor is there because of the Qt documentation
                 view.update()
                 evt.accept()
         
@@ -143,8 +139,8 @@ else:
                 if len(pts) == 2:
                     startlength = (pts[0].lastPos()-pts[1].lastPos()).manhattanLength()
                     zoom = startlength / (pts[0].pos()-pts[1].pos()).manhattanLength()
-                    displt = (	(pts[0].pos()+pts[1].pos()) /2 
-                            -	(pts[0].lastPos()+pts[1].lastPos()) /2 ) /view.height()
+                    displt = (    (pts[0].pos()+pts[1].pos()) /2 
+                            -    (pts[0].lastPos()+pts[1].lastPos()) /2 ) /view.height()
                     dc = pts[0].pos() - pts[1].pos()
                     dl = pts[0].lastPos() - pts[1].lastPos()
                     rot = atan2(dc.y(), dc.x()) - atan2(dl.y(), dl.x())
@@ -155,21 +151,21 @@ else:
                     evt.accept()
                 # view translation
                 elif len(pts) == 3:
-                    lc = (	pts[0].lastPos() 
-                        +	pts[1].lastPos() 
-                        +	pts[2].lastPos() 
+                    lc = (    pts[0].lastPos() 
+                        +    pts[1].lastPos() 
+                        +    pts[2].lastPos() 
                         )/3
-                    lr = (	(pts[0].lastPos() - lc) .manhattanLength()
-                        +	(pts[1].lastPos() - lc) .manhattanLength()
-                        +	(pts[2].lastPos() - lc) .manhattanLength()
+                    lr = (    (pts[0].lastPos() - lc) .manhattanLength()
+                        +    (pts[1].lastPos() - lc) .manhattanLength()
+                        +    (pts[2].lastPos() - lc) .manhattanLength()
                         )/3
-                    cc = (	pts[0].pos() 
-                        +	pts[1].pos() 
-                        +	pts[2].pos() 
+                    cc = (    pts[0].pos() 
+                        +    pts[1].pos() 
+                        +    pts[2].pos() 
                         )/3
-                    cr = (	(pts[0].pos() - cc) .manhattanLength()
-                        +	(pts[1].pos() - cc) .manhattanLength()
-                        +	(pts[2].pos() - cc) .manhattanLength()
+                    cr = (    (pts[0].pos() - cc) .manhattanLength()
+                        +    (pts[1].pos() - cc) .manhattanLength()
+                        +    (pts[2].pos() - cc) .manhattanLength()
                         )/3
                     zoom = lr / cr
                     displt = (cc - lc)  /view.height()
@@ -181,6 +177,36 @@ else:
                 # finish a gesture
                 elif evt.type() in (QEvent.TouchEnd, QEvent.TouchUpdate):
                     evt.accept()
+
+    class Turntable:
+        ''' Navigation rotating on yaw and pitch around a center 
+        
+            Object used as `View.navigation`
+        '''
+        def __init__(self, center:fvec3=0, distance:float=1, yaw:float=0, pitch:float=0):
+            self.center = fvec3(center)
+            self.yaw = yaw
+            self.pitch = pitch
+            self.distance = distance
+            self.tool = navigation_tool
+            
+        def rotate(self, dx, dy, dz):
+            self.yaw += dx*pi
+            self.pitch += dy*pi
+            if self.pitch > pi/2:     self.pitch = pi/2
+            if self.pitch < -pi/2:    self.pitch = -pi/2
+        def pan(self, dx, dy):
+            mat = transpose(mat3_cast(inverse(fquat(fvec3(pi/2-self.pitch, 0, -self.yaw)))))
+            self.center += ( mat[0] * -dx + mat[1] * dy) * self.distance/2
+        def zoom(self, f):
+            self.distance *= f
+        
+        def matrix(self) -> fmat4:
+            # build rotation from view euler angles
+            rot = inverse(fquat(fvec3(pi/2-self.pitch, 0, -self.yaw)))
+            mat = translate(mat4_cast(rot), -self.center)
+            mat[3][2] -= self.distance
+            return mat
 
     class Orbit:
         ''' Navigation rotating on the 3 axis around a center.
