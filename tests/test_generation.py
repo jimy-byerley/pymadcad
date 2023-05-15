@@ -3,97 +3,102 @@ from math import pi
 from madcad import *
 from madcad.generation import *
 
+results = []
+absciss = 0
+def place(shape):
+	global absciss
+	bounds = shape.box()
+	absciss -= bounds.min.x
+	p = absciss*X
+	results.append([p, shape.transform(p).option(color=0.1+0.1*abs(vec3(sin(absciss), sin(absciss*1.5), sin(absciss*1.3))))])
+	absciss += bounds.max.x + bounds.width.x*0.2
 
-m0 = extrans(
+def test(shape):
+	shape.check()
+	#assert shape.issurface()
+	place(shape)
+
+# extransion
+
+test(extrans(
 	[vec3(6,1,0), vec3(4,1,0), vec3(4,-1,0), vec3(6,-1,0)], 
 	[mat4(), translate(2*Z)*rotate(0.2, X), translate(4*Z)*rotate(0.2, Y)],
-	)
-
-# test extrusion
-nprint(Web(
-		[vec3(1,1,0), vec3(-1,1,0), vec3(-1,-1,0), vec3(1,-1,0)],
-		[(0,1), (1,2), (2,3), (3,0)],
-		[0,1,2,3],
-		))
-m1 = extrusion(vec3(0,0,0.5), Web(
-		[vec3(1,1,0), vec3(-1,1,0), vec3(-1,-1,0), vec3(1,-1,0)],
-		[(0,1), (1,2), (2,3), (3,0)],
-		[0,1,2,3],
-		))
-nprint(m1)
-m1.check()
-assert m1.issurface()
-	
-# test revolution
-m2 = revolution(pi, (vec3(0,0,0), vec3(0,1,0)), web(
-		Segment(vec3(1,1,0), vec3(0.9,0.5,0)), 
-		ArcThrough(vec3(0.9,0.5,0), vec3(0.7,0,0), vec3(0.9,-0.5,0)), 
-		Segment(vec3(0.9,-0.5,0), vec3(1,-1,0)),
-		))
-m2.check()
-assert m2.issurface()
+	))
+test(extrusion(vec3(0,0,0.5), Web(
+	[vec3(1,1,0), vec3(-1,1,0), vec3(-1,-1,0), vec3(1,-1,0)],
+	[(0,1), (1,2), (2,3), (3,0)],
+	)))
+test(revolution(pi, (vec3(0,0,0), vec3(0,1,0)), web(
+	Segment(vec3(1,1,0), vec3(0.9,0.5,0)), 
+	ArcThrough(vec3(0.9,0.5,0), vec3(0.7,0,0), vec3(0.9,-0.5,0)), 
+	Segment(vec3(0.9,-0.5,0), vec3(1,-1,0)),
+	)))
 
 # test saddle
-m3 = saddle(
-		Web(
-			[vec3(-2,1.5,0),vec3(-1,1,0),vec3(0,0,0),vec3(1,1,0),vec3(1.5,2,0)], 
-			[(0,1), (1,2), (2,3), (3,4)],
-			[0,1,2,3]),
-		web(vec3(0,1,-1),vec3(0,0,0),vec3(0,1,1)),
-		#web(Arc(vec3(0,1,-1),vec3(0,1.5,0),vec3(0,1,1))),
-		)
-m3.check()
-assert m3.issurface()
-#m.options.update({'debug_display': True, 'debug_points': False })
+test(saddle(
+	Web(
+		[vec3(-2,1.5,0),vec3(-1,1,0),vec3(0,0,0),vec3(1,1,0),vec3(1.5,2,0)], 
+		[(0,1), (1,2), (2,3), (3,4)],
+		[0,1,2,3]),
+	web(vec3(0,1,-1),vec3(0,0,0),vec3(0,1,1)),
+	))
+test(saddle(
+	Web(
+		[vec3(-2,1.5,0),vec3(-1,1,0),vec3(0,0,0),vec3(1,1,0),vec3(1.5,2,0)], 
+		[(0,1), (1,2), (2,3), (3,4)],
+		[0,1,2,3]),
+	web(ArcThrough(vec3(0,1,-1), vec3(0,1.5,0), vec3(0,1,1))),
+	))
 
-# test tubes
-m4 = tube(
-		#Web(
-			#[vec3(1,0,0), vec3(0,1,0), vec3(-1,0,0), vec3(0,-1,0), vec3(1,0,0)],
-			#[(0,1),(1,2),(2,3),(3,0)],
-			#[0,1,2,3],
-			#),
-		#Mesh([vec3(1,0,0), vec3(0,1,0), vec3(-1,0,0), vec3(0,-1,0), vec3(1,0,0)], [(0,1,2),(2,3,0)]),
-		flatsurface(wire(Circle((vec3(0),vec3(0,0,-1)), 1))),
-		#Arc(vec3(0,0,0), vec3(4,1,4), vec3(6,0,3)).mesh()[0],
-		[vec3(0,0,0), vec3(0,0,2), vec3(1,0,3), vec3(4,0,3)],
-		)
-m4.mergeclose()
-m4.check()
-assert m4.issurface()
-#m4.options.update({'debug_display': True, 'debug_points': True})
-m4 = m4.transform(vec3(-4,0,0))
+# tubes	
+test(tube(
+	flatsurface(wire(Circle((vec3(0),vec3(0,0,-1)), 1))),
+	[vec3(0,0,0), vec3(0,0,2), vec3(1,0,3), vec3(4,0,3)],
+	))
+test(tube(
+	Web(
+		[vec3(1,0,0), vec3(0,1,0), vec3(-1,0,0), vec3(0,-1,0), vec3(1,0,0)],
+		[(0,1),(1,2),(2,3),(3,0)],
+		[0,1,2,3],
+		),
+	[vec3(0,0,0), vec3(0,0,2), vec3(1,0,3), vec3(4,0,3)],
+	))
+test(tube(
+	flatsurface(wire(Circle((vec3(0),vec3(0,0,-1)), 1))),
+	ArcThrough(vec3(0,0,0), vec3(4,1,4), vec3(6,0,3)).mesh(),
+	))
+test(tube(
+	Mesh([vec3(1,0,0), vec3(0,1,0), vec3(-1,0,0), vec3(0,-1,0), vec3(1,0,0)], [(0,2,1),(2,0,3)]),
+	[vec3(0,0,0), vec3(0,0,2), vec3(1,0,3), vec3(4,0,3)],
+	))
 
-# test icosurface
-m6 = icosurface(
+# icosurface
+test(icosurface(
 	[vec3(0.5,-1,0), vec3(0,1,0), vec3(0,0,1)], 
 	[normalize(vec3(0.5,-1,0)), vec3(0,1,0), vec3(0,0,1)], 
-	#[vec3(1,0,0), vec3(0,1,0), vec3(0,0,1)], 
-	#[1.57*vec3(1,0,0), 1.57*vec3(0,1,0), 1.57*vec3(0,0,1)],  
-	#[1.57*vec3(1,0,0), 1.57*vec3(0,1,0), 1.57*vec3(0,0,1)], 
-	)
-m6.check()
-assert m6.issurface()
-#m6.options.update({'debug_display': True, 'debug_points':True})
-m6 = m6.transform(vec3(0,0,-4))
+	))
+test(icosurface(
+	[vec3(0.5,-1,0), vec3(0,1,0), vec3(0,0,1)], 
+	[normalize(vec3(0.5,-1,0)), vec3(0,1,0), vec3(0,0,1)], 
+	))
+test(icosurface(
+	[vec3(0.5,-1,0), vec3(0,1,0), vec3(0,0,1)], 
+	[vec3(1,0,0), vec3(0,1,0), vec3(0,0,1)], 
+	))
+test(icosurface(
+	[vec3(0.5,-1,0), vec3(0,1,0), vec3(0,0,1)], 
+	[1.57*vec3(1,0,0), 1.57*vec3(0,1,0), 1.57*vec3(0,0,1)],  
+	))
 
-m7 = icosphere(vec3(0,3,0), 1)
-m7.options['color'] = (1, 0.5, 0.1)
-#m7.options = {'debug_display':True, 'debug_points':True}
+# classic volumes
+test(icosphere(vec3(0,3,0), 1))
+test(pyramid(vec3(-3,-2,3), flatsurface(regon(Axis(vec3(-3,-3,0), Z), 2, 5))))
+test(cone(vec3(3,0,2), vec3(3,0,0), 1))
+test(cylinder(vec3(3,-3,2), vec3(3,-3,0), 1))
+test(brick(vec3(1), vec3(1,2,3)))
+test(parallelogram(vec3(2,-1,1), vec3(1,1,1)))
+test(parallelogram(vec3(2,-1,1), vec3(1,1,1), vec3(0,0,1)))
+test(parallelogram(vec3(2,-1,1), vec3(1,1,1), fill=False))
+test(parallelogram(vec3(2,-1,1), vec3(1,1,1), vec3(0,0,1), fill=False))
 
-
-m9 = pyramid(vec3(-3,-2,3), flatsurface(regon(Axis(vec3(-3,-3,0), Z), 2, 5)))
-m9.check()
-assert m9.isenvelope()
-
-m10 = cone(vec3(3,0,2), vec3(3,0,0), 1)
-m10.check()
-assert m10.isenvelope()
-
-m11 = cylinder(vec3(3,-3,2), vec3(3,-3,0), 1)
-m11.check()
-assert m11.isenvelope()
-
-
-
-show([m0, m1, m2, m3, m4, m6, m7, m9, m10, m11])
+show(results)

@@ -41,6 +41,10 @@ Generation of common meshes
 
 	.. image:: /screenshots/generation-brick.png
 	
+.. autofunction:: parallelogram
+	
+	.. image:: /screenshots/generation-parallelogram.png
+	
 .. autofunction:: cylinder
 
 	.. image:: /screenshots/generation-cylinder.png

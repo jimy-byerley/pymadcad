@@ -19,7 +19,7 @@ __all__ = [
 	'extrans', 'extrusion', 'revolution', 'saddle', 'tube', 
 	'repeat', 'thicken', 'inflate', 'inflate_offsets', 'expand',
 	'flatsurface', 'icosurface', 'subdivide',
-	'square', 'brick', 'cylinder', 'cone', 'pyramid', 'icosahedron', 'icosphere', 'uvsphere', 'regon', 
+	'square', 'brick', 'parallelogram', 'cylinder', 'cone', 'pyramid', 'icosahedron', 'icosphere', 'uvsphere', 'regon', 
 	]
 
 	
@@ -515,13 +515,20 @@ def subdivide(mesh, div=1) -> 'Mesh':
 # --- standard shapes ---
 	
 def brick(*args, **kwargs) -> 'Mesh':
-	''' A simple brick with rectangular sides 
+	''' A simple brick with rectangular axis-aligned sides 
 	
-		Constructors
+		It can be constructed in the following ways:
 		
 			- brick(Box)
 			- brick(min, max)
 			- brick(center=vec3(0), width=vec3(-inf))
+			
+		Parameters:
+			
+			min:	the corner with minimal coordinates
+			max:	the corner with maximal coordinates
+			center: the center of the box
+			width:  the all positive diagonal of the box
 	'''
 	if len(args) == 1 and not kwargs and isinstance(args[0], Box):		
 		box = args[0]
@@ -556,6 +563,73 @@ def brick(*args, **kwargs) -> 'Mesh':
 	for i in range(len(mesh.points)):
 		mesh.points[i] = mesh.points[i]*box.width + box.min
 	return mesh
+	
+def parallelogram(*directions, origin=vec3(0), align=vec3(0), fill=True) -> 'Mesh':
+	''' Create a parallelogram or parallelepiped depending on the number of directions given
+	
+		Parameters:
+			
+			directions:	list of 1-3 directions, they must for a right handed base for the face normals to be oriented outward
+			origin: origin the resulting shape, the shape will placed relatively to that point
+			align: relative position of the origin in the shape: 0 means at start of each direction, 1 means at the tip of each direction
+			fill: 
+				- if True, a mesh will be generated (forming a surface with 2 directions, or an envelope with 3 directions)
+				- if False, a Web will be generated
+	'''
+	# generate points by binary combinations
+	points = []
+	min = origin - sum(a*d  for a,d in zip(align, directions))
+	for i in range(2**len(directions)):
+		points.append(min + sum(d if i>>k & 1 else 0   for k,d in enumerate(directions)))
+	
+	# mesh
+	if len(directions) == 1:
+		if fill:
+			raise ValueError('cannot fill parallelogram with one only direction')
+		else:
+			return Web(points, [uvec2(0,1)])
+	
+	if len(directions) == 2:
+		if fill:
+			return Mesh(points, [
+					uvec3(0,1,2), uvec3(2,1,3),
+					])
+		else:
+			return Web(points, [
+					uvec2(0,1),
+					uvec2(1,3),
+					uvec2(3,2),
+					uvec2(2,0),
+					]).segmented()
+					
+	elif len(directions) == 3:
+		if fill:
+			return Mesh(points, 
+					[
+						uvec3(0,2,1), uvec3(1,2,3),
+						uvec3(0,1,4), uvec3(1,5,4),
+						uvec3(0,4,2), uvec3(2,4,6),
+						uvec3(4,5,6), uvec3(5,7,6),
+						uvec3(2,6,3), uvec3(3,6,7),
+						uvec3(1,3,5), uvec3(3,7,5),
+					],
+					[
+						0, 0,
+						1, 1,
+						2, 2,
+						3, 3,
+						4, 4,
+						5, 5,
+					])
+		else:
+			return Web(points, [
+					uvec2(0,1), uvec2(2,3), uvec2(4,5), uvec2(6,7),
+					uvec2(0,2), uvec2(1,3), uvec2(4,6), uvec2(5,7),
+					uvec2(0,4), uvec2(1,5), uvec2(2,6), uvec2(3,7),
+					]).segmented()
+		
+	else:
+		raise ValueError('wrong number of directions')
 	
 def cylinder(bottom:vec3, top:vec3, radius:float, fill=True) -> 'Mesh':
 	''' Create a revolution cylinder, with the given radius 
