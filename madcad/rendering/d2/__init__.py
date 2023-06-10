@@ -28,15 +28,29 @@ def displayable(obj):
         not isinstance(obj, type)
     )
 
-class Offscreen2D(ViewCommon, Offscreen):
+class Offscreen2D(Offscreen):
     '''
     Object allowing to perform offscreen rendering, navigate 
     and get information from screen as for a normal window 
     '''
-    def __init__(self, scene, size=uvec2(400, 400), view:mat4=None):
+    def __init__(self, scene, size=uvec2(400, 400), navigation=None, projection=mat3(), **options):
         global global_context
 
-        ViewCommon.__init__(scene, view=view)
+        self.projection = projection or globals()[settings.scene['projection']]()
+        self.navigation = navigation or globals()[settings.controls['navigation']]()
+
+        # render parameters
+        self.scene = scene if isinstance(scene, Scene3D) else Scene3D(scene)
+        self.uniforms = {'proj':fmat4(1), 'view':fmat4(1), 'projview':fmat4(1)}    # last frame rendering constants
+        self.targets = []
+        self.steps = []
+        self.step = 0
+        self.stepi = 0
+
+        # dump targets
+        self.map_depth = None
+        self.map_idents = None
+        self.fresh = set()    # set of refreshed internal variables since the last render
 
         if global_context:
             self.scene.ctx = global_context
@@ -46,6 +60,91 @@ class Offscreen2D(ViewCommon, Offscreen):
 
         self.init(size)
         self.preload()
+
+    def init(self, size):
+        w, h = size
+
+        ctx = self.scene.ctx
+        assert ctx, 'context is not initialized'
+
+        # self.fb_frame is already created and sized by Qt
+        self.fb_screen = ctx.simple_framebuffer(size)
+        self.fb_ident = ctx.simple_framebuffer(size, components=3, dtype='f1')
+        self.targets = [
+            ('screen', self.fb_screen, self.setup_screen),
+            ('ident', self.fb_ident, self.setup_ident)
+        ]
+        self.map_ident = np.empty((h, w), dtype='u2')
+        self.map_depth = np.empty((h, w), dtype='f4')
+
+    def preload(self):
+        ''' Internal method to load common resources '''
+        ctx, resources = self.scene.ctx, self.scene.resources
+        resources['shader_ident'] = ctx.program(
+            vertex_shader=open(resourcedir+'/shaders/object-ident.vert').read(),
+            fragment_shader=open(resourcedir+'/shaders/ident.frag').read(),
+        )
+
+        resources['shader_subident'] = ctx.program(
+            vertex_shader=open(resourcedir+'/shaders/object-item-ident.vert').read(),
+            fragment_shader=open(resourcedir+'/shaders/ident.frag').read(),
+        )
+
+    def look(self, position: fvec3=None):
+        ''' Make the scene navigation look at the position.
+            This is changing the camera direction, center and distance.
+        '''
+        if not position:
+            position = self.scene.box().center
+
+        dir = position - fvec3(affineInverse(self.navigation.matrix())[3])
+        if not dot(dir,dir) > 1e-6 or not isfinite(position):
+            return
+
+        if isinstance(self.navigation, Turntable):
+            self.navigation.yaw = atan2(dir.x, dir.y)
+            self.navigation.pitch = -atan2(dir.z, length(dir.xy))
+            self.navigation.center = position
+            self.navigation.distance = length(dir)
+        elif isinstance(self.navigation, Orbit):
+            focal = self.orient * fvec3(0, 0, 1)
+            self.navigation.orient = quat(dir, focal) * self.navigation.orient
+            self.navigation.center = position
+            self.navigation.distance = length(dir)
+        else:
+            raise TypeError("navigation {} is not supported by 'look'".format(type(self.navigation)))
+
+    def adjust(self, box:Box=None):
+        ''' Make the navigation camera large enough to get the given box in .
+            This is changing the zoom level
+        '''
+        if not box:    box = self.scene.box()
+        if box.isempty():    return
+
+        # get the most distant point to the focal axis
+        invview = affineInverse(self.navigation.matrix())
+        camera, look = fvec3(invview[3]), fvec3(invview[2])
+        dist = length(noproject(box.center-camera, look)) + max(glm.abs(box.width))/2 * 1.1
+        if not dist > 1e-6:    return
+
+        # adjust navigation distance
+        if isinstance(self.projection, Perspective):
+            self.navigation.distance = dist / tan(self.projection.fov / 2)
+        elif isinstance(self.projection, Orthographic):
+            self.navigation.distance = dist / self.projection.size
+        else:
+            raise TypeError('projection {} not supported'.format(type(self.projection)))
+
+    def center(self, center: fvec3=None):
+        ''' Relocate the navigation to the given position .
+            This is translating the camera.
+        '''
+        if not center:
+            center = self.scene.box().center
+        if not isfinite(center):
+            return
+
+        self.navigation.center = center
 
 try:
     from ..qt import *
@@ -167,6 +266,7 @@ else:
             
         def rotate(self, dx, dy, dz):
             # rotate from view euler angles
+            # NOTE : scalaire qui donne l'angle
             self.orient = inverse(fquat(fvec3(-dy, -dx, dz) * pi)) * self.orient
         def pan(self, dx, dy):
             x,y,z = transpose(mat3_cast(self.orient))
@@ -180,6 +280,8 @@ else:
             return mat
 
 
+    # NOTE : Doit être supprimé pour être remplacer par une SubView
+    # Pour faire du multivue
     class ViewCommon:
         ''' 
         Common base for Qt's View rendering and Offscreen rendering. 
@@ -413,7 +515,25 @@ else:
 
             self.navigation.center = center
 
-    class QView2D(ViewCommon, QOpenGLWidget):
+    class Classic:
+        '''
+        Classic 2D navigation which offers translation and zoom
+        '''
+        def __init__(self, center:fvec3=0, distance:float=1):
+            self.center = fvec3(center)
+            self.distance = distance
+            self.tool = navigation_tool
+
+        def zoom(self, f):
+            self.distance *= f
+
+        def matrix(self) -> fmat4:
+            mat = translate(-self.center)
+            mat[3][2] -= self.distance
+            return mat
+
+
+    class QView2D(QOpenGLWidget):
         ''' Qt widget to render and interact with displayable objects.
             It holds a scene as renderpipeline.
 
@@ -427,7 +547,7 @@ else:
                 targets:     render targets matching those requested in `scene.stacks`
                 uniforms:    parameters for rendering, used in shaders
         '''
-        def __init__(self, scene, projection=None, navigation=None, parent=None):
+        def __init__(self, scene, navigation=None, **options):
             # super init
             QOpenGLWidget.__init__(self, parent)
             fmt = QSurfaceFormat()
@@ -443,7 +563,21 @@ else:
             self.handler.setAttribute(Qt.WA_AcceptTouchEvents, True)
             self.setFocusProxy(self.handler)
 
-            ViewCommon.__init__(self, scene, projection=projection, navigation=navigation)
+            self.scene = scene if isinstance(scene, Scene3D) else Scene3D(scene)
+            self.uniforms = {'proj':fmat4(1), 'view':fmat4(1), 'projview':fmat4(1)}    # last frame rendering constants
+            self.targets = []
+            self.steps = []
+            self.step = 0
+            self.stepi = 0
+
+            # dump targets
+            self.map_depth = None
+            self.map_idents = None
+            self.fresh = set()    # set of refreshed internal variables since the last render
+
+
+            self.navigation = navigation or globals()["Classic"]()
+
             self.tool = [Tool(self.navigation.tool, self)] # tool stack, the last tool is used for input events, until it is removed 
 
         def init(self):
@@ -455,44 +589,181 @@ else:
             # self.fb_screen is already created and sized by Qt
             self.fb_screen = ctx.detect_framebuffer(self.defaultFramebufferObject())
             self.fb_ident = ctx.simple_framebuffer((w, h), components=3, dtype='f1')
-            self.targets = [ ('screen', self.fb_screen, self.setup_screen),
-                             ('ident', self.fb_ident, self.setup_ident)]
-            self.map_ident = np.empty((h,w), dtype='u2')
-            self.map_depth = np.empty((h,w), dtype='f4')
+            self.targets = [
+                ('screen', self.fb_screen, self.setup_screen),
+                ('ident',  self.fb_ident,  self.setup_ident ),
+            ]
+            self.map_ident = np.empty((h, w), dtype='u2')
+            self.map_depth = np.empty((h, w), dtype='f4')
 
         def render(self):
             # set the opengl current context from Qt (doing it only from moderngl interferes with Qt)
             self.makeCurrent()
-            ViewCommon.render(self)
+            w, h = self.fb_screen.size
+            self.uniforms['view'] = view = self.navigation.matrix()
+            self.uniforms['projview'] = view
+            self.fresh.clear()
+
+            # call the render stack
+            self.scene.render(self)
+
+        def preload(self):
+            ''' Internal method to load common resources '''
+            ctx, resources = self.scene.ctx, self.scene.resources
+            resources['shader_ident'] = ctx.program(
+                vertex_shader   = open(resourcedir+'/shaders/object-ident.vert').read(),
+                fragment_shader = open(resourcedir+'/shaders/ident.frag'       ).read(),
+            )
+
+            resources['shader_subident'] = ctx.program(
+                vertex_shader   = open(resourcedir+'/shaders/object-item-ident.vert').read(),
+                fragment_shader = open(resourcedir+'/shaders/ident.frag'            ).read(),
+            )
+
+        def identstep(self, nidents):
+            ''' Updates the amount of rendered idents and return the start ident for the calling rendering pass?
+                Method to call during a renderstep
+            '''
+            s = self.step
+            self.step += nidents
+            self.steps[self.stepi] = self.step-1
+            self.stepi += 1
+            return s
 
 
         # -- view stuff --
 
         def look(self, position: fvec3=None):
-            ViewCommon.look(self, position)
+            if not position:    position = self.scene.box().center
+            dir = position - fvec3(affineInverse(self.navigation.matrix())[3])
+            if not dot(dir,dir) > 1e-6 or not isfinite(position):    return
+
+            if isinstance(self.navigation, Classic):
+                self.navigation.center = position
+                self.navigation.distance = length(dir)
+            else:
+                raise TypeError("navigation {} is not supported by 'look'".format(type(self.navigation)))
             self.update()
 
         def adjust(self, box:Box=None):
-            ViewCommon.adjust(self, box)
+            if box is None:
+                box = self.scene.box()
+            if box.isempty():
+                return
+
+            # get the most distant point to the focal axis
+            invview = affineInverse(self.navigation.matrix())
+            camera, look = fvec3(invview[3]), fvec3(invview[2])
+            dist = length(noproject(box.center - camera, look)) + max(glm.abs(box.width)) /2 * 1.1
+            if not dist > 1e-6:
+                return
             self.update()
 
         def center(self, center: fvec3=None):
-            ViewCommon.center(self, center)
+            if not center:
+                center = self.scene.box().center
+            if not isfinite(center):
+                return
+
+            self.navigation.center = center
             self.update()
 
         def somenear(self, point: QPoint, radius=None) -> QPoint:
-            some = ViewCommon.somenear(self, qt_2_glm(point), radius)
+            if radius is None:
+                radius = settings.controls['snap_dist']
+            self.refreshmaps()
+            shape = self.map_ident.shape
+            for x, y in snailaround(point, (shape[1], shape[0]), radius):
+                ident = int(self.map_ident[-y, x])
+                if ident:
+                    return uvec2(x, y)
             if some:
                 return glm_to_qt(some)
 
         def ptat(self, point: QPoint) -> fvec3:
-            return ViewCommon.ptat(self, qt_2_glm(point))
+            self.refreshmaps()
+            viewport = self.fb_ident.viewport
+            depthred = float(self.map_depth[-point.y,point.x])
+            x =  (point.x / viewport[3] * 2 - 1)
+            y = -(point.y / viewport[3] * 2 - 1)
+
+            if depthred == 1.0:
+                return None
+            else:
+                view = self.uniforms['view']
+                proj = self.uniforms['proj']
+                a,b = proj[2][2], proj[3][2]
+                depth = b / (depthred + a) * 0.5    # TODO get the true depth (can't get why there is a strange factor ... opengl trick)
+                # near, far = self.projection.limits  or settings.display['view_limits']
+                # depth = 2 * near / (far + near - depthred * (far - near))
+                # print('depth', depth, depthred)
+                return vec3(fvec3(
+                    affineInverse(view) * fvec4(depth * x / proj[0][0], depth * y / proj[1][1], -depth, 1)
+                ))
 
         def ptfrom(self, point: QPoint, center: fvec3) -> fvec3:
-            return ViewCommon.ptfrom(self, qt_2_glm(point), center)
+            view = self.uniforms['view']
+            proj = self.uniforms['proj']
+            viewport = self.fb_ident.viewport
+            x =  (point.x/viewport[2] *2 -1)
+            y = -(point.y/viewport[3] *2 -1)
+            depth = (view * fvec4(fvec3(center),1))[2]
+            return vec3(fvec3(
+                affineInverse(view) * fvec4(-depth * x / proj[0][0], -depth * y / proj[1][1], depth, 1)
+            ))
+
 
         def itemat(self, point: QPoint) -> 'key':
-            return ViewCommon.itemat(self, qt_2_glm(point))
+            self.refreshmaps()
+            point = uvec2(point)
+            ident = int(self.map_ident[-point.y, point.x])
+            if ident and 'ident' in self.scene.stacks:
+                rdri = bisect(self.steps, ident)
+                if rdri == len(self.steps):
+                    print('internal error: object ident points out of idents list')
+                while rdri > 0 and self.steps[rdri-1] == ident:
+                    rdri -= 1
+                if rdri > 0:
+                    subi = ident - self.steps[rdri-1] - 1
+                else:
+                    subi = ident - 1
+                
+                if rdri >= len(self.scene.stacks['ident']):
+                    print('wrong identification index', ident, self.scene.stacks['ident'][-1])
+                    nprint(self.scene.stacks['ident'])
+                    return
+
+                return (*self.scene.stacks['ident'][rdri][0], subi)
+
+        def setup_ident(self):
+            # steps for fast fast search of displays with the idents
+            self.stepi = 0
+            self.step = 1
+            if 'ident' in self.scene.stacks and len(self.scene.stacks['ident']) != len(self.steps):
+                self.steps = [0] * len(self.scene.stacks['ident'])
+            # ident rendering setup
+            ctx = self.scene.ctx
+            ctx.multisample = False
+            ctx.enable_only(mgl.DEPTH_TEST)
+            ctx.blend_func = mgl.ONE, mgl.ZERO
+            ctx.blend_equation = mgl.FUNC_ADD
+            self.target.clear(0)
+
+        def setup_screen(self):
+            # screen rendering setup
+            ctx = self.scene.ctx
+            ctx.multisample = True
+            ctx.enable_only(mgl.BLEND | mgl.DEPTH_TEST)
+            ctx.blend_func = mgl.SRC_ALPHA, mgl.ONE_MINUS_SRC_ALPHA
+            ctx.blend_equation = mgl.FUNC_ADD
+            
+            background = settings.display['background_color']
+            if len(background) == 3:
+                self.target.clear(*background, alpha=1)
+            elif len(background) == 4:
+                self.target.clear(*background)
+            else:
+                raise ValueError(f"background_color must be a RGB or RGBA tuple, currently {background}")
 
 
         # -- event system --
@@ -507,16 +778,19 @@ else:
             if self.tool:
                 for tool in reversed(self.tool):
                     tool(evt)
-                    if evt.isAccepted():    return
+                    if evt.isAccepted():
+                        return
 
             # send the event to the scene objects, descending the item tree
-            if isinstance(evt, QMouseEvent) and evt.type() in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease, QEvent.MouseButtonDblClick, QEvent.MouseMove):
+            qevents = (QEvent.MouseButtonPress, QEvent.MouseButtonRelease, QEvent.MouseButtonDblClick, QEvent.MouseMove)
+            if isinstance(evt, QMouseEvent) and evt.type() in qevents:
                 pos = self.somenear(evt.pos())
                 if pos:
                     key = self.itemat(pos)
                     if key:
                         self.control(key, evt)
-                        if evt.isAccepted():    return
+                        if evt.isAccepted():
+                            return
 
                 # if clicks are not accepted, then some following keyboard events may not come to the widget
                 # NOTE this also discarding the ability to move the window from empty areas
@@ -548,7 +822,7 @@ else:
                 # make sure that a display is selected if one of its sub displays is
                 for disp in reversed(stack):
                     if hasattr(disp, '__iter__'):
-                        disp.selected = any(sub.selected    for sub in disp)
+                        disp.selected = any(sub.selected for sub in disp)
                 self.update()
 
         # -- Qt things --
@@ -615,7 +889,8 @@ else:
             # self.setFocusProxy(self.handler)
             #
             # SubView3D.__init__(self, scene, projection=projection, navigation=navigation)
-            # self.tool = [Tool(self.navigation.tool, self)] # tool stack, the last tool is used for input events, until it is removed 
+            # self.tool = [Tool(self.navigation.tool, self)] 
+            # # tool stack, the last tool is used for input events, until it is removed 
             pass
 
         def init(self):

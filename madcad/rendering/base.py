@@ -9,8 +9,8 @@ from operator import itemgetter
 
 def writeproperty(func):
     ''' Decorator to create a property that has only an action on variable write '''
-    fieldname = '_'+func.__name__
-    def getter(self):    return getattr(self, fieldname)
+    fieldname = '_' + func.__name__
+    def getter(self):   return getattr(self, fieldname)
     def setter(self, value):
         setattr(self, fieldname, value)
         func(self, value)
@@ -19,9 +19,9 @@ def writeproperty(func):
 def npboundingbox(points):
     ''' boundingbox for numpy arrays of points on the 3 first components '''
     return Box(
-                fvec3([float(np.min(points[:,i])) for i in range(3)]),
-                fvec3([float(np.max(points[:,i])) for i in range(3)]),
-                )
+        fvec3([float(np.min(points[:,i])) for i in range(3)]),
+        fvec3([float(np.max(points[:,i])) for i in range(3)]),
+    )
 
 class Display:
     ''' Blanket implementation for displays.
@@ -36,9 +36,8 @@ class Display:
     '''
 
     # Mandatory part of the protocol
-
-    box = Box(center=0, width=fvec3(-inf))    # to inform the scene and the view of the object size
-    world = fmat4(1)        # set by the display containing this one if it is belonging to a group
+    box = Box(center=0, width=fvec3(-inf))  # to inform the scene and the view of the object size
+    world = fmat4(1)                        # set by the display containing this one if it is belonging to a group
 
     def display(self, scene) -> 'self':
         ''' Displays are obviously displayable as themselves '''
@@ -49,7 +48,7 @@ class Display:
 
             The expected result can be any iterable providing tuples `(key, target, priority, callable)` such as:
 
-            :key:        a tuple with the successive keys in the displays tree, most of the time implementations set it to `()`  because it doesn't belong to a subpart of the Display.
+            :key:       a tuple with the successive keys in the displays tree, most of the time implementations set it to `()`  because it doesn't belong to a subpart of the Display.
             :target:    the name of the render target in the view that will be rendered (see View)
             :priority:  a float that is used to insert the callable at the proper place in the rendering stack
             :callable:  a function that renders, signature is `func(view)`
@@ -77,7 +76,6 @@ class Display:
         return False
 
     # optional part for usage with Qt
-
     selected = False
 
     def control(self, view, key, sub, evt: 'QEvent'):
@@ -100,8 +98,10 @@ class Displayable:
     def __init__(self, build, *args, **kwargs):
         self.args, self.kwargs = args, kwargs
         self.build = build
+
     def __repr__(self):
         return '{}({}, {}, {})'.format(type(self).__name__, repr(self.args[1:-1]), repr(self.kwargs)[1:-1])
+
     def display(self, scene):
         return self.build(scene, *self.args, **self.kwargs)
 
@@ -111,10 +111,12 @@ class Group(Display):
         self._world = fmat4(1)
         self._pose = fmat4(pose)
         self.displays = {}
-        if objs:    self.dequeue(scene, objs)
+        if objs:
+            self.dequeue(scene, objs)
 
     def __getitem__(self, key):
         return self.displays[key]
+
     def __iter__(self):
         return iter(self.displays.values())
 
@@ -122,15 +124,15 @@ class Group(Display):
         if isinstance(objs, dict):          objs = objs
         elif hasattr(objs, 'keys'):         objs = dict(objs)
         elif hasattr(objs, '__iter__'):     objs = dict(enumerate(objs))
-        else:
-            return False
+        else:                               return False
 
         # update displays
         sub = self._world * self._pose
         with scene.ctx:
             scene.ctx.finish()
             for key, obj in objs.items():
-                if not displayable(obj):    continue
+                if not displayable(obj):
+                    continue
                 try:
                     self.displays[key] = disp = scene.display(obj, self.displays.get(key))
                     disp.world = sub
@@ -145,7 +147,7 @@ class Group(Display):
 
     def stack(self, scene):
         for key,display in self.displays.items():
-            for sub,target,priority,func in display.stack(scene):
+            for sub, target, priority, func in display.stack(scene):
                 yield ((key, *sub), target, priority, func)
 
     @writeproperty
@@ -171,7 +173,6 @@ class Group(Display):
         return box.transform(self._pose)
 
 # dictionary to store procedures to override default object displays
-
 class Scene:
     ''' Rendering pipeline for madcad displayable objects
 
@@ -212,7 +213,6 @@ class Scene:
         self.update(objs)
 
     # methods to manage the rendering pipeline
-
     def add(self, displayable, key=None) -> 'key':
         ''' Add a displayable object to the scene, if key is not specified, an unused integer key is used
             The object is not added to the render pipeline yet, but queued for next rendering.
