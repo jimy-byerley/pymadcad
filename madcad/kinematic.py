@@ -247,7 +247,7 @@ class Solid:
 				offset = self.solid.position - affineInverse(mat4(self.world)) * start
 				view.tool.append(rendering.Tool(self.move, view, start, offset))
 			# this click might have been a selection, ask for scene restack just in case
-			elif evt.type() == QEvent.Type.MouseButtonRelease and evt.button() == Qt.LeftButton:
+			elif evt.type() == QEvent.Type.MouseButtonRelease and evt.button() == Qt.MouseButton.LeftButton:
 				view.scene.touch()
 				
 		def move(self, dispatcher, view, pt, offset):
@@ -264,7 +264,7 @@ class Solid:
 					self.apply_pose()
 					view.update()
 				
-				if evt.type() == QEvent.Type.MouseButtonRelease and evt.button() == Qt.LeftButton:
+				if evt.type() == QEvent.Type.MouseButtonRelease and evt.button() == Qt.MouseButton.LeftButton:
 					if moved:	evt.accept()
 					break
 						

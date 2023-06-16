@@ -246,7 +246,7 @@ def navigation_tool(dispatcher, view):
 			# no accept because the shortcuts need to get the keys also
 		elif evt.type() == QEvent.Type.MouseButtonPress:
 			last = evt.position()
-			if evt.button() == Qt.MiddleButton:
+			if evt.button() == Qt.MouseButton.MiddleButton:
 				nav = 'rotate'
 			else:
 				nav = curr
@@ -1130,7 +1130,7 @@ class View(ViewCommon, QOpenGLWidget):
 			if evt.isAccepted(): return
 			stack.append(disp)
 
-		if evt.type() == QEvent.Type.MouseButtonPress and evt.button() == Qt.LeftButton:
+		if evt.type() == QEvent.Type.MouseButtonPress and evt.button() == Qt.MouseButton.LeftButton:
 			disp = stack[-1]
 			# select what is under cursor
 			if type(disp).__name__ in ('SolidDisplay', 'WebDisplay'):
