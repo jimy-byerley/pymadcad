@@ -18,19 +18,16 @@
 '''
 
 from copy import copy, deepcopy
-import numpy.core as np
-import moderngl as mgl
-from PyQt5.QtCore import Qt, QEvent	
 
+import moderngl as mgl
+import numpy.core as np
+from PyQt6.QtCore import QEvent, Qt
+
+from . import constraints, nprint, rendering, settings, text
 from .common import resourcedir
-from .mathutils import *
-from .mesh import Mesh, Web, Wire, striplist, distance2_pm, typedlist_to_numpy
-from . import settings
-from . import constraints
-from . import text
-from . import rendering
-from . import nprint
 from .displays import BoxDisplay
+from .mathutils import *
+from .mesh import Mesh, Web, Wire, distance2_pm, striplist, typedlist_to_numpy
 
 __all__ = ['Screw', 'comomentum', 'Pressure', 'Solid', 'Kinematic', 'Kinemanip', 'solvekin',
 			 'Scheme', 'WireDisplay',
@@ -244,13 +241,13 @@ class Solid:
 				
 		def control(self, view, key, sub, evt):
 				# solid manipulation
-			if not view.scene.options['lock_solids'] and evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
+			if not view.scene.options['lock_solids'] and evt.type() == QEvent.Type.MouseButtonPress and evt.button() == Qt.MouseButton.LeftButton:
 				evt.accept()
-				start = view.ptat(view.somenear(evt.pos()))
+				start = view.ptat(view.somenear(evt.position()))
 				offset = self.solid.position - affineInverse(mat4(self.world)) * start
 				view.tool.append(rendering.Tool(self.move, view, start, offset))
 			# this click might have been a selection, ask for scene restack just in case
-			elif evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
+			elif evt.type() == QEvent.Type.MouseButtonRelease and evt.button() == Qt.LeftButton:
 				view.scene.touch()
 				
 		def move(self, dispatcher, view, pt, offset):
@@ -258,16 +255,16 @@ class Solid:
 			while True:
 				evt = yield
 				
-				if evt.type() == QEvent.MouseMove:
+				if evt.type() == QEvent.Type.MouseMove:
 					evt.accept()
 					moved = True
 					world = mat4(self.world)
-					pt = affineInverse(world) * view.ptfrom(evt.pos(), world * pt)
+					pt = affineInverse(world) * view.ptfrom(evt.position(), world * pt)
 					self.solid.position = pt + offset
 					self.apply_pose()
 					view.update()
 				
-				if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
+				if evt.type() == QEvent.Type.MouseButtonRelease and evt.button() == Qt.LeftButton:
 					if moved:	evt.accept()
 					break
 						
@@ -310,8 +307,9 @@ def placement(*pairs, precision=1e-3):
 			...		(Pivot, screw['axis'], other['screw_place']),
 			...		)
 	'''
-	from .reverse import guessjoint
 	from random import random
+
+	from .reverse import guessjoint
 	
 	a, b = Solid(), Solid()
 	joints = []
@@ -358,6 +356,7 @@ def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)
 		
 	'''
 	import scipy.spatial.qhull
+
 	# build convex hulls
 	points = [[] for s in solids]
 	# recursively search for meshes in solids
@@ -829,12 +828,12 @@ class Kinemanip(rendering.Group):
 		# no action on the root solid
 		if sub[0] in self.fixed:	return
 		
-		if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
+		if evt.type() == QEvent.Type.MouseButtonPress and evt.button() == Qt.MouseButton.LeftButton:
 			# start solid drag
 			evt.accept()
 			solid = self.solids[sub[0]]
 			self.sizeref = max(norminf(self.box.width), 1)
-			start = vec3(affineInverse(mat4(self.world)) * vec4(view.ptat(view.somenear(evt.pos())),1))
+			start = vec3(affineInverse(mat4(self.world)) * vec4(view.ptat(view.somenear(evt.position())),1))
 			offset = inverse(quat(solid.orientation)) * (start - solid.position)
 			view.tool.append(rendering.Tool(self.move, view, solid, start, offset))
 	
@@ -843,7 +842,7 @@ class Kinemanip(rendering.Group):
 		while True:
 			evt = yield
 			
-			if evt.type() == QEvent.MouseMove:
+			if evt.type() == QEvent.Type.MouseMove:
 				evt.accept()
 				moved = True
 				# unlock moving solid
@@ -851,13 +850,13 @@ class Kinemanip(rendering.Group):
 					self.lock(view.scene, solid, False)
 				# displace the moved object
 				start = solid.position + quat(solid.orientation)*offset
-				pt = vec3(affineInverse(mat4(self.world)) * vec4(view.ptfrom(evt.pos(), start),1))
+				pt = vec3(affineInverse(mat4(self.world)) * vec4(view.ptfrom(evt.position(), start),1))
 				solid.position = pt - quat(solid.orientation)*offset
 				# solve
 				self.solve(False)
 				view.update()
 			
-			elif evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
+			elif evt.type() == QEvent.Type.MouseButtonRelease and evt.button() == Qt.MouseButton.LeftButton:
 				if moved:	evt.accept()
 				break
 		

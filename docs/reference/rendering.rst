@@ -84,7 +84,7 @@ Views classes
 		
 			.. code-block:: python
 				
-				QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts, True)
+				QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts, True)
 
 	* Methods to get items on the screen
 	

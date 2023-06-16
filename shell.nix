@@ -25,7 +25,7 @@ in pkgs.mkShell rec {
 
     # Those are dependencies that we would like to use from nixpkgs, which will
     # add them to PYTHONPATH and thus make them accessible from within the venv.
-    py.pyqt5
+    py.pyqt6
    
     # utils
     git
@@ -56,5 +56,5 @@ in pkgs.mkShell rec {
     unset SOURCE_DATE_EPOCH
   '';
 
-  QT_QPA_PLATFORM_PLUGIN_PATH="${qt5.qtbase.bin}/lib/qt-${qt5.qtbase.version}/plugins";
+  QT_QPA_PLATFORM_PLUGIN_PATH="${qt6.qtbase.bin}/lib/qt-${qt6.qtbase.version}/plugins";
 }

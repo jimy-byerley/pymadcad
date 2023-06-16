@@ -1,6 +1,6 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
-from setuptools import setup, find_packages, Extension
+from setuptools import Extension, find_packages, setup
 
 try:
 	from Cython.Build import cythonize
@@ -19,10 +19,11 @@ setup(
 		'moderngl>=5.6',
 		'numpy>=1.1',
 		'scipy>=1.3',
-		'PyQt5>=5',
+		'PyQt6>=6',
 		'Pillow>=5.4',
 		'pyyaml>=5',
 		'arrex>=0.5.1',
+		"opencv-python-headless>=4.7.0" # required by PyQt on MacOS
 		],
 	extras_require={
 		'PLY': ['plyfile>=0.7'],

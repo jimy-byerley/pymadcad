@@ -7,11 +7,14 @@ dictionaries:
 	:controls:	preferences for the controls of the Scene widget
 '''
 
-from math import pi, ceil, floor, sqrt
-from glm import fvec3, fvec4
-import sys, os, yaml
+import os
+import sys
+from math import ceil, floor, pi, sqrt
 from os.path import dirname, exists
+from PyQt6.QtGui import QPalette
 
+import yaml
+from glm import fvec3, fvec4
 
 display = {
 	'field_of_view': pi/6,
@@ -150,8 +153,9 @@ def getparam(levels: list, key):
 
 def use_qt_colors():
 	''' Set the color settings to fit the current system colors '''
-	from .mathutils import fvec3, mix, distance
-	from PyQt5.QtWidgets import QApplication
+	from PyQt6.QtWidgets import QApplication
+
+	from .mathutils import distance, fvec3, mix
 	palette = QApplication.instance().palette()
 	def qtc(role):
 		''' Convert a QColor or QPalette role to fvec3'''
@@ -159,17 +163,17 @@ def use_qt_colors():
 		return fvec3(c.red(), c.green(), c.blue()) / 255
 		
 	
-	selection = mix(fvec3(0.4, 1, 0), qtc(palette.Highlight), 0.6)
-	selection *= mix(1/max(selection), max(qtc(palette.Text)), 0.3)
+	selection = mix(fvec3(0.4, 1, 0), qtc(QPalette.ColorRole.Highlight), 0.6)
+	selection *= mix(1/max(selection), max(qtc(QPalette.ColorRole.Text)), 0.3)
 	display.update({
-		'background_color': qtc(palette.Base),
+		'background_color': qtc(QPalette.ColorRole.Base),
 		'select_color_face': selection * 0.05,
 		'select_color_line': selection * 1.1,
-		'line_color': qtc(palette.Text),
-		'point_color': qtc(palette.Text),
-		'solid_color': mix(qtc(palette.Text), qtc(palette.Window), 0.7),
-		'schematics_color': qtc(palette.Link),
-		'annotation_color': mix(qtc(palette.Highlight), qtc(palette.Text), 0.5),
+		'line_color': qtc(QPalette.ColorRole.Text),
+		'point_color': qtc(QPalette.ColorRole.Text),
+		'solid_color': mix(qtc(QPalette.ColorRole.Text), qtc(QPalette.ColorRole.Window), 0.7),
+		'schematics_color': qtc(QPalette.ColorRole.Link),
+		'annotation_color': mix(qtc(QPalette.ColorRole.Highlight), qtc(QPalette.ColorRole.Text), 0.5),
 		})
 
 

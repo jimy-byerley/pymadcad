@@ -1,7 +1,8 @@
 Installation
 ============
 
-In order to install ``pymadcad``, you need a version of Python ``>=3.8``
+In order to install ``pymadcad``, you need a version of Python ``>=3.8``.
+On MacOS, you might also need to install `pyqt6_tools` (e.g. by `pip install --upgrade pyqt6_tools`).
 
 From PyPI
 ---------
@@ -54,20 +55,20 @@ Make sure you installed the dependencies:
 
 	pip install moderngl pyglm pillow numpy scipy pyyaml arrex
 
-You still need the PyQt5 library. As there is many possible sources, you have to install it manually so you can use the version/source you prefer.
+You still need the PyQt6 library. As there is many possible sources, you have to install it manually so you can use the version/source you prefer.
 Choose one of the following:
 
 - Qt from PyPI
 	
 	.. code-block:: sh
 		
-		pip install PyQt5
+		pip install PyQt6
 		
 - Qt from the Linux repositories
 
 	.. code-block:: sh
 	
-		sudo apt install python3-pyqt5 python3-pyqt5.qtopengl
+		sudo apt install python3-pyqt6 python3-pyqt6.qtopengl
 
 Compile the module
 ~~~~~~~~~~~~~~~~~~

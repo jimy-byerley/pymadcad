@@ -93,9 +93,6 @@ We preferred to bet on the most - advanced and feature-complete - free library d
 
 	Choice is `Qt <https://www.qt.io/>`_ but with `moderngl <https://github.com/moderngl/moderngl>`_ for the render pipeline
 	
-.. note::
-	Qt5 is not very pythonic (it's designed for C++, no functional programming, huge inheritance instead of python protocols, string typing, enums, camelcase, ...). But since the release of `Qt6 (guidelines) <https://www.qt.io/blog/2019/08/07/technical-vision-qt-6>`_ more pythonicity can be found, that madcad will benefit from once upgraded to Qt6
-
 References
 ~~~~~~~~~~
 

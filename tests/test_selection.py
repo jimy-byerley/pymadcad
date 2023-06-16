@@ -1,9 +1,11 @@
 import sys
-from PyQt5.QtWidgets import QApplication
-from madcad.mathutils import vec3
-from madcad.selection import *
-from madcad.mesh import Mesh
+
+from PyQt6.QtWidgets import QApplication
+
 from madcad import view
+from madcad.mathutils import vec3
+from madcad.mesh import Mesh
+from madcad.selection import *
 
 m = Mesh(
 	[vec3(1,1,0), vec3(-1,1,0), vec3(-1,-1,0), vec3(1,-1,0),    vec3(2,-1,0), vec3(2,1,0),    vec3(-2,1,0), vec3(-2,-1,0)],

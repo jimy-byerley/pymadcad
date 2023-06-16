@@ -1,14 +1,17 @@
+import sys
+
+from PyQt6.QtWidgets import QApplication
+
 from madcad import *
+from madcad import view
 from madcad.constraints import *
 from madcad.mesh import suites
 from madcad.selection import *
 
-from madcad import view
-import sys
-from PyQt5.QtWidgets import QApplication
 app = QApplication(sys.argv)
 main = scn3D = view.Scene()
 from madcad import boolean
+
 boolean.scn3D = scn3D
 
 

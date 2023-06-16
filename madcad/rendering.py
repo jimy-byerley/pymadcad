@@ -39,31 +39,29 @@
 		- a View should not be reparented once displayed
 		- a View can't share a scene with Views from an other window
 		- to share a Scene between Views, you must activate 
-				QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
+				QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
 '''
 
+import traceback
 from copy import copy, deepcopy
 from operator import itemgetter
-import traceback
 
 import moderngl as mgl
 import numpy.core as np
-
-from PyQt5.QtCore import Qt, QPoint, QEvent
-from PyQt5.QtWidgets import QApplication, QWidget, QOpenGLWidget
-from PyQt5.QtGui import QSurfaceFormat, QMouseEvent, QInputEvent, QKeyEvent, QTouchEvent, QFocusEvent
-
 from PIL import Image
+from PyQt6.QtCore import QEvent, QPoint, Qt
+from PyQt6.QtGui import (QFocusEvent, QInputEvent, QKeyEvent, QMouseEvent,
+                         QSurfaceFormat, QTouchEvent)
+from PyQt6.QtOpenGLWidgets import QOpenGLWidget
+from PyQt6.QtWidgets import QApplication, QWidget
 
-from .mathutils import *
-from .common import resourcedir
 from . import settings
-
+from .common import resourcedir
+from .mathutils import *
 from .nprint import nprint
 
-
 # minimum opengl version required by the rendering pipeline
-opengl_version = (3,3)
+opengl_version = (4,1)
 # shared open gl context, None if not yet initialized
 global_context = None
 
@@ -90,11 +88,17 @@ def show(scene:dict, interest:Box=None, size=uvec2(400,400), projection=None, na
 	if 'options' in options:	options.update(options['options'])
 	if not isinstance(scene, Scene):	scene = Scene(scene, options)
 
+	fmt = QSurfaceFormat()
+	fmt.setVersion(*opengl_version)
+	fmt.setProfile(QSurfaceFormat.OpenGLContextProfile.CoreProfile)
+	fmt.setSamples(4)
+	QSurfaceFormat.setDefaultFormat(fmt)
+
 	app = QApplication.instance()
 	created = False
 	if not app:
 		import sys
-		QApplication.setAttribute(Qt.AA_ShareOpenGLContexts, True)
+		QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts, True)
 		app = QApplication(sys.argv)
 		global_context = None
 		created = True
@@ -231,7 +235,7 @@ def navigation_tool(dispatcher, view):
 		
 		if isinstance(evt, QKeyEvent):
 			k = evt.key()
-			press = evt.type() == QEvent.KeyPress
+			press = evt.type() == QEvent.Type.KeyPress
 			if	 k == Qt.Key_Control:	ctrl = press
 			elif k == Qt.Key_Alt:		alt = press
 			elif k == Qt.Key_Shift:		slow = press
@@ -240,8 +244,8 @@ def navigation_tool(dispatcher, view):
 			elif alt:				curr = 'rotate'
 			else:					curr = None
 			# no accept because the shortcuts need to get the keys also
-		elif evt.type() == QEvent.MouseButtonPress:
-			last = evt.pos()
+		elif evt.type() == QEvent.Type.MouseButtonPress:
+			last = evt.position()
 			if evt.button() == Qt.MiddleButton:
 				nav = 'rotate'
 			else:
@@ -249,10 +253,10 @@ def navigation_tool(dispatcher, view):
 			# prevent any scene interaction
 			if nav:
 				evt.accept()
-		elif evt.type() == QEvent.MouseMove:
+		elif evt.type() == QEvent.Type.MouseMove:
 			if nav:
 				moving = True
-				gap = evt.pos() - last
+				gap = evt.position() - last
 				dx = gap.x()/view.height()
 				dy = gap.y()/view.height()
 				if nav == 'pan':		view.navigation.pan(dx, dy)
@@ -260,16 +264,16 @@ def navigation_tool(dispatcher, view):
 				elif nav == 'zoom':		
 					middle = QPoint(view.width(), view.height())/2
 					f = (	(last-middle).manhattanLength()
-						/	(evt.pos()-middle).manhattanLength()	)
+						/	(evt.position()-middle).manhattanLength()	)
 					view.navigation.zoom(f)
-				last = evt.pos()
+				last = evt.position()
 				view.update()
 				evt.accept()
-		elif evt.type() == QEvent.MouseButtonRelease:
+		elif evt.type() == QEvent.Type.MouseButtonRelease:
 			if moving:
 				moving = False
 				evt.accept()
-		elif evt.type() == QEvent.Wheel:
+		elif evt.type() == QEvent.Type.Wheel:
 			view.navigation.zoom(exp(-evt.angleDelta().y()/(8*90)))	# the 8 factor is there because of the Qt documentation
 			view.update()
 			evt.accept()
@@ -277,15 +281,15 @@ def navigation_tool(dispatcher, view):
 				
 		elif isinstance(evt, QTouchEvent):
 			nav = None
-			pts = evt.touchPoints()
+			pts = evt.points()
 			# view rotation
 			if len(pts) == 2:
-				startlength = (pts[0].lastPos()-pts[1].lastPos()).manhattanLength()
-				zoom = startlength / (pts[0].pos()-pts[1].pos()).manhattanLength()
-				displt = (	(pts[0].pos()+pts[1].pos()) /2 
-						-	(pts[0].lastPos()+pts[1].lastPos()) /2 ) /view.height()
-				dc = pts[0].pos() - pts[1].pos()
-				dl = pts[0].lastPos() - pts[1].lastPos()
+				startlength = (pts[0].lastPosition()-pts[1].lastPosition()).manhattanLength()
+				zoom = startlength / (pts[0].position()-pts[1].position()).manhattanLength()
+				displt = (	(pts[0].position()+pts[1].position()) /2 
+						-	(pts[0].lastPosition()+pts[1].lastPosition()) /2 ) /view.height()
+				dc = pts[0].position() - pts[1].position()
+				dl = pts[0].lastPosition() - pts[1].lastPosition()
 				rot = atan2(dc.y(), dc.x()) - atan2(dl.y(), dl.x())
 				view.navigation.zoom(zoom)
 				view.navigation.rotate(displt.x(), displt.y(), rot)
@@ -294,21 +298,21 @@ def navigation_tool(dispatcher, view):
 				evt.accept()
 			# view translation
 			elif len(pts) == 3:
-				lc = (	pts[0].lastPos() 
-					+	pts[1].lastPos() 
-					+	pts[2].lastPos() 
+				lc = (	pts[0].lastPosition() 
+					+	pts[1].lastPosition() 
+					+	pts[2].lastPosition() 
 					)/3
-				lr = (	(pts[0].lastPos() - lc) .manhattanLength()
-					+	(pts[1].lastPos() - lc) .manhattanLength()
-					+	(pts[2].lastPos() - lc) .manhattanLength()
+				lr = (	(pts[0].lastPosition() - lc) .manhattanLength()
+					+	(pts[1].lastPosition() - lc) .manhattanLength()
+					+	(pts[2].lastPosition() - lc) .manhattanLength()
 					)/3
-				cc = (	pts[0].pos() 
-					+	pts[1].pos() 
-					+	pts[2].pos() 
+				cc = (	pts[0].position() 
+					+	pts[1].position() 
+					+	pts[2].position() 
 					)/3
-				cr = (	(pts[0].pos() - cc) .manhattanLength()
-					+	(pts[1].pos() - cc) .manhattanLength()
-					+	(pts[2].pos() - cc) .manhattanLength()
+				cr = (	(pts[0].position() - cc) .manhattanLength()
+					+	(pts[1].position() - cc) .manhattanLength()
+					+	(pts[2].position() - cc) .manhattanLength()
 					)/3
 				zoom = lr / cr
 				displt = (cc - lc)  /view.height()
@@ -318,7 +322,7 @@ def navigation_tool(dispatcher, view):
 				view.update()
 				evt.accept()
 			# finish a gesture
-			elif evt.type() in (QEvent.TouchEnd, QEvent.TouchUpdate):
+			elif evt.type() in (QEvent.Type.TouchEnd, QEvent.Type.TouchUpdate):
 				evt.accept()
 				
 
@@ -764,7 +768,7 @@ class ViewCommon:
 		# prepare the view uniforms
 		w, h = self.fb_screen.size
 		self.uniforms['view'] = view = self.navigation.matrix()
-		self.uniforms['proj'] = proj = self.projection.matrix(w/h, self.navigation.distance)
+		self.uniforms['proj'] = proj = self.projection.matrix(w/h if h > 0 else 0, self.navigation.distance)
 		self.uniforms['projview'] = proj * view
 		self.fresh.clear()
 
@@ -971,6 +975,8 @@ class Offscreen(ViewCommon):
 
 	def init(self, size):
 		w, h = size
+		# w = max(w, 100)
+		# h = max(h, 100)
 
 		ctx = self.scene.ctx
 		assert ctx, 'context is not initialized'
@@ -1020,23 +1026,20 @@ class View(ViewCommon, QOpenGLWidget):
 	def __init__(self, scene, projection=None, navigation=None, parent=None):
 		# super init
 		QOpenGLWidget.__init__(self, parent)
-		fmt = QSurfaceFormat()
-		fmt.setVersion(*opengl_version)
-		fmt.setProfile(QSurfaceFormat.CoreProfile)
-		fmt.setSamples(4)
-		self.setFormat(fmt)
+		# self.setFormat(fmt)
 		
 		# ugly trick to receive interaction events in a different function than QOpenGLWidget.event (that one is locking the GIL during the whole rendering, killing any possibility of having a computing thread aside)
 		# that event reception should be in the current widget ...
 		self.handler = GhostWidget(self)
-		self.handler.setFocusPolicy(Qt.StrongFocus)
-		self.handler.setAttribute(Qt.WA_AcceptTouchEvents, True)
+		self.handler.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+		self.handler.setAttribute(Qt.WidgetAttribute.WA_AcceptTouchEvents, True)
 		self.setFocusProxy(self.handler)
 
 		ViewCommon.__init__(self, scene, projection=projection, navigation=navigation)
 		self.tool = [Tool(self.navigation.tool, self)] # tool stack, the last tool is used for input events, until it is removed 
 
 	def init(self):
+		# w, h = max(self.width(), 100), max(self.height(), 100)
 		w, h = self.width(), self.height()
 
 		ctx = self.scene.ctx
@@ -1100,8 +1103,8 @@ class View(ViewCommon, QOpenGLWidget):
 				if evt.isAccepted():	return
 
 		# send the event to the scene objects, descending the item tree
-		if isinstance(evt, QMouseEvent) and evt.type() in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease, QEvent.MouseButtonDblClick, QEvent.MouseMove):
-			pos = self.somenear(evt.pos())
+		if isinstance(evt, QMouseEvent) and evt.type() in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease, QEvent.Type.MouseButtonDblClick, QEvent.Type.MouseMove):
+			pos = self.somenear(evt.position())
 			if pos:
 				key = self.itemat(pos)
 				if key:
@@ -1110,7 +1113,7 @@ class View(ViewCommon, QOpenGLWidget):
 
 			# if clicks are not accepted, then some following keyboard events may not come to the widget
 			# NOTE this also discarding the ability to move the window from empty areas
-			if evt.type() == QEvent.MouseButtonPress:
+			if evt.type() == QEvent.Type.MouseButtonPress:
 				evt.accept()
 
 	def control(self, key, evt):
@@ -1127,7 +1130,7 @@ class View(ViewCommon, QOpenGLWidget):
 			if evt.isAccepted(): return
 			stack.append(disp)
 
-		if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
+		if evt.type() == QEvent.Type.MouseButtonPress and evt.button() == Qt.LeftButton:
 			disp = stack[-1]
 			# select what is under cursor
 			if type(disp).__name__ in ('SolidDisplay', 'WebDisplay'):
@@ -1147,7 +1150,7 @@ class View(ViewCommon, QOpenGLWidget):
 		# retrieve global shared context if available
 		global global_context
 		
-		if QApplication.testAttribute(Qt.AA_ShareOpenGLContexts):
+		if QApplication.testAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts):
 			if not global_context:
 				global_context = mgl.create_context()
 			self.scene.ctx = global_context
@@ -1169,7 +1172,7 @@ class View(ViewCommon, QOpenGLWidget):
 
 	def changeEvent(self, evt):
 		# detect theme change
-		if evt.type() == QEvent.PaletteChange and settings.display['system_theme']:
+		if evt.type() == QEvent.Type.PaletteChange and settings.display['system_theme']:
 			settings.use_qt_colors()
 		return QOpenGLWidget.changeEvent(self, evt)
 

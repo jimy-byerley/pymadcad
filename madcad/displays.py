@@ -1,17 +1,17 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
-from math import log, exp, floor
+from math import exp, floor, log
+
+import moderngl as mgl
+import numpy.core as np
+from PIL import Image
+from PyQt6.QtCore import QEvent, Qt
+
+from . import primitives, settings
+from .common import resourcedir
 from .mathutils import *
 from .mesh import typedlist_to_numpy
 from .rendering import Display, overrides, writeproperty
-from .common import resourcedir
-from . import settings
-from . import primitives
-from PIL import Image
-import numpy.core as np
-import moderngl as mgl
-
-from PyQt5.QtCore import Qt, QEvent
 
 
 def shader_wire(scene):
@@ -240,7 +240,8 @@ class BoxDisplay(AnnotationDisplay):
 
 		super().__init__(scene, pts, color)
 
-from .mathutils import norminf, length2
+from .mathutils import length2, norminf
+
 
 class SolidDisplay(Display):
 	''' Display render Meshes '''
@@ -285,7 +286,7 @@ class SolidDisplay(Display):
 	def world(self, value):	self.vertices.world = value
 
 	#def control(self, view, key, sub, evt):
-		#if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
+		#if evt.type() == QEvent.Type.MouseButtonRelease and evt.button() == Qt.MouseButton.LeftButton:
 			#sub = sub[0]
 			#flags, idents = self.vertices.flags, self.vertices.idents
 			#for i in range(len(idents)):
@@ -320,7 +321,7 @@ class WebDisplay(Display):
 	def world(self, value):	self.vertices.world = value
 
 	#def control(self, view, key, sub, evt):
-		#if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
+		#if evt.type() == QEvent.Type.MouseButtonRelease and evt.button() == Qt.MouseButton.LeftButton:
 			#sub = sub[0]
 			#flags, idents = self.vertices.flags, self.vertices.idents
 			#for i in range(len(idents)):
@@ -776,7 +777,7 @@ class VoxelDisplay(Display):
 
 		def load(scene):
 			from . import generation
-			
+
 			# load shader
 			shader = scene.ctx.program(
 						vertex_shader=open(resourcedir+'/shaders/voxel.vert').read(),
