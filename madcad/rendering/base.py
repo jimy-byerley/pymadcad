@@ -473,3 +473,18 @@ class Tool(Dispatcher):
 class StopTool(Exception):
     ''' Used to stop a tool execution '''
     pass
+
+class GhostWidget(QWidget):
+    def __init__(self, parent):
+        super().__init__(parent)
+
+    def event(self, evt):
+        if isinstance(evt, QInputEvent):
+            # set the opengl current context from Qt (doing it only from moderngl interferes with Qt)
+            #self.makeCurrent()
+            evt.ignore()
+            self.parent().inputEvent(evt)
+            if evt.isAccepted():    return True
+        elif isinstance(evt, QFocusEvent):
+            self.parent().event(evt)
+        return super().event(evt)
