@@ -244,9 +244,13 @@ from .mathutils import norminf, length2
 
 class SolidDisplay(Display):
 	''' Display render Meshes '''
-	def __init__(self, scene, positions, normals, faces, lines, idents, color=None):
+	def __init__(self, scene, positions, normals, faces, lines, idents, color=None, options:dict = None):
 		self.box = npboundingbox(positions)
+		
 		self.options = scene.options
+		self.options.update(options)
+		# if we can make backward-breaking changes, remove color as parameter, use instead:
+		# color = options["color"] if options is not None and "color" in options else None
 		
 		s = settings.display
 		color = fvec3(color or s['solid_color'])
