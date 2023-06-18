@@ -247,7 +247,7 @@ class SolidDisplay(Display):
 	def __init__(self, scene, positions, normals, faces, lines, idents, color=None, options:dict = None):
 		self.box = npboundingbox(positions)
 		
-		self.options = scene.options
+		self.options = scene.options.copy()
 		self.options.update(options)
 		# if we can make backward-breaking changes, remove color as parameter, use instead:
 		# color = options["color"] if options is not None and "color" in options else None
