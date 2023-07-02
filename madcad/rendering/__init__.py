@@ -42,7 +42,7 @@ else:
         if not app:
             import sys
 
-            QApplication.setAttribute(Qt.AA_ShareOpenGLContexts, True)
+            QApplication.setAttribute(AA_ShareOpenGLContexts, True)
             app = QApplication(sys.argv)
             global_context = None
             created = True

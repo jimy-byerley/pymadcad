@@ -164,19 +164,19 @@ else:
             
             if isinstance(evt, QKeyEvent):
                 k = evt.key()
-                press = evt.type() == QEvent.KeyPress
-                if   k == Qt.Key_Control:    ctrl = press
-                elif k == Qt.Key_Alt:        alt = press
-                elif k == Qt.Key_Shift:      slow = press
+                press = evt.type() == QAllEvents.KeyPress
+                if   k == QKeys.Key_Control:    ctrl = press
+                elif k == QKeys.Key_Alt:        alt = press
+                elif k == QKeys.Key_Shift:      slow = press
                 if ctrl and alt:             curr = 'zoom'
                 elif ctrl:                   curr = 'pan'
                 elif alt:                    curr = 'rotate'
                 else:                        curr = None
                 # no accept because the shortcuts need to get the keys also
 
-            elif evt.type() == QEvent.MouseButtonPress:
+            elif evt.type() == QAllEvents.MouseButtonPress:
                 last = evt.pos()
-                if evt.button() == Qt.MiddleButton:
+                if evt.button() == QMouseButton.MiddleButton:
                     nav = 'rotate'
                 else:
                     nav = curr
@@ -184,7 +184,7 @@ else:
                 if nav:
                     evt.accept()
 
-            elif evt.type() == QEvent.MouseMove:
+            elif evt.type() == QAllEvents.MouseMove:
                 if nav:
                     moving = True
                     gap = evt.pos() - last
@@ -200,12 +200,12 @@ else:
                     view.update()
                     evt.accept()
 
-            elif evt.type() == QEvent.MouseButtonRelease:
+            elif evt.type() == QAllEvents.MouseButtonRelease:
                 if moving:
                     moving = False
                     evt.accept()
 
-            elif evt.type() == QEvent.Wheel:
+            elif evt.type() == QAllEvents.Wheel:
                 view.navigation.zoom(exp(-evt.angleDelta().y()/(8*90)))    # the 8 factor is there because of the Qt documentation
                 view.update()
                 evt.accept()
@@ -258,7 +258,7 @@ else:
                     evt.accept()
 
                 # finish a gesture
-                elif evt.type() in (QEvent.TouchEnd, QEvent.TouchUpdate):
+                elif evt.type() in (QAllEvents.TouchEnd, QAllEvents.TouchUpdate):
                     evt.accept()
 
     class Turntable:
@@ -369,9 +369,21 @@ else:
         def __init__(self, scene, projection=None, navigation=None, parent=None):
             # super init
             QOpenGLWidget.__init__(self, parent)
+            CoreProfile = (
+                QSurfaceFormat.OpenGLContextProfile.CoreProfile if QVersion == "PyQt6"
+                else QSurfaceFormat.CoreProfile
+            )
+            StrongFocus = (
+                Qt.FocusPolicy.StrongFocus if QVersion == "PyQt6"
+                else Qt.StrongFocus
+            )
+            WA_AcceptTouchEvents = (
+                Qt.WidgetAttribute.WA_AcceptTouchEvents if QVersion == "PyQt6"
+                else Qt.WA_AcceptTouchEvents
+            )
             fmt = QSurfaceFormat()
             fmt.setVersion(*opengl_version)
-            fmt.setProfile(QSurfaceFormat.CoreProfile)
+            fmt.setProfile(CoreProfile)
             fmt.setSamples(4)
             self.setFormat(fmt)
             
@@ -380,8 +392,8 @@ else:
             # whole rendering, killing any possibility of having a computing thread 
             # aside) that event reception should be in the current widget ...
             self.handler = GhostWidget(self)
-            self.handler.setFocusPolicy(Qt.StrongFocus)
-            self.handler.setAttribute(Qt.WA_AcceptTouchEvents, True)
+            self.handler.setFocusPolicy(StrongFocus)
+            self.handler.setAttribute(WA_AcceptTouchEvents, True)
             self.setFocusProxy(self.handler)
 
             self.scene = scene if isinstance(scene, Scene3D) else Scene3D(scene)
@@ -451,6 +463,18 @@ else:
             self.stepi += 1
             return s
 
+        def refreshmaps(self):
+            ''' Load the rendered frames from the GPU to the CPU
+                - When a picture is used to GPU rendering it's called 'frame'
+                - When it is dumped to the RAM we call it 'map' in this library
+            '''
+            if 'fb_ident' not in self.fresh:
+                self.makeCurrent()    # set the scene context as current opengl context
+                with self.scene.ctx as ctx:
+                    #ctx.finish()
+                    self.fb_ident.read_into(self.map_ident, viewport=self.fb_ident.viewport, components=2)
+                    self.fb_ident.read_into(self.map_depth, viewport=self.fb_ident.viewport, components=1, attachment=-1, dtype='f4')
+                self.fresh.add('fb_ident')
 
         # -- view stuff --
 
@@ -612,7 +636,7 @@ else:
                     if evt.isAccepted():    return
 
             # send the event to the scene objects, descending the item tree
-            if isinstance(evt, QMouseEvent) and evt.type() in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease, QEvent.MouseButtonDblClick, QEvent.MouseMove):
+            if isinstance(evt, QMouseEvent) and evt.type() in (QAllEvents.MouseButtonPress, QAllEvents.MouseButtonRelease, QAllEvents.MouseButtonDblClick, QAllEvents.MouseMove):
                 pos = self.somenear(evt.pos())
                 if pos:
                     key = self.itemat(pos)
@@ -622,7 +646,7 @@ else:
 
                 # if clicks are not accepted, then some following keyboard events may not come to the widget
                 # NOTE this also discarding the ability to move the window from empty areas
-                if evt.type() == QEvent.MouseButtonPress:
+                if evt.type() == QAllEvents.MouseButtonPress:
                     evt.accept()
 
         def control(self, key, evt):
@@ -639,7 +663,7 @@ else:
                 if evt.isAccepted(): return
                 stack.append(disp)
 
-            if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
+            if evt.type() == QAllEvents.MouseButtonPress and evt.button() == Qt.LeftButton:
                 disp = stack[-1]
                 # select what is under cursor
                 if type(disp).__name__ in ('SolidDisplay', 'WebDisplay'):
@@ -659,7 +683,7 @@ else:
             # retrieve global shared context if available
             global global_context
 
-            if QApplication.testAttribute(Qt.AA_ShareOpenGLContexts):
+            if QApplication.testAttribute(AA_ShareOpenGLContexts):
                 if not global_context:
                     global_context = mgl.create_context()
                 self.scene.ctx = global_context
@@ -681,7 +705,7 @@ else:
 
         def changeEvent(self, evt):
             # detect theme change
-            if evt.type() == QEvent.PaletteChange and settings.display['system_theme']:
+            if evt.type() == QAllEvents.PaletteChange and settings.display['system_theme']:
                 settings.use_qt_colors()
             return QOpenGLWidget.changeEvent(self, evt)
 
@@ -783,7 +807,7 @@ else:
                     if evt.isAccepted():    return
 
             # send the event to the scene objects, descending the item tree
-            if isinstance(evt, QMouseEvent) and evt.type() in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease, QEvent.MouseButtonDblClick, QEvent.MouseMove):
+            if isinstance(evt, QMouseEvent) and evt.type() in (QAllEvents.MouseButtonPress, QAllEvents.MouseButtonRelease, QAllEvents.MouseButtonDblClick, QAllEvents.MouseMove):
                 pos = self.somenear(evt.pos())
                 if pos:
                     key = self.itemat(pos)
@@ -793,7 +817,7 @@ else:
 
                 # if clicks are not accepted, then some following keyboard events may not come to the widget
                 # NOTE this also discarding the ability to move the window from empty areas
-                if evt.type() == QEvent.MouseButtonPress:
+                if evt.type() == QAllEvents.MouseButtonPress:
                     evt.accept()
 
         def control(self, key, evt):
@@ -810,7 +834,7 @@ else:
                 if evt.isAccepted(): return
                 stack.append(disp)
 
-            if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
+            if evt.type() == QAllEvents.MouseButtonPress and evt.button() == QMouseButton.LeftButton:
                 disp = stack[-1]
                 # select what is under cursor
                 if type(disp).__name__ in ('SolidDisplay', 'WebDisplay'):
@@ -830,7 +854,7 @@ else:
             # retrieve global shared context if available
             global global_context
             
-            if QApplication.testAttribute(Qt.AA_ShareOpenGLContexts):
+            if QApplication.testAttribute(AA_ShareOpenGLContexts):
                 if not global_context:
                     global_context = mgl.create_context()
                 self.scene.ctx = global_context
@@ -852,7 +876,7 @@ else:
 
         def changeEvent(self, evt):
             # detect theme change
-            if evt.type() == QEvent.PaletteChange and settings.display['system_theme']:
+            if evt.type() == QAllEvents.PaletteChange and settings.display['system_theme']:
                 settings.use_qt_colors()
             return QOpenGLWidget.changeEvent(self, evt)
 

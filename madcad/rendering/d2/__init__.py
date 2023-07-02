@@ -558,7 +558,7 @@ else:
             # retrieve global shared context if available
             global global_context
 
-            if QApplication.testAttribute(Qt.AA_ShareOpenGLContexts):
+            if QApplication.testAttribute(AA_ShareOpenGLContexts):
                 if not global_context:
                     global_context = mgl.create_context()
                 self.scene.ctx = global_context

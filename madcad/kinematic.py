@@ -20,7 +20,7 @@
 from copy import copy, deepcopy
 import numpy.core as np
 import moderngl as mgl
-from PyQt5.QtCore import Qt, QEvent	
+from .rendering.qt import Qt, QEvent
 
 from .common import resourcedir
 from .mathutils import *

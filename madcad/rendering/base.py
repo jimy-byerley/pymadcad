@@ -3,6 +3,7 @@ from ..mathutils import *
 from math import inf
 from copy import deepcopy
 from .. import settings
+from .qt import QWidget
 import numpy.core as np
 import traceback
 from operator import itemgetter
@@ -137,7 +138,7 @@ class Group(Display):
                     self.displays[key] = disp = scene.display(obj, self.displays.get(key))
                     disp.world = sub
                 except:
-                    print('tried to display', object.__repr__(obj))
+                    print('Tried to display', object.__repr__(obj))
                     traceback.print_exc()
             for key in self.displays.keys() - objs.keys():
                 del self.displays[key]
@@ -280,7 +281,7 @@ class Scene:
                     try:
                         self.displays[key] = self.display(displayable, self.displays.get(key))
                     except:
-                        print('\ntried to display', object.__repr__(displayable))
+                        print('Tried to display', object.__repr__(displayable))
                         traceback.print_exc()
                 self.touched = True
                 self.queue.clear()
@@ -488,3 +489,22 @@ class GhostWidget(QWidget):
         elif isinstance(evt, QFocusEvent):
             self.parent().event(evt)
         return super().event(evt)
+
+def snail(radius):
+	''' Generator of coordinates snailing around 0,0 '''
+	x = 0
+	y = 0
+	for r in range(radius):
+		for x in range(-r,r):		yield ivec2(x,-r)
+		for y in range(-r,r):		yield ivec2(r, y)
+		for x in reversed(range(-r,r)):	yield ivec2(x, r)
+		for y in reversed(range(-r,r)):	yield ivec2(-r,y)
+
+def snailaround(pt, box, radius):
+	''' Generator of coordinates snailing around pt, coordinates that goes out of the box are skipped '''
+	cx,cy = pt
+	mx,my = box
+	for rx,ry in snail(radius):
+		x,y = cx+rx, cy+ry
+		if 0 <= x and x < mx and 0 <= y and y < my:
+			yield ivec2(x,y)
