@@ -1,7 +1,7 @@
 import importlib
 
 # for module in ("PySide6", "PyQt6", "PyQt5"):
-for module in ("PyQt5", ):
+for module in ("PyQt6", ):
     # try:
     OpenGL_suffix = ".QtOpenGLWidgets" if module == "PyQt6" else ".QtWidgets"
     # Modules
@@ -35,7 +35,7 @@ for module in ("PyQt5", ):
 
     # Version
     print(module)
-    QVersion = "PyQt5"
+    QVersion = "PyQt6"
     break
     # except ModuleNotFoundError:
     #     pass
