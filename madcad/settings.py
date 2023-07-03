@@ -153,24 +153,25 @@ def use_qt_colors():
 	from .mathutils import fvec3, mix, distance
 	from .rendering.qt import QtWidgets, QVersion
 	palette = QtWidgets.QApplication.instance().palette()
-	color_role = palette.ColorRole if QVersion == "PyQt6" else palette
+	ColorRole = palette if QVersion == "PyQt5" else palette.ColorRole
 
 	def qtc(role):
 		''' Convert a QColor or QPalette role to fvec3'''
 		c = palette.color(role)
 		return fvec3(c.red(), c.green(), c.blue()) / 255
 
-	selection = mix(fvec3(0.4, 1, 0), qtc(color_role.Highlight), 0.6)
-	selection *= mix(1 / max(selection), max(qtc(color_role.Text)), 0.3)
+
+	selection = mix(fvec3(0.4, 1, 0), qtc(ColorRole.Highlight), 0.6)
+	selection *= mix(1 / max(selection), max(qtc(ColorRole.Text)), 0.3)
 	display.update({
-		'background_color': qtc(color_role.Base),
+		'background_color': qtc(ColorRole.Base),
 		'select_color_face': selection * 0.05,
 		'select_color_line': selection * 1.1,
-		'line_color': qtc(color_role.Text),
-		'point_color': qtc(color_role.Text),
-		'solid_color': mix(qtc(color_role.Text), qtc(color_role.Window), 0.7),
-		'schematics_color': qtc(color_role.Link),
-		'annotation_color': mix(qtc(color_role.Highlight), qtc(color_role.Text), 0.5),
+		'line_color': qtc(ColorRole.Text),
+		'point_color': qtc(ColorRole.Text),
+		'solid_color': mix(qtc(ColorRole.Text), qtc(ColorRole.Window), 0.7),
+		'schematics_color': qtc(ColorRole.Link),
+		'annotation_color': mix(qtc(ColorRole.Highlight), qtc(ColorRole.Text), 0.5),
 	})
 
 
