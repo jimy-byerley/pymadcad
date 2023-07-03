@@ -523,7 +523,10 @@ else:
             self.navigation.center = center
             self.update()
 
-        def somenear(self, point: QPoint, radius=None) -> QPoint:
+        def somenear(self, point: ivec2, radius=None) -> ivec2:
+            ''' Return the closest coordinate to coords, (within the given radius) for which there is an object at
+                So if objnear is returning something, objat and ptat will return something at the returned point
+            '''
             if radius is None:
                 radius = settings.controls['snap_dist']
             self.refreshmaps()
@@ -663,7 +666,7 @@ else:
                 if evt.isAccepted(): return
                 stack.append(disp)
 
-            if evt.type() == QAllEvents.MouseButtonPress and evt.button() == Qt.LeftButton:
+            if evt.type() == QAllEvents.MouseButtonPress and evt.button() == QMouseEvent.LeftButton:
                 disp = stack[-1]
                 # select what is under cursor
                 if type(disp).__name__ in ('SolidDisplay', 'WebDisplay'):
