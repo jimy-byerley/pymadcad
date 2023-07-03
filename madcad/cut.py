@@ -878,6 +878,8 @@ def web_bevel(obj, points, cutter, resolution=None):
 def wire_multicut(wire: Wire, points, cutter):
 	if isinstance(points, Wire):
 		points = points.indices
+	if not isinstance(points, set):
+		points = set(points)
 	prec = wire.precision()
 
 	cutter = interpretcutter(cutter)
@@ -888,22 +890,23 @@ def wire_multicut(wire: Wire, points, cutter):
 
 	cuts = []
 	closed = wire.indices[0] == wire.indices[-1]
-
-	points.sort()
-	for moves, origin in enumerate(points):
-		origin += moves
+	
+	for index, origin in enumerate(wire.indices):
+		if origin not in points:
+			continue
 		# get point location in the wire
 		if not closed:
 			if origin == wire.indices[0] or origin == wire.indices[-1]:
 				raise MeshError("a chamfer/bevel cannot have only one side")
 
 		# compute cut plane
-		p0, p1 = wire[origin: origin+2]
-		prior_p= wire[origin-1]
-		if prior_p ==p0:
-			prior_p = wire[origin-2]
-			
-
+		ref = wire[index-1] - wire[index]
+		p0, p1 = wire[index:index+2]
+		# handle special case of closed wire
+		prior_p = wire[index-1]
+		if prior_p == p0:
+			prior_p = wire[index-2]
+		
 		t0, t1 = normalize(p0 - prior_p), normalize(p1 - p0)
 		axis = cross(t0, t1)
 		offset = cutter(normalize(cross(axis, t0)), normalize(cross(axis, t1)))
@@ -923,14 +926,14 @@ def wire_multicut(wire: Wire, points, cutter):
 			raise ValueError("no intersection found")			
 
 		# propagate backward
-		back_range = range(origin, -closed, -1)
+		back_range = range(index, -closed, -1)
 		back_it = zip(map(lambda x: x-1, back_range), back_range)
 		iiback, ps = find_intersection(back_it)
 		cuts.append((iiback, iiback + 1))  # point interval including start and excluding end
 
 		# propagate forward
 		wlen = len(wire.indices)
-		forward_range = range(origin, wlen-1)
+		forward_range = range(index, wlen-1)
 		forward_it = zip(forward_range, map(lambda x: x+1, forward_range))
 		iiforward, pe = find_intersection(forward_it)
 
