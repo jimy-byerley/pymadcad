@@ -9,6 +9,7 @@ import numpy.core as np
 from copy import deepcopy
 import traceback
 from operator import itemgetter
+from typing import Optional
 
 # minimum opengl version required by the rendering pipeline
 opengl_version = (3,3)
@@ -523,21 +524,20 @@ else:
             self.navigation.center = center
             self.update()
 
-        def somenear(self, point: ivec2, radius=None) -> ivec2:
+        def somenear(self, point: QPoint, radius=None) -> Optional[QPoint]:
             ''' Return the closest coordinate to coords, (within the given radius) for which there is an object at
                 So if objnear is returning something, objat and ptat will return something at the returned point
             '''
             if radius is None:
                 radius = settings.controls['snap_dist']
             self.refreshmaps()
-            for x,y in snailaround(point, (self.map_ident.shape[1], self.map_ident.shape[0]), radius):
+            for x, y in snailaround(qt2glm(point), (self.map_ident.shape[1], self.map_ident.shape[0]), radius):
                 ident = int(self.map_ident[-y, x])
                 if ident:
-                    return uvec2(x,y)
-            if some:
-                return glm_to_qt(some)
+                    return QPoint(x, y)
 
         def ptat(self, point: QPoint) -> fvec3:
+            ''' Return the point of the rendered surfaces that match the given window coordinates '''
             self.refreshmaps()
             viewport = self.fb_ident.viewport
             depthred = float(self.map_depth[-point.y,point.x])
@@ -561,6 +561,7 @@ else:
                             1)))
 
         def ptfrom(self, point: QPoint, center: fvec3) -> fvec3:
+            ''' 3D point below the cursor in the plane orthogonal to the sight, with center as origin '''
             view = self.uniforms['view']
             proj = self.uniforms['proj']
             viewport = self.fb_ident.viewport
@@ -575,8 +576,11 @@ else:
 
 
         def itemat(self, point: QPoint) -> 'key':
+            ''' Return the key path of the object at the given screen position (widget relative).
+                If no object is at this exact location, None is returned
+            '''
             self.refreshmaps()
-            point = uvec2(point)
+            point = uvec2(qt2glm(point))
             ident = int(self.map_ident[-point.y, point.x])
             if ident and 'ident' in self.scene.stacks:
                 rdri = bisect(self.steps, ident)
@@ -666,10 +670,10 @@ else:
                 if evt.isAccepted(): return
                 stack.append(disp)
 
-            if evt.type() == QAllEvents.MouseButtonPress and evt.button() == QMouseEvent.LeftButton:
+            if evt.type() == QAllEvents.MouseButtonPress and evt.button() == QMouseButton.LeftButton:
                 disp = stack[-1]
                 # select what is under cursor
-                if type(disp).__name__ in ('SolidDisplay', 'WebDisplay'):
+                if type(disp).__name__ in ('MeshDisplay', 'WebDisplay'):
                     disp.vertices.selectsub(key[-1])
                     disp.selected = any(disp.vertices.flags & 0x1)
                 else:
@@ -677,7 +681,7 @@ else:
                 # make sure that a display is selected if one of its sub displays is
                 for disp in reversed(stack):
                     if hasattr(disp, '__iter__'):
-                        disp.selected = any(sub.selected    for sub in disp)
+                        disp.selected = any(sub.selected for sub in disp)
                 self.update()
 
         # -- Qt things --
@@ -781,18 +785,18 @@ else:
             self.update()
         
         def somenear(self, point: QPoint, radius=None) -> QPoint:
-            some = SubView3D.somenear(self, qt_2_glm(point), radius)
+            some = SubView3D.somenear(self, qt2glm(point), radius)
             if some:
                 return glm_to_qt(some)
 
         def ptat(self, point: QPoint) -> fvec3:
-            return SubView3D.ptat(self, qt_2_glm(point))
+            return SubView3D.ptat(self, qt2glm(point))
 
         def ptfrom(self, point: QPoint, center: fvec3) -> fvec3:
-            return SubView3D.ptfrom(self, qt_2_glm(point), center)
+            return SubView3D.ptfrom(self, qt2glm(point), center)
 
         def itemat(self, point: QPoint) -> 'key':
-            return SubView3D.itemat(self, qt_2_glm(point))
+            return SubView3D.itemat(self, qt2glm(point))
         
 
         # -- event system --

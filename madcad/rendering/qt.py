@@ -12,6 +12,7 @@ for module in ("PyQt6", ):
 
     # Classes
     QPoint = QtCore.QPoint
+    QPointF = QtCore.QPointF
     QEvent = QtCore.QEvent
     Qt     = QtCore.Qt
 

@@ -3,7 +3,7 @@ from ..mathutils import *
 from math import inf
 from copy import deepcopy
 from .. import settings
-from .qt import QWidget
+from .qt import QWidget, QPoint, QPointF
 import numpy.core as np
 import traceback
 from operator import itemgetter
@@ -482,7 +482,7 @@ class GhostWidget(QWidget):
     def event(self, evt):
         if isinstance(evt, QInputEvent):
             # set the opengl current context from Qt (doing it only from moderngl interferes with Qt)
-            #self.makeCurrent()
+            # self.makeCurrent()
             evt.ignore()
             self.parent().inputEvent(evt)
             if evt.isAccepted():    return True
@@ -495,8 +495,8 @@ def snail(radius):
 	x = 0
 	y = 0
 	for r in range(radius):
-		for x in range(-r,r):		yield ivec2(x,-r)
-		for y in range(-r,r):		yield ivec2(r, y)
+		for x in range(-r,r):		    yield ivec2(x,-r)
+		for y in range(-r,r):		    yield ivec2(r, y)
 		for x in reversed(range(-r,r)):	yield ivec2(x, r)
 		for y in reversed(range(-r,r)):	yield ivec2(-r,y)
 
@@ -508,3 +508,14 @@ def snailaround(pt, box, radius):
 		x,y = cx+rx, cy+ry
 		if 0 <= x and x < mx and 0 <= y and y < my:
 			yield ivec2(x,y)
+
+def qt2glm(v):
+    if isinstance(v, (QPoint, QPointF)):
+        return vec2(v.x(), v.y())
+    elif isinstance(v, (QSize, QSizeF)):
+        return vec2(v.width(), v.height())
+    else:
+        raise TypeError("Can't convert {} to vec2".format(type(v).__name__))
+
+def glm2qt(p):
+    return QPoint(p.x, p.y)
