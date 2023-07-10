@@ -132,7 +132,7 @@ class Group(Display):
         with scene.ctx:
             scene.ctx.finish()
             for key, obj in objs.items():
-                if not displayable(obj):
+                if not scene.displayable(obj):
                     continue
                 try:
                     self.displays[key] = disp = scene.display(obj, self.displays.get(key))
@@ -370,6 +370,14 @@ class Scene:
         if not isinstance(disp, Display):
             raise TypeError('the display for {} is not a subclass of Display: {}'.format(type(obj).__name__, type(disp)))
         return disp
+
+    def displayable(self, obj):
+        ''' Return True if the given object has the matching signature to be added to a Scene '''
+        return (
+            type(obj) in self.overrides or
+            hasattr(obj, 'display') and callable(obj.display)
+            and not isinstance(obj, type)
+        )
 
 class SubView(Display):
     '''A SubView is like a Group with its own rendering settings and display queue'''

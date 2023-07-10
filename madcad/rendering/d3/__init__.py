@@ -16,9 +16,8 @@ opengl_version = (3,3)
 # shared open gl context, None if not yet initialized
 global_context = None
 
-overrides = {list: Group, dict: Group}
 class Scene3D(Scene):
-    overrides = {}
+    overrides = {list: Group, dict: Group}
 
 
 class Offscreen3D(Offscreen):
