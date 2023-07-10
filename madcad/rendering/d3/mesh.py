@@ -112,8 +112,8 @@ class Vertices(object):
         self.flags = np.zeros(len(positions), dtype='u1')
         self.flags_updated = False
         assert len(idents) == len(positions)
-        self.vb_positions = ctx.buffer(np.array(positions, dtype='f4', copy=False))
-        self.vb_idents = ctx.buffer(np.array(idents, dtype='u2', copy=False))
+        self.vb_positions = ctx.buffer(np.array(positions, dtype='f4', copy=False, order='C'))
+        self.vb_idents = ctx.buffer(np.array(idents, dtype='u2', copy=False, order='C'))
         self.vb_flags = self.vb_flags = ctx.buffer(self.flags, dynamic=True)
         self.world = fmat4(1)
         
@@ -155,8 +155,8 @@ class GhostDisplay:
         self.ident_shader = scene.resource('shader_subident')
         # allocate buffers
         if faces is not None and len(faces) and vertices.vb_positions:
-            self.vb_faces = scene.ctx.buffer(np.array(faces, 'u4', copy=False))
-            self.vb_normals = scene.ctx.buffer(np.array(normals, 'f4', copy=False))
+            self.vb_faces = scene.ctx.buffer(np.array(faces, 'u4', copy=False, order='C'))
+            self.vb_normals = scene.ctx.buffer(np.array(normals, 'f4', copy=False, order='C'))
             self.va = scene.ctx.vertex_array(
                     self.shader, 
                     [    (vertices.vb_positions, '3f', 'v_position'), 
@@ -216,7 +216,7 @@ class LinesDisplay:
         self.ident_shader = scene.resource('shader_subident')
         if lines is not None and len(lines) and vertices.vb_positions:
             # allocate buffers
-            self.vb_lines = scene.ctx.buffer(np.array(lines, dtype='u4', copy=False))
+            self.vb_lines = scene.ctx.buffer(np.array(lines, dtype='u4', copy=False, order='C'))
             self.va = scene.ctx.vertex_array(
                         self.shader,
                         [    (vertices.vb_positions, '3f', 'v_position'),
@@ -268,7 +268,7 @@ class PointsDisplay:
         self.ident_shader = scene.resource('shader_subident')
         # allocate GPU objects
         if indices is not None and len(indices) and vertices.vb_positions:
-            self.vb_indices = scene.ctx.buffer(np.array(indices, dtype='u4', copy=False))
+            self.vb_indices = scene.ctx.buffer(np.array(indices, dtype='u4', copy=False, order='C'))
             self.va = scene.ctx.vertex_array(
                         self.shader,
                         [(vertices.vb_positions, '3f', 'v_position'),
@@ -335,8 +335,8 @@ class FacesDisplay:
         self.ident_shader = scene.resource('shader_subident')
         # allocate buffers
         if faces is not None and len(faces) and vertices.vb_positions:
-            self.vb_faces = scene.ctx.buffer(np.array(faces, 'u4', copy=False))
-            self.vb_normals = scene.ctx.buffer(np.array(normals, 'f4', copy=False))
+            self.vb_faces = scene.ctx.buffer(np.array(faces, 'u4', copy=False, order='C'))
+            self.vb_normals = scene.ctx.buffer(np.array(normals, 'f4', copy=False, order='C'))
             self.va = scene.ctx.vertex_array(
                 self.shader, 
                 [    (vertices.vb_positions, '3f', 'v_position'), 
