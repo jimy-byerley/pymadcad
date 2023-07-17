@@ -206,7 +206,7 @@ else:
                     evt.accept()
 
             elif evt.type() == QAllEvents.Wheel:
-                view.navigation.zoom(exp(-evt.angleDelta().y()/(8*90)))    # the 8 factor is there because of the Qt documentation
+                view.navigation.zoom(exp(-evt.angleDelta().y() / (8 * 90)))    # the 8 factor is there because of the Qt documentation
                 view.update()
                 evt.accept()
         
@@ -217,7 +217,7 @@ else:
                 if len(pts) == 2:
                     startlength = (pts[0].lastPos() - pts[1].lastPos()).manhattanLength()
                     zoom = startlength / (pts[0].pos() - pts[1].pos()).manhattanLength()
-                    displt = ((pts[0].pos() + pts[1].pos()) / 2 - (pts[0].lastPos() + pts[1].lastPos())/ 2) / view.height()
+                    displt = ((pts[0].pos() + pts[1].pos()) / 2 - (pts[0].lastPos() + pts[1].lastPos()) / 2) / view.height()
                     dc = pts[0].pos() - pts[1].pos()
                     dl = pts[0].lastPos() - pts[1].lastPos()
                     rot = atan2(dc.y(), dc.x()) - atan2(dl.y(), dl.x())
@@ -523,6 +523,7 @@ else:
             self.navigation.center = center
             self.update()
 
+        # TODO : QPoint to vec2
         def somenear(self, point: QPoint, radius=None) -> Optional[QPoint]:
             ''' Return the closest coordinate to coords, (within the given radius) for which there is an object at
                 So if objnear is returning something, objat and ptat will return something at the returned point
@@ -530,7 +531,7 @@ else:
             if radius is None:
                 radius = settings.controls['snap_dist']
             self.refreshmaps()
-            for x, y in snailaround(qt2glm(point), (self.map_ident.shape[1], self.map_ident.shape[0]), radius):
+            for x, y in snailaround(qt_to_glm(point), (self.map_ident.shape[1], self.map_ident.shape[0]), radius):
                 ident = int(self.map_ident[-y, x])
                 if ident:
                     return QPoint(x, y)
@@ -579,7 +580,7 @@ else:
                 If no object is at this exact location, None is returned
             '''
             self.refreshmaps()
-            point = uvec2(qt2glm(point))
+            point = uvec2(qt_to_glm(point))
             ident = int(self.map_ident[-point.y, point.x])
             if ident and 'ident' in self.scene.stacks:
                 rdri = bisect(self.steps, ident)
@@ -731,101 +732,41 @@ else:
                 uniforms:    parameters for rendering, used in shaders
         '''
         def __init__(self, scene, projection=None, navigation=None, parent=None):
-            # super init
-            QOpenGLWidget.__init__(self, parent)
-            fmt = QSurfaceFormat()
-            fmt.setVersion(*opengl_version)
-            fmt.setProfile(QSurfaceFormat.CoreProfile)
-            fmt.setSamples(4)
-            self.setFormat(fmt)
-            
-            # ugly trick to receive interaction events in a different function than QOpenGLWidget.event (that one is locking the GIL during the whole rendering, killing any possibility of having a computing thread aside)
-            # that event reception should be in the current widget ...
-            self.handler = GhostWidget(self)
-            self.handler.setFocusPolicy(Qt.StrongFocus)
-            self.handler.setAttribute(Qt.WA_AcceptTouchEvents, True)
-            self.setFocusProxy(self.handler)
-
-            SubView3D.__init__(self, scene, projection=projection, navigation=navigation)
-            self.tool = [Tool(self.navigation.tool, self)] # tool stack, the last tool is used for input events, until it is removed 
-
-        def init(self):
-            w, h = self.width(), self.height()
-
-            ctx = self.scene.ctx
-            assert ctx, 'context is not initialized'
-
-            # self.fb_screen is already created and sized by Qt
-            self.fb_screen = ctx.detect_framebuffer(self.defaultFramebufferObject())
-            self.fb_ident = ctx.simple_framebuffer((w, h), components=3, dtype='f1')
-            self.targets = [ ('screen', self.fb_screen, self.setup_screen),
-                             ('ident', self.fb_ident, self.setup_ident)]
-            self.map_ident = np.empty((h,w), dtype='u2')
-            self.map_depth = np.empty((h,w), dtype='f4')
-
-        def render(self):
-            # set the opengl current context from Qt (doing it only from moderngl interferes with Qt)
-            self.makeCurrent()
-            SubView3D.render(self)
-
-
-        # -- view stuff --
+            super().__init__(self, scene, projection=projection, navigation=navigation)
 
         def look(self, position: fvec3=None):
-            SubView3D.look(self, position)
-            self.update()
+            """
+            Make the scene navigation look at the position. 
+            This is changing the camera direction, center and distance
+            """
+            super().look(self, position)
 
         def adjust(self, box:Box=None):
-            SubView3D.adjust(self, box)
-            self.update()
+            """
+            Make the navigation camera large enough to get the given box in.
+            This is changing the zoom level
+            """
+            super().adjust(self, box)
 
         def center(self, center: fvec3=None):
-            SubView3D.center(self, center)
-            self.update()
+            """
+            Relocate the navigation to the given position.
+            This is translating the camera
+            """
+            super().center(self, center)
+
+        # TODO : implement stack method (see Group.stack)
+        # Options :
+        # 1. Make the Subview render in its buffer then render to the main scene
+        # 2. Isolate objects by changing the uniform attribute and restore them in the main render
+        def stack(self, scene):
+            """
+            Not yet implemented
+            """
+            for key,display in self.displays.items():
+                for sub, target, priority, func in display.stack(scene):
+                    yield ((key, *sub), target, priority, func)
         
-        def somenear(self, point: QPoint, radius=None) -> QPoint:
-            some = SubView3D.somenear(self, qt2glm(point), radius)
-            if some:
-                return glm_to_qt(some)
-
-        def ptat(self, point: QPoint) -> fvec3:
-            return SubView3D.ptat(self, qt2glm(point))
-
-        def ptfrom(self, point: QPoint, center: fvec3) -> fvec3:
-            return SubView3D.ptfrom(self, qt2glm(point), center)
-
-        def itemat(self, point: QPoint) -> 'key':
-            return SubView3D.itemat(self, qt2glm(point))
-        
-
-        # -- event system --
-
-        def inputEvent(self, evt):
-            ''' Default handler for every input event (mouse move, press, release, keyboard, ...)
-                When the event is not accepted, the usual matching Qt handlers are used (mousePressEvent, KeyPressEvent, etc).
-
-                This function can be overwritten to change the view widget behavior.
-            '''
-            # send the event to the current tools using the view
-            if self.tool:
-                for tool in reversed(self.tool):
-                    tool(evt)
-                    if evt.isAccepted():    return
-
-            # send the event to the scene objects, descending the item tree
-            if isinstance(evt, QMouseEvent) and evt.type() in (QAllEvents.MouseButtonPress, QAllEvents.MouseButtonRelease, QAllEvents.MouseButtonDblClick, QAllEvents.MouseMove):
-                pos = self.somenear(evt.pos())
-                if pos:
-                    key = self.itemat(pos)
-                    if key:
-                        self.control(key, evt)
-                        if evt.isAccepted():    return
-
-                # if clicks are not accepted, then some following keyboard events may not come to the widget
-                # NOTE this also discarding the ability to move the window from empty areas
-                if evt.type() == QAllEvents.MouseButtonPress:
-                    evt.accept()
-
         def control(self, key, evt):
             ''' Transmit a control event successively to all the displays matching the key path stages.
                 At each level, if the event is not accepted, it transmits to sub items
@@ -853,39 +794,6 @@ else:
                     if hasattr(disp, '__iter__'):
                         disp.selected = any(sub.selected    for sub in disp)
                 self.update()
-
-        # -- Qt things --
-
-        def initializeGL(self):
-            # retrieve global shared context if available
-            global global_context
-            
-            if QApplication.testAttribute(AA_ShareOpenGLContexts):
-                if not global_context:
-                    global_context = mgl.create_context()
-                self.scene.ctx = global_context
-            # or create a context
-            else:
-                self.scene.ctx = mgl.create_context()
-            self.init()
-            self.preload()
-
-        def paintGL(self):
-            self.makeCurrent()
-            self.render()
-
-        def resizeEvent(self, evt):
-            QOpenGLWidget.resizeEvent(self, evt)
-            self.handler.resize(self.size())
-            self.init()
-            self.update()
-
-        def changeEvent(self, evt):
-            # detect theme change
-            if evt.type() == QAllEvents.PaletteChange and settings.display['system_theme']:
-                settings.use_qt_colors()
-            return QOpenGLWidget.changeEvent(self, evt)
-
 
     class GhostWidget(QWidget):
         def __init__(self, parent):

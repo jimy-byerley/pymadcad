@@ -517,7 +517,7 @@ def snailaround(pt, box, radius):
 		if 0 <= x and x < mx and 0 <= y and y < my:
 			yield ivec2(x,y)
 
-def qt2glm(v):
+def qt_to_glm(v):
     if isinstance(v, (QPoint, QPointF)):
         return vec2(v.x(), v.y())
     elif isinstance(v, (QSize, QSizeF)):
@@ -525,5 +525,5 @@ def qt2glm(v):
     else:
         raise TypeError("Can't convert {} to vec2".format(type(v).__name__))
 
-def glm2qt(p):
+def glm_to_qt(p):
     return QPoint(p.x, p.y)
