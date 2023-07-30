@@ -67,6 +67,12 @@ opengl_version = (3,3)
 # shared open gl context, None if not yet initialized
 global_context = None
 
+def qt_surface_format():
+    fmt = QSurfaceFormat()
+    fmt.setVersion(*opengl_version)
+    fmt.setProfile(QSurfaceFormat.OpenGLContextProfile.CoreProfile)
+    fmt.setSamples(4)
+    return fmt
 
 def show(scene:dict, interest:Box=None, size=uvec2(400,400), projection=None, navigation=None, **options):
 	''' 
@@ -89,6 +95,8 @@ def show(scene:dict, interest:Box=None, size=uvec2(400,400), projection=None, na
 	# retro-compatibility fix, shall be removed in future versions
 	if 'options' in options:	options.update(options['options'])
 	if not isinstance(scene, Scene):	scene = Scene(scene, options)
+
+	QSurfaceFormat.setDefaultFormat(qt_surface_format())
 
 	app = QApplication.instance()
 	created = False
@@ -764,7 +772,7 @@ class ViewCommon:
 		# prepare the view uniforms
 		w, h = self.fb_screen.size
 		self.uniforms['view'] = view = self.navigation.matrix()
-		self.uniforms['proj'] = proj = self.projection.matrix(w/h, self.navigation.distance)
+		self.uniforms['proj'] = proj = self.projection.matrix(w/h if h > 0 else 0, self.navigation.distance)
 		self.uniforms['projview'] = proj * view
 		self.fresh.clear()
 
@@ -1020,11 +1028,7 @@ class View(ViewCommon, QOpenGLWidget):
 	def __init__(self, scene, projection=None, navigation=None, parent=None):
 		# super init
 		QOpenGLWidget.__init__(self, parent)
-		fmt = QSurfaceFormat()
-		fmt.setVersion(*opengl_version)
-		fmt.setProfile(QSurfaceFormat.CoreProfile)
-		fmt.setSamples(4)
-		self.setFormat(fmt)
+		self.setFormat(qt_surface_format())
 		
 		# ugly trick to receive interaction events in a different function than QOpenGLWidget.event (that one is locking the GIL during the whole rendering, killing any possibility of having a computing thread aside)
 		# that event reception should be in the current widget ...

@@ -670,7 +670,8 @@ class Mesh(NMesh):
 				typedlist_to_numpy(m.faces, 'u4'),
 				typedlist_to_numpy(edges, 'u4'),
 				typedlist_to_numpy(idents, 'u4'),
-				color = self.options.get('color'),
+				self.options.get('color'),
+				self.options,
 				)
 	
 	def __repr__(self):
