@@ -36,9 +36,10 @@ for variant in variants(connection=range(4)):
 	try:
 		f.check()
 		assert f.issurface()
+		show([f, [note_floating(p, text=' '+str(i)) for i,p in enumerate(f.points)]], display_points=True, display_wire=True)
 	except:
 		print(w.edges)
-		show([w, f], options={'display_wire':True})
+		show([w, f], display_points=True, display_wire=True)
 		raise
 
 # higher resolution test

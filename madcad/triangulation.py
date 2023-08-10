@@ -20,142 +20,6 @@ def triangulation(outline, normal=None, prec=NUMPREC):
 	
 	
 
-'''
-	skeleting funtions and skeleting triangulations
-	does not work yet on very non convex cases
-'''
-
-def skeleting(outline: Wire, skeleting: callable, prec=NUMPREC) -> [vec2]:
-	''' skeleting procedure for the given wire
-		at each step, the skeleting function is called
-		created points will be added to the wire point buffer and this buffer is returned (ROI)
-		
-		NOTE: yet it only works with near-convex outlines
-	'''
-	l = len(outline)
-	pts = outline.points
-	
-	# edge normals
-	enormals = [perp(normalize(outline[i]-outline[i-1]))	for i in range(l)]
-	# compute half axis starting from each point
-	haxis = []
-	for i in range(l):
-		haxis.append((outline.indices[i], i, (i+1)%l))
-	
-	# create the intersections to update
-	intersect = [(0,0)] * l	# intersection for each edge
-	dist = [-1] * l	# min distance for each edge
-	def eval_intersect(i):
-		o1,a1,b1 = haxis[i-1]
-		o2,a2,b2 = haxis[i]
-		# compute normals to points
-		v1 = enormals[a1]+enormals[b1]
-		v2 = enormals[a2]+enormals[b2]
-		if norminf(v1) < prec:	v1 =  perp(enormals[b1])	# if edges are parallel, take the direction to the shape
-		if norminf(v2) < prec:	v2 = -perp(enormals[b2])
-		# compute the intersection
-		x1,x2 = inverse(dmat2(v1,-v2)) * dvec2(-pts[o1] + pts[o2])
-		if x1 >= -NUMPREC and x2 >= -NUMPREC:
-			intersect[i] = pts[o2] + x2*v2
-			dist[i] = min(x1*length(v1), x2*length(v2))
-		elif isnan(x1) or isnan(x2):
-			intersect[i] = pts[o2]
-			dist[i] = 0
-		else:
-			intersect[i] = None
-			dist[i] = inf
-	for i in range(l):
-		eval_intersect(i)
-	
-	# build skeleton
-	while len(haxis) > 1:
-		print(dist)
-		i = min(range(len(haxis)), key=lambda i:dist[i])
-		assert dist[i] != inf, "no more intersection found (algorithm failure)"
-		o1,a1,b1 = haxis[i-1]
-		o2,a2,b2 = haxis[i]
-		# add the intersection point
-		ip = len(pts)
-		pts.append(intersect[i])
-		# extend skeleton
-		skeleting(haxis, i, ip)
-		# create the new half axis
-		haxis.pop(i)
-		dist.pop(i)
-		intersect.pop(i)
-		haxis[i-1] = (ip, a1, b2)
-		eval_intersect((i-2) % len(haxis))
-		eval_intersect((i-1) % len(haxis))
-		eval_intersect(i % len(haxis))
-		eval_intersect((i+1) % len(haxis))
-		eval_intersect((i+2) % len(haxis))
-	
-	return pts
-
-def skeleton(outline: Wire, prec=NUMPREC) -> Web:
-	''' return a Web that constitute the skeleton of the outline
-		the returned Web uses the same point buffer than the input Wire.
-		created points will be added into it
-		
-		https://en.wikipedia.org/wiki/Straight_skeleton
-		
-		NOTE: yet it only works with near-convex outlines
-	'''
-	skeleton = []
-	#def sk(ip, o1,o2, a1,b1, a2,b2):
-		#skeleton.append((o1,ip))
-		#skeleton.append((o2,ip))
-	def sk(haxis, i, ip):
-		skeleton.append((haxis[i-1][0], ip))
-		skeleton.append((haxis[i][0], ip))
-	pts = skeleting(outline, sk, prec)
-	return Web(pts, skeleton)
-
-def triangulation_skeleton(outline: Wire, prec=NUMPREC) -> Mesh:
-	''' return a Mesh with triangles filling the surface of the outline 
-		the returned Mesh uses the same point buffer than the input Wire
-		
-		NOTE: yet it only works with near-convex outlines
-	'''
-	triangles = []
-	skeleton = []
-	pts = outline.points
-	original = len(pts)
-	minbone = [inf]
-	def sk(haxis, i, ip):
-		triangles.append((haxis[i-2][0], haxis[i-1][0], ip))
-		triangles.append((haxis[i-1][0], haxis[i][0], ip))
-		triangles.append((haxis[i][0], haxis[(i+1)%len(haxis)][0], ip))
-		if   haxis[i-1][0] < original:
-			d = distance(pts[haxis[i-1][0]], pts[ip])
-			if d < minbone[0]:	minbone[0] = d
-		else:
-			skeleton.append((haxis[i-1][0], ip))
-		if haxis[i][0] < original:
-			d = distance(pts[haxis[i][0]], pts[ip])
-			if d < minbone[0]:	minbone[0] = d
-		else:
-			skeleton.append((haxis[i][0], ip))
-	pts = skeleting(outline, sk, prec)
-	m = Mesh(pts, triangles)
-	# merge points from short internal edges
-	minbone = 0.5*minbone[0]
-	merges = {}
-	for a,b in skeleton:
-		if distance(pts[a], pts[b]) < minbone:
-			if   a not in merges:	merges[a] = merges.get(b,b)
-			elif b not in merges:	merges[b] = merges.get(a,a)
-	for k,v in merges.items():
-		while v in merges and merges[v] != v:	
-			if distance(pts[k], pts[v]) > minbone:
-				merges[k] = k
-				merges[v] = v
-				break
-			merges[k] = v = merges[v]
-	m.mergepoints(merges)
-	return m
-
-
 	
 '''
 	triangulation outline
@@ -286,6 +150,195 @@ def convex_normal(web):
 	return normalize(area)
 	
 	
+def line_bridges(lines: Web, conn=None) -> 'Web':
+	''' find what edges to insert in the given mesh to make all its loops connex.
+		returns a Web of the bridging edges.
+		
+		complexity:  O(n**2 + n*k)
+		with
+			n = number of points in the lines
+			k = average number of points per loop
+	'''
+	if conn is None:	conn = connpe(lines.edges)
+	pts = lines.points
+	
+	bridges = []	# edges created
+	# reached and remaining parts, both as edge indices and point indices
+	reached_points = {}	# closest to each reached point
+	reached_edges = {}	# closest to each reached edge
+	remain_points = set(p 	 for e in lines.edges for p in e)
+	remain_edges = set(range(len(lines.edges)))
+	
+	def propagate(start):
+		''' propagate from the given start point to make connex points and edges as reached '''
+		front = [start]
+		while front:
+			s = front.pop()
+			if s in reached_points:	continue
+			reached_points[s] = (inf, (s,s))
+			remain_points.discard(s)
+			for e in conn[s]:
+				if e in reached_edges: continue
+				reached_edges[e] = (inf, (s,s))
+				remain_edges.discard(e)
+				front.extend(lines.edges[e])
+				
+	def update_closest():
+		# from points to edges
+		for s, (score, best) in reached_points.items():
+			if best[0] in reached_points:
+				reached_points[s] = find_closest_point(s)
+		# from edges to points
+		for e, (score, best) in reached_edges.items():
+			if best[0] in reached_points:
+				reached_edges[e] = find_closest_edge(e)
+	
+	def find_closest_edge(ac):
+		''' find the bridge to the closest point to the given edge
+		'''
+		best = None
+		score = inf
+		# minimum from edge to points
+		ep = lines.edgepoints(ac)
+		for ma in remain_points:
+			d = distance_pe(pts[ma], ep)
+			if d < score:
+				e = lines.edges[ac]
+				if distance2(pts[ma], pts[e[0]]) < distance2(pts[ma], pts[e[1]]):
+					score, best = d, (ma, e[0])
+				else:
+					score, best = d, (ma, e[1])
+		
+		return score, best
+		
+	def find_closest_point(ac):
+		''' find the bridge to the closest edge to the given point
+		'''
+		best = None
+		score = inf
+		# minimum from point to edges
+		for ma in remain_edges:
+			d = distance_pe(pts[ac], lines.edgepoints(ma))
+			if d < score:
+				e = lines.edges[ma]
+				if distance2(pts[ac], pts[e[0]]) < distance2(pts[ac], pts[e[1]]):
+					score, best = d, (e[0], ac)
+				else:
+					score, best = d, (e[1], ac)
+						
+		return score, best
+	
+	# main loop
+	propagate(lines.edges[0][0])
+	while remain_edges:
+		update_closest()
+		closest = min(
+					min(reached_points.values(), key=itemgetter(0)),
+					min(reached_edges.values(), key=itemgetter(0)),
+					key=itemgetter(0)) [1]
+		bridges.append(closest)
+		bridges.append(tuple(reversed(closest)))
+		propagate(closest[0])
+		
+	return Web(lines.points, bridges)
+	
+
+	
+	
+	
+def flat_loops(lines: Web, normal=None) -> '[Wire]':
+	''' collect the closed loops present in the given web, so that no loop overlap on the other ones.
+	'''
+	x,y,z = guessbase(lines.points, normal)
+	pts = lines.points
+	# create an oriented point to edge connectivity 
+	conn = Asso()
+	for i,e in enumerate(lines.edges):
+		conn.add(e[0], i)
+	
+	used = [False]*len(lines.edges)	# edges used and so no to use anymore	
+	# the start point for loop assembly must be in priority on an edge that has no double, because double edges that are not on a bridge would create independent loops out of an empty surface
+	# create lists of edges that have a double and edges that have not
+	doubled = []
+	nondoubled = []
+	for i, e in enumerate(lines.edges):
+		double = False
+		for j in conn[e[1]]:
+			if lines.edges[j][1] == e[0]:
+				double = True
+		if double:	doubled.append(i)
+		else:		nondoubled.append(i)
+	# iterator of start points
+	choice = (i  for i in (nondoubled + doubled)  if not used[i])
+	
+	loops = []
+	
+	while True:
+		# find an unused edge
+		end = next(choice, None)
+		if end is None:
+			break
+		
+		# assemble a loop
+		loop = list(lines.edges[end])
+		while True:
+			# take the most inward next edge
+			prev = normalize(pts[loop[-1]] - pts[loop[-2]])
+			
+			best = None
+			score = -inf
+			for edge in conn[loop[-1]]:
+				if used[edge]:	continue
+				e = lines.edges[edge]
+				dir = normalize(pts[e[1]] - pts[e[0]])
+				if isfinite(dir) and isfinite(prev):
+					angle = atan2(dot(cross(prev,dir),z), dot(prev,dir))
+				else:
+					angle = -pi
+				if pi-angle <= pi*NUMPREC:	angle -= 2*pi
+				if angle > score:
+					score, best = angle, edge
+					
+			
+			# progress on the selected edge
+			if best is None:
+				raise TriangulationError("there is not only loops in that web", loop)
+			used[best] = True
+			if best == end:
+				break
+			
+			# continue the loops
+			loop.append(lines.edges[best][1])
+			
+			# the very particular case of loops with null surface, or with straight return to origin might intruduce serveral loops in the same suite, the following condition prevents it
+			if loop[0] == loop[-1]:
+				prev = normalize(pts[loop[-2]] - pts[loop[-1]])
+				dir = normalize(pts[loop[1]] - pts[loop[0]])
+				if acos(dot(prev,dir)) <= pi*NUMPREC:
+					used[end] = True
+					break
+			
+		loops.append(Wire(lines.points, loop))
+
+	return loops
+
+	
+def triangulation_closest(outline, normal=None, prec=None):
+	if isinstance(outline, Wire):
+		return triangulation_outline(outline, normal, prec)
+	else:
+		outline = copy(web(outline)).mergegroups()
+	x,y,z = dirbase(normal or convex_normal(outline))
+	result = Mesh(outline.points)
+	for loop in flat_loops(outline + line_bridges(outline), z):
+		result += triangulation_outline(loop, z, prec)
+	return result
+
+	
+	
+	
+	
+
 '''
 	triangulation_sweepline
 	---------------------
@@ -510,193 +563,110 @@ def triangulation_sweepline(outline: Web, normal=None, prec=0) -> Mesh:
 	return m
 	
 
-def line_bridges(lines: Web, conn=None) -> 'Web':
-	''' find what edges to insert in the given mesh to make all its loops connex.
-		returns a Web of the bridging edges.
-		
-		complexity:  O(n**2 + n*k)
-		with
-			n = number of points in the lines
-			k = average number of points per loop
-	'''
-	if conn is None:	conn = connpe(lines.edges)
-	pts = lines.points
-	
-	bridges = []	# edges created
-	# reached and remaining parts, both as edge indices and point indices
-	reached_points = {}	# closest to each reached point
-	reached_edges = {}	# closest to each reached edge
-	remain_points = set(p 	 for e in lines.edges for p in e)
-	remain_edges = set(range(len(lines.edges)))
-	
-	def propagate(start):
-		''' propagate from the given start point to make connex points and edges as reached '''
-		front = [start]
-		while front:
-			s = front.pop()
-			if s in reached_points:	continue
-			reached_points[s] = (inf, (s,s))
-			remain_points.discard(s)
-			for e in conn[s]:
-				if e in reached_edges: continue
-				reached_edges[e] = (inf, (s,s))
-				remain_edges.discard(e)
-				front.extend(lines.edges[e])
-				
-	def update_closest():
-		# from points to edges
-		for s, (score, best) in reached_points.items():
-			if best[0] in reached_points:
-				reached_points[s] = find_closest_point(s)
-		# from edges to points
-		for e, (score, best) in reached_edges.items():
-			if best[0] in reached_points:
-				reached_edges[e] = find_closest_edge(e)
-	
-	def find_closest_edge(ac):
-		''' find the bridge to the closest point to the given edge
-		'''
-		best = None
-		score = inf
-		# minimum from edge to points
-		ep = lines.edgepoints(ac)
-		for ma in remain_points:
-			d = distance_pe(pts[ma], ep)
-			if d < score:
-				e = lines.edges[ac]
-				if distance2(pts[ma], pts[e[0]]) < distance2(pts[ma], pts[e[1]]):
-					score, best = d, (ma, e[0])
-				else:
-					score, best = d, (ma, e[1])
-		
-		return score, best
-		
-	def find_closest_point(ac):
-		''' find the bridge to the closest edge to the given point
-		'''
-		best = None
-		score = inf
-		# minimum from point to edges
-		for ma in remain_edges:
-			d = distance_pe(pts[ac], lines.edgepoints(ma))
-			if d < score:
-				e = lines.edges[ma]
-				if distance2(pts[ac], pts[e[0]]) < distance2(pts[ac], pts[e[1]]):
-					score, best = d, (e[0], ac)
-				else:
-					score, best = d, (e[1], ac)
-						
-		return score, best
-	
-	# main loop
-	propagate(lines.edges[0][0])
-	while remain_edges:
-		update_closest()
-		closest = min(
-					min(reached_points.values(), key=itemgetter(0)),
-					min(reached_edges.values(), key=itemgetter(0)),
-					key=itemgetter(0)) [1]
-		bridges.append(closest)
-		bridges.append(tuple(reversed(closest)))
-		propagate(closest[0])
-		
-	return Web(lines.points, bridges)
 	
 
+import numpy.core as np
 	
-	
-	
-def flat_loops(lines: Web, normal=None) -> '[Wire]':
-	''' collect the closed loops present in the given web, so that no loop overlap on the other ones.
-	'''
-	x,y,z = guessbase(lines.points, normal)
-	pts = lines.points
-	# create an oriented point to edge connectivity 
-	conn = Asso()
-	for i,e in enumerate(lines.edges):
-		conn.add(e[0], i)
-	
-	used = [False]*len(lines.edges)	# edges used and so no to use anymore	
-	# the start point for loop assembly must be in priority on an edge that has no double, because double edges that are not on a bridge would create independent loops out of an empty surface
-	# create lists of edges that have a double and edges that have not
-	doubled = []
-	nondoubled = []
-	for i, e in enumerate(lines.edges):
-		double = False
-		for j in conn[e[1]]:
-			if lines.edges[j][1] == e[0]:
-				double = True
-		if double:	doubled.append(i)
-		else:		nondoubled.append(i)
-	# iterator of start points
-	choice = (i  for i in (nondoubled + doubled)  if not used[i])
-	
-	loops = []
-	
-	while True:
-		# find an unused edge
-		end = next(choice, None)
-		if end is None:
-			break
+def triangulation_sweepline(outline: Web, normal=None, prec=0) -> Mesh:
+	pts = outline.points
+	faces = typedlist(uvec3)
+	direction = np.argmax(glm.abs(boundingbox(
+		pts[i]  for e in outline.edges for i in e
+		).width))
 		
-		# assemble a loop
-		loop = list(lines.edges[end])
-		while True:
-			# take the most inward next edge
-			prev = normalize(pts[loop[-1]] - pts[loop[-2]])
+	def extend_edge(edge, x):
+		a, b = pts[edge[0]], pts[edge[1]]
+		v = b - a
+		return (x - a[direction]) / v[direction] * v + a
+		
+	ordered = sorted(outline.edges, key=lambda e: min(pts[p][direction] for p in e))
+	monotonics = []
+	for edge in ordered:
+		if pts[edge[0]][direction] < pts[edge[1]][direction]:
+			p, n = edge
+		else:
+			n, p = edge
+		x = pts[p][direction]
+		for i, mono in enumerate(monotonics):
+			found = True
+			print('*', mono, p, n)
 			
-			best = None
-			score = -inf
-			for edge in conn[loop[-1]]:
-				if used[edge]:	continue
-				e = lines.edges[edge]
-				dir = normalize(pts[e[1]] - pts[e[0]])
-				if isfinite(dir) and isfinite(prev):
-					angle = atan2(dot(cross(prev,dir),z), dot(prev,dir))
-				else:
-					angle = -pi
-				if pi-angle <= pi*NUMPREC:	angle -= 2*pi
-				if angle > score:
-					score, best = angle, edge
+			# extend first side
+			if p == mono[0][1]:
+				print('extend right')
+				faces.append(uvec3(mono[0][0], mono[1][0], p))
+				mono[0] = (p, n)
+			# extend second side
+			elif p == mono[1][1]:
+				print('extend left')
+				faces.append(uvec3(mono[0][0], mono[1][0], p))
+				mono[1] = (p, n)
+			# split monotonic
+			elif mono[0][0] != mono[0][1] and mono[1][0] != mono[1][1]:
+				a, b = extend_edge(mono[0], x), extend_edge(mono[1], x)
+				print('    may split', a, b, pts[p])
+				if distance2(a, pts[p]) + distance2(b, pts[p]) < distance2(a, b):
+					# merge monotonics
+					if i+1 < len(monotonics) and (mono[1][1], p) == (monotonics[i+1][0][1], monotonics[i+1][1][1]):
+						faces.append(uvec3(mono[0][0], mono[1][0], p))
+						faces.append(uvec3(p, mono[1][0], mono[1][1]))
+						faces.append(uvec3(monotonics[i+1][0][0], monotonics[i+1][1][0], monotonics[i-1][0][1]))
+						faces.append(uvec3(monotonics[i+1][0][1], monotonics[i+1][1][0], monotonics[i-1][1][1]))
+						print('merge next', monotonics[i+1])
+						mono[1] = (p, n)
+						monotonics.pop(i+1)
+					elif i > 0 and (mono[0][1], p) == (monotonics[i-1][0][1], monotonics[i-1][1][1]):
+						faces.append(uvec3(mono[0][0], mono[1][0], p))
+						faces.append(uvec3(p, mono[0][1], mono[0][0]))
+						faces.append(uvec3(monotonics[i-1][0][0], monotonics[i-1][1][0], monotonics[i-1][0][1]))
+						faces.append(uvec3(monotonics[i-1][0][1], monotonics[i-1][1][0], monotonics[i-1][1][1]))
+						print('merge prev', monotonics[i-1])
+						mono[0] = (p, n)
+						monotonics.pop(i-1)
+					else:
+						faces.append(uvec3(mono[0][0], mono[1][0], p))
+						if edge[0] == p:
+							monotonics[i:i+1] = ([mono[0], (p, p)], [(p, n), mono[1]])
+						else:
+							monotonics[i:i+1] = ([mono[0], (p, n)], [(p, p), mono[1]])
 					
+						print('split', monotonics)
+				else:
+					found = False
+			else:
+				found = False
 			
-			# progress on the selected edge
-			if best is None:
-				raise TriangulationError("there is not only loops in that web", loop)
-			used[best] = True
-			if best == end:
+			if found:
+				# # close following monotonic
+				# if i+1 < len(monotonics) and (p,n) == (monotonics[i+1][0][1], monotonics[i+1][1][1]):
+				# 	print('closing next')
+				# 	monotonics.pop(i+1)
+				# close
+				if mono[0][1] == mono[1][1]:
+					print('close')
+					faces.append(uvec3(mono[0][0], mono[1][0], mono[0][1]))
+					monotonics.pop(i)
+				# # close preceding monotonics
+				# if i > 0 and (n,p) == (monotonics[i-1][0][1], monotonics[i-1][1][1]):
+				# 	print('closing prev')
+				# 	monotonics.pop(i-1)
 				break
-			
-			# continue the loops
-			loop.append(lines.edges[best][1])
-			
-			# the very particular case of loops with null surface, or with straight return to origin might intruduce serveral loops in the same suite, the following condition prevents it
-			if loop[0] == loop[-1]:
-				prev = normalize(pts[loop[-2]] - pts[loop[-1]])
-				dir = normalize(pts[loop[1]] - pts[loop[0]])
-				if acos(dot(prev,dir)) <= pi*NUMPREC:
-					used[end] = True
-					break
-			
-		loops.append(Wire(lines.points, loop))
-
-	return loops
-
-	
-def triangulation_closest(outline, normal=None, prec=None):
-	if isinstance(outline, Wire):
-		return triangulation_outline(outline, normal, prec)
-	else:
-		outline = copy(web(outline)).mergegroups()
-	x,y,z = dirbase(normal or convex_normal(outline))
-	result = Mesh(outline.points)
-	for loop in flat_loops(outline + line_bridges(outline), z):
-		result += triangulation_outline(loop, z, prec)
-	return result
-
+		else:
+			monotonics.append([(p, p), (p, n)])
+	return Mesh(pts, faces)
 	
 	
+def triangulation(outline: Web, normal=None, prec=0) -> Mesh:
+	result = triangulation_sweepline(outline, normal, prec)
+	return retriangulate(result)
 	
+triangulation = triangulation_sweepline
+	
+def retriangulate(mesh) -> Mesh:
+	conn = connef(mesh.faces)
+	updated = set()
+	while updated:
+		indev
 	
 	
 	
