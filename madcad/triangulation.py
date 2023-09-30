@@ -361,12 +361,20 @@ def sweepline_monotones(outline: Web, direction=0, prec=0) -> Mesh:
 	def extendable_edge(edge, x):
 		return len(edge) > 1 and x - pts[edge[-2]][direction] >= -prec
 		
+	def between_edges(prev, next, p):
+		x = p[direction]
+		a, b = extend_edge(mono[0], x), extend_edge(mono[1], x)
+		return distance2(a, p) + distance2(b, p) < distance2(a, b)
+		
+	def reorder(edge):
+		if pts[edge[0]][direction] < pts[edge[1]][direction]:
+			return edge[0], edge[1], 1
+		else:
+			return edge[1], edge[0], 0
+		
 	# sort edges along direction (and forwardness for degenerated edges)
 	def key(edge):
-		if pts[edge[0]][direction] < pts[edge[1]][direction]:
-			p, n = edge
-		else:
-			n, p = edge
+		p, n, _ = reorder(edge)
 		v = pts[n] - pts[p]
 		return (
 			pts[p][direction], 
@@ -375,21 +383,47 @@ def sweepline_monotones(outline: Web, direction=0, prec=0) -> Mesh:
 	ordered = sorted(outline.edges, key=key)
 	
 	# set of points being at the start of an edge, helping fixing degenerated cases of edges at the same place
-	starts = set()
-	for edge in outline.edges:
-		if pts[edge[0]][direction] < pts[edge[1]][direction]:
-			starts.add(edge[0])
-		else:
-			starts.add(edge[1])
+	starts = set(reorder(edge)[0]  for edge in outline.edges)
 	
+	print(ordered)
 	monotonics = []
 	finished = []
-	for j, edge in enumerate(ordered):
-		if pts[edge[0]][direction] < pts[edge[1]][direction]:
-			p, n, orientation = *edge, 1
-		else:
-			n, p, orientation = *edge, 0
+	for k, edge in enumerate(ordered):
+		p, n, orientation = reorder(edge)
 		x = pts[p][direction]
+		
+		for i in reversed(range(len(monotonics))):
+			mono = monotonics[i]
+			# close current monotonic
+			if (mono[0][-1] == mono[1][-1] 
+					and x >= pts[mono[0][-1]][direction] - prec):
+				print('close', mono)
+				finished.append(monotonics.pop(i))
+		
+		# process merges abd closings so the new point can be processed with a clean set of monotonics
+		for i in reversed(range(1, len(monotonics))):
+			prev = monotonics[i-1]
+			next = monotonics[i]
+			# merge two monotonics
+			if (prev[1][-1] == next[0][-1] 
+					and prev[1][-1] not in starts 
+					and x >= pts[prev[1][-1]][direction] - prec):
+				print('merge', prev, next)
+				# find a helper point
+				for j in range(k, len(ordered)):
+					h, _, _ = reorder(ordered[j])
+					hx = pts[h][direction]
+					print(h)
+					# assert pts[prev[0][-1]][direction] - hx >= -prec and pts[next[1][-1]][direction] - hx >= -prec 
+					if h == prev[0][-1] or h == next[1][-1] or between_edges(prev[0], next[1], pts[h]):
+						helper = h
+						break
+				else:
+					raise AssertionError
+				
+				prev[1].append(helper)
+				next[0].append(helper)
+			
 		for i, mono in enumerate(monotonics):
 			found = True
 			print('*', mono, p, n)
@@ -403,53 +437,20 @@ def sweepline_monotones(outline: Web, direction=0, prec=0) -> Mesh:
 				print('extend next')
 				mono[1].append(n)
 			# fins whether the current monotonic is concerned by this new edge
-			elif extendable_edge(mono[0], x) and extendable_edge(mono[1], x):
-				a, b = extend_edge(mono[0], x), extend_edge(mono[1], x)
-				print('    may split', a, b, pts[p])
-				if distance2(a, pts[p]) + distance2(b, pts[p]) < distance2(a, b):
-					# split monotonic
-					if orientation:
-						monotonics[i:i+1] = ([mono[0][-2:], [p]], [[p, n], mono[1][-2:]])
-					else:
-						monotonics[i:i+1] = ([mono[0][-2:], [p, n]], [[p], mono[1][-2:]])
-					mono[0][-1] = p
-					mono[1][-1] = p
-					finished.append(mono)
-					print('split', monotonics)
-					break
+			elif extendable_edge(mono[0], x) and extendable_edge(mono[1], x) and between_edges(mono[0], mono[1], pts[p]):
+				# split monotonic
+				if orientation:
+					monotonics[i:i+1] = ([mono[0][-2:], [p]], [[p, n], mono[1][-2:]])
 				else:
-					continue
+					monotonics[i:i+1] = ([mono[0][-2:], [p, n]], [[p], mono[1][-2:]])
+				mono[0][-1] = p
+				mono[1][-1] = p
+				finished.append(mono)
+				print('split', monotonics)
+				break
 			else:
 				continue
 			
-			# close current monotonic
-			if mono[0][-1] == mono[1][-1]:
-				print('close')
-				finished.append(monotonics.pop(i))
-			# close following monotonic
-			elif i+1 < len(monotonics) and mono[1][-1] == monotonics[i+1][0][-1] and mono[1][-1] not in starts:
-				print('merge next')
-				ec = mono[0][-1]
-				en = monotonics[i+1][1][-1]
-				if pts[ec][direction] < pts[ec][direction]:
-					mono[1].append(en)
-					finished.append(monotonics.pop(i+1))
-				else:
-					monotonics[i+1][0].append(mono[0][-1])
-					finished.append(monotonics.pop(i))
-					
-			# close preceding monotonic
-			elif i > 0 and mono[0][-1] == monotonics[i-1][1][-1] and mono[0][-1] not in starts:
-				# if pts[mono[0][-1]][direction] < pts[monotonics[i-1][1][-1]][direction]:
-				print('merge prev')
-				ec = mono[0][-1]
-				ep = monotonics[i-1][1][-1]
-				if pts[ec][direction] < pts[ec][direction]:
-					mono[0].append(monotonics[i-1][0][-1])
-					finished.append(monotonics.pop(i-1))
-				else:
-					monotonics[i-1][1].append(mono[1][-1])
-					finished.append(monotonics.pop(i))
 			break
 		# create monotonic
 		else:
@@ -458,13 +459,43 @@ def sweepline_monotones(outline: Web, direction=0, prec=0) -> Mesh:
 			else:
 				monotonics.append([[p], [p, n]])
 			
-	# TODO: fix degenerated case of 2 edges at the same place
-	# TODO: fix degenerated case of a null-length edge
-	# TODO: fix degenerated case of 2 monotonics with the exact same flat front, with one getting challenged by an edge of the other
-	# TODO: fix degenerated case of empty loop
+	# - [x] TODO: fix degenerated case of 2 edges at the same place
+	# - [ ] TODO: fix degenerated case of a null-length edge
+	# - [ ] TODO: fix degenerated case of 2 monotonics with the exact same flat front, with one getting challenged by an edge of the other
+	# - [x] TODO: fix degenerated case of empty loop
+	# - [ ] TODO: fix degenerated case of split point on an edge
 	
-	assert not monotonics, "web is not closed or not manifold"
+	# assert not monotonics, "web is not closed or not manifold"
+	# print(monotonics)
+	finished.extend(monotonics)
 	return finished
+	
+def interclass(a, b, key=lambda x: x):
+	result = []
+	ia, ib = iter(a), iter(b)
+	va, vb = next(ia, None), next(ib, None)
+	ka, kb = key(va), key(vb)
+	if (va and vb) is not None:
+		while True:
+			if ka <= kb:
+				result.append(va)
+				va = next(ia, None)
+				if va is None:	break
+				ka = key(va)
+			else:
+				result.append(vb)
+				vb = next(ib, None)
+				if vb is None:  break
+				kb = key(vb)		
+	while va is not None:
+		result.append(va)
+		va = next(ia, None)
+	while vb is not None:
+		result.append(vb)
+		vb = next(ib, None)
+	return result
+		
+		
 	
 def triangulation_monotone(sidea, sideb, direction, normal, prec=0) -> Mesh:
 	''' ugly triangulation of a monotone outline
@@ -481,8 +512,9 @@ def triangulation_monotone(sidea, sideb, direction, normal, prec=0) -> Mesh:
 		points += sidea
 		sideb = Wire(points, [i+l  for i in sideb.indices])
 	
-	ordered = sorted( [(p,0)  for p in sidea.indices] 
-					+ [(p,1) for p in sideb.indices], 
+	ordered = interclass(
+					[(p,0)  for p in sidea.indices], 
+					[(p,1) for p in sideb.indices], 
 				key=lambda p: (
 					points[p[0]][direction],  # sorted along direction
 					points[p[0]][direction-1] + points[p[0]][direction-2],  # in case of ambiguity
