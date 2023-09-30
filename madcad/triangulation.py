@@ -334,504 +334,228 @@ def triangulation_closest(outline, normal=None, prec=None):
 		result += triangulation_outline(loop, z, prec)
 	return result
 
-	
-	
-	
-	
-
-'''
-	triangulation_sweepline
-	---------------------
-	loop holes briding based on a sweepline algorithm - complexity O(n log n)
-'''
-
-def sweepline_loops(lines: Web, normal=None):
-	''' sweep line algorithm to retreive monotone loops from a Web
-		the web edges should not be oriented, and thus the resulting face has no orientation
-		complexity: O(n ln n)
-		
-		https://en.wikipedia.org/wiki/Monotone_polygon
-	'''
-	# selective debug function
-	#debprint = lambda *args, **kwargs: None
-	#debprint = print
-
-	if len(lines.edges) < 3:	return Mesh()
-	loops = []
-	finalized = []
-	x,y,z = guessbase(lines.points, normal)
-	#debprint('sortdim', x, 'y', y)
-	# projection of the lines points on x and y
-	pts = {}
-	for e in lines.edges:
-		for i in e:
-			if i not in pts:
-				p = lines.points[i]
-				pts[i] = vec2(dot(p,x), dot(p,y))
-	
-	#debprint('sweepline')
-	#debprint('\npoints = {},\nedges = {},\n'.format(lines.points, lines.edges))
-	
-	# affine function y = a*x + b   for edges
-	def affiney(e, x):
-		a, b = pts[e[0]], pts[e[1]]
-		v = b-a
-		if v[0]:	d = v[1]/v[0]
-		elif v[1] > 0:	d = -inf
-		else:			d = inf
-		return a[1] + d * (x - a[0])
-	
-	def orthoproj(v):
-		l = length(v)
-		return v[1] / l if l else 0
-	
-	# orient edges along the axis and sort them
-	# sorting is done using absciss and orientation in case of similar absciss
-	# the nearest directions to +-y is prefered to speedup cluster distinction
-	edges = lines.edges[:]
-	for i,(a,b) in enumerate(edges):
-		if pts[a][0] < pts[b][0]:	edges[i] = b,a
-	stack = sorted(edges,
-				key=lambda e: (pts[e[0]][0], abs(orthoproj(pts[e[1]]-pts[e[0]])) )
-				)
-	
-	# remove absciss ambiguity (for edges that share points with the same absciss)
-	# for each edge, all following edges with the same absciss and contains its start point will have the same startpoint
-	for i in reversed(range(len(stack))):
-		l = stack[i][0]
-		n = i-1
-		for j in reversed(range(i)):
-			if pts[stack[j][0]][0] < pts[l][0]:	break
-			if stack[j][1] == l:	
-				stack[j] = (stack[j][1], stack[j][0])
-			if stack[j][0] == l:
-				if n != j:	stack.insert(n, stack.pop(j))
-				n -= 1
-	#debprint('stack', stack)
-	#debprint('stack')
-	#for e in stack:
-		#debprint(e, (pts[e[0]][0], orthoproj(pts[e[1]]-pts[e[0]])))
-	
-	# build cluster by cluster -  each cluster is a monotone sub-polygon
-	# kept sorted so that:
-	#    clusters are in descending order on y
-	# 	 cluster couple is in ascending order:  (l0, l1) with l0 < l1
-	clusters = []
-	while stack:		
-		edge = stack.pop()
-		p0, p1 = pts[edge[0]], pts[edge[1]]
-		
-		# get the pair edge if there is one starting at the same point
-		m = None
-		sc = -1
-		i = len(stack)-1
-		while i >= 0 and pts[stack[i][0]][0] == pts[edge[0]][0]:
-			e = stack[i]
-			if e[0] == edge[0]:
-				diff = abs(orthoproj(pts[e[1]]-pts[e[0]]) - orthoproj(pts[edge[1]]-pts[edge[0]]))
-				if diff > sc:	
-					sc = diff
-					m = i
-			i -= 1
-		if m is not None:	
-			# edge must be above coedge
-			coedge = stack.pop(m)
-			if orthoproj(pts[edge[1]]-pts[edge[0]]) < orthoproj(pts[coedge[1]]-pts[coedge[0]]):
-				edge, coedge = coedge, edge
-		else:
-			coedge = None
-			
-		# finalize closed clusters, merge clusters that reach the same points
-		for i,(l0,l1) in enumerate(clusters):	
-			# remove the closed cluster
-			if l0[1] == l1[1]:
-				#debprint('    pop', l0,l1)
-				clusters.pop(i)
-				loops[i].insert(0, l0[1])
-				finalized.append(loops.pop(i))
-				break
-			# merge the two neighboring clusters
-			if i>0 and clusters[i-1][0][1] == l1[1] and pts[l1[1]][0] > p0[0]:
-				merge = clusters.pop(i)
-				clusters[i-1] = (merge[0], clusters[i-1][1])
-				loops[i].append(l1[1])
-				loops[i-1][0:0] = loops.pop(i)
-				#debprint('    merged', loops[i-1])
-				#debprint('clusters', nformat(clusters))
-				break
-		
-		#print('stack', stack)
-		#debprint('*', edge, coedge, pts[edge[0]][0], -abs(orthoproj(pts[edge[1]]-pts[edge[0]])))
-		
-		# search in which cluster we are
-		found = False
-		for i,(l0,l1) in enumerate(clusters):
-			#debprint('   ', l0,l1,edge[0])
-			
-			# continuation of already existing edge of the cluster
-			if edge[0] == l0[1]:
-				loops[i].insert(0, l0[1])
-				clusters[i] = (edge, l1)
-				if coedge:
-					stack.append(coedge)
-				#debprint('      continuation', edge)
-				#if coedge:	nprint(clusters)
-				found = True
-				break
-			elif edge[0] == l1[1]:
-				loops[i].append(l1[1])
-				clusters[i] = (l0, coedge or edge)
-				if coedge:
-					stack.append(edge)
-				#debprint('      continuation', coedge or edge)
-				#if coedge:	nprint(clusters)
-				found = True
-				break
-			# interior hole that touch the outline
-			elif (coedge and l0[0] == l1[0] and l0[0] == edge[0]
-					and affiney(l0, p1[0]) <= p1[1]
-					and affiney(l1, p1[0]) >= p1[1]):
-				clusters[i] = (l0, coedge)
-				clusters.insert(i, (edge, l1))
-				loops.insert(i, [edge[0]])
-				#debprint('      root hole', edge[0])
-				found = True
-				break
-			# interior hole
-			elif (coedge
-					and affiney(l0, p0[0]) < p0[1]
-					and affiney(l1, p0[0]) > p0[1]):
-				clusters[i] = (l0, coedge)
-				clusters.insert(i, (edge, l1))
-				# continue the cluster on the side with the higher x
-				if pts[l0[0]][0] < pts[l1[0]][0]:
-					# the existing loop stays at index i
-					loops[i].insert(0,edge[0])
-					loops.insert(i+1, [l0[0], coedge[0]])
-				else:
-					# the existing loop jumps to index i+1
-					loops[i].append(coedge[0])
-					loops.insert(i, [edge[0], l1[0]])
-				#debprint('      hole for ',i, edge)
-				#debprint('clusters', nformat(clusters))
-				#debprint('loops', loops)
-				found = True
-				break
-		
-		if not found:
-			# if it's a new corner, create a cluster
-			if coedge and edge[1] != coedge[1]:
-				p0 = pts[edge[0]]
-				# find the place to insert the cluster
-				# NOTE a dichotomy is more efficient, but for now ...
-				j = 0
-				while j < len(clusters) and affiney(clusters[j][1], p0[0]) > p0[1]:
-					j += 1
-				clusters.insert(j, (coedge, edge))
-				loops.insert(j, [edge[0]])
-				#debprint('    new cluster', j)
-				#debprint(nformat(clusters))
-			# if it's an ambiguous edge without use for now, restack it
-			elif pts[edge[1]][0] == pts[edge[0]][0]:
-				#debprint('    restack')
-				stack.insert(-1, edge)
-				if coedge:	stack.insert(-1, coedge)
-			else:
-				raise TriangulationError("algorithm failure, can be due to the given outline", edge, coedge)
-	
-	# close clusters' ends
-	for i,cluster in enumerate(clusters):
-		l0,l1 = cluster
-		loops[i].insert(0, l0[1])
-		if l0[1] != l1[1]:
-			loops[i].append(l1[1])
-	finalized.extend(loops)
-	#for loop in finalized:
-		#debprint('triangulate', loop)
-	
-	return finalized
-
-
-def triangulation_sweepline(outline: Web, normal=None, prec=0) -> Mesh:
-	''' extract loops from the web using sweepline_loops and trianglate them.
-		the resulting mesh have one group per loop, and all the normals have approximately the same direction (they are coherent)
-	'''
-	x,y,z = guessbase(outline.points, normal)
-	m = Mesh(outline.points)
-	for loop in sweepline_loops(outline, z):
-		m += triangulation_outline(Wire(outline.points, loop), z)
-	return m
-	
 
 	
 
 import numpy.core as np
+from .mesh import connexity
 	
-def triangulation_sweepline(outline: Web, normal=None, prec=0) -> Mesh:
+def sweepline_monotones(outline: Web, direction=0, prec=0) -> Mesh:
+	'''
+		complexity: O(n*log(n) + n*k)  with k = number of loops
+	'''
 	pts = outline.points
-	faces = typedlist(uvec3)
-	direction = np.argmax(glm.abs(boundingbox(
-		pts[i]  for e in outline.edges for i in e
-		).width))
-		
+	print('direction', direction)
+	
+	# get a point on the given edge for the given x absciss
 	def extend_edge(edge, x):
-		a, b = pts[edge[0]], pts[edge[1]]
+		a, b = pts[edge[-2]], pts[edge[-1]]
+		try:
+			assert a[direction] - prec <= x <= b[direction] + prec, "web is not closed or not manifold"
+		except AssertionError:
+			print(a[direction], x, b[direction])
+			raise
 		v = b - a
 		return (x - a[direction]) / v[direction] * v + a
+	
+	def extendable_edge(edge, x):
+		return len(edge) > 1 and x - pts[edge[-2]][direction] >= -prec
 		
-	ordered = sorted(outline.edges, key=lambda e: min(pts[p][direction] for p in e))
-	monotonics = []
-	for edge in ordered:
+	# sort edges along direction (and forwardness for degenerated edges)
+	def key(edge):
 		if pts[edge[0]][direction] < pts[edge[1]][direction]:
 			p, n = edge
 		else:
 			n, p = edge
+		v = pts[n] - pts[p]
+		return (
+			pts[p][direction], 
+			abs(v[direction-1] - v[direction-2]) / (v[direction] + prec),
+			)
+	ordered = sorted(outline.edges, key=key)
+	
+	# set of points being at the start of an edge, helping fixing degenerated cases of edges at the same place
+	starts = set()
+	for edge in outline.edges:
+		if pts[edge[0]][direction] < pts[edge[1]][direction]:
+			starts.add(edge[0])
+		else:
+			starts.add(edge[1])
+	
+	monotonics = []
+	finished = []
+	for j, edge in enumerate(ordered):
+		if pts[edge[0]][direction] < pts[edge[1]][direction]:
+			p, n, orientation = *edge, 1
+		else:
+			n, p, orientation = *edge, 0
 		x = pts[p][direction]
 		for i, mono in enumerate(monotonics):
 			found = True
 			print('*', mono, p, n)
 			
 			# extend first side
-			if p == mono[0][1]:
-				print('extend right')
-				faces.append(uvec3(mono[0][0], mono[1][0], p))
-				mono[0] = (p, n)
+			if p == mono[0][-1] and orientation == 1:
+				print('extend prev')
+				mono[0].append(n)
 			# extend second side
-			elif p == mono[1][1]:
-				print('extend left')
-				faces.append(uvec3(mono[0][0], mono[1][0], p))
-				mono[1] = (p, n)
-			# split monotonic
-			elif mono[0][0] != mono[0][1] and mono[1][0] != mono[1][1]:
+			elif p == mono[1][-1] and orientation == 0:
+				print('extend next')
+				mono[1].append(n)
+			# fins whether the current monotonic is concerned by this new edge
+			elif extendable_edge(mono[0], x) and extendable_edge(mono[1], x):
 				a, b = extend_edge(mono[0], x), extend_edge(mono[1], x)
 				print('    may split', a, b, pts[p])
 				if distance2(a, pts[p]) + distance2(b, pts[p]) < distance2(a, b):
-					# merge monotonics
-					if i+1 < len(monotonics) and (mono[1][1], p) == (monotonics[i+1][0][1], monotonics[i+1][1][1]):
-						faces.append(uvec3(mono[0][0], mono[1][0], p))
-						faces.append(uvec3(p, mono[1][0], mono[1][1]))
-						faces.append(uvec3(monotonics[i+1][0][0], monotonics[i+1][1][0], monotonics[i-1][0][1]))
-						faces.append(uvec3(monotonics[i+1][0][1], monotonics[i+1][1][0], monotonics[i-1][1][1]))
-						print('merge next', monotonics[i+1])
-						mono[1] = (p, n)
-						monotonics.pop(i+1)
-					elif i > 0 and (mono[0][1], p) == (monotonics[i-1][0][1], monotonics[i-1][1][1]):
-						faces.append(uvec3(mono[0][0], mono[1][0], p))
-						faces.append(uvec3(p, mono[0][1], mono[0][0]))
-						faces.append(uvec3(monotonics[i-1][0][0], monotonics[i-1][1][0], monotonics[i-1][0][1]))
-						faces.append(uvec3(monotonics[i-1][0][1], monotonics[i-1][1][0], monotonics[i-1][1][1]))
-						print('merge prev', monotonics[i-1])
-						mono[0] = (p, n)
-						monotonics.pop(i-1)
+					# split monotonic
+					if orientation:
+						monotonics[i:i+1] = ([mono[0][-2:], [p]], [[p, n], mono[1][-2:]])
 					else:
-						faces.append(uvec3(mono[0][0], mono[1][0], p))
-						if edge[0] == p:
-							monotonics[i:i+1] = ([mono[0], (p, p)], [(p, n), mono[1]])
-						else:
-							monotonics[i:i+1] = ([mono[0], (p, n)], [(p, p), mono[1]])
-					
-						print('split', monotonics)
-				else:
-					found = False
-			else:
-				found = False
-			
-			if found:
-				# # close following monotonic
-				# if i+1 < len(monotonics) and (p,n) == (monotonics[i+1][0][1], monotonics[i+1][1][1]):
-				# 	print('closing next')
-				# 	monotonics.pop(i+1)
-				# close
-				if mono[0][1] == mono[1][1]:
-					print('close')
-					faces.append(uvec3(mono[0][0], mono[1][0], mono[0][1]))
-					monotonics.pop(i)
-				# # close preceding monotonics
-				# if i > 0 and (n,p) == (monotonics[i-1][0][1], monotonics[i-1][1][1]):
-				# 	print('closing prev')
-				# 	monotonics.pop(i-1)
-				break
-		else:
-			monotonics.append([(p, p), (p, n)])
-	return Mesh(pts, faces)
-	
-	
-def triangulation(outline: Web, normal=None, prec=0) -> Mesh:
-	result = triangulation_sweepline(outline, normal, prec)
-	return retriangulate(result)
-	
-triangulation = triangulation_sweepline
-	
-def retriangulate(mesh) -> Mesh:
-	conn = connef(mesh.faces)
-	updated = set()
-	while updated:
-		indev
-	
-	
-	
-''' 
-	other misc stuff, in development
-'''
-
-	
-from .mesh import connef, arrangeface
-
-def retriangulate(mesh):
-	''' switch diagonals to improve the surface smoothness '''
-	pts = mesh.points
-	faces = mesh.faces
-	# second pass:	improve triangles by switching quand diagonals
-	conn = connef(faces)
-	scores = {}
-	def update_score(edge):
-		a,b,c = arrangeface(faces[conn[edge]], edge[0])
-		ab = pts[b]-pts[a]
-		lab = length(ab)
-		# check if diagonal is good for exchange
-		x = dot(pts[c]-pts[a], ab) / (lab*lab) 
-		if x < 0 or 1 < x:
-			scores[edge] = 0
-		else:
-			# if then, record the difference of heights
-			h = length(noproject(pts[c]-pts[a], ab/lab))
-			scores[edge] = lab/h - 2
-	for edge in conn:
-		update_score(edge)
-	
-	while True:
-		a,b = min(scores, key=lambda e:scores[e])
-		if scores[edge] <= NUMPREC:	break
-		fc = conn[(a,b)]
-		fd = conn[(b,a)]
-		_,_,c = arrangeface(faces[fc], a)
-		_,_,d = arrangeface(faces[fd], b)
-		faces[fc] = (d,a,c)
-		faces[fd] = (c,b,d)
-		registerface(conn, fc)
-		registerface(conn, fd)
-		# update scores
-		update_scores((d,a))
-		update_scures((a,c))
-		update_scores((c,d))
-		update_scores((d,a))
-		update_scures((a,c))
-		update_scores((c,d))
-	
-from .mesh import suites
-from .nprint import nprint
-
-from .mathutils import atan, mix
-from . import settings
-	
-def discretise_refine(curve: '[(x, f(x))]', func: 'f(float) -> float', resolution=None, simplify=True):
-	''' improve discretisation to reach a certain resolution '''
-	if resolution and resolution[0] == 'div':
-		raise ValueError("resolution must have a local meaning, so not 'div'")
-	
-	r = 1/2		# refinement placement, 1/3 ensure that the points are placed regularly
-	pts = [curve[0], curve[1]]	# use a new list to improve insertion efficiencies (we will always insert close to the end)
-	i = 2	# index in pts
-	j = 2	# index in curve
-	target = len(curve)
-	
-	# check curve around b
-	def goodcorner(a, b, c):
-		length = distance(a, b) + distance(b, c)
-		d1 = (c[1] - b[1]) / (c[0] - b[0])
-		d2 = (b[1] - a[1]) / (b[0] - a[0])
-		angle = abs(atan(d1) - atan(d2))
-		return settings.curve_resolution(length, angle, resolution) <= 1
-	
-	while True:
-		# load following if necessary
-		if i >= len(pts):
-			if j >= target:	
-				break
-			pts.append(curve[j])
-			j += 1
-		
-		# check resolution around i-1
-		if not goodcorner(pts[i-2], pts[i-1], pts[i]):
-			# refine around i-1
-			r1 = mix(pts[i-1][0], pts[i][0],	r)
-			r2 = mix(pts[i-1][0], pts[i-2][0],	r)
-			p1 = (r1, func(r1))
-			p2 = (r2, func(r2))
-			if goodcorner(pts[i-2], pts[i-1], p1):
-				pts.insert(i, p1)
-			elif goodcorner(p2, pts[i-1], pts[i]):
-				pts.insert(i-1, p2)
-			else:
-				pts.insert(i, 	p1)
-				pts.insert(i-1,	p2)
-		else:
-			# go to next point
-			i += 1
-			
-	# simplify overresolution
-	i = 4
-	while i < len(pts):
-		if goodcorner(pts[i-4], pts[i-3], pts[i-1]) and goodcorner(pts[i-3], pts[i-1], pts[i]):
-			pts.pop(i-2)
-		else:
-			i += 1
-	
-	return pts
-
-	
-def loop_closer(lines: Web, ending=0) -> 'Web':
-	''' generate closing lines to create a loop.
-	
-		:ending:	the thickness along normals, for exterior geometries
-	'''
-	# the lines are simple lines, no junction at all
-	if not line.isline():
-		raise ValueError("the given web is not only made of lines, there is junctions")
-	
-	pts = lines.pts
-	# create independant unclosed loops with parts cutted by bridges
-	bridges = line_bridges(lines, normal)
-	junctions = set()
-	for a,b in bridges:
-		junctions.add(a)
-		junctions.add(b)
-	parts = suites(parts)
-	loops = []
-	while parts:
-		assembly = [parts.pop()]	# suites of points to extend
-		for i,p in enumerate(assembly):
-			# junction created by a bridge
-			if p in bridges:
-				for j,bridge in enumerate(bridges):
-					if p in bridge:
-						n = bridge[int(p == bridge[0])]
-						bridges.pop(j)
-						break
+						monotonics[i:i+1] = ([mono[0][-2:], [p, n]], [[p], mono[1][-2:]])
+					mono[0][-1] = p
+					mono[1][-1] = p
+					finished.append(mono)
+					print('split', monotonics)
+					break
 				else:
 					continue
-				n = bridges[p]
-				# restack the rest of the current part
-				parts.append(assembly[i+1:])
-				assembly = assembly[:i+1]
-				# search the junction index in the new part
-				for part in parts:
-					if n in part:	break
+			else:
+				continue
+			
+			# close current monotonic
+			if mono[0][-1] == mono[1][-1]:
+				print('close')
+				finished.append(monotonics.pop(i))
+			# close following monotonic
+			elif i+1 < len(monotonics) and mono[1][-1] == monotonics[i+1][0][-1] and mono[1][-1] not in starts:
+				print('merge next')
+				ec = mono[0][-1]
+				en = monotonics[i+1][1][-1]
+				if pts[ec][direction] < pts[ec][direction]:
+					mono[1].append(en)
+					finished.append(monotonics.pop(i+1))
 				else:
-					raise Exception('algorithm failure: bridge with no matching river')
-				j = part.index(n)
-				# append the new part
-				assembly += part[j:]
-				if part[-1] == part[0]:	
-					assembly += part[:j]
-		loops.append(assembly)
+					monotonics[i+1][0].append(mono[0][-1])
+					finished.append(monotonics.pop(i))
+					
+			# close preceding monotonic
+			elif i > 0 and mono[0][-1] == monotonics[i-1][1][-1] and mono[0][-1] not in starts:
+				# if pts[mono[0][-1]][direction] < pts[monotonics[i-1][1][-1]][direction]:
+				print('merge prev')
+				ec = mono[0][-1]
+				ep = monotonics[i-1][1][-1]
+				if pts[ec][direction] < pts[ec][direction]:
+					mono[0].append(monotonics[i-1][0][-1])
+					finished.append(monotonics.pop(i-1))
+				else:
+					monotonics[i-1][1].append(mono[1][-1])
+					finished.append(monotonics.pop(i))
+			break
+		# create monotonic
+		else:
+			if orientation:
+				monotonics.append([[p, n], [p]])
+			else:
+				monotonics.append([[p], [p, n]])
+			
+	# TODO: fix degenerated case of 2 edges at the same place
+	# TODO: fix degenerated case of a null-length edge
+	# TODO: fix degenerated case of 2 monotonics with the exact same flat front, with one getting challenged by an edge of the other
+	# TODO: fix degenerated case of empty loop
 	
-	for loop in loops:
-		# get a convex outline for the opened part, take not of which part is a real edge and what is bridge
-		outline = convexhull(Wire(pts, reversed(loop)), start=loop[0], stop=loop[-1])
-		# thicken the convex outline based on the curviline absciss
-		pts.extend(pts[p] + thickness*normals[p] 	for p in outline[1:-1])
-		l = len(pts)
-		lines.append((outline[0], l))
-		lines.append((l+len(outline), outline[-1]))
-		lines.extend((i,i+1)	for i in range(len(outline)-1))
+	assert not monotonics, "web is not closed or not manifold"
+	return finished
+	
+def triangulation_monotone(sidea, sideb, direction, normal, prec=0) -> Mesh:
+	''' ugly triangulation of a monotone outline
+		the outline is divided into `sida` and `sideb`, each being a wire monotonic in `direction`
+		
+		complexity: O(n)
+		
+		Arguments:
+			indev
+	'''
+	points = sidea.points
+	if sideb.points is not points:
+		l = len(points)
+		points += sidea
+		sideb = Wire(points, [i+l  for i in sideb.indices])
+	
+	ordered = sorted( [(p,0)  for p in sidea.indices] 
+					+ [(p,1) for p in sideb.indices], 
+				key=lambda p: (
+					points[p[0]][direction],  # sorted along direction
+					points[p[0]][direction-1] + points[p[0]][direction-2],  # in case of ambiguity
+					))
+	stack = [ordered[0], ordered[1]]
+	triangles = []
+	
+	print(sidea.indices, sideb.indices)
+	print(ordered)
+	
+	for i in range(2, len(ordered)):
+		if ordered[i][1] != stack[-1][1]:
+			print(ordered[i], 'foreign', stack)
+			while len(stack) > 1:
+				j = stack.pop()
+				k = stack[-1]
+				if ordered[i][1]:  
+					j, k = k, j
+				triangles.append(uvec3(ordered[i][0], j[0], k[0]))
+				print(' ', uvec3(ordered[i][0], j[0], k[0]))
+			stack.clear()
+			stack.append(ordered[i-1])
+			stack.append(ordered[i])
+		else:
+			print(ordered[i], 'neigh', stack)
+			while len(stack) > 1:
+				j = stack.pop()
+				k = stack[-1]
+				if ordered[i][1]:  
+					e = j[0], k[0]
+				else:
+					e = k[0], j[0]
+				if dot(
+						cross(
+							points[e[0]] - points[ordered[i][0]], 
+							points[e[1]] - points[ordered[i][0]]), 
+						normal,
+						) < -prec:
+					print(' not ', uvec3(ordered[i][0], e[0], e[1]))
+					stack.append(j)
+					break
+				triangles.append(uvec3(ordered[i][0], e[0], e[1]))
+				print(' ', uvec3(ordered[i][0], e[0], e[1]))
+			stack.append(ordered[i])
+	return Mesh(points, triangles)
+
+	
+def retriangulate(mesh) -> Mesh:
+	closest = {}  # best match for each point
+	# propagate in one curse (whatever it is)
+	# propagate the opposite
+	from .rendering import show
+	show([mesh])
+	indev
+
+def triangulation_sweepline(outline: Web, normal=None, prec=None) -> Mesh:
+	pts = outline.points
+	if prec is None:
+		prec = outline.precision()*8
+	# use the average normal if not provided
+	if normal is None:	
+		normal = convex_normal(outline)
+	# choose one of the coordinates as sweepline direction, the coordinate with widest range
+	direction = np.argmax(glm.abs(boundingbox(
+		pts[i]  for e in outline.edges for i in e
+		).width))
+	# triangulate monotone parts
+	result = Mesh()
+	for (sidea, sideb) in sweepline_monotones(outline, direction, prec):
+		result += triangulation_monotone(Wire(pts, sidea), Wire(pts, sideb), direction, normal, prec)
+	return result
+
+def triangulation(outline: Web, normal=None, prec=None) -> Mesh:
+	# return retriangulate(triangulation_sweepline(outline, normal, prec))
+	return triangulation_sweepline(outline, normal, prec)
+	
