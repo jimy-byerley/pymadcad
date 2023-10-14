@@ -12,7 +12,7 @@ else:
 setup(
 	# package declaration
 	name='pymadcad',
-	version='0.15.1',
+	version='0.16.0',
 	python_requires='>=3.8',
 	install_requires=[
 		'pyglm>=2.5.5',
