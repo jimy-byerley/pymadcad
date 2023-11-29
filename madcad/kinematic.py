@@ -320,9 +320,18 @@ def placement(*pairs, precision=1e-3):
 		elif len(pair) == 3:	joints.append(pair[0](a, b, *pair[1:]))
 		else:
 			raise TypeError('incorrect pair definition', pair)
+	
+	# temporary ugly specialization for pivots because solvekin is bad
+	if len(joints) == 1 and type(joints[0]).__name__ == 'Pivot':
+		joint = joints[0]
+		return (
+			translate(joint.axis[1].origin)
+			* mat4(quat(joint.axis[0].direction, joint.axis[1].direction))
+			* translate(- joint.axis[0].origin)
+			)
+	
 	solvekin(joints, fixed=[b], precision=precision, maxiter=1000)
 	return a.pose
-
 	
 def convexhull(pts):
 	import scipy.spatial
