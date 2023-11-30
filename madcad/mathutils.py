@@ -310,17 +310,33 @@ def distance_pt(p, triangle):
 
 #-- algorithmic functions ---------
 
-def bisect(l, index, key=lambda x:x):
-	''' Use dichotomy to get the index of `index` in a list sorted in ascending order
-		Key can be used to specify a function that gives numerical value for list elements
+
+
+def fbisect(f, start, stop, prec=None):
+	''' bisection over the parameter of a continuous real function, returning the place where the function switches from True to False
+		f(x) -> bool
 	'''
-	start,end = 0, len(l)
-	while start < end:
-		mid = (start+end)//2
-		val = key(l[mid])
-		if val < index:		start =	mid+1
-		elif val > index:	end =	mid
-		else:	return mid
+	if not prec:	prec = abs(stop-start)*1e-3
+	
+	if not f(start):	return start
+	elif f(stop):		return stop
+
+	while abs(stop-start) > prec:
+		x = (start+stop)*0.5
+		if f(x):	start = x
+		else:		stop = x
+	return start
+
+def bisect(array, value, key=None):
+	if key is None:		key = lambda x:x
+
+	start, stop = 0, len(array)
+	while start < stop:
+		i = (start+stop)//2
+		v = key(array[i])
+		if v > value:	stop = i
+		elif v < value:	start = i+1
+		else:	return i
 	return start
 
 # TODO rename it first
