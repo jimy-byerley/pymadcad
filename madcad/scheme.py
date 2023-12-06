@@ -225,7 +225,7 @@ class Scheme:
 				print('warning: the number of local spaces exceeds the arbitrary build-in limit of {}'.format(self.max_spaces))
 			
 			self.components = [(space,scene.display(obj))	for space,obj in sch.components]
-			
+			self._selected = False
 			
 			self.nidents = max(v[5] for v in sch.vertices)+1
 			self.box = boundingbox(
@@ -325,7 +325,7 @@ class Scheme:
 				prim, va = self.vas[name]
 				shader['spaces'].write(self.spaces)
 				shader['proj'].write(view.uniforms['proj'])
-				shader['highlight'].write( fvec4(fvec3(settings.display['select_color_line']), 0.5) if self.selected else fvec4(0) )
+				shader['highlight'].write( fvec4(fvec3(settings.display['select_color_line']), 0.7) if self.selected else fvec4(0) )
 				va.render(prim)
 		
 		def identify(self, view):
@@ -343,6 +343,11 @@ class Scheme:
 			yield ((), 'ident', 2, self.identify)
 			for space,disp in self.components:
 				yield from disp.stack(scene)
+				
+		@writeproperty
+		def selected(self, value):
+			for space, disp in self.components:
+				disp.selected = value
 				
 class SchemeInstance:
 	def __init__(self, name, scheme, *kwargs):
