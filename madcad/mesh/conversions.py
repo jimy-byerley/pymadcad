@@ -88,9 +88,14 @@ def wire(*arg, resolution=None) -> Wire:
 		return Wire(arg.points, indices[0], groups=[None])	# TODO: find a way to get the groups from the Web edges through suites or not
 	elif hasattr(arg, 'mesh'):
 		return wire(arg.mesh(resolution=resolution))
-	elif isinstance(arg, (typedlist,list,tuple)) and isinstance(arg[0], vec3):
-		return Wire(arg)
-	elif hasattr(arg, '__iter__'):
+	elif isinstance(arg, vec3):
+		return Wire([arg])
+	elif isinstance(arg, (typedlist,list,tuple)):
+		try:
+			return Wire(arg, groups=[None])
+		except TypeError:
+			pass
+	if hasattr(arg, '__iter__'):
 		pool = Wire()
 		for primitive in arg:
 			pool += wire(primitive, resolution=resolution)
