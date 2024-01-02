@@ -1,8 +1,8 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
 from .mathutils import *
-from .primitives import isaxis
-from .kinematic import Screw, Chain
+from .primitives import isaxis, Axis
+from .kinematic import Screw, Joint
 from .mesh import Mesh, Wire, web, Web
 from . import generation, primitives
 
@@ -29,8 +29,11 @@ def solidtransform_base(solid, obj):
 	if len(obj) == 4:	return (rot*obj[0] + solid.position, rot*obj[1], rot*obj[2], rot*obj[3])
 	
 	
-class Welded(Chain):
-	def __init__(self, solids, transform: mat4=None):w
+class Welded(Joint):
+	bounds = ((), ())
+	default = ()
+	
+	def __init__(self, solids, transform: mat4=None):
 		self.solids = solids
 		self.transform = transform or affineInverse(s1.pose) * s2.pose
 		self.position = (vec3(0), vec3(0))
@@ -45,19 +48,20 @@ class Welded(Chain):
 	def grad(self, parameters, delta=1e-6):
 		return ()
 		
-class Pivot(Chain):
+class Pivot(Joint):
+	bounds = (-inf, inf)
 	default = 0
 	
 	def __init__(self, solids, axis: Axis, local=None):
 		self.solids = solids
-		self.axis = self.axis
+		self.axis = axis
 		local = local or axis
 		self.pre = mat4(quat(local[1], Z)) * translate(-local[0])
 		self.post = translate(axis[0]) * mat4(quat(Z, axis[1]))
 		self.position = axis[0]
 	
 	def direct(self, angle) -> mat4:
-		return self.post * rotateZ(angle) * self.pre
+		return self.post * rotate(angle, Z) * self.pre
 		
 	def inverse(self, matrix, close=None):
 		m = hinverse(self.post) * mat3(matrix) * hinverse(self.pre)
@@ -68,7 +72,7 @@ class Pivot(Chain):
 	def grad(self, angle, delta=1e-6):
 		# the actual gradient is the same matrix but with a null homogeneous coordinate
 		# leaving it to 1 is fine here because the kinematic solver will squeeze it anyway
-		return self.post * rotateZ(angle+pi/2) * self.pre
+		return self.post * rotate(angle+pi/2, Z) * self.pre
 		
 	def transmit(self, force, parameters=None, velocity=None) -> Screw:
 		l = force.locate(self.axis[0])
@@ -127,7 +131,7 @@ class Pivot(Chain):
 		yield s
 
 
-class Planar(Chain):
+class Planar(Joint):
 	''' Joint for translation in 2 directions and rotation around the third direction 
 		
 		classical definition:	Planar (direction vector)
@@ -182,7 +186,7 @@ class Planar(Chain):
 			)
 
 
-class Track(Chain):
+class Track(Joint):
 	''' Joint for translation only in a direction 
 		
 		classical definition:  Track (direction vector)
@@ -272,7 +276,7 @@ class Track(Chain):
 						(4,6), (5,7)],
 					)
 
-class Gliding(Chain):
+class Gliding(Joint):
 	''' Joint for rotation and translation around an axis 
 		
 		classical definition:  Gliding pivot (axis)
@@ -352,7 +356,7 @@ class Gliding(Chain):
 			return Scheme([center-side, center+side, center+attach, junc], [], [], [(0,1), (2,3)])
 
 
-class Ball(Chain):
+class Ball(Joint):
 	''' Joint for rotation all around a point.
 	
 		classical definition: Ball (point)
@@ -408,7 +412,7 @@ class Ball(Chain):
 					[(l+0, l+1), (l+1, l+2)] + list(sph.outlines_unoriented()) )
 
 
-class Punctiform(Chain):
+class Punctiform(Joint):
 	''' Joint for rotation all around a point belonging to a plane.
 	
 		classical definition: Punctiform/Sphere-Plane (axis)

@@ -19,6 +19,7 @@
 
 from copy import copy, deepcopy
 import numpy.core as np
+import scipy
 import moderngl as mgl
 from PyQt5.QtCore import Qt, QEvent	
 
@@ -30,7 +31,7 @@ from . import rendering
 from . import nprint
 from .displays import BoxDisplay
 
-__all__ = ['Screw', 'comomentum', 'Solid', 'Kinematic', 'Chain', 'Kinemanip', 'solve',
+__all__ = ['Screw', 'comomentum', 'Solid', 'Kinematic', 'Joint', 'Kinemanip', 'solve',
 			]
 
 
@@ -294,7 +295,7 @@ k.inverse({1: mat4(), 2: mat4(), 3: mat4()})
 
 '''
 			
-class Chain:
+class Joint:
 	def __init__(self, *args, default=0, **kwargs):
 		if isinstance(args[0], Solid) and isinstance(args[1], Solid):
 			self.solids = args[:2]
@@ -334,7 +335,7 @@ class Chain:
 			Returns:
 				the joint parameters so that `self.direct(self.inverse(x)) == x` (modulo numerical precision)
 		'''
-		res = scipy.least_squares(
+		res = scipy.optimize.least_squares(
 			lambda x: np.asanyarray(self.direct(x) - matrix).ravel()**2, 
 			close if close is not None else self.default, 
 			bounds=self.bounds,
@@ -414,7 +415,7 @@ class Chain:
 				d = (view.uniforms['view'] * m * fvec4(fvec3(pos),1)).z * 30/view.height()
 				sch.world = m * translate(scale(translate(fmat4(1), pos), fvec3(d)), -pos)
 
-class Kinematic:
+class Kinematic(Joint):
 	pass
 
 class Kinemanip(rendering.Group):
@@ -551,65 +552,89 @@ def partial_difference_increment(f, i, x, d):
 
 def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-6, maxiter=None) -> dict:
 	dtype = np.float64
+	if init is None:	init = {}
 	
 	# collect the joint graph as a connectivity and the solids
-	solids = copy(solids)
+	# solids = copy(solids)
 	conn = {}  # connectivity {node: [node]} with each node b
 	for joint in joints:
-		for candidate in joint.solids:
-			if isinstance(candidate, Solid):
-				solids[candidate] = candidate
-			elif candidate not in solids:
-				solids[candidate] = Solid()
+		# for candidate in joint.solids:
+		# 	if isinstance(candidate, Solid):
+		# 		solids[candidate] = candidate
+		# 	elif candidate not in solids:
+		# 		solids[candidate] = Solid()
 		conn[joint] = joint.solids
-		for solids in joint.solids:
-			if solids not in conn:	
-				conn[solids] = []
-			conn[solids].append(chain)
+		for solid in joint.solids:
+			if solid not in conn:	
+				conn[solid] = []
+			conn[solid].append(joint)
 			
-	# simplify the graph
-	simplified = {}
-	dof = {}
-	for branch in arcs(conn):
-		if len(branch) > 3:
-			chain = Chain(branch[1::2])
-		else:
-			chain = branch[1]
-		dof[joint] = len(chain.default)
-		simplified[chain] = chain.solids
-		for solid in chain.solids:
-			simplified[solid].append(chain)
+	# # simplify the graph
+	# simplified = {solid: []  for solid in solids}
+	# dof = {}
+	# nprint(conn)
+	# nprint(arcs(conn))
+	# for branch in arcs(conn):
+	# 	# cycles may not begin with a solid, change this
+	# 	if branch[-1] == branch[0] and isinstance(branch[0], Joint):
+	# 		branch.pop(0)
+	# 		branch.append(branch[0])
+	# 	# simplify this arc into a chain if possible
+	# 	if len(branch) > 3:
+	# 		chain = Chain(branch[1::2])
+	# 	else:
+	# 		chain = branch[1]
+	# 	# assemble new graph
+	# 	dof[joint] = np.array(chain.default).size
+	# 	simplified[chain] = chain.solids
+	# 	for solid in chain.solids:
+	# 		simplified[solid].append(chain)
+	# nprint('simplified', simplified)
+	
+	# use the graph as is
+	simplified = conn
+	dof = {joint: flatten_state(joint.default, dtype).size
+		for joint in conn  
+		if isinstance(joint, Joint)}
+	
 	tdof = sum(dof.values())
 	# decompose into cycles
 	cycles = []
 	joints = set()
 	for cycle in shortcycles(simplified, dof):
 		assert cycle[-1] == cycle[0]
+		# cycles may not begin with a solid, change this
+		if isinstance(cycle[0], Joint):
+			cycle.pop(0)
+			cycle.append(cycle[0])
 		chain = []
 		for i in range(1, len(cycle), 2):
 			joint = cycle[i]
-			if cycle[i-1] != joint.start:
-				joint = Reversed(joint)
+			if cycle[i-1] != joint.solids[0]:
+				joint = Reverse(joint)
 			joints.add(joint)
 			chain.append(joint)
 		cycles.append(chain)
+	
+	nprint('cycles', cycles)
+	if len(cycles) == 0:
+		return {}
 		
-	# build initial state
+	# build initial state and bounds
 	structured = []
-	bounds = []
+	mins = []
+	maxes = []
 	for joint in joints:
-		if joint not in conn:
-			structured.append([init[j] for j in joint.solids])
-		else:
-			structured.append(init[joint])
-		bounds.append(joint.bounds)		
+		structured.append(init.get(joint) or joint.default)
+		mins.append(joint.bounds[0])
+		maxes.append(joint.bounds[1])
 	
 	# build cost and gradient functions
 	def cost(x):
 		x = structure_state(iter(x), structured)
 		cost = np.empty((len(cycles), 9), dtype)
 		
-		transforms = {joint: joint.direct(p)  for p in x}
+		transforms = {joint: joint.direct(p)  for joint, p in zip(joints, x)}
 		for i, cycle in enumerate(cycles):
 			# b is the transform of the complete cycle: it should be identity
 			b = mat4()
@@ -625,14 +650,21 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-6, maxite
 		x = structure_state(iter(x), structured)
 		jac = np.zeros((len(cycles), tdof, 9), dtype)
 		
+		# collect gradient and transformations
 		transforms = {}
 		i = 0
-		for p in x:
-			transforms[joint] = (i, joint.direct(p), joint.grad(p))
-			i += len(p)
+		for joint, p in zip(joints, x):
+			size = np.array(p).size
+			grad = joint.grad(p)
+			if size <= 1:
+				grad = grad,
+			transforms[joint] = (i, joint.direct(p), grad)
+			i += size
 		
+		# stack gradients, transformed by the chain successive transformations
 		for j, cycle in enumerate(cycles):
 			grad = []
+			# pre transformations
 			b = mat4(1)
 			for joint in cycle:
 				i, f, g = transforms[joint]
@@ -640,6 +672,7 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-6, maxite
 					grad.append(b*df)
 				b = b*f
 			direct = b
+			# post transformations
 			b = mat4(1)
 			k = 0
 			for joint in reversed(cycle):
@@ -657,15 +690,18 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-6, maxite
 					jac[j, i+ig] = squeeze_homogeneous(grad[k])
 					#jac[j, i+ig] *= squeeze_homogeneous(2*(direct-mat4(1)))
 					k += 1 
-				
-		return jac.reshape(*jac.shape[:2], -1)
+		
+		return jac.transpose((0,2,1)).reshape((-1, tdof))
 	
 	# solve
-	res = leastsquares(
+	res = scipy.optimize.least_squares(
 				cost, 
-				np.array(flatten_state(structured), dtype), 
+				flatten_state(structured, dtype), 
 				method = 'trf', 
-				bounds = bounds, 
+				bounds = (
+					flatten_state(mins, dtype), 
+					flatten_state(maxes, dtype),
+					), 
 				jac = jac, 
 				xtol = precision, 
 				max_nfev = maxiter,
@@ -673,24 +709,34 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-6, maxite
 	if not res.success:
 		raise SolveError(res.message, res)
 	
+	# structure results
 	result = {}
 	for joint, x in zip(joints, structure_state(res.x, structured)):
+		# joints that was created by simplification
 		if joint not in conn:
-			for joint, x in zip(joint.chains, x):
-				result[joint] = x
+			if isinstance(joint, Reverse):
+				result[joint.joint] = x
+			elif isinstance(joint, Chain):
+				for joint, x in zip(joint.joints, x):
+					result[joint] = x
+		# original joint
 		else:
 			result[joint] = x
 	return result
 
 
-def flatten_state(structured):
-	for x in structured:
-		if hasattr(x, '__len__'):
-			yield from flatten_state(x)
-		else:
-			yield x
+def flatten(structured):
+	if hasattr(structured, '__len__'):
+		for x in structured:
+			yield from flatten(x)
+	else:
+		yield structured
+			
+def flatten_state(structured, dtype):
+	return np.array(list(flatten(structured)), dtype)
 
 def structure_state(flat, structure):
+	it = iter(flat)
 	structured = []
 	for ref in structure:
 		if hasattr(ref, '__len__'):
@@ -703,6 +749,8 @@ def squeeze_homogeneous(m):
 	return (m[0][0], m[1][1], m[2][2], m[2][1], m[2][0], m[1][0], m[3][0], m[3][1], m[3][2])
 
 
+def cycles(conn: '{node: [node]}') -> '[[node]]':
+	todo
 
 def shortcycles(conn: '{node: [node]}', costs: '{node: float}') -> '[[node]]':
 	# orient the graph in a depth-first way, and search for fusion points
@@ -714,12 +762,18 @@ def shortcycles(conn: '{node: [node]}', costs: '{node: float}') -> '[[node]]':
 			merges.append((parent, child))
 		else:
 			tree[child] = parent
+			if parent not in tree:
+				distances[parent] = 0
 			distances[child] = distances.get(parent, 0) + costs.get(child, 0)
 	# sort merge points with
 	#  - the first distance being the merge point distance to the root node
 	#  - the second distance being the secondary branch bigest distance to the root node
-	merges = sorted(merges, key=lambda parent, child: (distances[child], -distances[parent]))
+	key = lambda edge: (distances[edge[1]], -distances[edge[0]])
+	merges = sorted(merges, key=key)
+	nprint('tree', tree)
+	nprint('distances', distances)
 	
+	cycles = []
 	c = len(merges)
 	while c > 0:
 		del merges[c:]
@@ -739,20 +793,20 @@ def shortcycles(conn: '{node: [node]}', costs: '{node: float}') -> '[[node]]':
 			distances[parent] = cost
 		# process all the candidates
 		# the second distances cannot swap during this process, so any change will keep the same order
-		for parent, child in sorted(merges[c:], key=lambda parent, child: (distances[child], -distances[parent])):
+		for parent, child in sorted(merges[c:], key=key):
 			# unroll from parent and child each on their own until union
 			parenthood, childhood = [parent], [child]
 			while parent != child:
 				if distances[parent] >= distances[child]:
 					parent = tree[parent]
-					parenthoold.append(parent)
-				if distances[child] >= distances[parent]:
+					parenthood.append(parent)
+				elif distances[parent] <= distances[child]:
 					child = tree[child]
 					childhood.append(child)
 			# assemble cycle
 			cycles.append(childhood[::-1] + parenthood)
 			# report simplifications in the graph
-			for i in range(1, parenthood):
+			for i in range(1, len(parenthood)):
 				parent, child = parenthood[i-1], parenthood[i]
 				dist = distances[child] + costs.get(parent, 0)
 				if dist >= distances[parent]:		break
@@ -763,80 +817,120 @@ def shortcycles(conn: '{node: [node]}', costs: '{node: float}') -> '[[node]]':
 				
 	
 def depthfirst(conn: '{node: [node]}') -> '[(parent, child)]':
-	edges = []
-	reached = {}
+	edges = set()
+	reached = set()
+	ordered = []
 	for start in conn:
 		if start in reached:
 			continue
-		front = [start]
+		front = [(None, start)]
 		while front:
-			node = front.pop()
-			if node in reached:
+			parent, node = front.pop()
+			if (parent, node) in edges:
 				continue
 			reached.add(node)
-			for child in conn[edges]:
-				edges.append((node, child))
-				if child not in reached:
-					front.append(child)
-	return edges
+			if parent is not None:
+				edges.add((parent, node))
+				edges.add((node, parent))
+				ordered.append((parent, node))
+			for child in conn[node]:
+				if (node, child) not in reached:
+					front.append((node, child))
+	nprint('depthfirst', ordered)
+	return ordered
 	
 def arcs(conn: '{node: [node]}') -> '[[node]]':
 	suites = []
 	empty = ()
+	edges = set()
+	reached = set()
 	for start in conn:
-		if start in reached:
+		if start in reached or len(conn.get(start, empty)) > 2:
 			continue
 		suite = [start]
-		while len(conn.get(suite[-1], empty)) == 1:
-			suite.append(conn[suite[-1]])
+		reached.add(start)
+		def propagate():
+			while True:
+				node = suite[-1]
+				reached.add(node)
+				for child in conn.get(node, empty):
+					if (child, node) not in edges:
+						suite.append(child)
+						edges.add((node, child))
+						edges.add((child, node))
+						break
+				else:
+					break
+		propagate()
+		suite.reverse()
+		propagate()
 		suites.append(suite)
 	return suites
 
 
-class Reverse(Chain):
-	def __init__(self, direct):
-		self.direct = direct
-		
-	def direct(self, parameters):
-		return hinverse(self.direct(parameters))
-		
-	def inverse(self, matrix, close=None):
-		return self.direct.inverse(hinverse(matrix), close)
-		
-	def grad(self, parameters):
-		return [hinverse(df)   for df in self.direct.grad(parameters)]
-
-class Branch(Chain):
-	def __init__(self, chains):
-		self.chains = chains
+class Reverse(Joint):
+	def __init__(self, joint):
+		self.joint = joint
+		self.solids = joint.solids[::-1]
 		
 	@property
 	def default(self):
-		return [chain.default  for chain in self.chains]
+		return self.joint.default
 		
 	@property
 	def bounds(self):
-		return [chain.bounds  for chain in self.chains]
+		return self.joint.bounds
+		
+	def direct(self, parameters):
+		return affineInverse(self.joint.direct(parameters))
+		
+	def inverse(self, matrix, close=None):
+		return self.joint.inverse(hinverse(matrix), close)
+		
+	def grad(self, parameters):
+		if hasattr(self.joint.default, '__len__'):
+			return [affineInverse(df)   for df in self.joint.grad(parameters)]
+		else:
+			return affineInverse(self.joint.grad(parameters))
+		
+	def __repr__(self):
+		return '{}({})'.format(self.__class__.__name__, self.joint)
+
+class Chain(Joint):
+	def __init__(self, joints):
+		self.joints = joints
+		self.solids = (joints[0].solids[0], joints[-1].solids[-1])
+		
+	@property
+	def default(self):
+		return [joint.default  for joint in self.joints]
+		
+	@property
+	def bounds(self):
+		return [joint.bounds  for joint in self.joints]
 	
 	def direct(self, parameters):
 		b = mat4(nodes[start][0])
-		for x, chain in zip(parameters, self.chains):
+		for x, joint in zip(parameters, self.joints):
 			x = next(it)
-			f = chain.direct(x)
+			f = joint.direct(x)
 			b *= f
 		return b
 	
 	def inverse(self, matrix, close=None):
 		indev
+		
+	def parts(self, parameters):
+		indev
 	
 	def grad(self, parameters):
-		# built the left side of the gradient product of the direct chain
+		# built the left side of the gradient product of the direct joint
 		directs = []
 		grad = []
 		b = mat4(1)
-		for x, chain in zip(parameters, self.chains):
-			f = chain.direct(x)
-			for df in chain.grad(x):
+		for x, joint in zip(parameters, self.joints):
+			f = joint.direct(x)
+			for df in joint.grad(x):
 				grad.append(b*df)
 			b = b*f
 			directs.append((f, len(x)))
@@ -847,6 +941,9 @@ class Branch(Chain):
 				grad[i] = grad[i]*b
 			b = f*b
 		return grad
+		
+	def __repr__(self):
+		return '{}({})'.format(self.__class__.__name__, self.joints)
 	
 	
 
