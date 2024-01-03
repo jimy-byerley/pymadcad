@@ -553,6 +553,8 @@ def partial_difference_increment(f, i, x, d):
 def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-6, maxiter=None) -> dict:
 	dtype = np.float64
 	if init is None:	init = {}
+	if not isinstance(init, dict):
+		init = {joint: x   for joint, x in zip(joints, init)}
 	
 	# collect the joint graph as a connectivity and the solids
 	# solids = copy(solids)
@@ -601,6 +603,7 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-6, maxite
 	# decompose into cycles
 	cycles = []
 	joints = set()
+	rev = {}
 	for cycle in shortcycles(simplified, dof):
 		assert cycle[-1] == cycle[0]
 		# cycles may not begin with a solid, change this
@@ -611,7 +614,9 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-6, maxite
 		for i in range(1, len(cycle), 2):
 			joint = cycle[i]
 			if cycle[i-1] != joint.solids[0]:
-				joint = Reverse(joint)
+				if joint not in rev:
+					rev[joint] = Reverse(joint)
+				joint = rev[joint]
 			joints.add(joint)
 			chain.append(joint)
 		cycles.append(chain)
@@ -691,7 +696,7 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-6, maxite
 					#jac[j, i+ig] *= squeeze_homogeneous(2*(direct-mat4(1)))
 					k += 1 
 		
-		return jac.transpose((0,2,1)).reshape((-1, tdof))
+		return jac.transpose((0,2,1)).reshape((len(cycles)*9, tdof))
 	
 	# solve
 	res = scipy.optimize.least_squares(
@@ -706,6 +711,7 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-6, maxite
 				xtol = precision, 
 				max_nfev = maxiter,
 				)
+	print(res)
 	if not res.success:
 		raise SolveError(res.message, res)
 	
@@ -780,7 +786,7 @@ def shortcycles(conn: '{node: [node]}', costs: '{node: float}') -> '[[node]]':
 		c -= 1
 		# collect candidates to next cycle
 		# merge node that have the same distance may be concurrent cycles, so they must be sorted out
-		while c > 0 and distances[merges[c][1]][0] == distances[merges[-1][1]][0]:
+		while c > 0 and distances[merges[c][1]] == distances[merges[-1][1]]:
 			c -= 1
 		# recompute distance to root
 		# only the second distance can have changed since the depthfirst tree ensure that the first is already optimal
@@ -910,18 +916,40 @@ class Chain(Joint):
 		return [joint.bounds  for joint in self.joints]
 	
 	def direct(self, parameters):
-		b = mat4(nodes[start][0])
+		b = mat4()
 		for x, joint in zip(parameters, self.joints):
-			x = next(it)
-			f = joint.direct(x)
-			b *= f
+			b *= joint.direct(x)
 		return b
 	
-	def inverse(self, matrix, close=None):
-		indev
+	def inverse(self, matrix, close=None, precision=1e-6, maxiter=None):
+		if close is None:
+			close = self.default
 		
-	def parts(self, parameters):
-		indev
+		def cost(x):
+			cost = squeeze_homogeneous(self.direct(x) - matrix)
+			return np.asanyarray(cost).ravel()
+			
+		def jac(x):
+			jac = self.grad(structure_state(x, close))
+			return np.asanyarray(jac).transpose((1,2,0))
+		
+		# solve
+		res = scipy.optimize.least_squares(
+					cost, 
+					flatten_state(close, dtype), 
+					method = 'trf', 
+					bounds = (
+						flatten_state(mins, dtype), 
+						flatten_state(maxes, dtype),
+						), 
+					jac = jac, 
+					xtol = precision, 
+					max_nfev = maxiter,
+					)
+		if not res.success:
+			raise SolveError(res.message, res)
+			
+		return structure_state(res.x, close)
 	
 	def grad(self, parameters):
 		# built the left side of the gradient product of the direct joint
@@ -941,9 +969,22 @@ class Chain(Joint):
 				grad[i] = grad[i]*b
 			b = f*b
 		return grad
+	
+	def parts(self, parameters):
+		solids = [mat4()] * (len(self.joints)+1)
+		for i in range(len(self.joints)):
+			solids[i+1] = solids[i] * self.joints[i].direct(parameters[i])
+		return solids
+		
+	def to_dh(self) -> '(dh, transforms)':
+		''' denavit-hartenberg representation of this kinematic chain '''
+		indev
+		
+	def from_dh(dh, transforms=None) -> 'Self':
+		indev
 		
 	def __repr__(self):
-		return '{}({})'.format(self.__class__.__name__, self.joints)
+		return '{}({})'.format(self.__class__.__name__, repr(self.joints))
 	
 	
 
