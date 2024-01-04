@@ -550,7 +550,7 @@ def partial_difference_increment(f, i, x, d):
 			pass
 	raise ValueError('cannot compute below or above parameter {} given value'.format(i))
 
-def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-6, maxiter=None) -> dict:
+def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-8, maxiter=None) -> dict:
 	dtype = np.float64
 	if init is None:	init = {}
 	if not isinstance(init, dict):
@@ -635,6 +635,7 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-6, maxite
 		maxes.append(joint.bounds[1])
 	
 	# build cost and gradient functions
+	# cost function returns residuals, the solver will optimize the sum of their squares
 	def cost(x):
 		x = structure_state(iter(x), structured)
 		cost = np.empty((len(cycles), 9), dtype)
@@ -644,13 +645,14 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-6, maxite
 			# b is the transform of the complete cycle: it should be identity
 			b = mat4()
 			for joint in cycle:
-				b *= transforms[joint]
+				b = b * transforms[joint]
 			# the residual of this matrix is the squared difference to identity
 			# pick only non-redundant components to reduce the problem size
 			cost[i] = squeeze_homogeneous(b - mat4())
 			#cost[i] **= 2
 		return cost.ravel()
 	
+	# jacobian of the cost function
 	def jac(x):
 		x = structure_state(iter(x), structured)
 		jac = np.zeros((len(cycles), tdof, 9), dtype)
@@ -661,44 +663,47 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-6, maxite
 		for joint, p in zip(joints, x):
 			size = np.array(p).size
 			grad = joint.grad(p)
+			# ensure it is a jacobian and not a single derivative
 			if size <= 1:
 				grad = grad,
+			# ensure the homogeneous factor is 0 for derivatives
+			for df in grad:
+				df[3][3] = 0
 			transforms[joint] = (i, joint.direct(p), grad)
 			i += size
 		
 		# stack gradients, transformed by the chain successive transformations
-		for j, cycle in enumerate(cycles):
+		for icycle, cycle in enumerate(cycles):
 			grad = []
+			index = []
 			# pre transformations
 			b = mat4(1)
 			for joint in cycle:
 				i, f, g = transforms[joint]
-				for df in g:
+				for j, df in enumerate(g):
 					grad.append(b*df)
+					index.append(i+j)
 				b = b*f
-			direct = b
 			# post transformations
 			b = mat4(1)
-			k = 0
+			k = len(cycle)-1
 			for joint in reversed(cycle):
 				i, f, g = transforms[joint]
-				for df in g:
+				for df in reversed(g):
 					grad[k] = grad[k]*b
-					k += 1
+					k -= 1
 				b = f*b
 			
-			k = 0
-			for joint in reversed(cycle):
-				i, f, g = transforms[joint]
-				for ig in reversed(range(len(g))):
-					# derivative of the squared difference to identity
-					jac[j, i+ig] = squeeze_homogeneous(grad[k])
-					#jac[j, i+ig] *= squeeze_homogeneous(2*(direct-mat4(1)))
-					k += 1 
+			for ig, g in zip(index, grad):
+				jac[icycle, ig] = squeeze_homogeneous(g)
 		
+		assert jac.transpose((0,2,1)).shape == (len(cycles), 9, tdof)
 		return jac.transpose((0,2,1)).reshape((len(cycles)*9, tdof))
 	
 	# solve
+	# from time import perf_counter as time
+	# start = time()
+	
 	res = scipy.optimize.least_squares(
 				cost, 
 				flatten_state(structured, dtype), 
@@ -711,7 +716,14 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-6, maxite
 				xtol = precision, 
 				max_nfev = maxiter,
 				)
-	print(res)
+	
+	# print('solved in', time() - start)
+	# print(res)
+	# np.set_printoptions(linewidth=np.inf)
+	# print(res.jac, (np.abs(res.jac) > 1e-3).sum())
+	# print()
+	# print(jac(res.x), (np.abs(jac(res.x)) > 1e-3).sum())
+	
 	if not res.success:
 		raise SolveError(res.message, res)
 	
@@ -873,6 +885,7 @@ def arcs(conn: '{node: [node]}') -> '[[node]]':
 		suites.append(suite)
 	return suites
 
+import numpy as np
 
 class Reverse(Joint):
 	def __init__(self, joint):
@@ -895,9 +908,11 @@ class Reverse(Joint):
 		
 	def grad(self, parameters):
 		if hasattr(self.joint.default, '__len__'):
-			return [affineInverse(df)   for df in self.joint.grad(parameters)]
+			return [- affineInverse(f) * df * affineInverse(f)
+				for f, df in zip(self.joint.direct(parameters), self.joint.grad(parameters))]
 		else:
-			return affineInverse(self.joint.grad(parameters))
+			f, df = self.joint.direct(parameters), self.joint.grad(parameters)
+			return - affineInverse(f) * df * affineInverse(f)
 		
 	def __repr__(self):
 		return '{}({})'.format(self.__class__.__name__, self.joint)

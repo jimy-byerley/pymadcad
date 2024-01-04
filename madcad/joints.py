@@ -47,7 +47,15 @@ class Welded(Joint):
 		
 	def grad(self, parameters, delta=1e-6):
 		return ()
-		
+	
+import numpy.core as np
+def drotate(angle, axis):
+	# derivative of sin and cos an argument translation of pi/2
+	m = rotate(angle+0.5*pi, axis)
+	# remove homogeneous one and axis proper space
+	m -= mat4(outerProduct(axis, axis) / length2(axis))
+	return m
+	
 class Pivot(Joint):
 	bounds = (-inf, inf)
 	default = 0
@@ -72,7 +80,7 @@ class Pivot(Joint):
 	def grad(self, angle, delta=1e-6):
 		# the actual gradient is the same matrix but with a null homogeneous coordinate
 		# leaving it to 1 is fine here because the kinematic solver will squeeze it anyway
-		return self.post * rotate(angle+pi/2, Z) * self.pre
+		return self.post * drotate(angle, Z) * self.pre
 		
 	def transmit(self, force, parameters=None, velocity=None) -> Screw:
 		l = force.locate(self.axis[0])
