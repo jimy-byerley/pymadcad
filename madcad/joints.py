@@ -47,8 +47,7 @@ class Welded(Joint):
 		
 	def grad(self, parameters, delta=1e-6):
 		return ()
-	
-import numpy.core as np
+
 def drotate(angle, axis):
 	# derivative of sin and cos an argument translation of pi/2
 	m = rotate(angle+0.5*pi, axis)

@@ -31,9 +31,14 @@ from . import rendering
 from . import nprint
 from .displays import BoxDisplay
 
-__all__ = ['Screw', 'comomentum', 'Solid', 'Kinematic', 'Joint', 'Kinemanip', 'solve',
+__all__ = ['Screw', 'comomentum', 
+			'Solid', 'Kinematic', 'Kinemanip', 
+			'Joint', 'Reverse', 'Chain', 
+			'solve', 'KinematicError',
 			]
 
+class KinematicError(Exception): pass
+			
 
 class Screw(object):
 	''' a 3D torsor aka Screw aka Wrench aka Twist - is a mathematical object defined as follow:
@@ -425,7 +430,7 @@ class Kinemanip(rendering.Group):
 	def __init__(self, scene, kinematic):
 		super().__init__(scene)
 		try:	kinematic.solve(maxiter=1000)
-		except constraints.SolveError:	pass
+		except constraints.KinematicError:	pass
 		self.sizeref = 1
 		self._init(scene, kinematic)
 	
@@ -497,7 +502,7 @@ class Kinemanip(rendering.Group):
 		try:	
 			if final:	solvekin(self.joints, self.locked, precision=self.sizeref*1e-4, maxiter=1000)
 			else:		solvekin(self.joints, self.locked, precision=self.sizeref*1e-3, maxiter=50)
-		except constraints.SolveError as err:	
+		except constraints.KinematicError as err:	
 			for disp in self.displays.values():
 				if 'solid-fixed' in disp.displays:
 					disp.displays['solid-fixed'].color = fvec3(settings.display['solver_error_color'])
@@ -573,7 +578,7 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-8, maxite
 			
 	# # simplify the graph
 	# simplified = {solid: []  for solid in solids}
-	# dof = {}
+	# vars = {}
 	# nprint(conn)
 	# nprint(arcs(conn))
 	# for branch in arcs(conn):
@@ -587,7 +592,7 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-8, maxite
 	# 	else:
 	# 		chain = branch[1]
 	# 	# assemble new graph
-	# 	dof[joint] = np.array(chain.default).size
+	# 	vars[joint] = np.array(chain.default).size
 	# 	simplified[chain] = chain.solids
 	# 	for solid in chain.solids:
 	# 		simplified[solid].append(chain)
@@ -595,16 +600,17 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-8, maxite
 	
 	# use the graph as is
 	simplified = conn
-	dof = {joint: flatten_state(joint.default, dtype).size
+	vars = {joint: flatten_state(joint.default, dtype).size
 		for joint in conn  
 		if isinstance(joint, Joint)}
 	
-	tdof = sum(dof.values())
+	nvars = sum(vars.values())
+	nconsts = 9
 	# decompose into cycles
 	cycles = []
 	joints = set()
 	rev = {}
-	for cycle in shortcycles(simplified, dof):
+	for cycle in shortcycles(simplified, vars):
 		assert cycle[-1] == cycle[0]
 		# cycles may not begin with a solid, change this
 		if isinstance(cycle[0], Joint):
@@ -638,7 +644,7 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-8, maxite
 	# cost function returns residuals, the solver will optimize the sum of their squares
 	def cost(x):
 		x = structure_state(iter(x), structured)
-		cost = np.empty((len(cycles), 9), dtype)
+		cost = np.empty((len(cycles), nconsts), dtype)
 		
 		transforms = {joint: joint.direct(p)  for joint, p in zip(joints, x)}
 		for i, cycle in enumerate(cycles):
@@ -655,7 +661,8 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-8, maxite
 	# jacobian of the cost function
 	def jac(x):
 		x = structure_state(iter(x), structured)
-		jac = np.zeros((len(cycles), tdof, 9), dtype)
+		# jac = np.zeros((len(cycles), nvars, 9), dtype)
+		jac = scipy.sparse.csr_matrix((len(cycles)*nconsts, nvars))
 		
 		# collect gradient and transformations
 		transforms = {}
@@ -695,14 +702,16 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-8, maxite
 				b = f*b
 			
 			for ig, g in zip(index, grad):
-				jac[icycle, ig] = squeeze_homogeneous(g)
+				# jac[icycle, ig] = squeeze_homogeneous(g)
+				jac[icycle*nconsts:(icycle+1)*nconsts, ig] = squeeze_homogeneous(g)
 		
-		assert jac.transpose((0,2,1)).shape == (len(cycles), 9, tdof)
-		return jac.transpose((0,2,1)).reshape((len(cycles)*9, tdof))
+		# assert jac.transpose((0,2,1)).shape == (len(cycles), 9, nvars)
+		# return jac.transpose((0,2,1)).reshape((len(cycles)*9, nvars))
+		return jac
 	
 	# solve
-	# from time import perf_counter as time
-	# start = time()
+	from time import perf_counter as time
+	start = time()
 	
 	res = scipy.optimize.least_squares(
 				cost, 
@@ -712,20 +721,27 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-8, maxite
 					flatten_state(mins, dtype), 
 					flatten_state(maxes, dtype),
 					), 
-				jac = jac, 
+				# jac = jac, 
 				xtol = precision, 
+				# gtol = 0,
 				max_nfev = maxiter,
 				)
 	
-	# print('solved in', time() - start)
-	# print(res)
-	# np.set_printoptions(linewidth=np.inf)
-	# print(res.jac, (np.abs(res.jac) > 1e-3).sum())
+	print('solved in', time() - start)
+	# 0.03 s with dense estimated jac
+	# 0.013 s with dense provided jac
+	# 0.02 s with sparse provided jac
+	# nfev = 5 in all cases
+	print(res)
+	np.set_printoptions(linewidth=np.inf)
+	print(res.jac, (np.abs(res.jac) > 1e-3).sum())
 	# print()
-	# print(jac(res.x), (np.abs(jac(res.x)) > 1e-3).sum())
+	print(jac(res.x), (np.abs(jac(res.x)) > 1e-3).sum())
 	
 	if not res.success:
-		raise SolveError(res.message, res)
+		raise KinematicError('failed to converge: '+res.message, res)
+	if res.cost > precision * nvars:
+		raise KinematicError('cannot close the kinematic cycles')
 	
 	# structure results
 	result = {}
@@ -962,7 +978,7 @@ class Chain(Joint):
 					max_nfev = maxiter,
 					)
 		if not res.success:
-			raise SolveError(res.message, res)
+			raise KinematicError(res.message, res)
 			
 		return structure_state(res.x, close)
 	

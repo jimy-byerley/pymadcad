@@ -44,3 +44,18 @@ print(solve([
 	Pivot((1,4), Axis(2*X,Z)),
 	Pivot((4,3), Axis(2*X+Y,Z)),
 	], init=np.random.random(6)))
+
+njoints = 80
+joints = []
+for i in range(0, njoints, 2):
+	joints.append(Pivot((i,i+1), Axis(vec3(i+1,i,0), X)))
+	joints.append(Pivot((i+1,i+2), Axis(vec3(i+1,i+1,0), Y)))
+joints[-1].solids = (len(joints)-1, 0)
+print(solve(joints, init=np.random.random(len(joints))))
+
+joints = []
+for i in range(0, njoints, 2):
+	joints.append(Pivot((i,i+1), Axis(X,X), Axis(O,X)))
+	joints.append(Pivot((i+1,i+2), Axis(Y,Y), Axis(O,Y)))
+joints[-1].solids = (len(joints)-1, 0)
+print(solve(joints, init=np.random.random(len(joints))))
