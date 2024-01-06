@@ -2,6 +2,10 @@
 
 from ..base import Display
 from ...mathutils import *
+from ... import settings
+from ...common import resourcedir
+import numpy as np
+import moderngl as mgl
 
 class AnnotationDisplay(Display):
     def __init__(self, scene, points, color):
