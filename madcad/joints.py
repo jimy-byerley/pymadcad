@@ -66,6 +66,10 @@ class Pivot(Joint):
 		self.pre = mat4(quat(local[1], Z)) * translate(-local[0])
 		self.post = translate(axis[0]) * mat4(quat(Z, axis[1]))
 		self.position = axis[0]
+		
+	def __repr__(self):
+		return '{}({}, Axis(({:.3g},{:.3g},{:.3g}), ({:.3g},{:.3g},{:.3g})))'.format(
+			self.__class__.__name__, self.solids, *self.axis[0], *self.axis[1])
 	
 	def direct(self, angle) -> mat4:
 		return self.post * rotate(angle, Z) * self.pre

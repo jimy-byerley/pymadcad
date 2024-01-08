@@ -636,7 +636,17 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-8, maxite
 	mins = []
 	maxes = []
 	for joint in joints:
-		structured.append(init.get(joint) or joint.default)
+		# joints that was created by simplification
+		if joint not in conn:
+			if isinstance(joint, Reverse):
+				value = init.get(joint.joint) or joint.default
+			elif isinstance(joint, Chain):
+				value = [init.get(joint) or joint.default   
+							for joint in joint.joints]
+		# original joint
+		else:
+			value = init.get(joint) or joint.default
+		structured.append(value)
 		mins.append(joint.bounds[0])
 		maxes.append(joint.bounds[1])
 	
@@ -661,8 +671,8 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-8, maxite
 	# jacobian of the cost function
 	def jac(x):
 		x = structure_state(iter(x), structured)
-		# jac = np.zeros((len(cycles), nvars, 9), dtype)
-		jac = scipy.sparse.csr_matrix((len(cycles)*nconsts, nvars))
+		jac = np.zeros((len(cycles), nvars, nconsts), dtype)
+		# jac = scipy.sparse.csr_matrix((len(cycles)*nconsts, nvars))
 		
 		# collect gradient and transformations
 		transforms = {}
@@ -702,12 +712,13 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-8, maxite
 				b = f*b
 			
 			for ig, g in zip(index, grad):
-				# jac[icycle, ig] = squeeze_homogeneous(g)
-				jac[icycle*nconsts:(icycle+1)*nconsts, ig] = squeeze_homogeneous(g)
+				print('-', icycle, ig)
+				jac[icycle, ig] = squeeze_homogeneous(g)
+				# jac[icycle*nconsts:(icycle+1)*nconsts, ig] = squeeze_homogeneous(g)
 		
 		# assert jac.transpose((0,2,1)).shape == (len(cycles), 9, nvars)
-		# return jac.transpose((0,2,1)).reshape((len(cycles)*9, nvars))
-		return jac
+		return jac.transpose((0,2,1)).reshape((len(cycles)*nconsts, nvars))
+		# return jac
 	
 	# solve
 	from time import perf_counter as time
@@ -721,8 +732,9 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-8, maxite
 					flatten_state(mins, dtype), 
 					flatten_state(maxes, dtype),
 					), 
-				# jac = jac, 
+				jac = jac, 
 				xtol = precision, 
+				# ftol = 0,
 				# gtol = 0,
 				max_nfev = maxiter,
 				)
@@ -734,14 +746,28 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-8, maxite
 	# nfev = 5 in all cases
 	print(res)
 	np.set_printoptions(linewidth=np.inf)
-	print(res.jac, (np.abs(res.jac) > 1e-3).sum())
+	estimated = res.jac
+	computed = jac(res.x)
+	print(estimated, (np.abs(estimated) > 1e-3).sum())
 	# print()
-	print(jac(res.x), (np.abs(jac(res.x)) > 1e-3).sum())
+	print(computed, (np.abs(computed) > 1e-3).sum())
 	
-	if not res.success:
-		raise KinematicError('failed to converge: '+res.message, res)
-	if res.cost > precision * nvars:
-		raise KinematicError('cannot close the kinematic cycles')
+	from matplotlib import pyplot as plt
+	# estimated = estimated.toarray()
+	# computed = computed.toarray()
+	plt.imshow(np.stack([
+		estimated*0, 
+		# np.abs(estimated)/np.abs(estimated).max(axis=1)[:,None],
+		# np.abs(computed)/np.abs(estimated).max(axis=1)[:,None],
+		np.log(np.abs(estimated))/10+0.5,
+		np.log(np.abs(computed))/10+0.5,
+		], axis=2))
+	plt.show()
+# 	
+# 	if not res.success:
+# 		raise KinematicError('failed to converge: '+res.message, res)
+# 	if res.cost > precision * nvars:
+# 		raise KinematicError('cannot close the kinematic cycles')
 	
 	# structure results
 	result = {}
@@ -806,6 +832,7 @@ def shortcycles(conn: '{node: [node]}', costs: '{node: float}') -> '[[node]]':
 	merges = sorted(merges, key=key)
 	nprint('tree', tree)
 	nprint('distances', distances)
+	nprint('merges', merges)
 	
 	cycles = []
 	c = len(merges)
@@ -814,7 +841,7 @@ def shortcycles(conn: '{node: [node]}', costs: '{node: float}') -> '[[node]]':
 		c -= 1
 		# collect candidates to next cycle
 		# merge node that have the same distance may be concurrent cycles, so they must be sorted out
-		while c > 0 and distances[merges[c][1]] == distances[merges[-1][1]]:
+		while c > 0 and distances[merges[c][1]] == distances[merges[c-1][1]]:
 			c -= 1
 		# recompute distance to root
 		# only the second distance can have changed since the depthfirst tree ensure that the first is already optimal
