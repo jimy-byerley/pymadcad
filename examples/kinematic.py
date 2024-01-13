@@ -1,5 +1,4 @@
 from madcad import *
-from madcad.kinematic import makescheme
 
 O = vec3(0)
 X = vec3(1,0,0)
@@ -28,10 +27,5 @@ csts = [
 
 # the kinematic is created with some fixed solids (they interact but they don't move)
 kin = Kinematic(csts, fixed=[base])
-makescheme(csts)
 
-settings.display['background_color'] = vec3(1.0, 1.0, 1.0)
-settings.display['schematics_color'] = vec3(0.0, 0.0, 0.0)
-img = render([kin], size=uvec2(2160, 2160))
-img.show()
-img.save("kinematic.png")
+show([kin])

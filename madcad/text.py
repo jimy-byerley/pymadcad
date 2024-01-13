@@ -157,6 +157,7 @@ class TextDisplay(rendering.base.Display):
 		points = np.zeros((len(self.pointsdef)*len(text), 4), 'f4')
 		l = 0
 		c = 0
+		mc = 0
 		for i,char in enumerate(text):
 			if char == '\n':
 				c = 0
@@ -176,11 +177,13 @@ class TextDisplay(rendering.base.Display):
 						(n //self.fontalign[0] -add[1]) / self.fontalign[1],
 						]
 				c += 1
+			if c > mc:
+				mc = c
 		l += 1		
-		align = (processalign(align[0], c), -processalign(align[1], l))
+		align = (processalign(align[0], mc), -processalign(align[1], l))
 		points -= [*align, 0, 0]
-		self.textsize = (c,l)
-		self.visualsize = (-align[0], -align[1], c//2-align[0], l-align[1])
+		self.textsize = (mc,l)
+		self.visualsize = (-align[0], -align[1], mc//2-align[0], l-align[1])
 			
 		
 		# create the buffers on the GPU
@@ -222,6 +225,7 @@ def textsize(text, tab=4):
 	''' visual size of a text as vec2(column,line) '''
 	l = 0
 	c = 0
+	mc = 0
 	for i,char in enumerate(text):
 		if char == '\n':
 			c = 0
@@ -230,8 +234,10 @@ def textsize(text, tab=4):
 			c += tab - c%tab
 		else:
 			c += 1
+		if c > mc:
+			mc = c
 	l += 1
-	return fvec2(c,l)
+	return fvec2(mc, l)
 
 
 

@@ -7,7 +7,7 @@ cimport cython
 import glm
 
 cdef:
-	DEF NUMPREC = 1e-13
+	NUMPREC = 1e-13
 	
 	double pmod(double l, double r):
 		''' proceed to a python-like modulo on floats 

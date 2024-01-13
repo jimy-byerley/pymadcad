@@ -450,10 +450,15 @@ def scale_view(center):
 def halo_screen_flipping(position, offset):
 	position = fvec4(position,1)
 	def mat(view):
+		numprec = 1e-7
 		center = view.uniforms['view'] * (view.uniforms['world'] * position)
 		e = view.uniforms['proj'] * fvec4(1,1,center.z,1)
 		e /= e[3]
-		if (view.uniforms['view'] * (view.uniforms['world'] * fvec4(offset,0)))[0] > 0:
+		screen_center = view.uniforms['proj'] * center
+		screen_center /= screen_center[3]
+		screen_tip = view.uniforms['proj'] * (view.uniforms['view'] * (view.uniforms['world'] * fvec4(offset, 0)))
+		screen_tip /= -abs(screen_tip[3]) - numprec
+		if screen_tip[0] <= screen_center[0] + numprec:
 			flip = fvec4(1,1,1,1)
 		else:
 			flip = fvec4(-1,1,1,1)
@@ -532,7 +537,7 @@ def note_leading(placement, offset=None, text='here'):
 	font = settings.display['view_font_size']
 	sch.set(space=halo_screen_flipping(fvec3(origin+offset), fvec3(offset)))
 	sch.add([vec3(0), vec3(font*2, 0, 0)], shader='line')
-	sch.add(Displayable(TextDisplay, vec3(textsize(text)[0]/2*0.8*font + font*3, 0, 0), text, align=('center', 0.5), color=fvec4(color,1), size=font))
+	sch.add(Displayable(TextDisplay, vec3(textsize(text)[0]/2*0.78*font + 2*font, 0, 0), text, align=('center', 0.5), color=fvec4(color,1), size=font))
 	
 	return sch
 
