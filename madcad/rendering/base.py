@@ -3,7 +3,7 @@ from ..mathutils import *
 from math import inf
 from copy import deepcopy
 from .. import settings
-from .qt import QWidget, QPoint, QPointF
+from .qt import QWidget, QPoint, QPointF, QInputEvent, QFocusEvent
 import numpy.core as np
 import traceback
 from operator import itemgetter
