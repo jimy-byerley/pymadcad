@@ -555,21 +555,39 @@ def partial_difference_increment(f, i, x, d):
 			pass
 	raise ValueError('cannot compute below or above parameter {} given value'.format(i))
 
-def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-8, maxiter=None) -> dict:
+def solve(joints, fixed:dict=None, init:list=None, precision=1e-8, maxiter=None) -> list:  pass
+def solve(joints, fixed:dict=None, init:dict=None, precision=1e-8, maxiter=None) -> dict:  pass
+
+class Kinematic:
+	def __init__(self, joints, solids:dict=None):
+		self.joints = joints
+		self.vars
+		self.cycles
+		self.solids = solids
+	def to_urdf(self):  
+		indev
+	def simplify(self) -> Kinematic:
+		indev
+	def direct(self, state) -> dict:
+		indev
+	def grad(self, state) -> dict:
+		indev
+	def inverse(self, fixed:dict=None, close:list=None, precision=1e-8, maxiter=None) -> list:
+		indev
+	def display(self, scene):
+		indev
+
+def solve(joints, fixed:dict=None, close:list=None, precision=1e-8, maxiter=None) -> list:
 	dtype = np.float64
-	if init is None:	init = {}
-	if not isinstance(init, dict):
-		init = {joint: x   for joint, x in zip(joints, init)}
+	usedict = isinstance(close, dict)
+	if usedict:
+		close = [close.get(joint) or joint.default  for joint in joints]
+	elif close is None:
+		close = [joint.default  for joint in joints]
 	
 	# collect the joint graph as a connectivity and the solids
-	# solids = copy(solids)
-	conn = {}  # connectivity {node: [node]} with each node b
+	conn = {}  # connectivity {node: [node]}  with nodes being joints and solids
 	for joint in joints:
-		# for candidate in joint.solids:
-		# 	if isinstance(candidate, Solid):
-		# 		solids[candidate] = candidate
-		# 	elif candidate not in solids:
-		# 		solids[candidate] = Solid()
 		conn[joint] = joint.solids
 		for solid in joint.solids:
 			if solid not in conn:	
@@ -599,19 +617,28 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-8, maxite
 	# nprint('simplified', simplified)
 	
 	# use the graph as is
-	simplified = conn
 	vars = {joint: flatten_state(joint.default, dtype).size
 		for joint in conn  
 		if isinstance(joint, Joint)}
 	
 	nvars = sum(vars.values())
-	nconsts = 9
+	squeezed_homogeneous = 9
+		
+	# build bounds and state vector index
+	mins = []
+	maxes = []
+	index = {}
+	i = 0
+	for joint, value in zip(joints, close):
+		index[joint] = i
+		i += flatten_state(value, dtype).size
+		mins.append(joint.bounds[0])
+		maxes.append(joint.bounds[1])
+	
 	# decompose into cycles
 	cycles = []
-	joints = set()
 	rev = {}
-	for cycle in shortcycles(simplified, vars):
-		assert cycle[-1] == cycle[0]
+	for cycle in shortcycles(conn, vars, branch=False):
 		# cycles may not begin with a solid, change this
 		if isinstance(cycle[0], Joint):
 			cycle.pop(0)
@@ -622,47 +649,35 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-8, maxite
 			if cycle[i-1] != joint.solids[0]:
 				if joint not in rev:
 					rev[joint] = Reverse(joint)
+					index[joint] = index[joint]
 				joint = rev[joint]
-			joints.add(joint)
 			chain.append(joint)
 		cycles.append(chain)
 	
 	nprint('cycles', cycles)
 	if len(cycles) == 0:
-		return {}
-		
-	# build initial state and bounds
-	structured = []
-	mins = []
-	maxes = []
-	for joint in joints:
-		# joints that was created by simplification
-		if joint not in conn:
-			if isinstance(joint, Reverse):
-				value = init.get(joint.joint) or joint.default
-			elif isinstance(joint, Chain):
-				value = [init.get(joint) or joint.default   
-							for joint in joint.joints]
-		# original joint
-		else:
-			value = init.get(joint) or joint.default
-		structured.append(value)
-		mins.append(joint.bounds[0])
-		maxes.append(joint.bounds[1])
+		return close
 	
 	# build cost and gradient functions
 	# cost function returns residuals, the solver will optimize the sum of their squares
 	def cost(x):
-		x = structure_state(iter(x), structured)
-		cost = np.empty((len(cycles), nconsts), dtype)
+		x = structure_state(x, close)
+		cost = np.empty((len(cycles), squeezed_homogeneous), dtype)
 		
-		transforms = {joint: joint.direct(p)  for joint, p in zip(joints, x)}
+		# collect transformations
+		transforms = {}
+		for joint, p in zip(joints, x):
+			transforms[joint] = joint.direct(p)
+			if joint in rev:
+				transforms[rev.get(joint)] = affineInverse(transforms[joint])
+		
+		# chain transformations
 		for i, cycle in enumerate(cycles):
 			# b is the transform of the complete cycle: it should be identity
 			b = mat4()
 			for joint in cycle:
 				b = b * transforms[joint]
-			# the residual of this matrix is the squared difference to identity
+			# the residual of this matrix is the difference to identity
 			# pick only non-redundant components to reduce the problem size
 			cost[i] = squeeze_homogeneous(b - mat4())
 			#cost[i] **= 2
@@ -670,13 +685,12 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-8, maxite
 	
 	# jacobian of the cost function
 	def jac(x):
-		x = structure_state(iter(x), structured)
-		jac = np.zeros((len(cycles), nvars, nconsts), dtype)
-		# jac = scipy.sparse.csr_matrix((len(cycles)*nconsts, nvars))
+		x = structure_state(x, close)
+		jac = np.zeros((len(cycles), nvars, squeezed_homogeneous), dtype)
+		# jac = scipy.sparse.csr_matrix((len(cycles)*squeezed_homogeneous, nvars))
 		
 		# collect gradient and transformations
 		transforms = {}
-		i = 0
 		for joint, p in zip(joints, x):
 			size = np.array(p).size
 			grad = joint.grad(p)
@@ -686,20 +700,23 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-8, maxite
 			# ensure the homogeneous factor is 0 for derivatives
 			for df in grad:
 				df[3][3] = 0
-			transforms[joint] = (i, joint.direct(p), grad)
-			i += size
+			f = joint.direct(p)
+			transforms[joint] = (index[joint], f, grad)
+			if joint in rev:
+				rf = affineInverse(f)
+				transforms[rev[joint]] = (index[joint], rf, [-rf*df*rf  for df in grad])
 		
 		# stack gradients, transformed by the chain successive transformations
 		for icycle, cycle in enumerate(cycles):
 			grad = []
-			index = []
+			positions = []
 			# pre transformations
 			b = mat4(1)
 			for joint in cycle:
 				i, f, g = transforms[joint]
 				for j, df in enumerate(g):
 					grad.append(b*df)
-					index.append(i+j)
+					positions.append(i+j)
 				b = b*f
 			# post transformations
 			b = mat4(1)
@@ -711,13 +728,13 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-8, maxite
 					k -= 1
 				b = f*b
 			
-			for ig, g in zip(index, grad):
-				print('-', icycle, ig)
+			for ig, g in zip(positions, grad):
+				# print('-', icycle, ig)
 				jac[icycle, ig] = squeeze_homogeneous(g)
-				# jac[icycle*nconsts:(icycle+1)*nconsts, ig] = squeeze_homogeneous(g)
+				# jac[icycle*squeezed_homogeneous:(icycle+1)*squeezed_homogeneous, ig] = squeeze_homogeneous(g)
 		
 		# assert jac.transpose((0,2,1)).shape == (len(cycles), 9, nvars)
-		return jac.transpose((0,2,1)).reshape((len(cycles)*nconsts, nvars))
+		return jac.transpose((0,2,1)).reshape((len(cycles)*squeezed_homogeneous, nvars))
 		# return jac
 	
 	# solve
@@ -726,7 +743,7 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-8, maxite
 	
 	res = scipy.optimize.least_squares(
 				cost, 
-				flatten_state(structured, dtype), 
+				flatten_state(close, dtype), 
 				method = 'trf', 
 				bounds = (
 					flatten_state(mins, dtype), 
@@ -748,9 +765,9 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-8, maxite
 	np.set_printoptions(linewidth=np.inf)
 	estimated = res.jac
 	computed = jac(res.x)
-	print(estimated, (np.abs(estimated) > 1e-3).sum())
+	# print(estimated, (np.abs(estimated) > 1e-3).sum())
 	# print()
-	print(computed, (np.abs(computed) > 1e-3).sum())
+	# print(computed, (np.abs(computed) > 1e-3).sum())
 	
 	from matplotlib import pyplot as plt
 	# estimated = estimated.toarray()
@@ -763,25 +780,16 @@ def solve(joints, solids={}, fixed=set(), init:dict=None, precision=1e-8, maxite
 		np.log(np.abs(computed))/10+0.5,
 		], axis=2))
 	plt.show()
-# 	
-# 	if not res.success:
-# 		raise KinematicError('failed to converge: '+res.message, res)
+	
+	if not res.success:
+		raise KinematicError('failed to converge: '+res.message, res)
 # 	if res.cost > precision * nvars:
 # 		raise KinematicError('cannot close the kinematic cycles')
 	
 	# structure results
-	result = {}
-	for joint, x in zip(joints, structure_state(res.x, structured)):
-		# joints that was created by simplification
-		if joint not in conn:
-			if isinstance(joint, Reverse):
-				result[joint.joint] = x
-			elif isinstance(joint, Chain):
-				for joint, x in zip(joint.joints, x):
-					result[joint] = x
-		# original joint
-		else:
-			result[joint] = x
+	result = structure_state(res.x, close)
+	if usedict:
+		return dict(zip(joints, result))
 	return result
 
 
@@ -812,7 +820,7 @@ def squeeze_homogeneous(m):
 def cycles(conn: '{node: [node]}') -> '[[node]]':
 	todo
 
-def shortcycles(conn: '{node: [node]}', costs: '{node: float}') -> '[[node]]':
+def shortcycles(conn: '{node: [node]}', costs: '{node: float}', branch=True) -> '[[node]]':
 	# orient the graph in a depth-first way, and search for fusion points
 	distances = {}
 	merges = []
@@ -951,8 +959,9 @@ class Reverse(Joint):
 		
 	def grad(self, parameters):
 		if hasattr(self.joint.default, '__len__'):
+			f = self.joint.direct(parameters)
 			return [- affineInverse(f) * df * affineInverse(f)
-				for f, df in zip(self.joint.direct(parameters), self.joint.grad(parameters))]
+				for f, df in self.joint.grad(parameters)]
 		else:
 			f, df = self.joint.direct(parameters), self.joint.grad(parameters)
 			return - affineInverse(f) * df * affineInverse(f)
@@ -962,6 +971,9 @@ class Reverse(Joint):
 
 class Chain(Joint):
 	def __init__(self, joints):
+		if not all(joints[i-1].solids[-1] == joints[i].solids[0]  
+				for i in range(len(joints))):
+			raise ValueError('joints do not form a direct chain, joints are not badly ordered or oriented')
 		self.joints = joints
 		self.solids = (joints[0].solids[0], joints[-1].solids[-1])
 		
@@ -984,12 +996,12 @@ class Chain(Joint):
 			close = self.default
 		
 		def cost(x):
-			cost = squeeze_homogeneous(self.direct(x) - matrix)
+			cost = squeeze_homogeneous(self.direct(structure_state(x, close)) - matrix)
 			return np.asanyarray(cost).ravel()
 			
 		def jac(x):
 			jac = self.grad(structure_state(x, close))
-			return np.asanyarray(jac).transpose((1,2,0))
+			return np.asanyarray(flatten(jac)).reshape((len(x), squeezed_homogeneous)).transpose((1,0))
 		
 		# solve
 		res = scipy.optimize.least_squares(
