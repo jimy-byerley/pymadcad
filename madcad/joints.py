@@ -6,16 +6,9 @@ from .kinematic import Screw, Joint
 from .mesh import Mesh, Wire, web, Web
 from . import generation, primitives
 
-__all__ = ['Pivot', 'Planar', 'Track', 'Gliding', 'Ball', 'Punctiform', 'Gear', 'Helicoid']
-
-'''
-TODO:
-	Ring		linéaire annulaire
-	Hinge		linéaire
-	Rack		crémaillere
-	
-	Rack(onesolid, onceagain, (O,z), x, 1, offset=0),	# cremaillere
-'''
+__all__ = ['Pivot', 'Planar', 'Track', 'Gliding', 'Ball', 'Punctiform', 'Ring', 'Hinge', 
+			'Cam', 'Contact',
+			'Rack', 'Gear', 'Helicoid']
 
 
 cornersize = 0.1
@@ -28,25 +21,6 @@ def solidtransform_base(solid, obj):
 	if len(obj) == 3:	return (rot*obj[0] + solid.position, rot*obj[1], rot*obj[2])
 	if len(obj) == 4:	return (rot*obj[0] + solid.position, rot*obj[1], rot*obj[2], rot*obj[3])
 	
-	
-class Welded(Joint):
-	bounds = ((), ())
-	default = ()
-	
-	def __init__(self, solids, transform: mat4=None):
-		self.solids = solids
-		self.transform = transform or affineInverse(s1.pose) * s2.pose
-		self.position = (vec3(0), vec3(0))
-	
-	def direct(self, parameters):
-		assert len(parameters) == 0
-		return self.transform
-		
-	def inverse(self, matrix, close=None):
-		return ()
-		
-	def grad(self, parameters, delta=1e-6):
-		return ()
 
 def drotate(angle, axis):
 	# derivative of sin and cos an argument translation of pi/2
@@ -55,6 +29,8 @@ def drotate(angle, axis):
 	m -= mat4(outerProduct(axis, axis) / length2(axis))
 	return m
 	
+
+
 class Pivot(Joint):
 	bounds = (-inf, inf)
 	default = 0
@@ -287,6 +263,7 @@ class Track(Joint):
 						(4,6), (5,7)],
 					)
 
+
 class Gliding(Joint):
 	''' Joint for rotation and translation around an axis 
 		
@@ -476,6 +453,18 @@ class Punctiform(Joint):
 			return Scheme(sph.points, sph.faces, [], [(l+0, l+1)])
 
 
+class Ring(Joint):
+	pass
+	
+
+class Hinge(Joint):
+	pass
+
+	
+class Rack(Joint):
+	pass
+
+	
 class Gear(Joint):
 	''' Gear interaction between two solids.
 	
@@ -618,3 +607,10 @@ class Helicoid(Joint):
 			heli = web(Wire(heli))
 			return Scheme(heli.points, [], [], heli.edges)
 
+
+class Cam(Joint):
+	pass
+	
+	
+class Contact(Joint):
+	pass
