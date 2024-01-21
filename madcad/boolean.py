@@ -29,6 +29,7 @@
 '''
 
 from copy import copy, deepcopy
+import operator
 from operator import itemgetter, iadd, not_
 from functools import singledispatch, reduce
 from itertools import tee, compress
@@ -604,7 +605,7 @@ def seperate(mesh: Mesh, plane: Tuple[vec3, vec3]) -> Tuple[list, list, list, li
 
         # Order intersected points
         conditions = (
-            map(not_, check_is_upper)
+            map(operator.not_, check_is_upper)
             if sum(check_is_upper) == 2
             else check_is_upper
         )
@@ -679,18 +680,23 @@ def remove_straight_points(web: Web) -> Web:
     
     # Remove useless points on straight lines
     new_edges = [edges[0]]
+    track = 0
+    tracks = [0]
     for edge in edges[1:]:
         p1, p2 = web.edgepoints(new_edges[-1])
         p3, p4 = web.edgepoints(edge)
         if not isclose(l1Norm(p2 - p3), 0, abs_tol=1e-6): # TODO : remove arbitrary value
             new_edges.append(edge)
+            track += 1
+            tracks.append(track)
             continue
         elif isclose(l1Norm(noproject(p1 - p2, p4 - p3)), 0, abs_tol=1e-6): # TODO: remove arbitrary value
             old_edge = new_edges.pop()
             new_edges.append((old_edge[0], edge[1]))
         else:
             new_edges.append(edge)
-    return Web(points=web.points, edges=new_edges)
+            tracks.append(track)
+    return Web(points=web.points, edges=new_edges, tracks=tracks)
 
 
 def section(mesh: Mesh, plane: Tuple[vec3, vec3]) -> Tuple[Web, Mesh]:
@@ -707,7 +713,6 @@ def section(mesh: Mesh, plane: Tuple[vec3, vec3]) -> Tuple[Web, Mesh]:
     cut = remove_straight_points(unfinished_cut)
     cut.strippoints()
     upper_mesh = Mesh(points=mesh_points, faces=upper_faces, tracks=tracks)
-    end = perf_counter()
     q, n = plane
     transformation = rotatearound(anglebt(Z, n), q, cross(Z, n))
     return [cut.transform(transformation), upper_mesh.transform(transformation)]
