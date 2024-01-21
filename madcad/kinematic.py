@@ -35,7 +35,7 @@ from .displays import BoxDisplay
 __all__ = ['Screw', 'comomentum', 
 			'Solid', 'Kinematic', 'Kinemanip', 
 			'Joint', 'Weld', 'Reverse', 'Chain', 
-			'solve', 'KinematicError',
+			'KinematicError',
 			]
 
 class KinematicError(Exception): pass
@@ -283,24 +283,10 @@ class Solid:
 						
 		def apply_pose(self):
 			self.pose = fmat4(self.solid.pose)
-			
-			
-'''
-k = Kinematic([
-	Weld((s1, s2), translate(2*X)),
-	Pivot((s2, s3), Axis(O,Z)),
-	Pivot((s1, s3), (Axis(O,Z), Axis(A,X))),
-	])
-k = Kinematic([
-	Weld((1, 2), translate(2*X)),
-	Pivot((2, 3), Axis(O,Z)),
-	Pivot((1, 3), (Axis(O,Z), Axis(A,X))),
-	])
-k.direct([None, 1.5, 0])
-k.inverse({1: mat4(), 2: mat4(), 3: mat4()})
 
-'''
-			
+
+
+
 class Joint:
 	def __init__(self, *args, default=0, **kwargs):
 		if isinstance(args[0], Solid) and isinstance(args[1], Solid):
@@ -421,19 +407,13 @@ class Joint:
 				d = (view.uniforms['view'] * m * fvec4(fvec3(pos),1)).z * 30/view.height()
 				sch.world = m * translate(scale(translate(fmat4(1), pos), fvec3(d)), -pos)
 
-class Kinematic(Joint):
-	pass
-
 class Kinemanip(rendering.Group):
 	''' Display that holds a kinematic structure and allows the user to move it
 	'''
 	
 	def __init__(self, scene, kinematic):
-		super().__init__(scene)
-		try:	kinematic.solve(maxiter=1000)
-		except constraints.KinematicError:	pass
-		self.sizeref = 1
-		self._init(scene, kinematic)
+		self.kinematic = kinematic
+		self.update(kinematic.solids)
 	
 	def update(self, scene, kinematic):
 		# fail on any kinematic change
@@ -448,15 +428,6 @@ class Kinemanip(rendering.Group):
 				self._init(scene, kinematic)
 				return True
 		return super().update(scene, kinematic.solids)
-	
-	def _init(self, scene, kinematic):
-		self.joints = kinematic.joints
-		self.fixed = kinematic.fixed
-		self.locked = set(kinematic.fixed)
-		self.solids = kinematic.solids
-		self.register = {id(s): i	for i,s in enumerate(self.solids)}
-		makescheme(self.joints)
-		super().update(scene, self.solids)
 		
 	def control(self, view, key, sub, evt):
 		# no action on the root solid
@@ -499,25 +470,6 @@ class Kinemanip(rendering.Group):
 			self.solve(True)
 			view.update()
 	
-	def solve(self, final=False):
-		try:	
-			if final:	solvekin(self.joints, self.locked, precision=self.sizeref*1e-4, maxiter=1000)
-			else:		solvekin(self.joints, self.locked, precision=self.sizeref*1e-3, maxiter=50)
-		except constraints.KinematicError as err:	
-			for disp in self.displays.values():
-				if 'solid-fixed' in disp.displays:
-					disp.displays['solid-fixed'].color = fvec3(settings.display['solver_error_color'])
-		else:
-			for disp in self.displays.values():
-				if 'solid-fixed' in disp.displays:
-					disp.displays['solid-fixed'].color = fvec3(settings.display['schematics_color'])
-		self.apply_poses()
-	
-	def apply_poses(self):
-		# assign new positions to displays
-		for disp in self.displays.values():
-			disp.apply_pose()
-	
 	def lock(self, scene, solid, lock):
 		''' lock the pose of the given solid '''
 		if lock == self.islocked(solid):	
@@ -556,14 +508,49 @@ def partial_difference_increment(f, i, x, d):
 			pass
 	raise ValueError('cannot compute below or above parameter {} given value'.format(i))
 
+	
+
 class Kinematic:
+	'''
+		This class allows resolving direct and inverse kinematic problems with any complexity. 
+		It is not meant to be a data format for kinematic, since the whole kinematic definition holds in joints. This class builds appropriate internal data structures on instanciation so that calls to `inverse()` and `direct()` are fast and reproducible.
+		Realtime is not a target but reliability and convenience to compute any sort of mechanical interactions between solids.
+		
+		Principle:
+			- each joint works using position variables, the list of all joint positions is called the `state` of the kinematic
+			- each joint is a link between 2 solids (start, stop)
+			- each joint can provide a transformation matrix from its start solid to stop solid deduced from the joint position, as well as a gradient of this matrix
+		
+		If your kinematic is a serie of joints, then prefer using `Chain` to reduce the overhead of the genericity.
+		
+		The kinematic problem is defined by two things:
+		- the joints list, which is the strict definition of the kinematic used
+		- the fixed solids list, which defines the interface between this kinematic and the exterior. These solids will be the variables to produce for `direct()` and constraints to satisfy for `inverse()`
+		
+		A `Kinematic` doesn't tolerate modifications of its joints once instanciated
+		
+		Attributes:
+			joints: 
+				
+				a list of `Joint`, defining the kinematic
+				these joints could for a connex graph or not, with any number of cycles
+				
+				each joint is a link between 2 solids, which are represented by a hashable object (it is common to designate these solids by integers, strings, or objects hashable by their id)
+				
+			fixed:
+				a list of the solids that are to be moved by the user. the position of other solids will be deduced from these fixed solids and the joint constraints
+				
+			solids:
+				display object for each solid, this can be anything implementing the display protocol, and will be used only when this kinematic is displayed
+	'''
 	dtype = float
 	
-	def __init__(self, joints, fixed:list=(), solids:dict=None):
+	def __init__(self, joints:list, fixed:list=(), solids:dict=None):
+		ground = object()
 		self.solids = solids
 		self.joints = joints
 		self.fixed = fixed
-		self.welds = [Weld((fixed[0], fixed[i]), mat4())   for i in range(1,len(fixed))]
+		self.welds = [Weld((ground, solid), mat4())   for solid in fixed]
 		
 		# collect the joint graph as a connectivity and the solids
 		conn = {}  # connectivity {node: [node]}  with nodes being joints and solids
@@ -626,6 +613,8 @@ class Kinematic:
 					joint = self.rev[joint]
 				chain.append(joint)
 			self.cycles.append(chain)
+			
+		nprint('cycles', self.cycles)
 	
 	@property
 	def default(self):
@@ -638,13 +627,20 @@ class Kinematic:
 	def to_urdf(self):  
 		indev
 	
-	def simplify(self) -> Kinematic:
+	def simplify(self) -> 'Self':
 		indev
 	
-	def direct(self, state, precision=1e-8) -> list:
+	def direct(self, state:list, precision=1e-8) -> list:
 		''' 
 			compute fixed solids poses for the given set of joint positions. 
 			
+			Args:
+				state:  
+					list of the joint positions in the same order as given to `__init__`, or a dict or positions indexed by joint object
+				precision:  
+					the precision of the expected loop closing. kinematic loop transformations ending with a difference above this precision will raise a `KinematicError`
+			
+			Return:  the fixed solids `mat4` poses in the same order as given to `__init__`
 			Raise: KinematicError if the given position is not reachable by the kinematic
 		'''
 		# pick the desired set of solids
@@ -655,6 +651,16 @@ class Kinematic:
 		'''
 			compute the joint positions for the given fixed solids positions
 			
+			Args:
+				fixed:  list of `mat4` poses of the fixed solids in the same order as given to `__init__`
+				close:  
+					the joint positions we want the result the closest to. 
+					If not provided, `self.default` will be used
+				precision:
+					the precision of the expected loop closing. kinematic loop transformations ending with a difference above this precision will raise a `KinematicError`
+				maxiter: maximum number of iterations allowed to the solver
+			
+			Return:  the joint positions allowing the kinematic to have the fixed solids in the given poses
 			Raise: KinematicError if no joint position can satisfy the fixed positions
 		'''
 		squeezed_homogeneous = 9
@@ -675,7 +681,10 @@ class Kinematic:
 			
 			# collect transformations
 			transforms = {}
-			transforms.update(zip(self.welds, fixed))
+			for joint, f in zip(self.welds, fixed):
+				transforms[joint] = f
+				if joint in self.rev:
+					transforms[self.rev[joint]] = affineInverse(f)
 			for joint, p in zip(self.joints, state):
 				transforms[joint] = joint.direct(p)
 				if joint in self.rev:
@@ -734,7 +743,7 @@ class Kinematic:
 					b = b*f
 				# post transformations
 				b = mat4(1)
-				k = len(cycle)-1
+				k = len(grad)-1
 				for joint in reversed(cycle):
 					i, f, g = transforms[joint]
 					for df in reversed(g):
@@ -803,7 +812,11 @@ class Kinematic:
 		return result
 	
 	def parts(self, state, precision=1e-6) -> dict:
-		''' return the pose of all solids in the kinematic for the given joints positions '''
+		''' return the pose of all solids in the kinematic for the given joints positions 
+			The arguments are the same as for `self.direct()`
+		'''
+		if isinstance(state, dict):
+			state = [state.get(joint) or joint.default  for joint in joints]
 		# collect transformations
 		transforms = {}
 		for joint in self.welds:
@@ -978,9 +991,12 @@ def arcs(conn: '{node: [node]}') -> '[[node]]':
 		suites.append(suite)
 	return suites
 
-import numpy as np
 	
 class Weld(Joint):
+	''' 
+		joint with no degree of freedom,
+		simply welding a solid to an other with a transformation matrix to place one relatively to the other 
+	'''
 	bounds = ((), ())
 	default = ()
 	
@@ -1003,6 +1019,7 @@ class Weld(Joint):
 		return '{}({})'.format(self.__class__.__name__, self.solids, self.transform)
 
 class Reverse(Joint):
+	''' that joint behaves like its wrapped joint but with swapped start and stop solids '''
 	def __init__(self, joint):
 		self.joint = joint
 		self.solids = joint.solids[::-1]
@@ -1034,6 +1051,14 @@ class Reverse(Joint):
 		return '{}({})'.format(self.__class__.__name__, self.joint)
 
 class Chain(Joint):
+	''' 
+		Kinematic chain, This chain of joints acts like one only joint
+		The new formed joint has as many degrees of freedom as its enclosing joints.
+		
+		This class is often used instead of `Kinematic` when possible, because having more efficient `inverse()` and `direct()` methods dedicated to kinematics with one only cycle. It also has simpler in/out parameters since a chain has only two ends where a random kinematic may have many
+		
+		A `Chain` doesn't tolerate modifications of its joints once instanciated
+	'''
 	def __init__(self, joints):
 		if not all(joints[i-1].solids[-1] == joints[i].solids[0]  
 				for i in range(len(joints))):

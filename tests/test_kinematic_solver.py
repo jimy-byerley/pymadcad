@@ -4,16 +4,24 @@ from madcad.kinematic import *
 from madcad.joints import *
 import numpy as np
 
-print('1 pivot')
+print('1 free pivot')
 print(Kinematic([
 	Pivot((0,1), Axis(O,Y)),
 	]).inverse())
 
-print('2 pivots')
+print('2 free pivots')
 print(Kinematic([
 	Pivot((0,1), Axis(O,Z)),
 	Pivot((1,2), Axis(X,Z)),
 	]).inverse())
+
+print('3 constrainted pivots')
+print(Kinematic([
+	Pivot((0,1), Axis(O,Z)),
+	Pivot((1,2), Axis(X,Z)),
+	Pivot((2,3), Axis(2*X,Z)),
+	], fixed=[0,3])
+	.inverse([mat4(), translate(-0.5*X)], close=np.random.random(3)))
 
 print('pivot loop')
 print(Kinematic([

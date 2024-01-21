@@ -19,33 +19,82 @@ kinematic   - Kinematic solver/constraint system
 	.. automethod:: __setitem__
 	.. automethod:: display
 
-.. autoclass:: Kinematic
-
-	.. autoproperty:: pose
-	
-	.. automethod:: transform
-	.. automethod:: itransform
-	
-	.. automethod:: solve
-	
-	.. automethod:: __copy__
-	.. automethod:: __add__
-	
-	.. automethod:: display
-	
 .. autoclass:: Joint
 
-.. autofunction:: isjoint
-
-.. autofunction:: solvekin
-
-	See :ref:`the joints module<joints>` for joints definitions.
+	.. autoproperty:: default
+	.. autoproperty:: bounds
 	
+	.. automethod:: direct
+	.. automethod:: inverse
+	
+	.. automethod:: grad
+	.. automethod:: transmit
+	.. automethod:: schemes
+	.. autoclass:: display
+	
+.. autoclass:: Weld
+
+	.. autoproperty:: default
+	.. autoproperty:: bounds
+	
+	.. automethod:: direct
+	.. automethod:: inverse
+	.. automethod:: grad
+	.. automethod:: parts
+
+.. autoclass:: Reverse
+
+	.. autoproperty:: default
+	.. autoproperty:: bounds
+	
+	.. automethod:: direct
+	.. automethod:: inverse
+	.. automethod:: grad
+
+.. autoclass:: Chain
+
+	.. autoproperty:: default
+	.. autoproperty:: bounds
+	
+	.. automethod:: direct
+	.. automethod:: inverse
+	.. automethod:: grad
+	
+	.. automethod:: to_dh
+	.. automethod:: from_dh
+	
+	
+
+.. autoclass:: Kinematic
+
+	.. autoproperty:: default
+	.. autoproperty:: bounds
+	
+	.. automethod:: direct
+	.. automethod:: inverse
+	.. automethod:: grad
+	.. automethod:: parts
+	
+.. autoclass:: KinematicError
+
+.. autoclass:: Kinemanip
+
+
+.. autofunction:: arcs
+.. autofunction:: depthfirst
+.. autofunction:: cycles
+.. autofunction:: shortcycles
+
+
 .. autoclass:: Screw
 	:members: locate, transform
 	
 	Of course, as any vector variables, ``Screw`` implements ``+ -`` with other ``Torsor``, and ``* /`` with ``float``
 
+.. autofunction:: comomentum
+
+
+	
 
 .. autofunction:: placement
 
