@@ -14,9 +14,10 @@ from typing import Optional
 # minimum opengl version required by the rendering pipeline
 opengl_version = (3,3)
 # shared open gl context, None if not yet initialized
-global_context = None
+global_context_3D = None
 
 class Scene3D(Scene):
+    ndims = 3
     overrides = {list: Group, dict: Group}
 
 
@@ -25,7 +26,7 @@ class Offscreen3D(Offscreen):
     A specialized Offscreen adding few methods specific to 3D
     '''
     def __init__(self, scene, size=uvec2(400,400), projection=None, navigation=None):
-        global global_context
+        global global_context_3D
 
         self.projection = projection or globals()[settings.scene['projection']]()
         self.navigation = navigation or globals()[settings.controls['navigation']]()
@@ -43,10 +44,10 @@ class Offscreen3D(Offscreen):
         self.map_idents = None
         self.fresh = set()    # set of refreshed internal variables since the last render
 
-        if global_context:
-            self.scene.ctx = global_context
+        if global_context_3D:
+            self.scene.ctx = global_context_3D
         else:
-            self.scene.ctx = global_context = mgl.create_standalone_context(requires=opengl_version)
+            self.scene.ctx = global_context_3D = mgl.create_standalone_context(requires=opengl_version)
         self.scene.ctx.line_width = settings.display["line_width"]
 
         self.init(size)
@@ -524,7 +525,7 @@ else:
             self.update()
 
         # TODO : QPoint to vec2
-        def somenear(self, point: QPoint, radius=None) -> Optional[QPoint]:
+        def somenear(self, point: QPoint, radius=None) -> QPoint:
             ''' Return the closest coordinate to coords, (within the given radius) for which there is an object at
                 So if objnear is returning something, objat and ptat will return something at the returned point
             '''
@@ -643,7 +644,12 @@ else:
                     if evt.isAccepted():    return
 
             # send the event to the scene objects, descending the item tree
-            if isinstance(evt, QMouseEvent) and evt.type() in (QAllEvents.MouseButtonPress, QAllEvents.MouseButtonRelease, QAllEvents.MouseButtonDblClick, QAllEvents.MouseMove):
+            if isinstance(evt, QMouseEvent) and evt.type() in (
+                QAllEvents.MouseButtonPress,
+                QAllEvents.MouseButtonRelease,
+                QAllEvents.MouseButtonDblClick,
+                QAllEvents.MouseMove
+            ):
                 pos = self.somenear(evt.pos())
                 if pos:
                     key = self.itemat(pos)
@@ -688,12 +694,12 @@ else:
 
         def initializeGL(self):
             # retrieve global shared context if available
-            global global_context
+            global global_context_3D
 
             if QApplication.testAttribute(AA_ShareOpenGLContexts):
-                if not global_context:
-                    global_context = mgl.create_context()
-                self.scene.ctx = global_context
+                if not global_context_3D:
+                    global_context_3D = mgl.create_context()
+                self.scene.ctx = global_context_3D
             # or create a context
             else:
                 self.scene.ctx = mgl.create_context()
