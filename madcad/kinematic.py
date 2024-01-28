@@ -20,6 +20,23 @@
 	joints are defined in `madcad.joints`
 '''
 
+'''
+	
+	Kinematc([..., Free((0, n))])
+	.parts([joint_position]) -> [solid_position]
+	.solve({joint: position}, close: [joint_position]) -> [joint_position]
+	.grad([joint_position]) -> [mat4]
+	# kinematic solving with a set of constraints from the present constraints
+	.solve(dict(zip(inverse, pose)), close)
+	.solve(dict(zip(direct, pose)), close)
+	# for convenience, we can define 
+	Kinematic([..., Free((0,n))], direct=[...], inverse=[...])
+	.direct([joint_position], close: [joint_position]) -> [solid_position]
+	.inverse([solid_position], close: [joint_position]) -> [joint_position]
+
+'''
+
+
 from copy import copy, deepcopy
 import itertools
 import numpy.core as np
@@ -48,251 +65,6 @@ class KinematicError(Exception):
 	''' raised when a kinematic problem cannot be solved because the constraints cannot be satisfied or the solver cannot satisfy it '''
 	pass
 			
-
-class Screw(object):
-	''' a 3D torsor aka Screw aka Wrench aka Twist - is a mathematical object defined as follow:
-		  * a resulting vector R
-		  * a momentum vector field M
-		  the momentum is a function of space, satisfying the relationship:
-			M(A) = M(B) + cross(R, A-B)
-		
-		therefore it is possible to represent a localized torsor such as:
-		  * R = resulting
-		  * M = momentum vector at position P
-		  * P = position at which M takes the current value
-		
-		torsor are usefull for generalized solid mechanics to handle multiple variables of the same nature:
-		  * force torsor:	
-			  Screw(force, torque, pos)
-		  * velocity (aka kinematic) torsor:
-			  Screw(rotation, velocity, pos)
-		  * kinetic (inertia) torsor:
-			  Screw(linear movement quantity, rotational movement quantity, pos)
-			
-		  all these torsors makes it possible to represent all these values independently from expression location
-		  
-		  
-		Attributes:
-			resulting (vec3): 
-			momentum (vec3):
-			position (vec3):
-	'''
-	__slots__ = ('resulting', 'momentum', 'position')
-	def __init__(self, resulting=None, momentum=None, position=None):
-		self.resulting, self.momentum, self.position = resulting or vec3(0), momentum or vec3(0), position or vec3(0)
-	def locate(self, pt) -> 'Screw':
-		''' gets the same torsor, but expressed for an other location '''
-		return Screw(self.resulting, self.momentum + cross(self.resulting, pt-self.position), pt)
-	
-	def transform(self, mat) -> 'Screw':
-		''' changes the torsor from coordinate system '''
-		if isinstance(mat, mat4):
-			rot, trans = mat3(mat), vec3(mat[3])
-		elif isinstance(mat, mat3):
-			rot, trans = mat, 0
-		elif isinstance(mat, quat):
-			rot, trans = mat, 0
-		elif isinstance(mat, vec3):
-			rot, trans = 1, mat
-		else:
-			raise TypeError('Screw.transform() expect mat4, mat3 or vec3')
-		return Screw(rot*self.resulting, rot*self.momentum, rot*self.position + trans)
-	
-	def __add__(self, other):
-		if other.position != self.position:		other = other.locate(self.position)
-		return Screw(self.resulting+other.resulting, self.momentum+other.momentum, self.position)
-	
-	def __sub__(self, other):
-		if other.position != self.position:		other = other.locate(self.position)
-		return Screw(self.resulting-other.resulting, self.momentum-other.momentum, self.position)
-	
-	def __neg__(self):
-		return Screw(-self.resulting, -self.momentum, self.position)
-	
-	def __mul__(self, x):
-		return Screw(x*self.resulting, x*self.momentum, self.position)
-	
-	def __div__(self, x):
-		return Screw(self.resulting/x, self.momentum/x, self.position)
-		
-	def __repr__(self):
-		return '{}(\n\t{}, \n\t{}, \n\t{})'.format(self.__class__.__name__, repr(self.resulting), repr(self.momentum), repr(self.position))
-
-def comomentum(t1, t2):
-	''' comomentum of screws:   `dot(M1, R2)  +  dot(M2, R1)`
-		
-		the result is independent of torsors location
-	'''
-	t2 = t2.locate(t1.position)
-	return dot(t1.momentum, t2.resulting) + dot(t2.momentum, t1.resulting)
-
-
-class Solid:
-	''' Solid for kinematic definition, used as variable by the kinematic solver
-	
-		A Solid is also a way to group objects and move it anywere without modifying them, as the objects contained in a solid are considered to be in solid local coordinates.
-		A Solid is just like a dictionnary with a pose.
-	
-		Attributes:
-			orientation (quat):  rotation from local to world space
-			position (vec3):     displacement from local to world
-			content (dict/list):      objects to display using the solid's pose
-			name (str):          optional name to display on the scheme
-			
-		Example:
-			
-			>>> mypart = icosphere(vec3(0), 1)
-			>>> s = Solid(part=mypart, anything=vec3(0))   # create a solid with whatever inside
-			
-			>>> s.transform(vec3(1,2,3))   # make a new translated solid, keeping the same content without copy
-			
-			>>> # put any content in as a dict
-			>>> s['part']
-			<Mesh ...>
-			>>> s['whatever'] = vec3(5,2,1)
-	'''
-	def __init__(self, pose=None, **content):
-		if isinstance(pose, tuple):
-			self.position = pose[0]
-			self.orientation = quat(pose[1])
-		elif isinstance(pose, mat4):
-			self.position = pose[3].xyz
-			self.orientation = quat(mat3(pose))
-		else:
-			self.position = vec3(0)
-			self.orientation = quat()
-		self.content = content
-	
-	# solver variable definition
-	slvvars = 'position', 'orientation',
-	
-	@property
-	def pose(self) -> 'mat4':
-		''' transformation from local to global space, 
-			therefore containing the translation and rotation from the global origin 
-		'''
-		return transform(self.position, self.orientation)
-		
-	@pose.setter
-	def pose(self, mat):
-		self.position = vec3(mat[3])
-		self.orientation = quat_cast(mat3(mat))
-		
-	def __copy__(self):
-		s = Solid()
-		s.position = copy(self.position)
-		s.orientation = copy(self.orientation)
-		s.content = self.content
-		return s
-	
-	def transform(self, trans) -> 'Solid':
-		''' displace the solid by the transformation '''
-		s = copy(self)
-		if isinstance(trans, mat4):
-			rot, trans = quat_cast(mat3(trans)), vec3(trans[3])
-		elif isinstance(trans, mat3):
-			rot, trans = quat_cast(trans), 0
-		elif isinstance(trans, quat):
-			rot, trans = trans, 0
-		elif isinstance(trans, vec3):
-			rot, trans = 1, trans
-		else:
-			raise TypeError('Screw.transform() expect mat4, mat3 or vec3')
-		s.orientation = rot*self.orientation
-		s.position = trans + rot*self.position
-		return s
-	
-	def place(self, *args, **kwargs) -> 'Solid': 
-		''' strictly equivalent to `self.pose = placement(...)`, see `placement` for parameters specifications. '''
-		s = copy(self)
-		s.pose = placement(*args, **kwargs)
-		return s
-		
-	def deloc(self, *args):
-		indev
-	def reloc(self, *args):
-		indev
-	def loc(self, *args):
-		indev
-	
-
-	# convenient content access
-	def __getitem__(self, key):
-		''' shorthand to `self.content` '''
-		return self.content[key]
-		
-	def __setitem__(self, key, value):
-		''' shorthand to `self.content` '''
-		self.content[key] = value
-	
-	def add(self, value):
-		''' add an item in self.content, a key is automatically created for it and is returned '''
-		key = next(i 	for i in range(len(self.content)+1)	
-						if i not in self.content	)
-		self.content[key] = value
-		return key
-	
-	def set(self, **objs):
-		''' contenient method to set many elements in one call.
-			equivalent to `self.content.update(objs)`
-		'''
-		self.content.update(objs)
-		return self
-	
-	
-	class display(rendering.Group):
-		''' movable `Group` for the rendering pipeline '''
-		def __init__(self, scene, solid):
-			super().__init__(scene, solid.content)
-			self.solid = solid
-			self.apply_pose()
-		
-		def update(self, scene, solid):
-			if not isinstance(solid, Solid):	return
-			super().update(scene, solid.content)
-			self.solid = solid
-			return True
-		
-		def stack(self, scene):
-			for key,display in self.displays.items():
-				if key == 'annotations' and not scene.options['display_annotations'] and not self.selected:
-					continue
-				for sub,target,priority,func in display.stack(scene):
-					yield ((key, *sub), target, priority, func)
-				
-		def control(self, view, key, sub, evt):
-				# solid manipulation
-			if not view.scene.options['lock_solids'] and evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
-				evt.accept()
-				start = view.ptat(view.somenear(evt.pos()))
-				offset = self.solid.position - affineInverse(mat4(self.world)) * start
-				view.tool.append(rendering.Tool(self.move, view, start, offset))
-			# this click might have been a selection, ask for scene restack just in case
-			elif evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
-				view.scene.touch()
-				
-		def move(self, dispatcher, view, pt, offset):
-			moved = False
-			while True:
-				evt = yield
-				
-				if evt.type() == QEvent.MouseMove:
-					evt.accept()
-					moved = True
-					world = mat4(self.world)
-					pt = affineInverse(world) * view.ptfrom(evt.pos(), world * pt)
-					self.solid.position = pt + offset
-					self.apply_pose()
-					view.update()
-				
-				if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
-					if moved:	evt.accept()
-					break
-						
-		def apply_pose(self):
-			self.pose = fmat4(self.solid.pose)
-
-
 
 
 class Joint:
@@ -385,7 +157,7 @@ class Joint:
 			grad.append((partial_difference_increment(self.direct, i, x, delta) - base) / delta)
 		return grad
 	
-	def transmit(self, force: Screw, parameters=None, velocity=None) -> 'Screw':
+	def transmit(self, force: 'Screw', parameters=None, velocity=None) -> 'Screw':
 		''' compute the force transmited by the kinematic chain in free of its moves
 			
 			The default implementation uses the direct kinematic gradient to compute the moving directions of the chain
@@ -438,94 +210,6 @@ class Joint:
 				d = (view.uniforms['view'] * m * fvec4(fvec3(pos),1)).z * 30/view.height()
 				sch.world = m * translate(scale(translate(fmat4(1), pos), fvec3(d)), -pos)
 
-class Kinemanip(rendering.Group):
-	''' Display that holds a kinematic structure and allows the user to move it
-	'''
-	
-	def __init__(self, scene, kinematic):
-		self.kinematic = kinematic
-		self.update(kinematic.solids)
-	
-	def update(self, scene, kinematic):
-		# fail on any kinematic change
-		if not isinstance(kinematic, Kinematic) or len(self.solids) != len(kinematic.solids):	return
-		# keep current pose
-		for ss,ns in zip(self.solids, kinematic.solids):
-			ns.position = ss.position
-			ns.orientation = ss.orientation
-		# if any change in joints, rebuild the scheme
-		for sj, nj in zip(self.joints, kinematic.joints):
-			if type(sj) != type(nj) or sj.solids != nj.solids:
-				self._init(scene, kinematic)
-				return True
-		return super().update(scene, kinematic.solids)
-		
-	def control(self, view, key, sub, evt):
-		# no action on the root solid
-		if sub[0] in self.fixed:	return
-		
-		if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
-			# start solid drag
-			evt.accept()
-			solid = self.solids[sub[0]]
-			self.sizeref = max(norminf(self.box.width), 1)
-			start = vec3(affineInverse(mat4(self.world)) * vec4(view.ptat(view.somenear(evt.pos())),1))
-			offset = inverse(quat(solid.orientation)) * (start - solid.position)
-			view.tool.append(rendering.Tool(self.move, view, solid, start, offset))
-	
-	def move(self, dispatcher, view, solid, start, offset):
-		moved = False
-		while True:
-			evt = yield
-			
-			if evt.type() == QEvent.MouseMove:
-				evt.accept()
-				moved = True
-				# unlock moving solid
-				if self.islocked(solid):
-					self.lock(view.scene, solid, False)
-				# displace the moved object
-				start = solid.position + quat(solid.orientation)*offset
-				pt = vec3(affineInverse(mat4(self.world)) * vec4(view.ptfrom(evt.pos(), start),1))
-				solid.position = pt - quat(solid.orientation)*offset
-				# solve
-				self.solve(False)
-				view.update()
-			
-			elif evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
-				if moved:	evt.accept()
-				break
-		
-		if moved:
-			# finish on a better precision
-			self.solve(True)
-			view.update()
-	
-	def lock(self, scene, solid, lock):
-		''' lock the pose of the given solid '''
-		if lock == self.islocked(solid):	
-			return
-		key = id(solid)
-		grp = self.displays[self.register[key]]
-		if lock:
-			# add solid's variables to fixed
-			self.locked.add(key)
-			box = Box(center=fvec3(0), width=fvec3(-inf))
-			for display in grp.displays.values():
-				box.union_update(display.box)
-			grp.displays['solid-fixed'] = BoxDisplay(scene, box, color=fvec3(settings.display['schematics_color']))
-			self.apply_poses()
-		else:
-			# remove solid's variables from fixed
-			self.locked.remove(key)
-			if 'solid-fixed' in grp.displays:
-				del grp.displays['solid-fixed']
-		scene.touch()
-		
-	def islocked(self, solid):
-		return id(solid) in self.locked
-
-
 def partial_difference_increment(f, i, x, d):
 	p = copy(x)
 	try:
@@ -539,24 +223,219 @@ def partial_difference_increment(f, i, x, d):
 			pass
 	raise ValueError('cannot compute below or above parameter {} given value'.format(i))
 
-'''
+squeezed_homogeneous = 12
+def squeeze_homogeneous(m):
+	return np.asarray(dmat4x3(m)).ravel()
+def unsqueeze_homogeneous(m):
+	return mat4(mat4x3(m))
+
+
+class Weld(Joint):
+	''' 
+		joint with no degree of freedom,
+		simply welding a solid to an other with a transformation matrix to place one relatively to the other 
+		
+		It is useful to fix solids between each other without actually making it the same solid in a kinematic.
+	'''
+	bounds = ((), ())
+	default = ()
 	
-	Kinematc([..., Free((0, n))])
-	.parts([joint_position]) -> [solid_position]
-	.solve({joint: position}, close: [joint_position]) -> [joint_position]
-	.grad([joint_position]) -> [mat4]
-	# kinematic solving with a set of constraints from the present constraints
-	.solve(dict(zip(inverse, pose)), close)
-	.solve(dict(zip(direct, pose)), close)
-	# for convenience, we can define 
-	Kinematic([..., Free((0,n))], direct=[...], inverse=[...])
-	.direct([joint_position], close: [joint_position]) -> [solid_position]
-	.inverse([solid_position], close: [joint_position]) -> [joint_position]
+	def __init__(self, solids, transform: mat4=None):
+		self.solids = solids
+		self.transform = transform or affineInverse(s1.pose) * s2.pose
+	
+	def direct(self, parameters):
+		assert len(parameters) == 0
+		return self.transform
+		
+	def inverse(self, matrix, close=None):
+		return ()
+		
+	def grad(self, parameters, delta=1e-6):
+		return ()
+		
+	def __repr__(self):
+		return '{}({}, {})'.format(self.__class__.__name__, self.solids, self.transform)
+		
+class Free(Joint):
+	'''
+		joint of complete freedom.
+		it adds no effective constraint to the start and end solids. its parameter is its transformation matrix.
+		
+		it is useful to control the explicit pose of a solid solid in a kinematic.
+	'''
+	bounds = (
+		squeeze_homogeneous(mat4(-1, -1, -1, 0,  -1, -1, -1, 0,  -1, -1, -1, 0,  -inf, -inf, -inf, 1)), 
+		squeeze_homogeneous(mat4(+1, +1, +1, 0,  +1, +1, +1, 0,  +1, +1, +1, 0,  +inf, +inf, +inf, 1)),
+		)
+	default = squeeze_homogeneous(mat4())
+	
+	def __init__(self, solids):
+		self.solids = solids
+	
+	def direct(self, parameters):
+		return unsqueeze_homogeneous(parameters)
+		
+	def inverse(self, matrix, close=None):
+		return squeeze_homogeneous(matrix)
+		
+	def grad(self, parameters):
+		grad = np.zeros(squeezed_homogeneous, 3, 4)
+		for x in range(3):
+			for y in range(4):
+				grad[x+y][x][y] = 1
+		return grad
+	
+	def __repr__(self):
+		return '{}({})'.format(self.__class__.__name__, self.solids)
 
-'''
+class Reverse(Joint):
+	''' 
+		that joint behaves like its wrapped joint but with swapped start and stop solids 
+	
+		.. image:: /schemes/kinematic-reverse.svg
+	'''
+	def __init__(self, joint):
+		self.joint = joint
+		self.solids = joint.solids[::-1]
+		self.position = self.joint.position
+		
+	@property
+	def default(self):
+		return self.joint.default
+		
+	@property
+	def bounds(self):
+		return self.joint.bounds
+		
+	def direct(self, parameters):
+		return affineInverse(self.joint.direct(parameters))
+		
+	def inverse(self, matrix, close=None):
+		return self.joint.inverse(hinverse(matrix), close)
+		
+	def grad(self, parameters):
+		if hasattr(self.joint.default, '__len__'):
+			f = self.joint.direct(parameters)
+			return [- affineInverse(f) * df * affineInverse(f)
+				for f, df in self.joint.grad(parameters)]
+		else:
+			f, df = self.joint.direct(parameters), self.joint.grad(parameters)
+			return - affineInverse(f) * df * affineInverse(f)
+		
+	def __repr__(self):
+		return '{}({})'.format(self.__class__.__name__, self.joint)
+		
+	def scheme(self, scene):
+		a, b = self.joint.scheme(scene)
+		return (b, a)
 
-
-empty = ()
+class Chain(Joint):
+	''' 
+		Kinematic chain, This chain of joints acts like one only joint
+		The new formed joint has as many degrees of freedom as its enclosing joints.
+		
+		.. image:: /schemes/kinematic-chain.svg
+		
+		This class is often used instead of `Kinematic` when possible, because having more efficient `inverse()` and `direct()` methods dedicated to kinematics with one only cycle. It also has simpler in/out parameters since a chain has only two ends where a random kinematic may have many
+		
+		A `Chain` doesn't tolerate modifications of the type of its joints once instanciated. a joint placement can be modified as long as it doesn't change its hash.
+	'''
+	def __init__(self, joints):
+		if not all(joints[i-1].solids[-1] == joints[i].solids[0]  
+				for i in range(len(joints))):
+			raise ValueError('joints do not form a direct chain, joints are not badly ordered or oriented')
+		self.joints = joints
+		self.solids = (joints[0].solids[0], joints[-1].solids[-1])
+		
+	@property
+	def default(self):
+		return [joint.default  for joint in self.joints]
+		
+	@property
+	def bounds(self):
+		return [joint.bounds  for joint in self.joints]
+	
+	def direct(self, parameters):
+		b = mat4()
+		for x, joint in zip(parameters, self.joints):
+			b *= joint.direct(x)
+		return b
+	
+	def inverse(self, matrix, close=None, precision=1e-6, maxiter=None):
+		if close is None:
+			close = self.default
+		
+		def cost(x):
+			cost = squeeze_homogeneous(self.direct(structure_state(x, close)) - matrix)
+			return np.asanyarray(cost).ravel()
+			
+		def jac(x):
+			jac = self.grad(structure_state(x, close))
+			return np.asanyarray(flatten(jac)).reshape((len(x), squeezed_homogeneous)).transpose((1,0))
+		
+		# solve
+		res = scipy.optimize.least_squares(
+					cost, 
+					flatten_state(close, dtype), 
+					method = 'trf', 
+					bounds = (
+						flatten_state(mins, dtype), 
+						flatten_state(maxes, dtype),
+						), 
+					jac = jac, 
+					xtol = precision, 
+					max_nfev = maxiter,
+					)
+		if not res.success:
+			raise KinematicError(res.message, res)
+			
+		return structure_state(res.x, close)
+	
+	def grad(self, parameters):
+		# built the left side of the gradient product of the direct joint
+		directs = []
+		grad = []
+		b = mat4(1)
+		for x, joint in zip(parameters, self.joints):
+			f = joint.direct(x)
+			for df in joint.grad(x):
+				grad.append(b*df)
+			b = b*f
+			directs.append((f, len(x)))
+		# build the right side of the product
+		b = mat4(1)
+		for f,n in reversed(directs):
+			for i in range(n):
+				grad[i] = grad[i]*b
+			b = f*b
+		return grad
+	
+	def parts(self, parameters) -> list:
+		''' return the pose of each solid in the chain '''
+		solids = [mat4()] * (len(self.joints)+1)
+		for i in range(len(self.joints)):
+			solids[i+1] = solids[i] * self.joints[i].direct(parameters[i])
+		return solids
+		
+	def to_kinematic(self) -> 'Kinematic':
+		return Kinematic(direct=self.joints, inverse=[Free(self.solids)], ground=self.solids[0])
+		
+	def to_dh(self) -> '(dh, transforms)':
+		''' 
+			denavit-hartenberg representation of this kinematic chain. 
+			
+			it also returns the solids base definitions relative to the denavit-hartenberg convention, it the joints already follows the conventions, these should be eye matrices 
+		'''
+		indev
+		
+	def from_dh(dh, transforms=None) -> 'Self':
+		''' build a kinematic chain from a denavit-hartenberge representation, and eventual base definitions relative to the denavit-hartenberg convention '''
+		indev
+		
+	def __repr__(self):
+		return '{}({})'.format(self.__class__.__name__, repr(self.joints))
+	
 
 class Kinematic:
 	'''
@@ -948,7 +827,8 @@ class Kinematic:
 		''' display allowing manipulation of kinematic '''
 		return Kinemanip(scene, self.joints, self.solids, self.ground)
 
-		
+
+empty = ()
 
 def flatten(structured):
 	if hasattr(structured, '__iter__'):
@@ -969,12 +849,6 @@ def structure_state(flat, structure):
 		else:
 			structured.append(next(it))
 	return structured
-
-squeezed_homogeneous = 12
-def squeeze_homogeneous(m):
-	return np.asarray(dmat4x3(m)).ravel()
-def unsqueeze_homogeneous(m):
-	return mat4(mat4x3(m))
 
 def cycles(conn: '{node: [node]}') -> '[[node]]':
 	''' extract a set of any-length cycles decomposing the graph '''
@@ -1107,213 +981,340 @@ def arcs(conn: '{node: [node]}') -> '[[node]]':
 		suites.append(suite)
 	return suites
 
-	
-class Weld(Joint):
-	''' 
-		joint with no degree of freedom,
-		simply welding a solid to an other with a transformation matrix to place one relatively to the other 
-		
-		It is useful to fix solids between each other without actually making it the same solid in a kinematic.
-	'''
-	bounds = ((), ())
-	default = ()
-	
-	def __init__(self, solids, transform: mat4=None):
-		self.solids = solids
-		self.transform = transform or affineInverse(s1.pose) * s2.pose
-	
-	def direct(self, parameters):
-		assert len(parameters) == 0
-		return self.transform
-		
-	def inverse(self, matrix, close=None):
-		return ()
-		
-	def grad(self, parameters, delta=1e-6):
-		return ()
-		
-	def __repr__(self):
-		return '{}({}, {})'.format(self.__class__.__name__, self.solids, self.transform)
-		
-class Free(Joint):
-	'''
-		joint of complete freedom.
-		it adds no effective constraint to the start and end solids. its parameter is its transformation matrix.
-		
-		it is useful to control the explicit pose of a solid solid in a kinematic.
-	'''
-	bounds = (
-		squeeze_homogeneous(mat4(-1, -1, -1, 0,  -1, -1, -1, 0,  -1, -1, -1, 0,  -inf, -inf, -inf, 1)), 
-		squeeze_homogeneous(mat4(+1, +1, +1, 0,  +1, +1, +1, 0,  +1, +1, +1, 0,  +inf, +inf, +inf, 1)),
-		)
-	default = squeeze_homogeneous(mat4())
-	
-	def __init__(self, solids):
-		self.solids = solids
-	
-	def direct(self, parameters):
-		return unsqueeze_homogeneous(parameters)
-		
-	def inverse(self, matrix, close=None):
-		return squeeze_homogeneous(matrix)
-		
-	def grad(self, parameters):
-		grad = np.zeros(squeezed_homogeneous, 3, 4)
-		for x in range(3):
-			for y in range(4):
-				grad[x+y][x][y] = 1
-		return grad
-	
-	def __repr__(self):
-		return '{}({})'.format(self.__class__.__name__, self.solids)
 
-class Reverse(Joint):
-	''' 
-		that joint behaves like its wrapped joint but with swapped start and stop solids 
-	
-		.. image:: /schemes/kinematic-reverse.svg
+class Screw(object):
+	''' a 3D torsor aka Screw aka Wrench aka Twist - is a mathematical object defined as follow:
+		  * a resulting vector R
+		  * a momentum vector field M
+		  the momentum is a function of space, satisfying the relationship:
+			M(A) = M(B) + cross(R, A-B)
+		
+		therefore it is possible to represent a localized torsor such as:
+		  * R = resulting
+		  * M = momentum vector at position P
+		  * P = position at which M takes the current value
+		
+		torsor are usefull for generalized solid mechanics to handle multiple variables of the same nature:
+		  * force torsor:	
+			  Screw(force, torque, pos)
+		  * velocity (aka kinematic) torsor:
+			  Screw(rotation, velocity, pos)
+		  * kinetic (inertia) torsor:
+			  Screw(linear movement quantity, rotational movement quantity, pos)
+			
+		  all these torsors makes it possible to represent all these values independently from expression location
+		  
+		  
+		Attributes:
+			resulting (vec3): 
+			momentum (vec3):
+			position (vec3):
 	'''
-	def __init__(self, joint):
-		self.joint = joint
-		self.solids = joint.solids[::-1]
-		self.position = self.joint.position
-		
-	@property
-	def default(self):
-		return self.joint.default
-		
-	@property
-	def bounds(self):
-		return self.joint.bounds
-		
-	def direct(self, parameters):
-		return affineInverse(self.joint.direct(parameters))
-		
-	def inverse(self, matrix, close=None):
-		return self.joint.inverse(hinverse(matrix), close)
-		
-	def grad(self, parameters):
-		if hasattr(self.joint.default, '__len__'):
-			f = self.joint.direct(parameters)
-			return [- affineInverse(f) * df * affineInverse(f)
-				for f, df in self.joint.grad(parameters)]
+	__slots__ = ('resulting', 'momentum', 'position')
+	def __init__(self, resulting=None, momentum=None, position=None):
+		self.resulting, self.momentum, self.position = resulting or vec3(0), momentum or vec3(0), position or vec3(0)
+	def locate(self, pt) -> 'Screw':
+		''' gets the same torsor, but expressed for an other location '''
+		return Screw(self.resulting, self.momentum + cross(self.resulting, pt-self.position), pt)
+	
+	def transform(self, mat) -> 'Screw':
+		''' changes the torsor from coordinate system '''
+		if isinstance(mat, mat4):
+			rot, trans = mat3(mat), vec3(mat[3])
+		elif isinstance(mat, mat3):
+			rot, trans = mat, 0
+		elif isinstance(mat, quat):
+			rot, trans = mat, 0
+		elif isinstance(mat, vec3):
+			rot, trans = 1, mat
 		else:
-			f, df = self.joint.direct(parameters), self.joint.grad(parameters)
-			return - affineInverse(f) * df * affineInverse(f)
+			raise TypeError('Screw.transform() expect mat4, mat3 or vec3')
+		return Screw(rot*self.resulting, rot*self.momentum, rot*self.position + trans)
+	
+	def __add__(self, other):
+		if other.position != self.position:		other = other.locate(self.position)
+		return Screw(self.resulting+other.resulting, self.momentum+other.momentum, self.position)
+	
+	def __sub__(self, other):
+		if other.position != self.position:		other = other.locate(self.position)
+		return Screw(self.resulting-other.resulting, self.momentum-other.momentum, self.position)
+	
+	def __neg__(self):
+		return Screw(-self.resulting, -self.momentum, self.position)
+	
+	def __mul__(self, x):
+		return Screw(x*self.resulting, x*self.momentum, self.position)
+	
+	def __div__(self, x):
+		return Screw(self.resulting/x, self.momentum/x, self.position)
 		
 	def __repr__(self):
-		return '{}({})'.format(self.__class__.__name__, self.joint)
-		
-	def scheme(self, scene):
-		a, b = self.joint.scheme(scene)
-		return (b, a)
+		return '{}(\n\t{}, \n\t{}, \n\t{})'.format(self.__class__.__name__, repr(self.resulting), repr(self.momentum), repr(self.position))
 
-class Chain(Joint):
-	''' 
-		Kinematic chain, This chain of joints acts like one only joint
-		The new formed joint has as many degrees of freedom as its enclosing joints.
+def comomentum(t1, t2):
+	''' comomentum of screws:   `dot(M1, R2)  +  dot(M2, R1)`
 		
-		.. image:: /schemes/kinematic-chain.svg
-		
-		This class is often used instead of `Kinematic` when possible, because having more efficient `inverse()` and `direct()` methods dedicated to kinematics with one only cycle. It also has simpler in/out parameters since a chain has only two ends where a random kinematic may have many
-		
-		A `Chain` doesn't tolerate modifications of the type of its joints once instanciated. a joint placement can be modified as long as it doesn't change its hash.
+		the result is independent of torsors location
 	'''
-	def __init__(self, joints):
-		if not all(joints[i-1].solids[-1] == joints[i].solids[0]  
-				for i in range(len(joints))):
-			raise ValueError('joints do not form a direct chain, joints are not badly ordered or oriented')
-		self.joints = joints
-		self.solids = (joints[0].solids[0], joints[-1].solids[-1])
-		
+	t2 = t2.locate(t1.position)
+	return dot(t1.momentum, t2.resulting) + dot(t2.momentum, t1.resulting)
+
+
+class Solid:
+	''' Solid for objects display
+	
+		A Solid is also a way to group objects and move it anywere without modifying them, as the objects contained in a solid are considered to be in solid local coordinates.
+		A Solid is just like a dictionnary with a pose.
+	
+		Attributes:
+			orientation (quat):  rotation from local to world space
+			position (vec3):     displacement from local to world
+			content (dict/list):      objects to display using the solid's pose
+			name (str):          optional name to display on the scheme
+			
+		Example:
+			
+			>>> mypart = icosphere(vec3(0), 1)
+			>>> s = Solid(part=mypart, anything=vec3(0))   # create a solid with whatever inside
+			
+			>>> s.transform(vec3(1,2,3))   # make a new translated solid, keeping the same content without copy
+			
+			>>> # put any content in as a dict
+			>>> s['part']
+			<Mesh ...>
+			>>> s['whatever'] = vec3(5,2,1)
+	'''
+	def __init__(self, pose=None, **content):
+		if isinstance(pose, tuple):
+			self.position = pose[0]
+			self.orientation = quat(pose[1])
+		elif isinstance(pose, mat4):
+			self.position = pose[3].xyz
+			self.orientation = quat(mat3(pose))
+		else:
+			self.position = vec3(0)
+			self.orientation = quat()
+		self.content = content
+	
+	# solver variable definition
+	slvvars = 'position', 'orientation',
+	
 	@property
-	def default(self):
-		return [joint.default  for joint in self.joints]
-		
-	@property
-	def bounds(self):
-		return [joint.bounds  for joint in self.joints]
-	
-	def direct(self, parameters):
-		b = mat4()
-		for x, joint in zip(parameters, self.joints):
-			b *= joint.direct(x)
-		return b
-	
-	def inverse(self, matrix, close=None, precision=1e-6, maxiter=None):
-		if close is None:
-			close = self.default
-		
-		def cost(x):
-			cost = squeeze_homogeneous(self.direct(structure_state(x, close)) - matrix)
-			return np.asanyarray(cost).ravel()
-			
-		def jac(x):
-			jac = self.grad(structure_state(x, close))
-			return np.asanyarray(flatten(jac)).reshape((len(x), squeezed_homogeneous)).transpose((1,0))
-		
-		# solve
-		res = scipy.optimize.least_squares(
-					cost, 
-					flatten_state(close, dtype), 
-					method = 'trf', 
-					bounds = (
-						flatten_state(mins, dtype), 
-						flatten_state(maxes, dtype),
-						), 
-					jac = jac, 
-					xtol = precision, 
-					max_nfev = maxiter,
-					)
-		if not res.success:
-			raise KinematicError(res.message, res)
-			
-		return structure_state(res.x, close)
-	
-	def grad(self, parameters):
-		# built the left side of the gradient product of the direct joint
-		directs = []
-		grad = []
-		b = mat4(1)
-		for x, joint in zip(parameters, self.joints):
-			f = joint.direct(x)
-			for df in joint.grad(x):
-				grad.append(b*df)
-			b = b*f
-			directs.append((f, len(x)))
-		# build the right side of the product
-		b = mat4(1)
-		for f,n in reversed(directs):
-			for i in range(n):
-				grad[i] = grad[i]*b
-			b = f*b
-		return grad
-	
-	def parts(self, parameters) -> list:
-		''' return the pose of each solid in the chain '''
-		solids = [mat4()] * (len(self.joints)+1)
-		for i in range(len(self.joints)):
-			solids[i+1] = solids[i] * self.joints[i].direct(parameters[i])
-		return solids
-		
-	def to_kinematic(self) -> 'Kinematic':
-		return Kinematic(direct=self.joints, inverse=[Free(self.solids)], ground=self.solids[0])
-		
-	def to_dh(self) -> '(dh, transforms)':
-		''' 
-			denavit-hartenberg representation of this kinematic chain. 
-			
-			it also returns the solids base definitions relative to the denavit-hartenberg convention, it the joints already follows the conventions, these should be eye matrices 
+	def pose(self) -> 'mat4':
+		''' transformation from local to global space, 
+			therefore containing the translation and rotation from the global origin 
 		'''
-		indev
+		return transform(self.position, self.orientation)
 		
-	def from_dh(dh, transforms=None) -> 'Self':
-		''' build a kinematic chain from a denavit-hartenberge representation, and eventual base definitions relative to the denavit-hartenberg convention '''
-		indev
+	@pose.setter
+	def pose(self, mat):
+		self.position = vec3(mat[3])
+		self.orientation = quat_cast(mat3(mat))
 		
-	def __repr__(self):
-		return '{}({})'.format(self.__class__.__name__, repr(self.joints))
+	def __copy__(self):
+		s = Solid()
+		s.position = copy(self.position)
+		s.orientation = copy(self.orientation)
+		s.content = self.content
+		return s
 	
+	def transform(self, trans) -> 'Solid':
+		''' displace the solid by the transformation '''
+		s = copy(self)
+		if isinstance(trans, mat4):
+			rot, trans = quat_cast(mat3(trans)), vec3(trans[3])
+		elif isinstance(trans, mat3):
+			rot, trans = quat_cast(trans), 0
+		elif isinstance(trans, quat):
+			rot, trans = trans, 0
+		elif isinstance(trans, vec3):
+			rot, trans = 1, trans
+		else:
+			raise TypeError('Screw.transform() expect mat4, mat3 or vec3')
+		s.orientation = rot*self.orientation
+		s.position = trans + rot*self.position
+		return s
+	
+	def place(self, *args, **kwargs) -> 'Solid': 
+		''' strictly equivalent to `self.pose = placement(...)`, see `placement` for parameters specifications. '''
+		s = copy(self)
+		s.pose = placement(*args, **kwargs)
+		return s
+		
+	def deloc(self, *args):
+		indev
+	def reloc(self, *args):
+		indev
+	def loc(self, *args):
+		indev
+	
+
+	# convenient content access
+	def __getitem__(self, key):
+		''' shorthand to `self.content` '''
+		return self.content[key]
+		
+	def __setitem__(self, key, value):
+		''' shorthand to `self.content` '''
+		self.content[key] = value
+	
+	def add(self, value):
+		''' add an item in self.content, a key is automatically created for it and is returned '''
+		key = next(i 	for i in range(len(self.content)+1)	
+						if i not in self.content	)
+		self.content[key] = value
+		return key
+	
+	def set(self, **objs):
+		''' contenient method to set many elements in one call.
+			equivalent to `self.content.update(objs)`
+		'''
+		self.content.update(objs)
+		return self
+	
+	
+	class display(rendering.Group):
+		''' movable `Group` for the rendering pipeline '''
+		def __init__(self, scene, solid):
+			super().__init__(scene, solid.content)
+			self.solid = solid
+			self.apply_pose()
+		
+		def update(self, scene, solid):
+			if not isinstance(solid, Solid):	return
+			super().update(scene, solid.content)
+			self.solid = solid
+			return True
+		
+		def stack(self, scene):
+			for key,display in self.displays.items():
+				if key == 'annotations' and not scene.options['display_annotations'] and not self.selected:
+					continue
+				for sub,target,priority,func in display.stack(scene):
+					yield ((key, *sub), target, priority, func)
+				
+		def control(self, view, key, sub, evt):
+				# solid manipulation
+			if not view.scene.options['lock_solids'] and evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
+				evt.accept()
+				start = view.ptat(view.somenear(evt.pos()))
+				offset = self.solid.position - affineInverse(mat4(self.world)) * start
+				view.tool.append(rendering.Tool(self.move, view, start, offset))
+			# this click might have been a selection, ask for scene restack just in case
+			elif evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
+				view.scene.touch()
+				
+		def move(self, dispatcher, view, pt, offset):
+			moved = False
+			while True:
+				evt = yield
+				
+				if evt.type() == QEvent.MouseMove:
+					evt.accept()
+					moved = True
+					world = mat4(self.world)
+					pt = affineInverse(world) * view.ptfrom(evt.pos(), world * pt)
+					self.solid.position = pt + offset
+					self.apply_pose()
+					view.update()
+				
+				if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
+					if moved:	evt.accept()
+					break
+						
+		def apply_pose(self):
+			self.pose = fmat4(self.solid.pose)
+
+
+		
+class Kinemanip(rendering.Group):
+	''' Display that holds a kinematic structure and allows the user to move it
+	'''
+	
+	def __init__(self, scene, kinematic):
+		self.kinematic = kinematic
+		self.update(kinematic.solids)
+	
+	def update(self, scene, kinematic):
+		# fail on any kinematic change
+		if not isinstance(kinematic, Kinematic) or len(self.solids) != len(kinematic.solids):	return
+		# keep current pose
+		for ss,ns in zip(self.solids, kinematic.solids):
+			ns.position = ss.position
+			ns.orientation = ss.orientation
+		# if any change in joints, rebuild the scheme
+		for sj, nj in zip(self.joints, kinematic.joints):
+			if type(sj) != type(nj) or sj.solids != nj.solids:
+				self._init(scene, kinematic)
+				return True
+		return super().update(scene, kinematic.solids)
+		
+	def control(self, view, key, sub, evt):
+		# no action on the root solid
+		if sub[0] in self.fixed:	return
+		
+		if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
+			# start solid drag
+			evt.accept()
+			solid = self.solids[sub[0]]
+			self.sizeref = max(norminf(self.box.width), 1)
+			start = vec3(affineInverse(mat4(self.world)) * vec4(view.ptat(view.somenear(evt.pos())),1))
+			offset = inverse(quat(solid.orientation)) * (start - solid.position)
+			view.tool.append(rendering.Tool(self.move, view, solid, start, offset))
+	
+	def move(self, dispatcher, view, solid, start, offset):
+		moved = False
+		while True:
+			evt = yield
+			
+			if evt.type() == QEvent.MouseMove:
+				evt.accept()
+				moved = True
+				# unlock moving solid
+				if self.islocked(solid):
+					self.lock(view.scene, solid, False)
+				# displace the moved object
+				start = solid.position + quat(solid.orientation)*offset
+				pt = vec3(affineInverse(mat4(self.world)) * vec4(view.ptfrom(evt.pos(), start),1))
+				solid.position = pt - quat(solid.orientation)*offset
+				# solve
+				self.solve(False)
+				view.update()
+			
+			elif evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
+				if moved:	evt.accept()
+				break
+		
+		if moved:
+			# finish on a better precision
+			self.solve(True)
+			view.update()
+	
+	def lock(self, scene, solid, lock):
+		''' lock the pose of the given solid '''
+		if lock == self.islocked(solid):	
+			return
+		key = id(solid)
+		grp = self.displays[self.register[key]]
+		if lock:
+			# add solid's variables to fixed
+			self.locked.add(key)
+			box = Box(center=fvec3(0), width=fvec3(-inf))
+			for display in grp.displays.values():
+				box.union_update(display.box)
+			grp.displays['solid-fixed'] = BoxDisplay(scene, box, color=fvec3(settings.display['schematics_color']))
+			self.apply_poses()
+		else:
+			# remove solid's variables from fixed
+			self.locked.remove(key)
+			if 'solid-fixed' in grp.displays:
+				del grp.displays['solid-fixed']
+		scene.touch()
+		
+	def islocked(self, solid):
+		return id(solid) in self.locked
+
+
 	
 
 def makescheme(joints, color=None):
