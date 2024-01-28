@@ -460,10 +460,14 @@ class Ring(Joint):
 class Hinge(Joint):
 	pass
 
+
+class Project(Joint):
+	def __init__(self, solids, projection:mat4, target:vec3):
+		indev
+
 	
 class Rack(Joint):
 	pass
-
 	
 class Gear(Joint):
 	''' Gear interaction between two solids.

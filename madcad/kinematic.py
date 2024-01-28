@@ -3,18 +3,21 @@
 ''' This module defines the types and functions for kinematic manimulation and computation.
 
 	
-	A Kinematic is a conceptual approach of mechanisms. It sort parts in several groups with the same movement (so in a solid, the solids are all bound together), and it links the defined solids by joints corresponding to the constraints each solid put to the other solids in the joint. 
-	That way no matter what are the parts, and what are their shape, even whan surfaces links the solids - the solid always have the same movements when there is the same joints between them.
+	A Kinematic is a conceptual approach of mechanisms. It sort parts in groups called solids (in solids all parts have the same movement), and links the solids to each other using constraints named joints.
+	That way no matter what are the parts, or what are their shape, or how parts interact - solids movements can be deduced only from joints.
 
-	So to analyse a mechanisme we look at its kinematic. And that can be done prior or after the part design as it is independant.
+	This allows designing the mechanisms before designing its parts. This also allows visualizing the mechanism whether it is complete or not.
 	
-	A kinematic in itself is a set of solids, observing movement relations. Those are modeled across the following classes: ``Solid`` and ``Kinematic``.
-	
-	Solids are considered to be undeformable, this allows the to use the Screw theory to represent the force and movement variables (see https://en.wikipedia.org/wiki/Screw_theory). 
+	As parts in the same solid all have the same movement, solids are considered to be undeformable. This allows the to use the Screw theory to represent the force and movement variables (see https://en.wikipedia.org/wiki/Screw_theory). 
 	In this module, screws are called ``Screw``.
 	
-	.. tip::
-		In case of undeformable solids, torsors makes possible to represent both the translative and rotative part of each movement aspect, independently from the point in the solid.
+	This module mainly features:
+		- `Joint` - the base class for all joints, instances of joints define a kinematic
+		- `Kinematic` - the general kinematic solver
+		- `Chain` - a joint and kinematic solver dedicated to kinematic chains
+		- `Kinemanip` - a display to move mechanisms in the 3d view
+			
+	joints are defined in `madcad.joints`
 '''
 
 from copy import copy, deepcopy
@@ -38,7 +41,12 @@ __all__ = ['Screw', 'comomentum',
 			'KinematicError',
 			]
 
-class KinematicError(Exception): pass
+
+
+
+class KinematicError(Exception): 
+	''' raised when a kinematic problem cannot be solved because the constraints cannot be satisfied or the solver cannot satisfy it '''
+	pass
 			
 
 class Screw(object):
@@ -288,6 +296,29 @@ class Solid:
 
 
 class Joint:
+	'''
+		A Joint constraints the relative position of two solids. 
+		
+		In this library, relative positioning is provided by transformation matrices which need a start-end convention, so every joint is directed and the order of `self.solids` matters.
+		
+		.. image:: /schemes/kinematic-joint.svg
+		
+		There is two ways of defining the relative positioning of solids
+		
+		- by a joint position :math:`(q_i)`
+		- by a start-end matrix :math:`T_{ab}`
+		
+		.. image:: /schemes/kinematic-direct-inverse.svg
+		
+		we can switch from one representation to the other using the `direct` and `inverse` methods.
+		
+		Attributes:
+		
+			solids:  a tuple (start, end) or hashable objects representing the solids the joint is linking
+			
+			default:  a default joint position
+			bounds:  a tuple of `(min, max)` joint positions
+	'''
 	def __init__(self, *args, default=0, **kwargs):
 		if isinstance(args[0], Solid) and isinstance(args[1], Solid):
 			self.solids = args[:2]
@@ -530,21 +561,55 @@ empty = ()
 class Kinematic:
 	'''
 		This class allows resolving direct and inverse kinematic problems with any complexity. 
-		It is not meant to be a data format for kinematic, since the whole kinematic definition holds in joints. This class builds appropriate internal data structures on instanciation so that calls to `inverse()` and `direct()` are fast and reproducible.
-		Realtime is not a target but reliability and convenience to compute any sort of mechanical interactions between solids.
+		It is not meant to be a data format for kinematic, since the whole kinematic definition holds in joints. This class builds appropriate internal data structures on instanciation so that calls to `solve()` are fast and reproducible.
+		Realtime (meaning fixed time resolution) is not a target, but reliability and convenience to compute any sort of mechanical interactions between solids.
 		
-		Principle:
+		A kinematic is defined by its joints:
 			- each joint works using position variables, the list of all joint positions is called the `state` of the kinematic
 			- each joint is a link between 2 solids (start, stop)
 			- each joint can provide a transformation matrix from its start solid to stop solid deduced from the joint position, as well as a gradient of this matrix
+			
+		A kinematic problem is definied by
+			- the joints we fix (or solids we fix, but fixing a solid can be done using a joint)
+			- the joints who stay free, whose positions need to be deduced from the fixed joints
 		
-		If your kinematic is a serie of joints, then prefer using `Chain` to reduce the overhead of the genericity.
+		A list of joints can be seen as a graph of links between solids. The complexity of the kinematic probleme depends on
 		
-		The kinematic problem is defined by two things:
-		- the joints list, which is the strict definition of the kinematic used
-		- the fixed solids list, which defines the interface between this kinematic and the exterior. These solids will be the variables to produce for `direct()` and constraints to satisfy for `inverse()`
+			- the number cycles
+			- the number of variables
 		
-		A `Kinematic` doesn't tolerate modifications of its joints once instanciated
+		Example:
+			
+			>>> # keep few joints apart, so we can use them as dict keys, for calling `solve`
+			>>> motor1 = Pivot((0,2), Axis(...))
+			>>> motor2 = Pivot((0,7), Axis(...))
+			>>> free = Free((7,4))
+			>>> # the kinematic solver object
+			>>> kinematic = Kinematic([
+			... 	Pivot((0,1), Axis(...)),
+			... 	motor1,
+			... 	motor2,
+			... 	Planar((7,3), ...),
+			... 	Gliding((1,3), ...),
+			... 	Ball((3,2), ...),
+			... 	Track((4,3), ...),
+			... 	Planar((1,5), ...),
+			... 	Planar((1,6), ...),
+			... 	Weld((7,5), mat4(...)),
+			... 	Weld((7,6), mat4(...)),
+			... 	free,
+			... 	], ground=7)
+			
+			defines a kinematic with the following graph
+		
+			.. image::
+				/schemes/kinematic-kinematic.svg
+		
+		.. tip::
+			If your kinematic is a chain of joints, then prefer using `Chain` to reduce the overhead of the genericity.
+		
+		.. note::
+			A `Kinematic` doesn't tolerate modifications of the type of its joints once instanciated. joints positions could eventually be modified at the moment it doesn't affect the hash of the joints (See `Joint`)
 		
 		Attributes:
 			joints: 
@@ -554,11 +619,13 @@ class Kinematic:
 				
 				each joint is a link between 2 solids, which are represented by a hashable object (it is common to designate these solids by integers, strings, or objects hashable by their id)
 				
-			fixed:
-				a list of the solids that are to be moved by the user. the position of other solids will be deduced from these fixed solids and the joint constraints
-				
 			solids:
 				display object for each solid, this can be anything implementing the display protocol, and will be used only when this kinematic is displayed
+				
+			ground: the reference solid, all other solids positions will be relative to it
+			
+			direct_parameters:   a list of joints to fix when calling `direct()`
+			inverse_parameters:  a list of joints to fix when calling `inverse()`
 	'''
 	dtype = float
 	
@@ -658,6 +725,20 @@ class Kinematic:
 			
 			Return:  the joint positions allowing the kinematic to have the fixed solids in the given poses
 			Raise: KinematicError if no joint position can satisfy the fixed positions
+			
+			Example:
+				
+				>>> # solve with no constraints
+				>>> kinematic.solve()
+				[...]
+				>>> # solve by fixing solid 4
+				>>> kinematic.solve({free: mat4(...)})
+				[...]
+				>>> # solve by fixing some joints
+				>>> kinematic.solve({motor1: radians(90)})
+				[...]
+				>>> kinematic.solve({motor1: radians(90), motor2: radians(15)})
+				[...]
 		'''
 		
 		if close is None:
@@ -847,7 +928,7 @@ class Kinematic:
 		
 	def direct(self, parameters: list, close=None) -> list:
 		''' 
-			shorthand to self.solve(self.direct_parameters) and computation of desired transformation matrices
+			shorthand to `self.solve(self.direct_parameters)` and computation of desired transformation matrices
 			it only works when direct and inverse constraining joints have been set
 		'''
 		fixed = dict(zip(self.direct_parameters, parameters))
@@ -856,7 +937,7 @@ class Kinematic:
 		
 	def inverse(self, parameters: list, close=None) -> list:
 		''' 
-			shorthand to self.solve(self.inverse_parameters) and extraction of desired joints
+			shorthand to `self.solve(self.inverse_parameters)` and extraction of desired joints
 			it only works when direct and inverse constraining joints have been set
 		'''
 		fixed = dict(zip(self.inverse_parameters, parameters))
@@ -896,9 +977,15 @@ def unsqueeze_homogeneous(m):
 	return mat4(mat4x3(m))
 
 def cycles(conn: '{node: [node]}') -> '[[node]]':
+	''' extract a set of any-length cycles decomposing the graph '''
 	todo
 
 def shortcycles(conn: '{node: [node]}', costs: '{node: float}', branch=True, tree=None) -> '[[node]]':
+	'''
+		extract a set of minimal cycles decompsing the graph
+		
+		.. image:: /schemes/kinematic-cycles.svg
+	'''
 	# orient the graph in a depth-first way, and search for fusion points
 	distances = {}
 	merges = []
@@ -964,6 +1051,11 @@ def shortcycles(conn: '{node: [node]}', costs: '{node: float}', branch=True, tre
 				
 	
 def depthfirst(conn: '{node: [node]}', starts=()) -> '[(parent, child)]':
+	''' 
+		generate a depth-first traversal of the givne graph 
+	
+		.. image:: /schemes/kinematic-depthfirst.svg
+	'''
 	edges = set()
 	reached = set()
 	ordered = []
@@ -987,6 +1079,7 @@ def depthfirst(conn: '{node: [node]}', starts=()) -> '[(parent, child)]':
 	return ordered
 	
 def arcs(conn: '{node: [node]}') -> '[[node]]':
+	''' find ars in the given graph '''
 	suites = []
 	empty = ()
 	edges = set()
@@ -1019,6 +1112,8 @@ class Weld(Joint):
 	''' 
 		joint with no degree of freedom,
 		simply welding a solid to an other with a transformation matrix to place one relatively to the other 
+		
+		It is useful to fix solids between each other without actually making it the same solid in a kinematic.
 	'''
 	bounds = ((), ())
 	default = ()
@@ -1041,6 +1136,12 @@ class Weld(Joint):
 		return '{}({}, {})'.format(self.__class__.__name__, self.solids, self.transform)
 		
 class Free(Joint):
+	'''
+		joint of complete freedom.
+		it adds no effective constraint to the start and end solids. its parameter is its transformation matrix.
+		
+		it is useful to control the explicit pose of a solid solid in a kinematic.
+	'''
 	bounds = (
 		squeeze_homogeneous(mat4(-1, -1, -1, 0,  -1, -1, -1, 0,  -1, -1, -1, 0,  -inf, -inf, -inf, 1)), 
 		squeeze_homogeneous(mat4(+1, +1, +1, 0,  +1, +1, +1, 0,  +1, +1, +1, 0,  +inf, +inf, +inf, 1)),
@@ -1067,7 +1168,11 @@ class Free(Joint):
 		return '{}({})'.format(self.__class__.__name__, self.solids)
 
 class Reverse(Joint):
-	''' that joint behaves like its wrapped joint but with swapped start and stop solids '''
+	''' 
+		that joint behaves like its wrapped joint but with swapped start and stop solids 
+	
+		.. image:: /schemes/kinematic-reverse.svg
+	'''
 	def __init__(self, joint):
 		self.joint = joint
 		self.solids = joint.solids[::-1]
@@ -1108,9 +1213,11 @@ class Chain(Joint):
 		Kinematic chain, This chain of joints acts like one only joint
 		The new formed joint has as many degrees of freedom as its enclosing joints.
 		
+		.. image:: /schemes/kinematic-chain.svg
+		
 		This class is often used instead of `Kinematic` when possible, because having more efficient `inverse()` and `direct()` methods dedicated to kinematics with one only cycle. It also has simpler in/out parameters since a chain has only two ends where a random kinematic may have many
 		
-		A `Chain` doesn't tolerate modifications of its joints once instanciated
+		A `Chain` doesn't tolerate modifications of the type of its joints once instanciated. a joint placement can be modified as long as it doesn't change its hash.
 	'''
 	def __init__(self, joints):
 		if not all(joints[i-1].solids[-1] == joints[i].solids[0]  
@@ -1182,20 +1289,26 @@ class Chain(Joint):
 			b = f*b
 		return grad
 	
-	def parts(self, parameters):
+	def parts(self, parameters) -> list:
+		''' return the pose of each solid in the chain '''
 		solids = [mat4()] * (len(self.joints)+1)
 		for i in range(len(self.joints)):
 			solids[i+1] = solids[i] * self.joints[i].direct(parameters[i])
 		return solids
 		
 	def to_kinematic(self) -> 'Kinematic':
-		return Kinematic([], self.joints, [Free(self.solids)])
+		return Kinematic(direct=self.joints, inverse=[Free(self.solids)], ground=self.solids[0])
 		
 	def to_dh(self) -> '(dh, transforms)':
-		''' denavit-hartenberg representation of this kinematic chain '''
+		''' 
+			denavit-hartenberg representation of this kinematic chain. 
+			
+			it also returns the solids base definitions relative to the denavit-hartenberg convention, it the joints already follows the conventions, these should be eye matrices 
+		'''
 		indev
 		
 	def from_dh(dh, transforms=None) -> 'Self':
+		''' build a kinematic chain from a denavit-hartenberge representation, and eventual base definitions relative to the denavit-hartenberg convention '''
 		indev
 		
 	def __repr__(self):

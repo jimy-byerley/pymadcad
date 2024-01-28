@@ -4,7 +4,54 @@ kinematic   - Kinematic solver/constraint system
 ================================================
 
 .. automodule:: madcad.kinematic
+	
+.. autoclass:: KinematicError
 
+.. autoclass:: Kinematic
+
+	.. autoproperty:: default
+	.. autoproperty:: bounds
+	
+	.. automethod:: solve
+	.. automethod:: direct
+	.. automethod:: inverse
+	.. automethod:: grad
+	.. automethod:: parts
+	.. automethod:: display
+
+.. autoclass:: Joint
+	
+	.. automethod:: direct
+	.. automethod:: inverse
+	
+	.. automethod:: grad
+	.. automethod:: transmit
+	.. automethod:: schemes
+	.. automethod:: display
+	
+.. autoclass:: Weld
+	
+.. autoclass:: Free
+
+.. autoclass:: Reverse
+
+.. autoclass:: Chain
+
+	.. automethod:: parts
+	
+	.. automethod:: to_kinematic
+	.. automethod:: to_dh
+	.. automethod:: from_dh
+	
+	.. automethod:: display
+
+.. autoclass:: Kinemanip
+
+
+.. autofunction:: arcs
+.. autofunction:: depthfirst
+.. autofunction:: cycles
+.. autofunction:: shortcycles
 
 .. autoclass:: Solid
 
@@ -18,73 +65,8 @@ kinematic   - Kinematic solver/constraint system
 	.. automethod:: __getitem__
 	.. automethod:: __setitem__
 	.. automethod:: display
-
-.. autoclass:: Joint
-
-	.. autoproperty:: default
-	.. autoproperty:: bounds
-	
-	.. automethod:: direct
-	.. automethod:: inverse
-	
-	.. automethod:: grad
-	.. automethod:: transmit
-	.. automethod:: schemes
-	.. autoclass:: display
-	
-.. autoclass:: Weld
-
-	.. autoproperty:: default
-	.. autoproperty:: bounds
-	
-	.. automethod:: direct
-	.. automethod:: inverse
-	.. automethod:: grad
-	.. automethod:: parts
-
-.. autoclass:: Reverse
-
-	.. autoproperty:: default
-	.. autoproperty:: bounds
-	
-	.. automethod:: direct
-	.. automethod:: inverse
-	.. automethod:: grad
-
-.. autoclass:: Chain
-
-	.. autoproperty:: default
-	.. autoproperty:: bounds
-	
-	.. automethod:: direct
-	.. automethod:: inverse
-	.. automethod:: grad
-	
-	.. automethod:: to_dh
-	.. automethod:: from_dh
 	
 	
-
-.. autoclass:: Kinematic
-
-	.. autoproperty:: default
-	.. autoproperty:: bounds
-	
-	.. automethod:: direct
-	.. automethod:: inverse
-	.. automethod:: grad
-	.. automethod:: parts
-	
-.. autoclass:: KinematicError
-
-.. autoclass:: Kinemanip
-
-
-.. autofunction:: arcs
-.. autofunction:: depthfirst
-.. autofunction:: cycles
-.. autofunction:: shortcycles
-
 
 .. autoclass:: Screw
 	:members: locate, transform
