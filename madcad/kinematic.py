@@ -34,7 +34,7 @@ from .displays import BoxDisplay
 
 __all__ = ['Screw', 'comomentum', 
 			'Solid', 'Kinematic', 'Kinemanip', 
-			'Joint', 'Weld', 'Reverse', 'Chain', 
+			'Joint', 'Weld', 'Free', 'Reverse', 'Chain', 
 			'KinematicError',
 			]
 
@@ -508,7 +508,24 @@ def partial_difference_increment(f, i, x, d):
 			pass
 	raise ValueError('cannot compute below or above parameter {} given value'.format(i))
 
+'''
 	
+	Kinematc([..., Free((0, n))])
+	.parts([joint_position]) -> [solid_position]
+	.solve({joint: position}, close: [joint_position]) -> [joint_position]
+	.grad([joint_position]) -> [mat4]
+	# kinematic solving with a set of constraints from the present constraints
+	.solve(dict(zip(inverse, pose)), close)
+	.solve(dict(zip(direct, pose)), close)
+	# for convenience, we can define 
+	Kinematic([..., Free((0,n))], direct=[...], inverse=[...])
+	.direct([joint_position], close: [joint_position]) -> [solid_position]
+	.inverse([solid_position], close: [joint_position]) -> [joint_position]
+
+'''
+
+
+empty = ()
 
 class Kinematic:
 	'''
@@ -545,16 +562,21 @@ class Kinematic:
 	'''
 	dtype = float
 	
-	def __init__(self, joints:list, fixed:list=(), solids:dict=None):
-		ground = object()
+	def __init__(self, joints:list=[], solids:dict=None, ground=0, direct=None, inverse=None):
+		if (direct is None) ^ (inverse is None):
+			raise TypeError("direct and inverse must be both provided or undefined")
+		elif direct and inverse:	
+			joints = direct + joints + inverse
+			self.direct_parameters = direct
+			self.inverse_parameters = inverse
+		
 		self.solids = solids
 		self.joints = joints
-		self.fixed = fixed
-		self.welds = [Weld((ground, solid), mat4())   for solid in fixed]
+		self.ground = ground
 		
 		# collect the joint graph as a connectivity and the solids
 		conn = {}  # connectivity {node: [node]}  with nodes being joints and solids
-		for joint in itertools.chain(joints, self.welds):
+		for joint in joints:
 			conn[joint] = joint.solids
 			for solid in joint.solids:
 				if solid not in conn:
@@ -565,21 +587,9 @@ class Kinematic:
 		vars = {joint: flatten_state(joint.default, self.dtype).size
 			for joint in conn  
 			if isinstance(joint, Joint)}
-		self.nvars = sum(vars.values())
-		
-		# build bounds and state vector index for jacobian of residuals
-		self.mins = []
-		self.maxes = []
-		self.index = {}
-		i = 0
-		for joint in joints:
-			self.index[joint] = i
-			i += flatten_state(joint.default, self.dtype).size
-			self.mins.append(joint.bounds[0])
-			self.maxes.append(joint.bounds[1])
 		
 		# reversed joints using the tree
-		tree = depthfirst(conn, starts=fixed)
+		tree = depthfirst(conn, starts=[ground])
 		self.rev = {}
 		
 		# joint computation order, for direct kinematic
@@ -623,6 +633,9 @@ class Kinematic:
 	@property
 	def bounds(self):
 		return [joint.bounds  for joint in self.joints]
+		
+	def to_chain(self) -> 'Chain':
+		indev
 	
 	def to_urdf(self):  
 		indev
@@ -630,24 +643,7 @@ class Kinematic:
 	def simplify(self) -> 'Self':
 		indev
 	
-	def direct(self, state:list, precision=1e-8) -> list:
-		''' 
-			compute fixed solids poses for the given set of joint positions. 
-			
-			Args:
-				state:  
-					list of the joint positions in the same order as given to `__init__`, or a dict or positions indexed by joint object
-				precision:  
-					the precision of the expected loop closing. kinematic loop transformations ending with a difference above this precision will raise a `KinematicError`
-			
-			Return:  the fixed solids `mat4` poses in the same order as given to `__init__`
-			Raise: KinematicError if the given position is not reachable by the kinematic
-		'''
-		# pick the desired set of solids
-		poses = self.parts(state, precision)
-		return [poses[solid]  for solid in self.fixed]
-	
-	def inverse(self, fixed:list=(), close:list=None, precision=1e-6, maxiter=None) -> list:
+	def solve(self, fixed:dict={}, close:list=None, precision=1e-6, maxiter=None) -> list:
 		'''
 			compute the joint positions for the given fixed solids positions
 			
@@ -663,11 +659,7 @@ class Kinematic:
 			Return:  the joint positions allowing the kinematic to have the fixed solids in the given poses
 			Raise: KinematicError if no joint position can satisfy the fixed positions
 		'''
-		squeezed_homogeneous = 9
 		
-		usedict = isinstance(close, dict)
-		if usedict:
-			close = [close.get(joint) or joint.default  for joint in joints]
 		if close is None:
 			close = self.default
 		if len(self.cycles) == 0:
@@ -676,21 +668,19 @@ class Kinematic:
 		# build residuals to minimize
 		# cost function returns residuals, the solver will optimize the sum of their squares
 		def residuals(x):
-			state = structure_state(x, close)
-			residuals = np.empty((len(self.cycles), squeezed_homogeneous), self.dtype)
-			
 			# collect transformations
+			state = iter(structure_state(x, init))
 			transforms = {}
-			for joint, f in zip(self.welds, fixed):
-				transforms[joint] = f
-				if joint in self.rev:
-					transforms[self.rev[joint]] = affineInverse(f)
-			for joint, p in zip(self.joints, state):
-				transforms[joint] = joint.direct(p)
+			for joint in self.joints:
+				if joint in fixed:
+					transforms[joint] = fixed[joint]
+				else:
+					transforms[joint] = joint.direct(next(state, empty))
 				if joint in self.rev:
 					transforms[self.rev.get(joint)] = affineInverse(transforms[joint])
 			
 			# chain transformations
+			residuals = np.empty((len(self.cycles), squeezed_homogeneous), self.dtype)
 			for i, cycle in enumerate(self.cycles):
 				# b is the transform of the complete cycle: it should be identity
 				b = mat4()
@@ -704,32 +694,36 @@ class Kinematic:
 		
 		# jacobian of the residuals function
 		def jac(x):
-			state = structure_state(x, close)
-			jac = np.zeros((len(self.cycles), self.nvars, squeezed_homogeneous), self.dtype)
-			# jac = scipy.sparse.csr_matrix((len(cycles)*squeezed_homogeneous, self.nvars))
-			
 			# collect gradient and transformations
+			state = iter(structure_state(x, init))
 			transforms = {}
-			for joint, f in zip(self.welds, fixed):
-				transforms[joint] = (0, f, ())
-				if joint in self.rev:
-					transforms[self.rev[joint]] = (0, affineInverse(f), ())
-			for joint, p in zip(self.joints, state):
-				size = np.array(p).size
-				grad = joint.grad(p)
-				# ensure it is a jacobian and not a single derivative
-				if size <= 1:
-					grad = grad,
-				# ensure the homogeneous factor is 0 for derivatives
-				for df in grad:
-					df[3][3] = 0
-				f = joint.direct(p)
-				transforms[joint] = (self.index[joint], f, grad)
+			index = 0
+			for joint in self.joints:
+				if joint in fixed:
+					grad = ()
+					f = fixed[joint]
+					size = 0
+				else:
+					p = next(state, empty)
+					size = np.array(p).size
+					grad = joint.grad(p)
+					# ensure it is a jacobian and not a single derivative
+					if isinstance(grad, mat4) or isinstance(grad, np.ndarray) and grad.size == 16:
+						grad = grad,
+					# ensure the homogeneous factor is 0 for derivatives
+					for df in grad:
+						df[3][3] = 0
+					f = joint.direct(p)
+				transforms[joint] = (index, f, grad)
 				if joint in self.rev:
 					rf = affineInverse(f)
-					transforms[self.rev[joint]] = (self.index[joint], rf, [-rf*df*rf  for df in grad])
+					transforms[self.rev[joint]] = (index, rf, [-rf*df*rf  for df in grad])
+					
+				index += size
 			
 			# stack gradients, transformed by the chain successive transformations
+			jac = np.zeros((len(self.cycles), index, squeezed_homogeneous), self.dtype)
+			# jac = scipy.sparse.csr_matrix((len(cycles)*squeezed_homogeneous, self.nvars))
 			for icycle, cycle in enumerate(self.cycles):
 				grad = []
 				positions = []
@@ -757,8 +751,18 @@ class Kinematic:
 					# jac[icycle*squeezed_homogeneous:(icycle+1)*squeezed_homogeneous, ig] = squeeze_homogeneous(g)
 			
 			# assert jac.transpose((0,2,1)).shape == (len(cycles), 9, nvars)
-			return jac.transpose((0,2,1)).reshape((len(self.cycles)*squeezed_homogeneous, self.nvars))
+			return jac.transpose((0,2,1)).reshape((len(self.cycles)*squeezed_homogeneous, index))
 			# return jac
+				
+		init = []
+		mins = []
+		maxes = []
+		for joint, p in zip(self.joints, close):
+			if joint not in fixed:
+				init.append(p)
+				bounds = joint.bounds
+				mins.append(bounds[0])
+				maxes.append(bounds[1])
 		
 		# solve
 		from time import perf_counter as time
@@ -766,11 +770,11 @@ class Kinematic:
 		
 		res = scipy.optimize.least_squares(
 					residuals, 
-					flatten_state(close, self.dtype), 
+					flatten_state(init, self.dtype), 
 					method = 'trf', 
 					bounds = (
-						flatten_state(self.mins, self.dtype), 
-						flatten_state(self.maxes, self.dtype),
+						flatten_state(mins, self.dtype), 
+						flatten_state(maxes, self.dtype),
 						), 
 					jac = jac, 
 					xtol = precision, 
@@ -806,10 +810,14 @@ class Kinematic:
 			raise KinematicError('position out of reach: no solution found for closing the kinematic cycles')
 		
 		# structure results
-		result = structure_state(res.x, close)
-		if usedict:
-			return dict(zip(joints, result))
-		return result
+		result = iter(structure_state(res.x, init))
+		final = []
+		for joint, default in zip(self.joints, close):
+			if joint in fixed:
+				final.append(default)
+			else:
+				final.append(next(result))
+		return final
 	
 	def parts(self, state, precision=1e-6) -> dict:
 		''' return the pose of all solids in the kinematic for the given joints positions 
@@ -818,11 +826,6 @@ class Kinematic:
 		if isinstance(state, dict):
 			state = [state.get(joint) or joint.default  for joint in joints]
 		# collect transformations
-		transforms = {}
-		for joint in self.welds:
-			transforms[joint] = mat4()
-			if joint in self.rev:
-				transforms[self.rev[joint]] = mat4()
 		for joint, p in zip(joints, state):
 			transforms[joint] = joint.direct(p)
 			if joint in self.rev:
@@ -841,15 +844,33 @@ class Kinematic:
 	def grad(self, state) -> dict:
 		''' return a gradient of the all the solids poses at the given joints position '''
 		indev
+		
+	def direct(self, parameters: list, close=None) -> list:
+		''' 
+			shorthand to self.solve(self.direct_parameters) and computation of desired transformation matrices
+			it only works when direct and inverse constraining joints have been set
+		'''
+		fixed = dict(zip(self.direct_parameters, parameters))
+		result = self.solve(fixed, close)
+		return [joint.direct(result[i])  for i in range(len(self.inverse_parameters))]
+		
+	def inverse(self, parameters: list, close=None) -> list:
+		''' 
+			shorthand to self.solve(self.inverse_parameters) and extraction of desired joints
+			it only works when direct and inverse constraining joints have been set
+		'''
+		fixed = dict(zip(self.inverse_parameters, parameters))
+		result = self.solve(fixed, close)
+		return [result[-i]  for i in range(len(self.direct_parameters))]
 	
 	def display(self, scene):
 		''' display allowing manipulation of kinematic '''
-		indev
+		return Kinemanip(scene, self.joints, self.solids, self.ground)
 
 		
 
 def flatten(structured):
-	if hasattr(structured, '__len__'):
+	if hasattr(structured, '__iter__'):
 		for x in structured:
 			yield from flatten(x)
 	else:
@@ -868,9 +889,11 @@ def structure_state(flat, structure):
 			structured.append(next(it))
 	return structured
 
+squeezed_homogeneous = 12
 def squeeze_homogeneous(m):
-	return (m[0][0], m[1][1], m[2][2], m[2][1], m[2][0], m[1][0], m[3][0], m[3][1], m[3][2])
-
+	return np.asarray(dmat4x3(m)).ravel()
+def unsqueeze_homogeneous(m):
+	return mat4(mat4x3(m))
 
 def cycles(conn: '{node: [node]}') -> '[[node]]':
 	todo
@@ -1003,7 +1026,6 @@ class Weld(Joint):
 	def __init__(self, solids, transform: mat4=None):
 		self.solids = solids
 		self.transform = transform or affineInverse(s1.pose) * s2.pose
-		self.position = (vec3(0), vec3(0))
 	
 	def direct(self, parameters):
 		assert len(parameters) == 0
@@ -1016,13 +1038,40 @@ class Weld(Joint):
 		return ()
 		
 	def __repr__(self):
-		return '{}({})'.format(self.__class__.__name__, self.solids, self.transform)
+		return '{}({}, {})'.format(self.__class__.__name__, self.solids, self.transform)
+		
+class Free(Joint):
+	bounds = (
+		squeeze_homogeneous(mat4(-1, -1, -1, 0,  -1, -1, -1, 0,  -1, -1, -1, 0,  -inf, -inf, -inf, 1)), 
+		squeeze_homogeneous(mat4(+1, +1, +1, 0,  +1, +1, +1, 0,  +1, +1, +1, 0,  +inf, +inf, +inf, 1)),
+		)
+	default = squeeze_homogeneous(mat4())
+	
+	def __init__(self, solids):
+		self.solids = solids
+	
+	def direct(self, parameters):
+		return unsqueeze_homogeneous(parameters)
+		
+	def inverse(self, matrix, close=None):
+		return squeeze_homogeneous(matrix)
+		
+	def grad(self, parameters):
+		grad = np.zeros(squeezed_homogeneous, 3, 4)
+		for x in range(3):
+			for y in range(4):
+				grad[x+y][x][y] = 1
+		return grad
+	
+	def __repr__(self):
+		return '{}({})'.format(self.__class__.__name__, self.solids)
 
 class Reverse(Joint):
 	''' that joint behaves like its wrapped joint but with swapped start and stop solids '''
 	def __init__(self, joint):
 		self.joint = joint
 		self.solids = joint.solids[::-1]
+		self.position = self.joint.position
 		
 	@property
 	def default(self):
@@ -1049,6 +1098,10 @@ class Reverse(Joint):
 		
 	def __repr__(self):
 		return '{}({})'.format(self.__class__.__name__, self.joint)
+		
+	def scheme(self, scene):
+		a, b = self.joint.scheme(scene)
+		return (b, a)
 
 class Chain(Joint):
 	''' 
@@ -1134,6 +1187,9 @@ class Chain(Joint):
 		for i in range(len(self.joints)):
 			solids[i+1] = solids[i] * self.joints[i].direct(parameters[i])
 		return solids
+		
+	def to_kinematic(self) -> 'Kinematic':
+		return Kinematic([], self.joints, [Free(self.solids)])
 		
 	def to_dh(self) -> '(dh, transforms)':
 		''' denavit-hartenberg representation of this kinematic chain '''
