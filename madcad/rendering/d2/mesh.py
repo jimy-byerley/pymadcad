@@ -8,13 +8,12 @@ from PIL import Image
 from ...common import resourcedir
 import moderngl as mgl
 
-
 class MeshDisplay(Display):
     # {{{
     """Display render Meshes"""
 
     def __init__(self, scene, hatched_part, filled_part, color=None):
-        self.box = npboundingbox(filled_part[0])
+        self.box = npboundingbox(filled_part[0]) # TODO : add all positions
         self.options = scene.options
 
         s = settings.display
@@ -24,38 +23,32 @@ class MeshDisplay(Display):
             + dot(color - s["solid_color"], s["line_color"] - s["solid_color"])
         ) * normalize(color + 1e-6)
 
-        self.hatched_display = [HatchedMeshDisplay(scene, *buffer, line_color, color=color) for buffer in hatched_part]
-        self.filled_display = FilledMeshDisplay(scene, *filled_part, line_color, color=color)
+        self.hatched_display = HatchedMeshDisplay(scene, *hatched_part, line_color, color=None)
+        self.filled_display = FilledMeshDisplay(scene, *filled_part, line_color, color=None)
+        self.vertices = self.filled_display.vertices
+        # TODO : Make a common self.vertices
 
     def stack(self, scene):
-        for hatched_display in self.hatched_display:
-            yield ((), "screen", -1, hatched_display.vertices.prerender)
+        yield ((), "screen", -1, self.hatched_display.vertices.prerender)
         yield ((), "screen", -1, self.filled_display.vertices.prerender)
         if self.options["display_faces"]:
-            for hatched_display in self.hatched_display:
-                yield ((), "screen", 0, hatched_display.disp_faces.render)
+            yield ((), "screen", 0, self.hatched_display.disp_faces.render)
             yield ((), "screen", 0, self.filled_display.disp_faces.render)
-            for hatched_display in self.hatched_display:
-                yield ((), "ident", 0, hatched_display.disp_faces.identify)
+            yield ((), "ident", 0, self.hatched_display.disp_faces.identify)
             yield ((), "ident", 0, self.filled_display.disp_faces.identify)
         else:
-            for hatched_display in self.hatched_display:
-                yield ((), "screen", 1, hatched_display.disp_ghost.render)
+            yield ((), "screen", 1, self.hatched_display.disp_ghost.render)
             yield ((), "screen", 1, self.filled_display.disp_ghost.render)
-            for hatched_display in self.hatched_display:
-                yield ((), "ident", 0, hatched_display.disp_ghost.identify)
+            yield ((), "ident", 0, self.hatched_display.disp_ghost.identify)
             yield ((), "ident", 0, self.filled_display.disp_ghost.identify)
         if self.options["display_groups"]:
-            for hatched_display in self.hatched_display:
-                yield ((), "screen", 1, hatched_display.disp_groups.render)
+            yield ((), "screen", 1, self.hatched_display.disp_groups.render)
             yield ((), "screen", 1, self.filled_display.disp_groups.render)
         if self.options["display_points"]:
-            for hatched_display in self.hatched_display:
-                yield ((), "screen", 2, hatched_display.disp_points.render)
+            yield ((), "screen", 2, self.hatched_display.disp_points.render)
             yield ((), "screen", 2, self.filled_display.disp_points.render)
         if self.options["display_wire"]:
-            for hatched_display in self.hatched_display:
-                yield ((), "screen", 2, hatched_display.disp_wire.render)
+            yield ((), "screen", 2, self.hatched_display.disp_wire.render)
             yield ((), "screen", 2, self.filled_display.disp_wire.render)
 
     @property
@@ -69,6 +62,7 @@ class MeshDisplay(Display):
         self.filled_display.vertices.world = value
     # }}}
 
+# Classes Display {{{
 class HatchedMeshDisplay(Display):
 
     def __init__(self, scene, positions, normals, faces, lines, idents, line_color, color=None):
@@ -103,6 +97,7 @@ class FilledMeshDisplay(Display):
             wire.append((f[1], f[2]))
             wire.append((f[2], f[0]))
         self.disp_wire = LinesDisplay(scene, self.vertices, wire, color=line_color, alpha=0.3, layer=-1e-6)
+# }}}
 
 class WebDisplay(Display):
     # {{{
@@ -373,8 +368,44 @@ class PointsDisplay:
             self.va_ident.render(mgl.POINTS)
     # }}}
 
-class CommonFacesDisplay:
+class HatchedFacesDisplay:
     # {{{
+    def __init__(self, scene, vertices, normals, faces, color, layer=0):
+        s = settings.display
+        self.color = fvec3(color or s["background_color"])
+        self.layer = layer
+        self.vertices = vertices
+        self.va = None
+
+        # load the shader
+        def load(scene):
+            return scene.ctx.program(
+                vertex_shader=open(resourcedir+'/shaders/filled.vert').read(),
+                fragment_shader=open(resourcedir+'/shaders/hatched.frag').read(),
+            )
+        self.shader = scene.resource('shader_hatched', load)
+        self.ident_shader = scene.resource('shader_subident')
+        # allocate buffers
+        if faces is not None and len(faces) and vertices.vb_positions:
+            self.vb_faces = scene.ctx.buffer(np.array(faces, 'u4', copy=False, order='C'))
+            self.vb_normals = scene.ctx.buffer(np.array(normals, 'f4', copy=False, order='C'))
+            self.va = scene.ctx.vertex_array(
+                self.shader,
+                [
+                    (vertices.vb_positions, '3f', 'v_position'), 
+                    (vertices.vb_flags, 'u1', 'v_flags')
+                ],
+                self.vb_faces,
+            )
+            self.va_ident = scene.ctx.vertex_array(
+                self.ident_shader, 
+                [
+                    (vertices.vb_positions, '3f', 'v_position'),
+                    (vertices.vb_idents, 'u2', 'item_ident')
+                ],
+                self.vb_faces,
+            )
+
     def __del__(self):
         if self.va:
             self.va.release()
@@ -385,13 +416,8 @@ class CommonFacesDisplay:
     def render(self, view):
         if self.va:
             # setup uniforms
-            self.shader["select_color"].write(settings.display["select_color_face"])
-            self.shader["min_color"].write(
-                self.color * settings.display["solid_color_side"]
-            )
-            self.shader["max_color"].write(
-                self.color * settings.display["solid_color_front"]
-            )
+            # self.shader['select_color'].write(settings.display['select_color_face'])
+            self.shader['user_color'].write(self.color)
             self.shader["layer"] = self.layer
             self.shader["world"].write(self.vertices.world)
             self.shader["view"].write(view.uniforms["view"])
@@ -409,102 +435,71 @@ class CommonFacesDisplay:
             self.va_ident.render(mgl.TRIANGLES)
     # }}}
 
-class HatchedFacesDisplay(CommonFacesDisplay):
+class FilledFacesDisplay:
     # {{{
     def __init__(self, scene, vertices, normals, faces, color, layer=0):
         s = settings.display
-        color = fvec3(color or s["solid_color"])
-        reflect = normalize(color + 1e-6) * s['solid_reflectivity']
-        self.color = color
+        self.color = fvec3(color or s["background_color"])
         self.layer = layer
-        self.reflect = reflect
         self.vertices = vertices
-    
-        # load the skybox texture
-        def load(scene):
-            img = Image.open(resourcedir+'/textures/'+settings.display['solid_reflect'])
-            return scene.ctx.texture(img.size, 3, img.tobytes())
-        self.reflectmap = scene.resource('skybox', load)
-        
-        # load the shader
-        def load(scene):
-            shader = scene.ctx.program(
-                vertex_shader=open(resourcedir+'/shaders/solid.vert').read(),
-                fragment_shader=open(resourcedir+'/shaders/solid.frag').read(),
-            )
-            # setup some uniforms
-            shader['reflectmap'] = 0
-            return shader
-        self.shader = scene.resource('shader_solid', load)
-        self.ident_shader = scene.resource('shader_subident')
-        # allocate buffers
-        if faces is not None and len(faces) and vertices.vb_positions:
-            self.vb_faces = scene.ctx.buffer(np.array(faces, 'u4', copy=False, order='C'))
-            self.vb_normals = scene.ctx.buffer(np.array(normals, 'f4', copy=False, order='C'))
-            self.va = scene.ctx.vertex_array(
-                self.shader, 
-                [    (vertices.vb_positions, '3f', 'v_position'), 
-                    (self.vb_normals, '3f', 'v_normal'),
-                    (vertices.vb_flags, 'u1', 'v_flags')],
-                self.vb_faces,
-            )
-            self.va_ident = scene.ctx.vertex_array(
-                self.ident_shader, 
-                [    (vertices.vb_positions, '3f', 'v_position'),
-                    (vertices.vb_idents, 'u2', 'item_ident')], 
-                self.vb_faces,
-            )
-        else:
-            self.va = None
-    # }}}
+        self.va = None
 
-class FilledFacesDisplay(CommonFacesDisplay):
-    # {{{
-    def __init__(self, scene, vertices, normals, faces, color, layer=0):
-        s = settings.display
-        color = fvec3(color or s["solid_color"])
-        reflect = normalize(color + 1e-6) * s['solid_reflectivity']
-        self.color = color
-        self.layer = layer
-        self.reflect = reflect
-        self.vertices = vertices
-    
-        # load the skybox texture
-        def load(scene):
-            img = Image.open(resourcedir+'/textures/'+settings.display['solid_reflect'])
-            return scene.ctx.texture(img.size, 3, img.tobytes())
-        self.reflectmap = scene.resource('skybox', load)
-        
         # load the shader
         def load(scene):
-            shader = scene.ctx.program(
-                vertex_shader=open(resourcedir+'/shaders/solid.vert').read(),
-                fragment_shader=open(resourcedir+'/shaders/solid.frag').read(),
+            return scene.ctx.program(
+                vertex_shader=open(resourcedir+'/shaders/filled.vert').read(),
+                fragment_shader=open(resourcedir+'/shaders/filled.frag').read(),
             )
-            # setup some uniforms
-            shader['reflectmap'] = 0
-            return shader
-        self.shader = scene.resource('shader_solid', load)
+        self.shader = scene.resource('shader_filled', load)
         self.ident_shader = scene.resource('shader_subident')
         # allocate buffers
         if faces is not None and len(faces) and vertices.vb_positions:
             self.vb_faces = scene.ctx.buffer(np.array(faces, 'u4', copy=False, order='C'))
             self.vb_normals = scene.ctx.buffer(np.array(normals, 'f4', copy=False, order='C'))
             self.va = scene.ctx.vertex_array(
-                self.shader, 
-                [    (vertices.vb_positions, '3f', 'v_position'), 
-                    (self.vb_normals, '3f', 'v_normal'),
-                    (vertices.vb_flags, 'u1', 'v_flags')],
+                self.shader,
+                [
+                    (vertices.vb_positions, '3f', 'v_position'), 
+                    (vertices.vb_flags, 'u1', 'v_flags')
+                ],
                 self.vb_faces,
             )
             self.va_ident = scene.ctx.vertex_array(
                 self.ident_shader, 
-                [    (vertices.vb_positions, '3f', 'v_position'),
-                    (vertices.vb_idents, 'u2', 'item_ident')], 
+                [
+                    (vertices.vb_positions, '3f', 'v_position'),
+                    (vertices.vb_idents, 'u2', 'item_ident')
+                ],
                 self.vb_faces,
             )
-        else:
-            self.va = None
+
+    def __del__(self):
+        if self.va:
+            self.va.release()
+            self.va_ident.release()
+            self.vb_faces.release()
+            self.vb_normals.release()
+
+    def render(self, view):
+        if self.va:
+            # setup uniforms
+            # self.shader['select_color'].write(settings.display['select_color_face'])
+            self.shader['user_color'].write(self.color)
+            self.shader["layer"] = self.layer
+            self.shader["world"].write(self.vertices.world)
+            self.shader["view"].write(view.uniforms["view"])
+            self.shader["proj"].write(view.uniforms["proj"])
+            # render on self.context
+            self.va.render(mgl.TRIANGLES)
+
+    def identify(self, view):
+        if self.va:
+            self.ident_shader["layer"] = self.layer
+            self.ident_shader["start_ident"] = view.identstep(self.vertices.nident)
+            self.ident_shader["view"].write(view.uniforms["view"] * self.vertices.world)
+            self.ident_shader["proj"].write(view.uniforms["proj"])
+            # render on self.context
+            self.va_ident.render(mgl.TRIANGLES)
     # }}}
 
 

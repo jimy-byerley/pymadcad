@@ -1,3 +1,5 @@
+from functools import reduce
+from operator import iadd
 from .container import *
 from .web import Web
 from .wire import Wire
@@ -707,7 +709,7 @@ class Mesh(NMesh):
 			
 			return MeshDisplay(
 				scene,
-				hatched_part=[buffer(mesh) for mesh in meshs],
+				hatched_part=buffer(reduce(iadd, meshs)),
 				filled_part=buffer(remaining_mesh),
 				color=self.options.get('color'),
 			)

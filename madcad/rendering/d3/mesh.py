@@ -158,19 +158,23 @@ class GhostDisplay:
             self.vb_faces = scene.ctx.buffer(np.array(faces, 'u4', copy=False, order='C'))
             self.vb_normals = scene.ctx.buffer(np.array(normals, 'f4', copy=False, order='C'))
             self.va = scene.ctx.vertex_array(
-                    self.shader, 
-                    [    (vertices.vb_positions, '3f', 'v_position'), 
-                        (self.vb_normals, '3f', 'v_normal'),
-                        (vertices.vb_flags, 'u1', 'v_flags')],
-                    self.vb_faces,
-                    )
+                self.shader, 
+                [
+                    (vertices.vb_positions, '3f', 'v_position'), 
+                    (self.vb_normals, '3f', 'v_normal'),
+                    (vertices.vb_flags, 'u1', 'v_flags')
+                ],
+                self.vb_faces,
+            )
             
             self.va_ident = scene.ctx.vertex_array(
-                    self.ident_shader, 
-                    [    (vertices.vb_positions, '3f', 'v_position'),
-                        (vertices.vb_idents, 'u2', 'item_ident')], 
-                    self.vb_faces,
-                    )
+                self.ident_shader, 
+                [    
+                    (vertices.vb_positions, '3f', 'v_position'),
+                    (vertices.vb_idents, 'u2', 'item_ident')
+                ], 
+                self.vb_faces,
+            )
         else:
             self.va = None
             
