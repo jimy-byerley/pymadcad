@@ -29,17 +29,20 @@
 '''
 
 from copy import copy, deepcopy
-from operator import itemgetter
-from functools import singledispatch
+import operator
+from operator import itemgetter, iadd, not_
+from functools import singledispatch, reduce
+from itertools import tee, compress
 from time import time
-from math import inf
+from math import inf, isclose
+from typing import Tuple
 from .mathutils import *
 from . import core
-from .mesh import Mesh, Web, Wire, web, edgekey, connef, connpe, line_simplification
+from .mesh import Mesh, Web, Wire, web, edgekey, connef, connpe, line_simplification, suites
 from . import hashing
 from . import triangulation
 
-__all__ = ['pierce', 'boolean', 'intersection', 'union', 'difference']
+__all__ = ['pierce', 'boolean', 'intersection', 'union', 'difference', 'section']
 
 
 
@@ -565,6 +568,154 @@ def intersect_edge_face(edge: '(vec3, vec3)', face: '(vec3, vec3, vec3)', prec) 
 	return p
 
 
+def seperate(mesh: Mesh, plane: Tuple[vec3, vec3]) -> Tuple[list, list, list, list]:
+    """
+    Extract mesh points and mesh faces in front of the plane, into four lists:
+    - mesh points list including new intersected points
+    - upper faces in front of the plane
+    - tracks of upper faces
+    - intersected edges (pairs of points)
+    """
+    q, n = plane
+    mesh_points = list(mesh.points)
+    upper_faces = []
+    tracks = []
+    intersected_points = []
+
+    found_points = hashing.PointSet(mesh.precision(), manage=mesh.points)
+
+    def is_intersected(quotient, divisor):
+        return divisor and 0 < quotient / divisor < 1
+
+    def intersection_tp(face, check_is_upper):
+        """Intersection betwenn a triangle and a plane"""
+        a, b, c = pts = mesh.facepoints(face)
+        dirs = (b - a, c - b, a - c)
+
+        # Mathematical operations
+        quot = transpose(mat3(q - a, q - b, q - c)) * n
+        div = transpose(mat3(*dirs)) * n
+
+        iterator = zip(pts, dirs, quot, div)
+        i1, i2 = (
+            point + q / d * direction
+            for (point, direction, q, d) in iterator
+            if is_intersected(q, d)
+        )
+
+        # Order intersected points
+        conditions = (
+            map(operator.not_, check_is_upper)
+            if sum(check_is_upper) == 2
+            else check_is_upper
+        )
+        p0 = next(compress(pts, conditions))
+        tn = normalize(cross(i1 - p0, i2 - p0))
+        normal = mesh.facenormal(face)
+        return (i1, i2) if dot(tn, normal) > 0 else (i2, i1)
+
+    def add_remaining_faces(face, track, check_is_upper, intersected_points):
+        if check_is_upper[2] and check_is_upper[0]:
+            remaining_points = (face[2], face[0])
+        else:
+            remaining_points = tuple(compress(face, check_is_upper))
+
+        npoints = len(mesh_points)
+        pi1, pi2 = intersected_points
+        i = 0
+        if pi1 in found_points:
+            i1 = found_points[pi1]
+        else:
+            i1 = found_points.add(pi1)
+            mesh_points.append(pi1)
+
+        if pi2 in found_points:
+            i2 = found_points[pi2]
+        else:
+            i2 = found_points.add(pi2)
+            mesh_points.append(pi2)
+
+        if len(remaining_points) == 2:
+            b, c = remaining_points
+            pb, pc = mesh.points[b], mesh.points[c]
+            ref = mesh.facenormal(face)
+            upper_faces.extend((uvec3(i2, i1, b), uvec3(i2, b, c)))
+            tracks.extend([track, track])
+        else:
+            a = remaining_points[0]
+            pa = mesh.points[a]
+            pi1, pi2 = intersected_points
+            upper_faces.append(uvec3(a, i1, i2))
+            tracks.append(track)
+
+    for track, face in zip(mesh.tracks, mesh.faces):
+        a, b, c = mesh.facepoints(face)
+        vec = transpose(mat3(a - q, b - q, c - q)) * n
+        check_is_upper = tuple(vec > vec3(0))
+        if all(check_is_upper):
+            tn = mesh.facenormal(face)
+            if 2 * anglebt(n, tn) > pi:
+                upper_faces.append(face)
+                tracks.append(track)
+        elif any(check_is_upper):
+            points = intersection_tp(face, check_is_upper)
+            add_remaining_faces(face, track, check_is_upper, points)
+            intersected_points.append(points)
+    return mesh_points, upper_faces, tracks, intersected_points
+
+
+def remove_straight_points(web: Web) -> Web:
+    """
+    Keep only edge points of a straight line
+    """
+    def pairwise(iterable):
+        # pairwise('ABCDEFG') --> AB BC CD DE EF FG
+        a, b = tee(iterable)
+        next(b, None)
+        return list(zip(a, b))
+
+    # Order edges
+    loops = suites(web.edges, oriented=False)
+    edges = reduce(iadd, map(pairwise, loops))
+    
+    # Remove useless points on straight lines
+    new_edges = [edges[0]]
+    track = 0
+    tracks = [0]
+    for edge in edges[1:]:
+        p1, p2 = web.edgepoints(new_edges[-1])
+        p3, p4 = web.edgepoints(edge)
+        if not isclose(l1Norm(p2 - p3), 0, abs_tol=1e-6): # TODO : remove arbitrary value
+            new_edges.append(edge)
+            track += 1
+            tracks.append(track)
+            continue
+        elif isclose(l1Norm(noproject(p1 - p2, p4 - p3)), 0, abs_tol=1e-6): # TODO: remove arbitrary value
+            old_edge = new_edges.pop()
+            new_edges.append((old_edge[0], edge[1]))
+        else:
+            new_edges.append(edge)
+            tracks.append(track)
+    return Web(points=web.points, edges=new_edges, tracks=tracks)
+
+
+def section(mesh: Mesh, plane: Tuple[vec3, vec3]) -> Tuple[Web, Mesh]:
+    """
+    Make a section on a mesh given the plane and return the plane cut of the mesh
+    (as a web) and remaining upper faces including intersected faces (as a mesh)
+    """
+    mesh_points, upper_faces, tracks, intersected_points = seperate(mesh, plane)
+    unfinished_cut = Web(
+        points=reduce(iadd, intersected_points, []),
+        edges=[(2 * i, 2 * i + 1) for i in range(len(intersected_points))]
+    )
+    unfinished_cut.mergeclose()
+    cut = remove_straight_points(unfinished_cut)
+    cut.strippoints()
+    upper_mesh = Mesh(points=mesh_points, faces=upper_faces, tracks=tracks)
+    q, n = plane
+    transformation = rotatearound(anglebt(Z, n), q, cross(Z, n))
+    return [cut.transform(transformation), upper_mesh.transform(transformation)]
 
 # --------------- stable API -------------------
 

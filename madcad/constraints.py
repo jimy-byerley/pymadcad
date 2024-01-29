@@ -23,7 +23,7 @@ from scipy.optimize import least_squares
 from .nprint import nprint
 from .mathutils import *
 from . import primitives
-from . import displays, text, settings
+from . import text, settings
 from . import scheme
 import array
 

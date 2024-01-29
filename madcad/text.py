@@ -114,7 +114,7 @@ def char_placement(fontsize, c, l, n):
 	return ((fontsize//2) * (n%c), fontsize * (n//c))
 
 
-class TextDisplay(rendering.Display):
+class TextDisplay(rendering.base.Display):
 	''' halo display of a monospaced text 
 	
 		This class is usually used through `scheme.note_floating()`

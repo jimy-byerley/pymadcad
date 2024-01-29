@@ -1,3 +1,5 @@
+from functools import reduce
+from operator import iadd
 from .container import *
 from .web import Web
 from .wire import Wire
@@ -631,47 +633,86 @@ class Mesh(NMesh):
 		return self
 	
 	# END BEGIN ----- output methods ------
-	
-	def display(self, scene):
-		from .. import displays
-		
-		m = self.own(points=True)
-		
-		m.split(m.frontiers().edges)
-		edges = m.outlines().edges
-		
+
+	def prepare(self):
+		self.split(self.frontiers().edges)
+		edges = self.outlines().edges
+
 		# select edges above a threshold
 		tosplit = []
 		thresh = cos(settings.display['sharp_angle'])
-		conn = connef(m.faces)
+		conn = connef(self.faces)
 		for edge, f1 in conn.items():
-			if edge[1] > edge[0]:	continue
-			f2 = conn.get((edge[1],edge[0]))
-			if f2 is None:	continue
-			if m.tracks[f1] != m.tracks[f2] or dot(m.facenormal(f1), m.facenormal(f2)) <= thresh:
+			if edge[1] > edge[0]:
+				continue
+			f2 = conn.get((edge[1], edge[0]))
+			if f2 is None:
+				continue
+			if (
+				self.tracks[f1] != self.tracks[f2] or
+				dot(self.facenormal(f1), self.facenormal(f2)) <= thresh
+			):
 				tosplit.append(edge)
-		
-		m.split(tosplit)
-		
+
+		self.split(tosplit)
+
 		# get the group each point belong to
-		idents = [0] * len(m.points)
-		for face, track in zip(m.faces, m.tracks):
+		idents = [0] * len(self.points)
+		for face, track in zip(self.faces, self.tracks):
 			for p in face:
 				idents[p] = track
-		
-		normals = m.vertexnormals()
-		
+
+		normals = self.vertexnormals()
+		return normals, edges, idents
+	
+	def display(self, scene):
+		from ..rendering.base import Display
+		m = self.own(points=True)
 		if not m.points or not m.faces:	
-			return displays.Display()
-		
-		return displays.SolidDisplay(scene, 
+			return Display()
+
+		if scene.ndims == 3:
+			from ..rendering.d3.mesh import MeshDisplay
+			normals, edges, idents = m.prepare()
+			return MeshDisplay(
+				scene,
 				typedlist_to_numpy(m.points, 'f4'), 
-				typedlist_to_numpy(normals, 'f4'), 
+				typedlist_to_numpy(normals, 'f4'),
 				typedlist_to_numpy(m.faces, 'u4'),
 				typedlist_to_numpy(edges, 'u4'),
 				typedlist_to_numpy(idents, 'u4'),
 				color = self.options.get('color'),
+			)
+		else:
+			from ..rendering.d2.mesh import MeshDisplay
+			from ..boolean import section
+			from ..triangulation import triangulation
+
+			cut, remaining_mesh = section(m, scene.plane)
+			edges = {track: [] for track in range(len(cut.groups))}
+			for i, track in enumerate(cut.tracks):
+				edges[track].append(cut.edges[i])
+			meshs = [triangulation(Web(cut.points, loop)) for loop in edges.values()]
+			for i, mesh in enumerate(meshs):
+				if dot(mesh.facenormal(mesh.faces[0]), scene.plane[1]) > 0:
+					meshs[i] = mesh.flip()
+
+			def buffer(mesh):
+				normals, edges, idents = mesh.prepare()
+				return (
+					typedlist_to_numpy(mesh.points, 'f4'), 
+					typedlist_to_numpy(normals, 'f4'),
+					typedlist_to_numpy(mesh.faces, 'u4'),
+					typedlist_to_numpy(edges, 'u4'),
+					typedlist_to_numpy(idents, 'u4'),
 				)
+			
+			return MeshDisplay(
+				scene,
+				hatched_part=buffer(reduce(iadd, meshs)),
+				filled_part=buffer(remaining_mesh),
+				color=self.options.get('color'),
+			)
 	
 	def __repr__(self):
 		return '<Mesh with {} points at 0x{:x}, {} faces>'.format(len(self.points), id(self.points), len(self.faces))
