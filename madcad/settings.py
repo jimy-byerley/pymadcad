@@ -15,30 +15,27 @@ from os.path import dirname, exists
 
 display = {
 	'field_of_view': pi/6,
-	'view_font_size': 8,
-	'line_width': 1.,
+	'view_font_size': 8,  # font size for annotations
+	'joint_size': 50, # maximum pixel size of joints
+	'sharp_angle': pi/6, # above this threshold angles between mesh triangles are considered sharp, below they are rendered softened
 	
-	'background_color': fvec3(0,0,0),
-	'select_color_face': fvec3(0.01, 0.05, 0.03),
-	'select_color_line': fvec3(0.5, 1, 0.6),
+	'background_color': fvec3(0,0,0),  # color of the view background
+	'select_color_face': fvec3(0.01, 0.05, 0.03), # color for selected surfaces
+	'select_color_line': fvec3(0.5, 1, 0.6), # color for selected lines
 	'highlight_color': fvec3(0.1, 0.2, 0.2),
 	
-	'solid_color': fvec3(0.2, 0.2, 0.2),
-	'solid_color_front': 1.,
-	'solid_color_side': 0.2,
-	'solid_reflectivity': 6,
-	'solid_reflect': 'skybox-white.png',
-	'line_color': fvec3(0.9, 0.9, 0.9),
-	'point_color': fvec3(0.9, 0.9, 0.9),
+	'solid_color': fvec3(0.2, 0.2, 0.2),  # surface color of meshes
+	'solid_color_front': 1., # surface intensity for portions of surface parallel to the view direction
+	'solid_color_side': 0.2, # surface intensity for portions of surface orthogonal to the view direction
+	'solid_reflectivity': 6, # intensity of surface reflections
+	'solid_reflect': 'skybox-white.png', # skybox texture for reflects
+	'line_color': fvec3(0.9, 0.9, 0.9),  # wire color
+	'point_color': fvec3(0.9, 0.9, 0.9),  # points color
 	'schematics_color': fvec3(0.3, 0.8, 1),
-	# According to moderngl docs changing this is not guaranteed to work
-	# (depends on OpenGL implementation)
-	'line_width': 1.0,
-	'solver_error_color': fvec3(1, 0.3, 0.2),
+	'line_width': 1.0, # pixel width of edges, may work or not depending on openGL implementation
 	'annotation_color': fvec3(0.2, 0.7, 1),
-	'sharp_angle': pi/6,
 	
-	'system_theme': True,
+	'system_theme': True, # adapt madcad colors to the current desktop theme
 	}
 
 scene = {

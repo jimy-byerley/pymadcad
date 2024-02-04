@@ -21,6 +21,7 @@ import numpy.core as np
 import glm
 from operator import itemgetter
 from collections import deque
+from dataclasses import dataclass
 
 from .mathutils import *
 from .rendering import Display
@@ -83,7 +84,7 @@ class Scheme:
 		self.primitives = primitives or {} # list of indices for each shader
 		self.components = []	# displayables associated to spaces
 		# for creation: last vertex inserted
-		self.current = {'color':fvec4(settings.display['annotation_color'],1), 'flags':0, 'layer':0, 'space':world, 'shader':'wire', 'track':0, 'normal':fvec3(0)}
+		self.current = {'color':fvec4(settings.display['annotation_color'],1), 'flags':0, 'layer':0, 'space':world, 'shader':'line', 'track':0, 'normal':fvec3(0)}
 		self.set(**kwargs)
 		
 	def __iadd__(self, other):
@@ -212,6 +213,13 @@ class Scheme:
 		'''
 		max_spaces = 32  # this maximum size of the spaces array must match the size in the shader
 		
+		@dataclass
+		class Shader:
+			program: mgl.Program
+			mode: int
+			enable: int
+			blend_func: int
+		
 		def __init__(self, scene, sch):
 			ctx = scene.ctx
 			
@@ -261,17 +269,17 @@ class Scheme:
 				if not batch:	continue
 				if shname not in self.shaders:	raise KeyError('no shader for name {}'.format(repr(shname)))
 				
-				prim, shader = self.shaders[shname]
+				shader = self.shaders[shname]
 				vb_indices = ctx.buffer(np.array(batch, 'u4'))
-				self.vas[shname] = (prim, ctx.vertex_array(shader, verticesdef, vb_indices, skip_errors=True))
-				if prim == mgl.LINES:			ident_lines.extend(batch)
-				elif prim == mgl.TRIANGLES:		ident_triangles.extend(batch)
+				self.vas[shname] = ctx.vertex_array(shader.program, verticesdef, vb_indices, mode=shader.mode, skip_errors=True)
+				if shader.mode == mgl.LINES:			ident_lines.extend(batch)
+				elif shader.mode == mgl.TRIANGLES:		ident_triangles.extend(batch)
 			
 			if ident_triangles:	self.vai_triangles	= ctx.vertex_array(self.shader_ident, verticesdef, ctx.buffer(np.array(ident_triangles, 'u4')), skip_errors=True)
 			if ident_lines:		self.vai_lines 		= ctx.vertex_array(self.shader_ident, verticesdef, ctx.buffer(np.array(ident_lines, 'u4')), skip_errors=True)
 			
 		def __del__(self):
-			for prim, va in self.vas.values():
+			for va in self.vas.values():
 				va.release()
 			self.vas.clear()
 			if self.vai_triangles:
@@ -290,15 +298,27 @@ class Scheme:
 						fragment_shader=open(resourcedir+'/shaders/scheme-ident.frag').read(),
 						)
 			shaders = {
-				'line': (mgl.LINES, scene.ctx.program(
+				'line': self.Shader(
+					mode = mgl.LINES, 
+					enable = mgl.BLEND | mgl.DEPTH_TEST,
+					blend_func = (mgl.SRC_ALPHA, mgl.ONE_MINUS_SRC_ALPHA),
+					program = scene.ctx.program(
 						vertex_shader=vert,
 						fragment_shader=open(resourcedir+'/shaders/scheme-uniform.frag').read(),
 						)),
-				'fill': (mgl.TRIANGLES, scene.ctx.program(
+				'fill': self.Shader(
+					mode = mgl.TRIANGLES,
+					enable = mgl.BLEND | mgl.DEPTH_TEST | mgl.CULL_FACE,
+					blend_func = (mgl.SRC_ALPHA, mgl.ONE_MINUS_SRC_ALPHA),
+					program = scene.ctx.program(
 						vertex_shader=vert,
 						fragment_shader=open(resourcedir+'/shaders/scheme-uniform.frag').read(),
 						)),
-				'ghost': (mgl.TRIANGLES, scene.ctx.program(
+				'ghost': self.Shader(
+					mode = mgl.TRIANGLES,
+					enable = mgl.BLEND | mgl.CULL_FACE,
+					blend_func = (mgl.SRC_ALPHA, mgl.ONE),
+					program = scene.ctx.program(
 						vertex_shader=vert,
 						fragment_shader=open(resourcedir+'/shaders/scheme-ghost.frag').read(),
 						)),
@@ -319,14 +339,20 @@ class Scheme:
 		
 		def render(self, view):
 			''' Render each va in self.vas '''
+			ctx = view.scene.ctx
 			#self.compute_spaces(view)
-			for name in self.vas:
-				shader = self.shaders[name][1]
-				prim, va = self.vas[name]
-				shader['spaces'].write(self.spaces)
-				shader['proj'].write(view.uniforms['proj'])
-				shader['highlight'].write( fvec4(fvec3(settings.display['select_color_line']), 0.5) if self.selected else fvec4(0) )
-				va.render(prim)
+			for name in ['line', 'fill', 'ghost']:
+				if name not in self.vas:  
+					continue
+				shader = self.shaders[name]
+				va = self.vas[name]
+				ctx.enable_only(shader.enable)
+				ctx.blend_func = shader.blend_func
+				shader.program['spaces'].write(self.spaces)
+				shader.program['proj'].write(view.uniforms['proj'])
+				shader.program['highlight'].write( fvec4(fvec3(settings.display['select_color_line']), 0.5) if self.selected else fvec4(0) )
+				va.render()
+			ctx.enable_only(mgl.BLEND | mgl.DEPTH_TEST)
 		
 		def identify(self, view):
 			''' Render all the triangles and lines for identification '''

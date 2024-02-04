@@ -1,10 +1,14 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
+from dataclasses import dataclass
+
 from .mathutils import *
 from .primitives import isaxis, Axis
-from .kinematic import Screw, Joint
+from .kinematic import Screw, Joint, scale_solid
 from .mesh import Mesh, Wire, web, Web
-from . import generation, primitives
+from .scheme import Scheme
+from . import generation as gt
+from . import generation, primitives, settings
 
 __all__ = ['Pivot', 'Planar', 'Track', 'Gliding', 'Ball', 'Punctiform', 'Ring', 'Hinge', 
 			'Cam', 'Contact',
@@ -65,58 +69,63 @@ class Pivot(Joint):
 		l = force.locate(self.axis[0])
 		return Screw(l.resulting, project(l.momentum, self.axis[1]))
 		
-	def schemes(self, size, attach_start, attach_end):
+	def scheme(self, maxsize, attach_start, attach_end):
+		size = settings.display['joint_size']
 		radius = size/4
 		axis = self.axis
 		sch = Scheme()
+		resolution = ('div', 16)
+		
+		sch.set(track=0, space=scale_solid(self.solids[0], fvec3(axis[0]), maxsize/size))
 		cylinder = gt.cylinder(
 						axis[0]-axis[1]*size*0.4, 
 						axis[0]+axis[1]*size*0.4, 
 						radius=size/4, 
-						resolution=('div',16),
+						resolution=resolution,
+						fill=False,
 						)
 		sch.add(cylinder, shader='ghost')
-		sch.add(cylinder.outlines(), shader='fill')
-		if junc:
-			v = normalize(noproject(junc - axis[0], axis[1]))
+		sch.add(cylinder.outlines(), shader='line')
+		if attach_start:
+			v = normalize(noproject(start - axis[0], axis[1]))
 			if not isfinite(v):
 				v,_,_ = dirbase(axis[1])
 			p = center + v*size/4
-			sch.extend(gt.flatsurface([p, p + axis[1]*size*cornersize, p + v*size*cornersize]), shader='ghost')
-			sch.add([p, p + v*size*cornersize, junc], shader='fill')
-		yield sch
+			sch.add(gt.flatsurface([p, p + axis[1]*size*cornersize, p + v*size*cornersize]), shader='ghost')
+			sch.add([p, p + v*size*cornersize, start], shader='line')
 		
-		radius = size/4
-		axis = self.axis[1]
+		
+		axis = self.axis.transform(affineInverse(self.post * self.pre))
+		sch.set(track=1, space=scale_solid(self.solids[1], fvec3(axis[0]), maxsize/size))
 		center = axis[0] + project(self.position[1]-axis[0], axis[1])
 		side = axis[1] * size * 0.5
-		if dot(junc-axis[0], axis[1]) < 0:
-			side = -side
-		if dot(junc-center-side, side) < 0:
-			attach = side + normalize(noproject(junc-center, axis[1]))*radius
-		else:
-			attach = side
 		c1 = primitives.Circle(
 						(center-axis[1]*size*0.5, -axis[1]), 
 						radius, 
-						resolution=('div', 16),
+						resolution=resolution,
 						).mesh()
 		c2 = primitives.Circle(
 						(center+axis[1]*size*0.5, axis[1]), 
 						radius, 
-						resolution=('div', 16),
+						resolution=resolution,
 						).mesh()
-		s1 = gt.flatsurface(c1)
-		s2 = gt.flatsurface(c2)
-		l = len(c1.points)
-		indices = [(i-1,i)  for i in range(1,l-1)]
-		indices.append((l-1,0))
+		sch.add(c1, shader='line')
+		sch.add(c2, shader='line')
+		sch.add(gt.flatsurface(c1), shader='ghost')
+		sch.add(gt.flatsurface(c2), shader='ghost')
 		
-		sch = Scheme([center-side, center+side, center+attach, junc], [], [], [(0,1), (2,3)])
-		sch.extend(Scheme(c1.points, s1.faces, [], c1.edges()))
-		sch.extend(Scheme(c2.points, s2.faces, [], c2.edges()))
-		yield s
-
+		sch.set(shader='fill')
+		if attach_end:
+			if dot(attach_end-axis[0], axis[1]) < 0:
+				side = -side
+			if dot(attach_end-center-side, side) < 0:
+				attach = side + normalize(noproject(attach_end-center, axis[1]))*radius
+			else:
+				attach = side
+			sch.add([center-side, center+side])
+			sch.add([center+attach, junc])
+			
+		return sch
 
 class Planar(Joint):
 	''' Joint for translation in 2 directions and rotation around the third direction 
@@ -125,15 +134,20 @@ class Planar(Joint):
 		the initial state requires an additional distance between the solids
 		this class holds an axis for each side, the axis origins are constrained to share the same projections on the normal
 	'''
-	def __init__(self, solids, axis, local=None):
-		self.solids = (s1, s2)
-		self.axis = axis
-		self.pre = transpose(mat3(quat(local or axis, Z)))
-		self.post = transpose(mat3(quat(Z, axis)))
-		self.offset = mat4(quat(axis, local or axis))
-		self.position = axis[0]
 		
 	bounds = ((-inf, -inf), (inf, inf))
+	
+	def __init__(self, solids, axis, local=None):
+		self.solids = solids
+		self.axis = axis
+		local = local or axis
+		self.pre = mat4(quat(local[1], Z)) * translate(-local[0])
+		self.post = translate(axis[0]) * mat4(quat(Z, axis[1]))
+		self.position = axis[0]
+	
+	def __repr__(self):
+		return '{}({}, Axis(({:.3g},{:.3g},{:.3g}), ({:.3g},{:.3g},{:.3g})))'.format(
+			self.__class__.__name__, self.solids, *self.axis[0], *self.axis[1])
 	
 	def direct(self, position: vec2):
 		return mat4(self.post) * translate(vec3(position)) * mat4(self.pre)
@@ -154,23 +168,35 @@ class Planar(Joint):
 		return Screw(project(action.resulting, normal), noproject(action.momentum, normal), action.position)
 	
 	
-	def scheme(self, size, junc=None):
-		(center, normal), position = self.axis[0], self.position[0]
-		(center, normal), position = self.axis[1], self.position[1]
+	def scheme(self, maxsize, attach_start, attach_end):		
+		size = settings.display['joint_size']
+		sch = Scheme()
 		
-		center = position - project(position - center, normal)
-		if dot(junc-center, normal) < 0:	normal = -normal
-		if solid is self.solids[1]:			normal = -normal
-		x,y,z = dirbase(normal)
-		c = center + size*0.1 * z
-		x *= size*0.7
-		y *= size*0.7
-		return Scheme(
-			[c+(x+y), c+(-x+y), c+(-x-y), c+(x-y), c, c+cornersize*x, c+cornersize*z, junc],
-			[(0,1,2), (0,2,3)],
-			[(4,5,6)],
-			[(0,1),(1,2),(2,3),(3,0),(4,6),(6,7)],
+		axis = self.axis
+		sch.set(
+			track = 0, 
+			space = scale_solid(self.solids[0], fvec3(axis[0]), maxsize/size),
 			)
+		square = gt.square(axis.transform(axis[1]*0.2*size), size)
+		sch.add(square.outlines(), shader='line')
+		sch.add(square, shader='ghost')
+		
+		if attach_start:
+			sch.add([axis[0], axis[0]+axis[1]*0.1*size, axis[0]+(x+y)*0.1*size], shader='fill')
+			
+		axis = self.axis.transform(affineInverse(self.post * self.pre))
+		sch.set(
+			track = 1,
+			space = scale_solid(self.solids[1], fvec3(axis[0]), maxsize/size),
+			)
+		square = gt.square(axis.transform(-axis[1]*0.2*size).flip(), size)
+		sch.add(square.outlines(), shader='line')
+		sch.add(square, shader='ghost')
+		
+		if attach_end:
+			sch.add([axis[0], axis[0]+axis[1]*0.1*size, axis[0]+(x+y)*0.1*size], shader='fill')
+		
+		return sch
 
 
 class Track(Joint):
@@ -180,13 +206,18 @@ class Track(Joint):
 		the initial state requires more parameters: the relative placements of the solids
 		this class holds a base for each of the solids, bases are (0,X,Y)  where X,Y are constrained to keep the same direction across bases, and the bases origins lays on their common Z axis
 	'''
+	
+	bounds = (-inf, inf)
+	
 	def __init__(self, solids, axis, local=None):
 		self.solids = (s1, s2)
 		self.axis = axis
 		self.offset = mat4(quat(axis, local or axis))
 		self.position = axis[0]
 	
-	bounds = (-inf, inf)
+	def __repr__(self):
+		return '{}({}, Axis(({:.3g},{:.3g},{:.3g}), ({:.3g},{:.3g},{:.3g})))'.format(
+			self.__class__.__name__, self.solids, *self.axis[0], *self.axis[1])
 	
 	def direct(self, translation):
 		return translate(self.axis[1]*translation)

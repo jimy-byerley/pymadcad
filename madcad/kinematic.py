@@ -50,6 +50,7 @@
 
 
 from copy import copy, deepcopy
+from dataclasses import dataclass
 import itertools
 import numpy.core as np
 import scipy
@@ -194,33 +195,27 @@ class Joint:
 		grad = self.grad(parameters)
 		indev
 	
-	def schemes(self, size: float, junc: vec3=None) -> '[Scheme]':
+	def scheme(self, size: float, junc: vec3=None) -> '[Scheme]':
 		''' generate the scheme elements to render the joint '''
 		raise NotImplemented
 	
-	class display(rendering.Display):
-		def __init__(self, scene, joint):
-			self.joint = joint
-			self.schemes = [scene.display(joint.scheme(s, 1, joint.position[i]))]
-		
-		def __getitem__(self, sub):
-			return self.schemes[sub]
-		def __iter__(self):
-			return iter(self.schemes)
-		
-		def stack(self, scene):
-			yield ((), 'screen', -1, self.updateposes)
-			for i,scheme in enumerate(self.schemes):
-				for sub,target,priority,func in scheme.stack(scene):
-					yield ((i, *sub), target, priority, func)
-		
-		def updateposes(self, view):
-			''' update the pose of sub displays using their solid's pose '''
-			for sch, solid, pos in zip(self.schemes, self.joint.solids, self.joint.position):
-				pos = fvec3(pos)
-				m = self.world * fmat4(solid.pose)
-				d = (view.uniforms['view'] * m * fvec4(fvec3(pos),1)).z * 30/view.height()
-				sch.world = m * translate(scale(translate(fmat4(1), pos), fvec3(d)), -pos)
+	def display(self, scene):
+		return scene.display(self.scheme(inf, None, None))
+
+@dataclass
+class scale_solid:
+	''' scheme space scaling around a point in a given solid '''
+	solid: object
+	center: fvec3
+	size: float
+	pose: fmat4 = fmat4()
+	
+	def __call__(self, view):
+		m = view.uniforms['view'] * view.uniforms['world'] * self.pose
+		e = view.uniforms['proj'] * fvec4(1,1,(m*self.center).z,1)
+		e /= e[3]
+		return m * translate(self.center) * scale(fvec3(min(self.size, 2 / (e[1]*view.target.height))))
+
 
 def partial_difference_increment(f, i, x, d):
 	p = copy(x)
