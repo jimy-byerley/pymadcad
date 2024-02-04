@@ -1,18 +1,6 @@
 mesh    - meshes and discretised objects
 ========================================
 
-This module defines meshes composed of triangles or of edges.
-
-Classes defined here
---------------------
-
-.. toctree::
-	:maxdepth: 1
-
-	mesh.rst
-	web.rst
-	wire.rst
-
 .. automodule:: madcad.mesh
 
 Conversions
@@ -46,3 +34,13 @@ Misc
 .. autofunction:: madcad.mesh.line_simplification
 .. autofunction:: madcad.mesh.mesh_distance
 .. autofunction:: madcad.mesh.distance2_pm
+
+Meshes
+------
+
+.. toctree::
+	:maxdepth: 0
+
+	mesh.rst
+	web.rst
+	wire.rst

@@ -22,6 +22,7 @@ class PositionMap:
 			:dict:        the hashmap from box to objects lists
 	'''
 	__slots__ = 'cellsize', 'dict', 'options'
+	
 	def __init__(self, cellsize, iterable=None):
 		self.options = {}
 		self.cellsize = cellsize
@@ -179,18 +180,25 @@ class PositionMap:
 			raise TypeError("update requires a PositionMap or an iterable of couples (space, obj)")
 	
 	def add(self, space, obj):
-		''' Add an object associated with a primitive '''
+		''' 
+			add an object associated with a primitive 
+			check `keysfor` for a description of allowed primitives
+		'''
 		for k in self.keysfor(space):
 			if k not in self.dict:	self.dict[k] = [obj]
 			else:					self.dict[k].append(obj)
 	
 	def get(self, space):
-		''' Get the objects associated with the given primitive '''
+		''' 
+			get the objects potentially intersecting the given primitive 
+			check `keysfor` for a description of allowed primitives
+		'''
 		for k in self.keysfor(space):
 			if k in self.dict:
 				yield from self.dict[k]
 				
 	def __contains__(self, space):
+		''' check if any stored object is potentially intersecting the given primitive '''
 		return next(self.get(space), None) is not None
 	
 	_display = (
@@ -243,10 +251,12 @@ class PointSet:
 			:manage:      pass a list for inplace use it, only indexing will be built
 	'''
 	__slots__ = 'points', 'cellsize', 'dict'
+	
 	def __init__(self, cellsize, iterable=None, manage=None):
 		self.cellsize = cellsize
 		self.dict = {}
 		if manage is not None:
+			assert iterable is None
 			self.points = manage
 			for i in reversed(range(len(self.points))):
 				self.dict[self.keyfor(self.points[i])] = i
@@ -255,11 +265,14 @@ class PointSet:
 			if iterable:	self.update(iterable)
 	
 	def keyfor(self, pt):
-		''' Hash key for a point '''
+		''' 
+			hash key for a point. 
+			points with the same key will be considered equivalent and merged in the set 
+		'''
 		return tuple(i64vec3(glm.floor(pt/self.cellsize)))
 		
 	def keysfor(self, pt):
-		''' Iterable of positions at which an equivalent point can be '''
+		''' iterable of positions at which an equivalent to the argument point can be '''
 		vox = pt/self.cellsize
 		k = i64vec3(glm.floor(vox-0.5+NUMPREC)), i64vec3(glm.floor(vox+0.5-NUMPREC))
 		return (
@@ -274,38 +287,46 @@ class PointSet:
 			)
 	
 	def update(self, iterable):
-		''' Add the points from an iterable '''
+		''' add points from an iterable '''
 		for pt in iterable:	self.add(pt)
 	def difference_update(self, iterable):
 		''' Remove the points from an iterable '''
 		for pt in iterable:	self.discard(pt)
 		
-	def add(self, pt):
-		''' Add a point '''
+	def add(self, pt) -> int:
+		''' 
+			add a point to the set if no equivalent point is at this position 
+			return the index of the created point or the pre-existing point at this position.
+		'''
 		for key in self.keysfor(pt):
 			if key in self.dict:
 				return self.dict[key]
 		self.dict[self.keyfor(pt)] = l = len(self.points)
 		self.points.append(pt)
 		return l
-	def remove(self, pt):
-		''' Remove a point '''
+	def remove(self, pt) -> int:
+		''' 
+			remove the point at given position point from the set, returning its former index.
+			raise if no point exist at this position
+		'''
 		for key in self.keysfor(pt):
 			if key in self.dict:
-				del self.dict[key]
-				return
-		else:					raise IndexError("position doesn't exist in set")
+				return self.dict.pop(key)
+		else:					
+			raise IndexError("position doesn't exist in set")
 	def discard(self, pt):
-		''' Remove the point at given location if any '''
+		''' remove all points at positions equivalent to the given location (if any) '''
 		for key in self.keysfor(pt):
 			if key in self.dict:
 				del self.dict[key]
 	
-	def __contains__(self, pt):
+	def __contains__(self, pt) -> bool:
+		''' true if there is a point at the given location in the set '''
 		for key in self.keysfor(pt):
 			if key in self.dict:	return True
 		return False
-	def __getitem__(self, pt):
+	def __getitem__(self, pt) -> int:
+		''' return the index of the point at given location in the set '''
 		for key in self.keysfor(pt):
 			if key in self.dict:	return self.dict[key]
 		raise IndexError("position doesn't exist in set")
