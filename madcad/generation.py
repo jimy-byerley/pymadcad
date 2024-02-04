@@ -631,7 +631,7 @@ def parallelogram(*directions, origin=vec3(0), align=vec3(0), fill=True) -> 'Mes
 	else:
 		raise ValueError('wrong number of directions')
 	
-def cylinder(bottom:vec3, top:vec3, radius:float, fill=True) -> 'Mesh':
+def cylinder(bottom:vec3, top:vec3, radius:float, fill=True, resolution=None) -> 'Mesh':
 	''' Create a revolution cylinder, with the given radius 
 	
 		Parameters:
@@ -640,11 +640,11 @@ def cylinder(bottom:vec3, top:vec3, radius:float, fill=True) -> 'Mesh':
 			fill (bool):        whether to put faces at both extremities
 	'''
 	direction = top-bottom
-	base = wire(primitives.Circle((bottom,normalize(direction)), radius))
+	base = wire(primitives.Circle(Axis(bottom,normalize(direction)), radius), resolution=resolution)
 	if fill:	base = flatsurface(base).flip()
 	return extrusion(direction, base)
 
-def cone(summit:vec3, base:vec3, radius:float, fill=True) -> 'Mesh':
+def cone(summit:vec3, base:vec3, radius:float, fill=True, resolution=None) -> 'Mesh':
 	''' Create a revolution cone, with a base of the given radius 
 	
 		Parameters:
@@ -653,7 +653,7 @@ def cone(summit:vec3, base:vec3, radius:float, fill=True) -> 'Mesh':
 			base (vec3):    the center point of the base
 			fill (bool):    whether to put a face at the base
 	'''
-	base = wire(primitives.Circle((base, normalize(summit-base)), radius))
+	base = wire(primitives.Circle(Axis(base, normalize(summit-base)), radius), resolution=resolution)
 	if fill:	base = flatsurface(base)
 	return pyramid(summit, base)
 		
