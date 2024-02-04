@@ -12,7 +12,7 @@ else:
 setup(
 	# package declaration
 	name='pymadcad',
-	version='0.15.1',
+	version='0.16.0',
 	python_requires='>=3.8',
 	install_requires=[
 		'pyglm>=2.5.5',
@@ -50,7 +50,7 @@ setup(
 	author='Yves Dejonghe',
 	author_email='jimy.byerley@gmail.com',
 	description="Simple yet powerful CAD (Computer Aided Design) library, written with Python",
-	long_description=open('README.md').read(),
+	long_description=open('README.md', encoding='utf-8').read(),
 	long_description_content_type='text/markdown',
 	license='GNU LGPL v3',
 	url='https://github.com/jimy-byerley/pymadcad',

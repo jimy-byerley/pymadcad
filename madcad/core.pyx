@@ -7,7 +7,7 @@ cimport cython
 import glm
 
 cdef:
-	DEF NUMPREC = 1e-13
+	NUMPREC = 1e-13
 	
 	double pmod(double l, double r):
 		''' proceed to a python-like modulo on floats 
@@ -355,7 +355,7 @@ def intersect_triangles(f0, f1, precision):
 	if abs(sYA[0]+sYA[1]+sYA[2]) == 3 or abs(sYB[0]+sYB[1]+sYB[2]) == 3:
 		#print("plans intersects but no edges intersection (1)")
 		return None
-
+	
 	# we know that triangles do intersect the line D
 	# edges of intersection on A and B with the convention : edge i of face X connects fX[i] and fX[(i+1)%3] 
 	cdef int eIA[3]
@@ -373,6 +373,12 @@ def intersect_triangles(f0, f1, precision):
 		if sYA[i%3]*sYA[(i+1)%3] <= 0 and abs(sYA[i%3])+abs(sYA[(i+1)%3]) > 0 : 
 			eIA[neIA] = i%3
 			neIA += 1
+	# prioritize on edges really getting through the face (not stopping on)
+	for j in range(3):
+		if sYB[j]*sYB[(j+1)%3] < 0:
+			break		
+	# look for edges intersecting starting from the eventual through one
+	for i in range(j,j+3):
 		if sYB[i%3]*sYB[(i+1)%3] <= 0 and abs(sYB[i%3])+abs(sYB[(i+1)%3]) > 0 : 
 			eIB[neIB] = i%3
 			neIB += 1

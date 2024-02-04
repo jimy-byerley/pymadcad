@@ -19,7 +19,7 @@ project = 'pymadcad'
 copyright = '2019-2021, jimy byerley'
 author = 'jimy byerley'
 
-version = '0.15'			# The short X.Y version
+version = '0.16'			# The short X.Y version
 release = 'v'+version	# The full version, including alpha/beta/rc tags
 
 
@@ -36,6 +36,7 @@ extensions = [
 	'sphinxcontrib.mermaid',  # support for simple markdown schematics
     'myst_parser',            # support for markdown
     'sphinx_rtd_theme',       # page theme
+	'sphinx_subfigure',
 ]
 myst_enable_extensions = [
 	'dollarmath',
@@ -71,7 +72,6 @@ html_theme = 'sphinx_rtd_theme'
 
 napoleon_numpy_docstring = False
 napoleon_google_docstring = True
-
 
 # -- Options for HTMLHelp output ---------------------------------------------
 

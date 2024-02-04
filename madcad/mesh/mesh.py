@@ -5,7 +5,11 @@ from .wire import Wire
 
 class Mesh(NMesh):
 	''' set of triangles, used to represent volumes or surfaces.
-		As volumes are represented by their exterior surface, there is no difference between representation of volumes and faces, juste the way we interpret it.
+		As volumes are represented by their exterior surface, the same datastructure represent bothvolumes and faces.
+		
+		Note:
+		
+			a Mesh instance can contain non-connex geometries (like many separated parts, called islands), or even non-manifold meshing. In the purpose of part design, the madcad functions may need more regular caracteristics so checking methods exists and it is up the the user to ensure the meshes do provide them when calling the demanding functions.
 		
 		Attributes:
 			points:     typedlist of vec3 for points
@@ -631,7 +635,7 @@ class Mesh(NMesh):
 	def display(self, scene):
 		from .. import displays
 		
-		m = copy(self)
+		m = self.own(points=True)
 		
 		m.split(m.frontiers().edges)
 		edges = m.outlines().edges

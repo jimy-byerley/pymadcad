@@ -1,6 +1,6 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
-''' Regroupement des fonctions et classes math de pymadcad '''
+''' Group of functions and math classes of pymadcad '''
 
 import glm
 from glm import *
@@ -41,13 +41,13 @@ Z = vec3(0,0,1)
 
 
 def isfinite(x):
-	''' return false if x contains a `inf` or a `nan` '''
+	''' Return false if x contains a `inf` or a `nan` '''
 	if isinstance(x, (int,float)):
 		return math.isfinite(x)
 	return not (glm.any(isinf(x)) or glm.any(isnan(x)))
 
 def norminf(x):
-	''' norm L infinite  ie.  `max(abs(x), abs(y), abs(z))` '''
+	''' Norm L infinite  ie.  `max(abs(x), abs(y), abs(z))` '''
 	return max(glm.abs(x))
 # norm L1  ie.  `abs(x) + abs(y) + abs(z)`
 norm1 = l1Norm
@@ -55,24 +55,24 @@ norm1 = l1Norm
 norm2 = length
 
 def anglebt(x,y) -> float:
-	''' angle between two vectors 
+	''' Angle between two vectors 
 	
-		the result is not sensitive to the lengths of x and y
+		The result is not sensitive to the lengths of x and y
 	'''
 	n = length(x)*length(y)
 	return acos(min(1,max(-1, dot(x,y)/n)))	if n else 0
 	
 def arclength(p1, p2, n1, n2):
-	''' length of an arc between p1 and p2, normal to the given vectors in respective points '''
+	''' Length of an arc between p1 and p2, normal to the given vectors in respective points '''
 	c = max(0, dot(n1,n2))
 	if abs(c-1) < NUMPREC:	return 0
 	v = p1-p2
 	return sqrt(dot(v,v) / (2-2*c)) * acos(c)
 
 def project(vec, dir) -> vec3:
-	''' component of `vec` along `dir`, equivalent to :code:`dot(vec,dir) / dot(dir,dir) * dir` 
+	''' Component of `vec` along `dir`, equivalent to :code:`dot(vec,dir) / dot(dir,dir) * dir` 
 	
-		the result is not sensitive to the length of `dir`
+		The result is not sensitive to the length of `dir`
 	'''
 	try:	return dot(vec,dir) / dot(dir,dir) * dir
 	except ZeroDivisionError:	
@@ -81,16 +81,16 @@ def project(vec, dir) -> vec3:
 		
 	
 def noproject(vec, dir) -> vec3:
-	''' components of `vec` not along `dir`, equivalent to :code:`vec - project(vec,dir)` 
+	''' Components of `vec` not along `dir`, equivalent to :code:`vec - project(vec,dir)` 
 	
-		the result is not sensitive to the length of `dir`
+		The result is not sensitive to the length of `dir`
 	'''
 	return vec - project(vec,dir)
 
 def unproject(vec, dir) -> vec3:
-	''' return the vector in the given direction as if `vec` was its projection on it, equivalent to :code:`dot(vec,vec) / dot(vec,dir) * dir` 
+	''' Return the vector in the given direction as if `vec` was its projection on it, equivalent to :code:`dot(vec,vec) / dot(vec,dir) * dir` 
 	
-		the result is not sensitive to the length of `dir`
+		The result is not sensitive to the length of `dir`
 	'''
 	try:	return dot(vec,vec) / dot(vec,dir) * dir
 	except ZeroDivisionError:	
@@ -98,15 +98,15 @@ def unproject(vec, dir) -> vec3:
 		else:					return vec3(0)
 
 def perpdot(a:vec2, b:vec2) -> float:
-	''' dot product of a with perpendicular vector to b, equivalent to `dot(a, prep(b))` '''
+	''' Dot product of a with perpendicular vector to b, equivalent to `dot(a, prep(b))` '''
 	return -a[1]*b[0] + a[0]*b[1]
 
 def perp(v:vec2) -> vec2:
-	''' perpendicular vector to the given vector '''
+	''' Perpendicular vector to the given vector '''
 	return vec2(-v[1], v[0])
 	
 def dirbase(dir, align=vec3(1,0,0)):
-	''' returns a base using the given direction as z axis (and the nearer vector to align as x) '''
+	''' Return a base using the given direction as z axis (and the nearer vector to align as x) '''
 	x = noproject(align, dir)
 	if not length2(x) > NUMPREC**2:
 		align = vec3(align[2],-align[0],align[1])
@@ -119,8 +119,8 @@ def dirbase(dir, align=vec3(1,0,0)):
 	return x,y,dir
 
 def scaledir(dir, factor=None) -> mat3:
-	''' return a mat3 scaling in the given direction, with the given factor (1 means original scale) 
-		if factor is None, the length of dir is used, but it can leads to precision loss on direction when too small.
+	''' Return a mat3 scaling in the given direction, with the given factor (1 means original scale) 
+		If factor is None, the length of dir is used, but it can leads to precision loss on direction when too small.
 	'''
 	if factor is None:
 		factor = length(dir)
@@ -128,7 +128,7 @@ def scaledir(dir, factor=None) -> mat3:
 	return mat3(1) + (factor-1)*mat3(dir[0]*dir, dir[1]*dir, dir[2]*dir)
 	
 def rotatearound(angle, *args) -> mat4:
-	''' return a transformation matrix for a rotation around an axis
+	''' Return a transformation matrix for a rotation around an axis
 		
 		rotatearound(angle, axis)
 		rotatearound(angle, origin, dir)
@@ -144,10 +144,10 @@ def rotatearound(angle, *args) -> mat4:
 	return m
 
 def transform(*args) -> mat4:
-	''' create an affine transformation matrix.
+	''' Create an affine transformation matrix.
 		
-		supported inputs:
-			:mat4:                                    obviously returns it unmodified
+		Supported inputs:
+			:mat4:                                    obviously return it unmodified
 			:float:                                   scale using the given ratio 
 			:vec3:                                    translation only
 			:quat, mat3, mat4:                        rotation only
@@ -180,9 +180,9 @@ def transform(*args) -> mat4:
 	raise TypeError('a transformation must be a  mat3, mat4, quat, (O,mat3), (O,quat), (0,x,y,z), not {}'.format(args))
 	
 def transformer(trans):
-	''' return an function to apply the given transform on vectors
+	''' Return an function to apply the given transform on vectors
 		
-		supported inputs:
+		Supported inputs:
 			:float:	scale by the given ratio
 			:vec3:  translate the given position
 			:mat3:  rotate the given position
@@ -218,10 +218,10 @@ def intri_flat(pts, a,b):
 	return a*A + b*B + c*C
 
 def intri_sphere(pts, ptangents, a,b, etangents=None):
-	''' cubic interpolation over a triangle (2 dimension space), edges are guaranteed to fit an interpol2 curve using the edge tangents
+	''' Cubic interpolation over a triangle (2 dimension space), edges are guaranteed to fit an interpol2 curve using the edge tangents
 	
 	.. note::
-		if the tangents lengths are set to the edge lenghts, that version gives a result close to a sphere surface
+		If the tangents lengths are set to the edge lengths, that version gives a result close to a sphere surface
 	'''
 	A,B,C = pts
 	ta,tb,tc = ptangents
@@ -235,10 +235,10 @@ def intri_sphere(pts, ptangents, a,b, etangents=None):
 			)
 
 def intri_smooth(pts, ptangents, a,b):
-	''' cubic interpolation over a triangle, edges are guaranteed to fit an interpol2 curve using the edge tangents
+	''' Cubic interpolation over a triangle, edges are guaranteed to fit an interpol2 curve using the edge tangents
 	
 	.. note::
-		if the tangents lengths are set to the edge lenghts, that version gives a result that only blends between the curved edges, a less bulky result than `intri_sphere`
+		If the tangents lengths are set to the edge lengths, that version gives a result that only blends between the curved edges, a less bulky result than `intri_sphere`
 	'''
 	A,B,C = pts
 	ta,tb,tc = ptangents
@@ -251,7 +251,7 @@ def intri_smooth(pts, ptangents, a,b):
 			)
 
 def intri_parabolic(pts, ptangents, a,b, etangents=None):
-	''' quadratic interpolation over a triangle, edges are NOT fitting an interpol2 curve '''
+	''' Quadratic interpolation over a triangle, edges are NOT fitting an interpol2 curve '''
 	A,B,C = pts
 	ta,tb,tc = ptangents
 	c = 1-a-b
@@ -267,11 +267,11 @@ def intri_parabolic(pts, ptangents, a,b, etangents=None):
 distance_pp = distance
 
 def distance_pa(pt, axis):
-	''' point - axis distance '''
+	''' Point - axis distance '''
 	return length(noproject(pt-axis[0], axis[1]))
 
 def distance_pe(pt, edge):
-	''' point - edge distance '''
+	''' Point - edge distance '''
 	dir = edge[1]-edge[0]
 	l = length2(dir)
 	if not l:	return 0
@@ -282,11 +282,11 @@ def distance_pe(pt, edge):
 		return length(noproject(pt-edge[0], dir))
 
 def distance_aa(a1, a2):
-	''' axis - axis distance '''
+	''' Axis - axis distance '''
 	return length(project(a1[0]-a2[0], cross(a1[1], a2[1])))
 
 def distance_ae(axis, edge):
-	''' axis - edge distance '''
+	''' Axis - edge distance '''
 	x = axis[1]
 	z = normalize(cross(x, edge[1]-edge[0]))
 	y = cross(z,x)
@@ -300,7 +300,7 @@ def distance_ae(axis, edge):
 		return distance_pa(edge[1], axis)
 		
 def distance_pt(p, triangle):
-	''' point - triangle distance '''
+	''' Point - triangle distance '''
 	normal = cross(triangle[1]-triangle[0], triangle[2]-triangle[0])
 	for i in range(3):
 		if dot(p-triangle[i-1], cross(triangle[i-2]-triangle[i-1], normal)) > 0:
@@ -310,17 +310,33 @@ def distance_pt(p, triangle):
 
 #-- algorithmic functions ---------
 
-def bisect(l, index, key=lambda x:x):
-	''' use dichotomy to get the index of `index` in a list sorted in ascending order
-		key can be used to specify a function that gives numerical value for list elements
+
+
+def fbisect(f, start, stop, prec=None):
+	''' bisection over the parameter of a continuous real function, returning the place where the function switches from True to False
+		f(x) -> bool
 	'''
-	start,end = 0, len(l)
-	while start < end:
-		mid = (start+end)//2
-		val = key(l[mid])
-		if val < index:		start =	mid+1
-		elif val > index:	end =	mid
-		else:	return mid
+	if not prec:	prec = abs(stop-start)*1e-3
+	
+	if not f(start):	return start
+	elif f(stop):		return stop
+
+	while abs(stop-start) > prec:
+		x = (start+stop)*0.5
+		if f(x):	start = x
+		else:		stop = x
+	return start
+
+def bisect(array, value, key=None):
+	if key is None:		key = lambda x:x
+
+	start, stop = 0, len(array)
+	while start < stop:
+		i = (start+stop)//2
+		v = key(array[i])
+		if v > value:	stop = i
+		elif v < value:	start = i+1
+		else:	return i
 	return start
 
 # TODO rename it first
@@ -330,7 +346,7 @@ def find(iterator, predicate, default=None):
 	return default
 			
 def imax(iterable, default=None):
-	''' return the index of the max of the iterable '''
+	''' Return the index of the max of the iterable '''
 	best = default
 	score = -inf
 	for i,o in enumerate(iterable):
@@ -342,7 +358,7 @@ def imax(iterable, default=None):
 
 
 def linrange(start, stop=None, step=None, div=0, end=True):
-	''' yield successive intermediate values between start and stop 
+	''' Yield successive intermediate values between start and stop 
 		
 		stepping:
 		
@@ -379,7 +395,7 @@ def linrange(start, stop=None, step=None, div=0, end=True):
 class Box:
 	''' This class describes a box always orthogonal to the base axis, used as convex for area delimitations 
 	
-		This class is independent from the dimension or number precision of the used vectors. You can for instance have a `Box` of `vec2` as well as a box of `vec3`. however boxes with different vector types cannot interperate.
+		This class is independent from the dimension or number precision of the used vectors. You can for instance have a `Box` of `vec2` as well as a box of `vec3`. However boxes with different vector types cannot interperate.
 	
 		Attributes:
 			
@@ -394,15 +410,15 @@ class Box:
 	
 	@property
 	def center(self) -> vec3:
-		''' mid coordinates of the box '''
+		''' Mid coordinates of the box '''
 		return (self.min + self.max) /2
 	@property
 	def width(self) -> vec3:
-		''' diagonal vector of the box '''
+		''' Diagonal vector of the box '''
 		return self.max - self.min
 	
 	def corners(self) -> '[vec3]':
-		''' create a list of the corners of the box '''
+		''' Create a list of the corners of the box '''
 		c = self.min, self.max
 		t = type(self.min)
 		return [
@@ -411,25 +427,25 @@ class Box:
 			]
 			
 	def volume(self) -> float:
-		''' volume inside '''
+		''' Volume inside '''
 		v = 1
 		for edge in self.width:
 			v *= edge
 		return v
 		
 	def contain(self, point):
-		''' return True if the given point is inside or on the surface of the box '''
+		''' Return True if the given point is inside or on the surface of the box '''
 		return all(self.min <= point) and all(point <= self.max)
 		
 	def inside(self, point):
-		''' return True if the given point is strictly inside the box '''
+		''' Return True if the given point is strictly inside the box '''
 		return all(self.min < point) and all(point < self.max)
 	
 	def isvalid(self):
-		''' return True if the box defines a valid space (min coordinates <= max coordinates) '''
+		''' Return True if the box defines a valid space (min coordinates <= max coordinates) '''
 		return any(self.min <= self.max)
 	def isempty(self):
-		''' return True if the box contains a non null volume '''
+		''' Return True if the box contains a non null volume '''
 		return not any(self.min < self.max)
 	
 	def __add__(self, other):
@@ -458,7 +474,7 @@ class Box:
 	def __and__(self, other):	return deepcopy(self).intersection(other)
 	
 	def union_update(self, other) -> 'self':
-		''' extend the volume of the current box to bound the given point or box '''
+		''' Extend the volume of the current box to bound the given point or box '''
 		if isinstance(other, (dvec3, fvec3)):
 			self.min = glm.min(self.min, other)
 			self.max = glm.max(self.max, other)
@@ -470,7 +486,7 @@ class Box:
 		return self
 	
 	def intersection_update(self, other) -> 'self':
-		''' reduce the volume of the current box to the intersection between the 2 boxes '''
+		''' Reduce the volume of the current box to the intersection between the 2 boxes '''
 		if isinstance(other, Box):
 			self.min = glm.max(self.min, other.min)
 			self.max = glm.min(self.max, other.max)
@@ -479,7 +495,7 @@ class Box:
 		return self
 	
 	def union(self, other) -> 'Box':
-		''' return a box containing the current and the given box (or point) 
+		''' Return a box containing the current and the given box (or point) 
 		
 			Example:
 				
@@ -500,7 +516,7 @@ class Box:
 			raise TypeError('unable to integrate {}'.format(type(other)))
 	
 	def intersection(self, other) -> 'Box':
-		''' return a box for the volume common to the current and the given box 
+		''' Return a box for the volume common to the current and the given box 
 		
 			Example:
 			
@@ -515,7 +531,7 @@ class Box:
 			raise TypeError('expected a Box'.format(type(other)))
 	
 	def transform(self, trans) -> 'Box':
-		''' box bounding the current one in a transformed space '''
+		''' Box bounding the current one in a transformed space '''
 		if not self.isvalid():	return self
 		trans = transformer(trans)
 		return boundingbox((trans(p)  for p in self.corners()))
@@ -530,8 +546,8 @@ class Box:
 		return '{}({}, {})'.format(self.__class__.__name__, repr(self.min), repr(self.max))
 
 def boundingbox(obj, ignore=False, default=Box(width=vec3(-inf))) -> Box:
-	''' return a box containing the object passed
-		obj can be a vec3, Box, object with a `box()` method, or an iterable of such objects
+	''' Return a box containing the object passed
+		`obj` can be a vec3, Box, object with a `box()` method, or an iterable of such objects
 	'''
 	if isinstance(obj, Box):			return obj
 	if isinstance(obj, (dvec3, fvec3)):	return Box(obj,obj)

@@ -121,7 +121,7 @@ class Pivot(Joint):
 class Planar(Joint):
 	''' Joint for translation in 2 directions and rotation around the third direction 
 		
-		classical definition:	Planar (direction vector)
+		Classical definition:	Planar (direction vector)
 		the initial state requires an additional distance between the solids
 		this class holds an axis for each side, the axis origins are constrained to share the same projections on the normal
 	'''
@@ -176,7 +176,7 @@ class Planar(Joint):
 class Track(Joint):
 	''' Joint for translation only in a direction 
 		
-		classical definition:  Track (direction vector)
+		Classical definition:  Track (direction vector)
 		the initial state requires more parameters: the relative placements of the solids
 		this class holds a base for each of the solids, bases are (0,X,Y)  where X,Y are constrained to keep the same direction across bases, and the bases origins lays on their common Z axis
 	'''
@@ -267,7 +267,7 @@ class Track(Joint):
 class Gliding(Joint):
 	''' Joint for rotation and translation around an axis 
 		
-		classical definition:  Gliding pivot (axis)
+		Classical definition:  Gliding pivot (axis)
 		the initial state doesn't require more data
 		this class holds an axis for each side
 	'''
@@ -347,7 +347,7 @@ class Gliding(Joint):
 class Ball(Joint):
 	''' Joint for rotation all around a point.
 	
-		classical definition: Ball (point)
+		Classical definition: Ball (point)
 		the initial state doen't require more data
 		the class holds a point for each side
 	'''
@@ -403,9 +403,9 @@ class Ball(Joint):
 class Punctiform(Joint):
 	''' Joint for rotation all around a point belonging to a plane.
 	
-		classical definition: Punctiform/Sphere-Plane (axis)
-		the initial state does't require more data
-		the class holds a normal axis for the plane side, and a point for the sphere side (that defaults to the axis'origin)
+		Classical definition: Punctiform/Sphere-Plane (axis)
+		The initial state does not require more data
+		The class holds a normal axis for the plane side, and a point for the sphere side (that defaults to the axis' origin)
 	'''
 	def __init__(self, solids, axis, local=None):
 		self.solids = solids

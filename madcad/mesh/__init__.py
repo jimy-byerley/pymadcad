@@ -1,7 +1,21 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
 '''	
-	This module defines meshes composed of triangles or of edges.
+	
+	Topology
+	--------
+		
+	A lot of similarities exists between these classes, because many of their methods are topologically generic to every dimension. They are often implemented for specific mesh
+	For convenience, there is aliases to these classes highlighting their topology genericity
+	
+	- Mesh0	(alias to `Wire`) mesh with inner dimension 0 (simplices are points)
+	- Mesh1	(alias to `Web`) mesh with inner dimension 1 (simplices are edges)
+	- Mesh2	(alias to `Mesh`) mesh with inner dimension 2 (simplices are triangles)
+	
+	naming:
+	
+	- a mesh outer dimension is the dimension of the space its points belong to. for `vec3` it is 3. In madcad, all meshes have outer dimension 3
+	- a mesh inner dimension is the dimension of the space of its simplices. for a line it is 1 because 1 scalar is sufficient to interpolate over a line
 	
 	Architecture
 	------------
@@ -30,32 +44,15 @@
 		
 	See `Mesh.own()` for instance.
 		
-		
-	Classes defined here
-	--------------------
-	
-		:Mesh:	mesh of triangles
-		:Web:	mesh of edges
-		:Wire:	mesh of points, often used as a curve/polygon defined by a suite of points
-		
-	Topology
-	--------
-		
-	A lot of similarities exists between these classes, because many of their methods are topologically generic to every dimension. They are often implemented for specific mesh
-	For convenience, there is aliases to these classes highlighting their topology genericity
-	
-		:Mesh0:	(alias to `Wire`) mesh with inner dimension 0 (simplices are points)
-		:Mesh1:	(alias to `Web`) mesh with inner dimension 1 (simplices are edges)
-		:Mesh2:	(alias to `Mesh`) mesh with inner dimension 2 (simplices are triangles)
-		
 	Inner identification
 	--------------------
 	
-	The containers are provided with an inner-identification system allowing to keep track of portion of geometries in the mesh across operations applies on. This is permitted by their field `tracks` and `groups`. Each simplex (point, edge or face depending of the mesh inner dimension) in meshes is associated to an identification number referencing a group definition in the group list. So faces can be filtered at any moment depedning on their group attributes or their group number.
+	The containers are provided with an inner-identification system allowing to keep track of portion of geometries in the mesh across operations applies on. This is permitted by their field `tracks` and `groups`. Each simplex (point, edge or face depending of the mesh inner dimension) is associated to a group number referencing a group definition in the group list. 
 	
-	Groups definitions can be anything, but more often is a dictionnary (containing the group attributes we can filter on), or simply `None`
+	Groups definitions can be anything, but more often is a dictionnary (containing the group attributes we can filter on), or simply `None`.
+	To easily extract portions of one mesh, its is straightforward to associate keys to the interesting groups using `.qualify(key)` and then select groups calling `.group(key)` to retreive it later. groups can also be filtered manually.
 	
-	See `Mesh.group()` for more details.
+	See `Mesh.qualify()` for more details
 '''
 
 from ..mathutils import *
@@ -120,6 +117,7 @@ def line_simplification(web, prec=None):
 	for k,v in merges.items():
 		while v in merges and merges[v] != v:
 			merges[k] = v = merges[v]
+	
 	return merges
 
 

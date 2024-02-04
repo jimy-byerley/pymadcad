@@ -19,7 +19,7 @@ __all__ = [
 	'extrans', 'extrusion', 'revolution', 'saddle', 'tube', 
 	'repeat', 'thicken', 'inflate', 'inflate_offsets', 'expand',
 	'flatsurface', 'icosurface', 'subdivide',
-	'square', 'brick', 'cylinder', 'cone', 'pyramid', 'icosahedron', 'icosphere', 'uvsphere', 'regon', 
+	'square', 'brick', 'parallelogram', 'cylinder', 'cone', 'pyramid', 'icosahedron', 'icosphere', 'uvsphere', 'regon', 
 	]
 
 	
@@ -27,7 +27,7 @@ __all__ = [
 
 
 def extrusion(trans, line: Web, alignment:float=0) -> Mesh:
-	''' create a surface by extruding the given outline by a transformation
+	''' Create a surface by extruding the given outline by a transformation
 		
 		Parameters:
 			line:         a line (Web or Wire) or a surface (Mesh) to extrude
@@ -43,7 +43,7 @@ def extrusion(trans, line: Web, alignment:float=0) -> Mesh:
 				[(0,1,0)])
 
 def revolution(angle: float, axis: Axis, profile: Web, resolution=None) -> Mesh:
-	''' create a revolution surface by extruding the given outline
+	''' Create a revolution surface by extruding the given outline
 		`steps` is the number of steps between the start and the end of the extrusion
 		
 		Parameters:
@@ -72,8 +72,7 @@ def revolution(angle: float, axis: Axis, profile: Web, resolution=None) -> Mesh:
 	return extrans(profile, trans(), links())
 
 def saddle(web1: Web, web2: Web) -> Mesh:
-	''' create a surface by extruding outine1 translating each instance to the next point of outline2
-	'''
+	''' Create a surface by extruding outine1 translating each instance to the next point of outline2'''
 	web1, web2 = web(web1), web(web2)
 	def trans():
 		s = web2.points[0]
@@ -82,8 +81,7 @@ def saddle(web1: Web, web2: Web) -> Mesh:
 	return extrans(web1, trans(), ((*e,t)  for e,t in zip(web2.edges, web2.tracks)))
 
 def tube(outline: Web, path: Wire, end=True, section=True) -> Mesh:
-	''' create a tube surface by extrusing the outline along the path
-		if `section` is True, there is a correction of the segments to keep the section undeformed by the curve
+	''' Create a tube surface by extruding the outline along the path if `section` is True, there is a correction of the segments to keep the section rigid by the curve
 	'''
 	path = wire(path)
 	def trans():
@@ -124,8 +122,8 @@ def tube(outline: Web, path: Wire, end=True, section=True) -> Mesh:
 	return extrans(outline, trans, links)
 
 
-def extrans(section, transformations, links) -> Mesh:
-	''' create a surface by extruding and transforming the given outline.
+def extrans(section, transformations, links=None) -> Mesh:
+	''' Create a surface by extruding and transforming the given outline.
 		
 		Parameters:
 			section:           a `Web` or a `Mesh`
@@ -133,6 +131,9 @@ def extrans(section, transformations, links) -> Mesh:
 			link:              iterable of tuples (a,b,t)  with:
 									`(a,b)` the sections to link (indices of values returned by `transformation`).
 									`t` the group number of that link, to combine with the section groups		
+									
+									if `links` is not specified, it will link each transformed section to the previous one.
+									This is equivalent to giving links `(i, i+1, 0)`
 	'''
 	# prepare
 	if isinstance(section, Mesh):
@@ -152,34 +153,48 @@ def extrans(section, transformations, links) -> Mesh:
 	l = len(section.points)
 	
 	# generate all sections faces using links
-	for a,b,u in links:
-		al = a*l
-		bl = b*l
-		for (c,d),v in zip(section.edges, section.tracks):
-			mesh.faces.append((al+c, al+d, bl+d))
-			mesh.faces.append((al+c, bl+d, bl+c))
-			t = groups.setdefault((u,v), len(groups))
-			mesh.tracks.append(t)
-			mesh.tracks.append(t)
-		# find extremities
-		if face:
-			if a in extremities:   del extremities[a]
-			else:	               extremities[a] = True
-			if b in extremities:   del extremities[b]
-			else:                  extremities[b] = False
+	if links:
+		for a,b,u in links:
+			al = a*l
+			bl = b*l
+			for (c,d),v in zip(section.edges, section.tracks):
+				mesh.faces.append((al+c, al+d, bl+d))
+				mesh.faces.append((al+c, bl+d, bl+c))
+				t = groups.setdefault((u,v), len(groups))
+				mesh.tracks.append(t)
+				mesh.tracks.append(t)
+			# find extremities
+			if face:
+				if a in extremities:   del extremities[a]
+				else:	               extremities[a] = True
+				if b in extremities:   del extremities[b]
+				else:                  extremities[b] = False
+		
+	# generate all sections points using transformations
+	k = 0
+	for k,trans in enumerate(transformations):
+		for p in section.points:
+			mesh.points.append(vec3(trans*vec4(p,1)))
+		if k and not links:
+			al, bl, u = (k-1)*l, k*l, 0
+			for (c,d),v in zip(section.edges, section.tracks):
+				mesh.faces.append((al+c, al+d, bl+d))
+				mesh.faces.append((al+c, bl+d, bl+c))
+				t = groups.setdefault((u,v), len(groups))
+				mesh.tracks.append(t)
+				mesh.tracks.append(t)
+		# keep extremities transformations
+		elif face and k in extremities:
+			kept[k] = trans
+			
+	if not links:
+		extremities[0] = True
+		extremities[k] = False
 	
 	# generate all combined groups
 	mesh.groups = [None] * len(groups)
 	for (u,v), t in groups.items():
 		mesh.groups[t] = section.groups[v]	# NOTE will change in the future to mention both u and v
-	
-	# generate all sections points using transformations
-	for k,trans in enumerate(transformations):
-		for p in section.points:
-			mesh.points.append(vec3(trans*vec4(p,1)))
-		# keep extremities transformations
-		if face and k in extremities:
-			kept[k] = trans
 	
 	# append faces at extremities
 	if face:
@@ -193,7 +208,6 @@ def extrans(section, transformations, links) -> Mesh:
 			mesh += end if extremities[k] else end.flip()
 		mesh.mergepoints(merges)
 	
-	mesh.check()
 	return mesh
 	
 def linstep(start, stop, x):
@@ -202,11 +216,11 @@ def linstep(start, stop, x):
 	return (x-start)/(stop-start)
 
 def inflate_offsets(surface: Mesh, offset: float, method='face') -> '[vec3]':
-	''' displacements vectors for points of a surfaceace we want to inflate.
+	''' Displacements vectors for points of a surface we want to inflate.
 		
 		Parameters:
 			offset:
-				the distance from the surface to the offseted surface. its meaning depends on `method`
+				the distance from the surface to the offset surface. Its meaning depends on `method`
 			method:     
 				determines if the distance is from the old to the new faces, edges or points
 				possible values: `'face', 'edge', 'point'`
@@ -221,7 +235,7 @@ def inflate_offsets(surface: Mesh, offset: float, method='face') -> '[vec3]':
 		for a,b in outlines:
 			d = surface.points[a] - surface.points[b]		# edge direction
 			t = cross(pnormals[a]+pnormals[b], d)	# surface tangent normal to the edge
-			# contribution stars when the offseted points are closer than `offset`
+			# contribution stars when the offset points are closer than `offset`
 			contrib = 1 - smoothstep(0, offset, length(offset*(pnormals[a]-pnormals[b])+d))
 			normals[a] += contrib * 0.5*project(pnormals[b]-pnormals[a], t)
 			normals[b] += contrib * 0.5*project(pnormals[a]-pnormals[b], t)
@@ -249,7 +263,7 @@ def inflate_offsets(surface: Mesh, offset: float, method='face') -> '[vec3]':
 		return typedlist((pnormals[p]*offset	for p in range(len(pnormals))), dtype=vec3)
 
 def inflate(surface:Mesh, offset:float, method='face') -> 'Mesh':
-	''' move all points of the surface to make a new one at a certain distance of the last one
+	''' Move all points of the surface to make a new one at a certain distance of the last one
 
 		Parameters:
 			offset:       the distance from the surface to the offseted surface. its meaning depends on `method`
@@ -262,7 +276,7 @@ def inflate(surface:Mesh, offset:float, method='face') -> 'Mesh':
 				surface.groups)
 
 def thicken(surface: Mesh, thickness: float, alignment:float=0, method='face') -> 'Mesh':
-	''' thicken a surface by extruding it, points displacements are made along normal. 
+	''' Thicken a surface by extruding it, points displacements are made along normal. 
 
 		Parameters:
 			thickness:    determines the distance between the two surfaces (can be negative to go the opposite direction to the normal).
@@ -294,7 +308,7 @@ def thicken(surface: Mesh, thickness: float, alignment:float=0, method='face') -
 
 
 def expand(surface: Mesh, offset: float, collapse=True) -> Mesh:
-	''' generate a surface expanding the input mesh on the tangent of the ouline neighboring faces
+	''' Generate a surface expanding the input mesh on the tangent of the ouline neighboring faces
 	
 		Parameters:
 			offset:		distance from the outline point to the expanded outline points
@@ -373,7 +387,7 @@ def expand(surface: Mesh, offset: float, collapse=True) -> Mesh:
 	return surface
 
 def axis_midpoint(a0: Axis, a1: Axis, x=0.5) -> vec3:
-	''' return the midpoint of two axis. 
+	''' Return the midpoint of two axis. 
 		`x` is the blending factor between `a0` and `a1`
 		
 		- `x = 0` gives the point of `a0` the closest to `a1`
@@ -392,7 +406,7 @@ def axis_midpoint(a0: Axis, a1: Axis, x=0.5) -> vec3:
 # --- filling things ---
 
 def flatsurface(outline, normal=None) -> 'Mesh':
-	''' generates a surface for a flat outline using the prefered triangulation method .
+	''' Generates a surface for a flat outline using the prefered triangulation method .
 	
 		if `normal` is specified, it must be the normal vector to the plane, and will be used to orient the face.
 	'''
@@ -406,10 +420,10 @@ def flatsurface(outline, normal=None) -> 'Mesh':
 
 
 def icosurface(pts, ptangents, resolution=None) -> 'Mesh':
-	''' generate a surface ICO (a subdivided triangle) with its points interpolated using interpol2tri.
+	''' Generate a surface ICO (a subdivided triangle) with its points interpolated using interpol2tri.
 	
 		- If normals are given instead of point tangents (for ptangents), the surface will fit a sphere.
-		- Else ptangents must be a list of couples (2 edge tangents each point).
+		- Else `ptangents` must be a list of couples (2 edge tangents each point).
 	'''
 	# compute normals to points
 	if isinstance(ptangents[0], tuple):
@@ -436,7 +450,7 @@ def icosurface(pts, ptangents, resolution=None) -> 'Mesh':
 	return dividedtriangle(lambda u,v: intri_sphere(pts, ptangents, u,v), div)
 	
 def dividedtriangle(placement, div=1) -> 'Mesh':
-	''' generate a subdivided triangle with points placed according to the placement closure
+	''' Generate a subdivided triangle with points placed according to the placement closure
 		`placement(a,b) -> vec3`
 		with a,b such as a+b+c = 1 with a,b,c within [0;1]
 	'''
@@ -465,7 +479,7 @@ def dividedtriangle(placement, div=1) -> 'Mesh':
 
 
 def subdivide(mesh, div=1) -> 'Mesh':
-	''' subdivide all faces by the number of cuts '''
+	''' Subdivide all faces by the number of cuts '''
 	n = div+2
 	pts = typedlist(dtype=vec3)
 	faces = typedlist(dtype=uvec3)
@@ -501,13 +515,20 @@ def subdivide(mesh, div=1) -> 'Mesh':
 # --- standard shapes ---
 	
 def brick(*args, **kwargs) -> 'Mesh':
-	''' a simple brick with rectangular sides 
+	''' A simple brick with rectangular axis-aligned sides 
 	
-		constructors
+		It can be constructed in the following ways:
 		
 			- brick(Box)
 			- brick(min, max)
 			- brick(center=vec3(0), width=vec3(-inf))
+			
+		Parameters:
+			
+			min:	the corner with minimal coordinates
+			max:	the corner with maximal coordinates
+			center: the center of the box
+			width:  the all positive diagonal of the box
 	'''
 	if len(args) == 1 and not kwargs and isinstance(args[0], Box):		
 		box = args[0]
@@ -543,8 +564,75 @@ def brick(*args, **kwargs) -> 'Mesh':
 		mesh.points[i] = mesh.points[i]*box.width + box.min
 	return mesh
 	
+def parallelogram(*directions, origin=vec3(0), align=vec3(0), fill=True) -> 'Mesh':
+	''' Create a parallelogram or parallelepiped depending on the number of directions given
+	
+		Parameters:
+			
+			directions:	list of 1-3 directions, they must for a right handed base for the face normals to be oriented outward
+			origin: origin the resulting shape, the shape will placed relatively to that point
+			align: relative position of the origin in the shape: 0 means at start of each direction, 1 means at the tip of each direction
+			fill: 
+				- if True, a mesh will be generated (forming a surface with 2 directions, or an envelope with 3 directions)
+				- if False, a Web will be generated
+	'''
+	# generate points by binary combinations
+	points = []
+	min = origin - sum(a*d  for a,d in zip(align, directions))
+	for i in range(2**len(directions)):
+		points.append(min + sum(d if i>>k & 1 else 0   for k,d in enumerate(directions)))
+	
+	# mesh
+	if len(directions) == 1:
+		if fill:
+			raise ValueError('cannot fill parallelogram with one only direction')
+		else:
+			return Web(points, [uvec2(0,1)])
+	
+	if len(directions) == 2:
+		if fill:
+			return Mesh(points, [
+					uvec3(0,1,2), uvec3(2,1,3),
+					])
+		else:
+			return Web(points, [
+					uvec2(0,1),
+					uvec2(1,3),
+					uvec2(3,2),
+					uvec2(2,0),
+					]).segmented()
+					
+	elif len(directions) == 3:
+		if fill:
+			return Mesh(points, 
+					[
+						uvec3(0,2,1), uvec3(1,2,3),
+						uvec3(0,1,4), uvec3(1,5,4),
+						uvec3(0,4,2), uvec3(2,4,6),
+						uvec3(4,5,6), uvec3(5,7,6),
+						uvec3(2,6,3), uvec3(3,6,7),
+						uvec3(1,3,5), uvec3(3,7,5),
+					],
+					[
+						0, 0,
+						1, 1,
+						2, 2,
+						3, 3,
+						4, 4,
+						5, 5,
+					])
+		else:
+			return Web(points, [
+					uvec2(0,1), uvec2(2,3), uvec2(4,5), uvec2(6,7),
+					uvec2(0,2), uvec2(1,3), uvec2(4,6), uvec2(5,7),
+					uvec2(0,4), uvec2(1,5), uvec2(2,6), uvec2(3,7),
+					]).segmented()
+		
+	else:
+		raise ValueError('wrong number of directions')
+	
 def cylinder(bottom:vec3, top:vec3, radius:float, fill=True) -> 'Mesh':
-	''' create a revolution cylinder, with the given radius 
+	''' Create a revolution cylinder, with the given radius 
 	
 		Parameters:
 		
@@ -557,7 +645,7 @@ def cylinder(bottom:vec3, top:vec3, radius:float, fill=True) -> 'Mesh':
 	return extrusion(direction, base)
 
 def cone(summit:vec3, base:vec3, radius:float, fill=True) -> 'Mesh':
-	''' create a revolution cone, with a base of the given radius 
+	''' Create a revolution cone, with a base of the given radius 
 	
 		Parameters:
 			
@@ -570,7 +658,7 @@ def cone(summit:vec3, base:vec3, radius:float, fill=True) -> 'Mesh':
 	return pyramid(summit, base)
 		
 def pyramid(summit:vec3, base) -> 'Mesh':
-	''' create a pyramid with the given summit point and the given base 
+	''' Create a pyramid with the given summit point and the given base 
 	
 		Parameters:
 			summit (vec3):   the top (summit) of the cone, not necessarity in the center of the shape
@@ -596,7 +684,7 @@ def pyramid(summit:vec3, base) -> 'Mesh':
 	return result
 
 def square(axis:primitives.Axis, width:float) -> 'Mesh':
-	''' return a simple square with the given normal axis and square width.
+	''' Return a simple square with the given normal axis and square width.
 		Useful to quickly create a cutplane
 	'''
 	x,y,z = dirbase(axis[1])
@@ -607,7 +695,7 @@ def square(axis:primitives.Axis, width:float) -> 'Mesh':
 		)
 
 def icosahedron(center:vec3, radius:float) -> 'Mesh':
-	''' a simple icosahedron (see https://en.wikipedia.org/wiki/Icosahedron) '''
+	''' A simple icosahedron (see https://en.wikipedia.org/wiki/Icosahedron) '''
 	phi = (1+ sqrt(5)) /2	# golden ratio
 	m = Mesh(
 		typedlist([
@@ -637,7 +725,7 @@ def icosahedron(center:vec3, radius:float) -> 'Mesh':
 	return m
 
 def icosphere(center:vec3, radius:float, resolution=None) -> 'Mesh':
-	''' a simple icosphere with an arbitrary resolution (see https://en.wikipedia.org/wiki/Geodesic_polyhedron).
+	''' A simple icosphere with an arbitrary resolution (see https://en.wikipedia.org/wiki/Geodesic_polyhedron).
 	
 		Points are obtained from a subdivided icosahedron and reprojected on the desired radius.
 	'''
@@ -649,7 +737,7 @@ def icosphere(center:vec3, radius:float, resolution=None) -> 'Mesh':
 	return ico
 
 def uvsphere(center:vec3, radius:float, alignment=vec3(0,0,1), resolution=None) -> 'Mesh':
-	''' a simple uvsphere (simple sphere obtained with a revolution of an arc) '''
+	''' A simple uvsphere (simple sphere obtained with a revolution of an arc) '''
 	x,y,z = dirbase(alignment)
 	mesh = revolution(2*pi, 
 			(center, z),
@@ -663,14 +751,14 @@ def uvsphere(center:vec3, radius:float, alignment=vec3(0,0,1), resolution=None) 
 	return mesh
 
 def regon(axis:primitives.Axis, radius, n, alignment=None) -> 'Wire':
-	''' create a regular n-gon `Wire`, the same way we create a `Circle` '''
+	''' Create a regular n-gon `Wire`, the same way we create a `Circle` '''
 	return primitives.Circle(axis, radius, 
 				resolution=('div',n), 
 				alignment=alignment or vec3(1,0,0),
 				).mesh() .segmented()
 
 def repeat(pattern, n:int, transform):
-	''' create a mesh duplicating n times the given pattern, each time applying the given transform.
+	''' Create a mesh duplicating n times the given pattern, each time applying the given transform.
 		
 		Parameters:
 		

@@ -30,5 +30,5 @@ m.check()
 #assert m.issurface()
 
 #m.options.update({'debug_display': True, 'debug_points': True })
-show([m], {'display_wire':True})
+show([m], display_wire=True)
 

@@ -15,7 +15,7 @@ import os
 import sys
 from dataclasses import dataclass
 
-from .common import ressourcedir
+from .common import resourcedir
 from .mathutils import (Box, vec3, fvec3, fvec4, vec2, fvec2, fmat4, 
 						ceil, sqrt, distance, anglebt, linrange,
 						)
@@ -32,7 +32,7 @@ import moderngl as mgl
 
 # TODO: utiliser les methodes et attributs ImgeFont.size, .getmetrics(), etc pour avoir les hauteur et largeur de police
 
-fontpath = [ressourcedir]
+fontpath = [resourcedir]
 
 def font_locations():
 	''' yield system and user font directories 
@@ -141,22 +141,23 @@ class TextDisplay(rendering.Display):
 		def load(scene):
 			img, align = create_font_texture(ImageFont.truetype(fontfile, 2*size))
 			return scene.ctx.texture(img.size, 1, img.tobytes()), align
-		self.fonttex, self.fontalign = scene.ressource(('fontfile', size), load)
+		self.fonttex, self.fontalign = scene.resource(('fontfile', size), load)
 		
 		# load shader
 		def load(scene):
 			shader = scene.ctx.program(
-						vertex_shader=open(ressourcedir+'/shaders/font.vert').read(),
-						fragment_shader=open(ressourcedir+'/shaders/font.frag').read(),
+						vertex_shader=open(resourcedir+'/shaders/font.vert').read(),
+						fragment_shader=open(resourcedir+'/shaders/font.frag').read(),
 						)
 			shader['fonttex'].value = 0
 			return shader
-		self.shader = scene.ressource('shader_font', load)
+		self.shader = scene.resource('shader_font', load)
 		
 		# place triangles
 		points = np.zeros((len(self.pointsdef)*len(text), 4), 'f4')
 		l = 0
 		c = 0
+		mc = 0
 		for i,char in enumerate(text):
 			if char == '\n':
 				c = 0
@@ -176,11 +177,13 @@ class TextDisplay(rendering.Display):
 						(n //self.fontalign[0] -add[1]) / self.fontalign[1],
 						]
 				c += 1
+			if c > mc:
+				mc = c
 		l += 1		
-		align = (processalign(align[0], c), -processalign(align[1], l))
+		align = (processalign(align[0], mc), -processalign(align[1], l))
 		points -= [*align, 0, 0]
-		self.textsize = (c,l)
-		self.visualsize = (-align[0], -align[1], c//2-align[0], l-align[1])
+		self.textsize = (mc,l)
+		self.visualsize = (-align[0], -align[1], mc//2-align[0], l-align[1])
 			
 		
 		# create the buffers on the GPU
@@ -222,6 +225,7 @@ def textsize(text, tab=4):
 	''' visual size of a text as vec2(column,line) '''
 	l = 0
 	c = 0
+	mc = 0
 	for i,char in enumerate(text):
 		if char == '\n':
 			c = 0
@@ -230,8 +234,10 @@ def textsize(text, tab=4):
 			c += tab - c%tab
 		else:
 			c += 1
+		if c > mc:
+			mc = c
 	l += 1
-	return fvec2(c,l)
+	return fvec2(mc, l)
 
 
 

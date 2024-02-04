@@ -2,9 +2,9 @@
 '''
 This module focuses on automated envelope generations, based on interface outlines.
 
-the user has only to define the interface outlines or surfaces to join, and the algorithm makes the surface. No more pain to imagine some fancy geometries.
+The user has only to define the interface outlines or surfaces to join, and the algorithm makes the surface. No more pain to imagine some fancy geometries.
 	
-formal definitions
+Formal definitions
 ------------------
 	
 :interface:   a surface or an outline (a loop) with associated exterior normals.
@@ -12,39 +12,43 @@ formal definitions
 
 In order to generate envelopes, this module asks for cutting all the surfaces to join into 'nodes'. The algorithm decides how to join shortly all the outlines in a node. Once splited in nodes, you only need to generate node junctions for each, and concatenate the resulting meshes.
 
-details
+Details
 -------
 
 The blended surfaces are created between interfaces, linked as the points of a convex polyedron of the interfaces directions to the node center.
 
 	
-example
+Example
 -------
 
-.. code::
+.. code-block:: python
 
-	>>> x,y,z = vec3(1,0,0), vec3(0,1,0), vec3(0,0,1)
+	>>> x, y, z = vec3(1, 0, 0), vec3(0, 1, 0), vec3(0, 0, 1)
+
+	>>> # 1. A surface can be passed: the surface outlines and 
+	>>> # normals will be used as the generated surface tangents 
+	>>> # 2. Wire or primitives can be passed: the wire loops are used 
+	>>> # and the approximate normal to the  wire plane
+	>>> # 3. More parameters when building directly the interface
 	>>> m = junction(
-			# can pass a surface: the surface outlines and normals will be used as the generated surface tangents 
-			extrusion(2*z, web(Circle((vec3(0),z), 1))),	
-			# can pass wire or primitives: the wire loops are used and the approximate normal to the  wire plane
-			Circle((2*x,x), 0.5),	
-			# more parameters when building directly the interfqce
-			(Circle((2*y,y), 0.5), 'tangent', 2.),
-			
-			generate='normal',
-			)
+	...		extrusion(2 * z, web(Circle((vec3(0), z), 1))), # 1.
+	...		Circle((2 * x, x), 0.5),                        # 2.
+	...		(Circle((2 * y, y), 0.5), "tangent", 2.0),      # 3.
+	...		generate="normal",
+	... )
 
-to come in a next version
+To come in a next version
 
-.. code::
+.. code-block:: python
 	
-	# create junction for each iterable of interface, if some are not interfaces, they are used as placeholder objects for auto-determined interfaces
-	>> multijunction(
-			(surf1, surf2, 42, surf5),
-			(42, surf3, surf4),
-			generate='straight',
-			)
+	>>> # create junction for each iterable of interface, 
+	>>> # if some are not interfaces, they are used 
+	>>> # as placeholder objects for auto-determined interfaces
+	>>> multijunction(
+	...		(surf1, surf2, 42, surf5),
+	...		(42, surf3, surf4),
+	...		generate='straight',
+	... )
 '''
 
 from .mesh import Mesh, Wire, Web, wire, connef, edgekey, suites, arrangeface, mkquad, numpy_to_typedlist, typedlist_to_numpy
@@ -56,7 +60,7 @@ from .nprint import nprint
 
 
 def get_interfaces(objs, tangents, weights):
-	''' collects the data definig interfaces for junctions and blendings out of an iterable of tuples 
+	''' Collects the data definig interfaces for junctions and blendings out of an iterable of tuples 
 		This function has no real interest for the enduser.
 	'''
 	# simply merge results of interface_parse
@@ -81,7 +85,7 @@ def get_interfaces(objs, tangents, weights):
 	return v_pts, v_tangents, v_weights, loops
 		
 def get_interface(base, tangents, weights, loops):
-	''' collects the data definig interfaces for junctions and blendings out of one object 
+	''' Collects the data definig interfaces for junctions and blendings out of one object 
 		This function has no real interest for the enduser.
 	'''
 	# get the interface outline to connect to the others
@@ -146,7 +150,7 @@ def get_interface(base, tangents, weights, loops):
 
 
 def junction(*args, center=None, tangents='normal', weight=1., match='length', resolution=None):
-	''' join several outlines with a blended surface
+	''' Join several outlines with a blended surface
 		
 		tangents:	
 			'straight'	no interpolation, straight lines
@@ -278,7 +282,7 @@ def junction(*args, center=None, tangents='normal', weight=1., match='length', r
 
 
 def multijunction(*nodes, **kwargs):
-	''' resolves partial definitions of interfaces, then create junctions with it 
+	''' Resolves partial definitions of interfaces, then create junctions with it 
 	
 		nodes are lists of interfaces, each of these list will end in a call to `junction`
 		nodes can contain 
@@ -314,7 +318,7 @@ def convexhull(pts):
 
 
 def match_length(line1, line2) -> '[(int, int)]':
-	''' yield couples of point indices where the curved absciss are the closest '''
+	''' Yield couples of point indices where the curved absciss are the closest '''
 	yield line1.indices[0], line2.indices[0]
 	l1, l2 = line1.length(), line2.length()
 	i1, i2 = 1, 1
@@ -341,7 +345,7 @@ def match_length(line1, line2) -> '[(int, int)]':
 
 
 def match_closest(line1, line2) -> '[(int, int)]':
-	''' yield couples of points by cutting each line at the curvilign absciss of the points of the other '''
+	''' Yield couples of points by cutting each line at the curvilign absciss of the points of the other '''
 	l1, l2 = line1.length(), line2.length()
 	p1, p2 = line1.points[line1.indices[0]], line2.points[line2.indices[0]]
 	x = 0
@@ -365,20 +369,20 @@ def match_closest(line1, line2) -> '[(int, int)]':
 		yield (p1, p2)
 
 def dividematch_length(line1, line2, resolution=None, associated=None) -> '[(vec3, vec3)]':
-	''' insert additional couples to ensure smoothness '''
+	''' Insert additional couples to ensure smoothness '''
 	indev
 
 def dividematch_closest(w0:Wire, w1:Wire, resolution=None, associated=None) -> (Wire, Wire):
 	indev
 
 def blend(interfaces, generate='straight', match='length', resolution=None) -> 'Mesh':
-	''' create a direct blended surface between unclosed lines '''	
+	''' Create a direct blended surface between unclosed lines '''	
 	pts, tangents, weights, loops = get_interfaces(args, tangents, weight)
 	
 	indev
 	
 def blendloop(interface, center=None, tangents='tangent', weight=1., resolution=None) -> Mesh:
-	''' blend inside a loop interface 
+	''' Blend inside a loop interface 
 	 
 		see `junction` for the parameters.
 	'''
@@ -404,11 +408,10 @@ def blendloop(interface, center=None, tangents='tangent', weight=1., resolution=
 
 
 def blendpair(*interfaces, match='length', tangents='tangent', weight=1., resolution=None) -> Mesh:
-	''' blend between a pair of interfaces 
+	''' Blend between a pair of interfaces 
 		
 		match:   
-			'length', 'closest'
-			refer to `match_*` in this module 
+			`'length'`, `'closest'` refer to `match_*` in this module 
 	 
 		see `junction` for the other parameters.
 	'''
@@ -453,7 +456,7 @@ def blendpair(*interfaces, match='length', tangents='tangent', weight=1., resolu
 	return blenditer(infos(), div, interpol2)
 
 def blenditer(parameters, div, interpol) -> Mesh:
-	''' create a blended surface using the matching parameters and the given interpolation 
+	''' Create a blended surface using the matching parameters and the given interpolation 
 		parameters is an iterable of tuples of arguments for the interpolation function
 		interpol receive the elements iterated and the interpolation position at the end
 	'''
@@ -477,7 +480,7 @@ def blenditer(parameters, div, interpol) -> Mesh:
 
 
 def synchronize(ref:Wire, loop:Wire) -> Wire:
-	''' assuming loop is a closed Wire, it will change its start point to match the startpoint of ref 
+	''' Assuming loop is a closed Wire, it will change its start point to match the startpoint of ref 
 	'''
 	r0, r1 = 0, int(wire_atlength(ref, ref.length()/2))	# lookup points on ref
 	l0 = l1 = 0	# lookup points on loop: start and middle
@@ -513,7 +516,7 @@ def synchronize(ref:Wire, loop:Wire) -> Wire:
 	return Wire(loop.points, end + loop.indices[:l0+1])
 
 def wire_atlength(wire, length):
-	''' return the index of the wire point at the given length.
+	''' Return the index of the wire point at the given length.
 	
 		the returned value is float whose integer part is the index and floating part is the 
 		ratio of the next segment to use to reach the exact desired length.
@@ -526,7 +529,7 @@ def wire_atlength(wire, length):
 			return i - (length-s)/d
 	
 def join(mesh, line1, line2):
-	''' simple straight surface created from matching couples of line1 and line2 using mesh indices for lines '''
+	''' Simple straight surface created from matching couples of line1 and line2 using mesh indices for lines '''
 	group = len(mesh.groups)
 	mesh.groups.append(None)
 	match = iter(curvematch(Wire(mesh.points, line1), Wire(mesh.points, line2)))
@@ -541,7 +544,7 @@ def join(mesh, line1, line2):
 		last = couple
 		
 def trijoin(pts, ptgts, div):
-	''' simple straight surface created between 3 points, interpolation is only on the sides '''
+	''' Simple straight surface created between 3 points, interpolation is only on the sides '''
 	mesh = Mesh(groups=[None])
 	segts = div+1
 	for i in range(3):

@@ -18,13 +18,13 @@
 	You may want to generate a more bizarre gear, with a a different hub for instance. You will then need to assemble a gear from its 3 components:  exterior (tooths), structure (between hub and exterior), and hub (what holds the gear on an axis)
 
 		>>> # this assemble a gear specifying each independant sub-parts
-		>>> ext_radius = (3*12)/(2*pi) - 3
+		>>> ext_radius = (3 * 12) / (2 * pi) - 3
 		>>> int_radius = 4
 		>>> geargather(
-		...		gearexterior(repeat_circular(gearprofile(3, 30), 30), depth=4),
-		...		gearstructure('rounded', ext_radius, int_radius, 2, patterns=6),
-		...		my_hub_mesh,
-		...		)
+		...	 gearexterior(repeat_circular(gearprofile(3, 30), 30), depth=4),
+		...	 gearstructure("rounded", ext_radius, int_radius, 2, patterns=6),
+		...	 my_hub_mesh,
+		... )
 
 	For reuse in your custom functions, the functions used to generate the gears are exposed:
 
@@ -143,7 +143,8 @@ def gearprofile(step, z, h=None, offset=0, alpha=radians(20), resolution=None, *
 	else:
 		s0 = involuteat(c, p-h+e)
 
-	pts = []
+	points = []
+	tracks = []
 	n = 2 + settings.curve_resolution(h, step/p, resolution)	# number of points to place
 
 	# parameter for first side
@@ -154,14 +155,18 @@ def gearprofile(step, z, h=None, offset=0, alpha=radians(20), resolution=None, *
 	for i in range(n+1):
 		t = interpol1(t0-l0, t0-s0, i/n)
 		v = involute(c, t0, t)
-		pts.append(vec3(v,0))
+		points.append(vec3(v,0))
+		tracks.append(0)
 	# interference line
 	if interference:
 		for i in range(n+1):
 			t = interpol1(ti+li, ti, i/n)
 			v = involuteof(p, ti, -h+e, t)
-			pts.append(vec3(v,0))
-
+			points.append(vec3(v,0))
+			tracks.append(1)
+	
+	tracks[-1] = 2
+	
 	# parameters for second side
 	place = step/(2*p)*(2-x)
 	t0 = place - o0
@@ -171,16 +176,21 @@ def gearprofile(step, z, h=None, offset=0, alpha=radians(20), resolution=None, *
 		for i in range(n+1):
 			t = interpol1(ti, ti-li, i/n)
 			v = involuteof(p, ti, -h+e, t)
-			pts.append(vec3(v,0))
+			points.append(vec3(v,0))
+			tracks.append(3)
 	# contact line
 	for i in range(n+1):
 		t = interpol1(t0+s0, t0+l0, i/n)
 		v = involute(c, t0, t)
-		pts.append(vec3(v,0))
+		points.append(vec3(v,0))
+		tracks.append(4)
+		
+	tracks[-1] = 5
 
-	pts.append(angleAxis(step/p, vec3(0,0,1)) * pts[0])
+	points.append(angleAxis(step/p, vec3(0,0,1)) * points[0])
+	tracks.append(5)
 
-	return Wire(pts, groups=['gear'])
+	return Wire(points, tracks=tracks, groups=['contact', 'interference', 'bottom', 'interference', 'contact', 'top'])
 
 def gearcircles(step, z, h=None, offset=0, alpha=radians(30)):
 	''' return the convenient circles radius for a gear with the given parameters
@@ -295,8 +305,8 @@ def pattern_circle(
 
 	Note:
 
-		- for instance, with a ratio of 1.5, the radius of circles `circles_radius` will be divided by 1.5
-		- if `circles_radius` is chosen, `ratio` won't impact the radius of circles `circles_radius`
+		- For instance, with a ratio of 1.5, the radius of circles `circles_radius` will be divided by 1.5
+		- If `circles_radius` is chosen, `ratio` won't impact the radius of circles `circles_radius`
 	"""
 	# Parameters
 	half_depth = depth / 2
@@ -366,8 +376,8 @@ def create_pattern_rect(
 
 	Note:
 
-		- for instance, if `ratio` is 1.5, the area of the pattern will be divided by 1.5.
-		- if `r_int` and `r_ext` are chosen, `ratio` won't impact these parameters
+		- For instance, if `ratio` is 1.5, the area of the pattern will be divided by 1.5.
+		- If `r_int` and `r_ext` are chosen, `ratio` won't impact these parameters
 	"""
 	# Parameters
 	half_depth = depth / 2
@@ -425,7 +435,7 @@ def create_pattern_rect(
 	top_profile = reduce(add, top_webs)
 	bottom_profile = reduce(add, bottom_webs)
 	surfaces = extrusion(vec3(0, 0, depth - 2 * int_height), bottom_webs[0].flip())
-    
+	
 	mesh = triangulation(top_profile) + triangulation(bottom_profile) + surfaces
 	mesh.mergeclose()
 	return mesh
@@ -463,8 +473,8 @@ def pattern_rect(
 
 	Note:
 
-		- for instance, if `ratio` is 1.5, the area of the pattern will be divided by 1.5.
-		- if `r_int` and `r_ext` are chosen, `ratio` won't impact these parameters
+		- For instance, if `ratio` is 1.5, the area of the pattern will be divided by 1.5.
+		- If `r_int` and `r_ext` are chosen, `ratio` won't impact these parameters
 	"""
 	return create_pattern_rect(ext_radius, int_radius, depth, int_height, ratio, patterns, ext_thickness, int_thickness, False)
 
@@ -501,8 +511,8 @@ def pattern_rounded(
 
 	Note:
 
-		- for instance, if `ratio` is 1.5, the area of the pattern will be divided by 1.5.
-		- if `r_int` and `r_ext` are chosen, `ratio` won't impact these parameters
+		- For instance, if `ratio` is 1.5, the area of the pattern will be divided by 1.5.
+		- If `r_int` and `r_ext` are chosen, `ratio` won't impact these parameters
 	"""
 	return create_pattern_rect(ext_radius, int_radius, depth, int_height, ratio, patterns, ext_thickness, int_thickness, True)
 
@@ -519,11 +529,12 @@ def minmax_radius(points):
 
 def gearexterior(
 	profile: Wire,
+	z,
 	depth,
-	step = None,
-	helix_angle = 0,
-	chamfer = 0,
-	resolution = None,
+	step=None,
+	helix_angle=0,
+	chamfer=0,
+	resolution=None,
 	**kwargs,
 ) -> Mesh:
 	"""
@@ -531,82 +542,135 @@ def gearexterior(
 
 	Parameters:
 
-		profile (Web):			profile of the pinion generated by `gearprofile`
-		depth (float):			extrusion eight - width of the gear along its axis
-		step (float):			step of chordal pitch, must be specified for non-null helix_angle, unused otherwise
-		helix_angle (float):	helix angle for helical gears - only without bevel; `bevel` = False - it must be a radian angle
-		chamfer (float):		chamfer angle - only for straight pinion
-	"""
-	# TODO: helical + chamfer
+			profile (Web):			profile of the pinion generated by `gearprofile`
+			depth (float):			extrusion eight - width of the gear along its axis
+			step (float):			step of chordal pitch, must be specified for non-null helix_angle, unused otherwise
+			helix_angle (float):	helix angle for helical gears - only without bevel; `bevel` = False - it must be a radian angle
+			chamfer (bool | float | (float, float)):
 
+				set the parameter of chamfer `(angle, ratio)` such as `angle` is the chamfer angle,
+				`ratio` is where the chamfer is applied (`rmin + ratio * (rmax - rmin)`)
+	"""
+
+	# Parameters
 	half_depth = depth / 2
 	footer, header = minmax_radius(profile.points)
+	R = header  # the largest radius of profile
 
-	# Internal circles
-	circle_ref = wire(Circle((O,Z), footer - 0.3*(header-footer), resolution=resolution))
-	top_circle = circle_ref.transform(vec3(0, 0, half_depth))
-	bottom_circle = circle_ref.transform(vec3(0, 0, -half_depth))
+	# The code generates a tooth and a body, applies
+	# a boolean operation and then repeat it to 
+	# get a complete gear surface
 
-	assert not (chamfer and helix_angle),  "chamfer is not (yet) supported with a non-null helix_angle"
+	# Body
+	refpoint = profile[0] - half_depth * Z
+	# Offsets needed for boolean operation
+	more_offset = (header + 0.3 * (header - footer)) / header
+	less_offset = (footer - 0.3 * (header - footer)) / header
+	A = (more_offset * (X + Y) + Z) * refpoint # external radius offset
+	B = (less_offset * (X + Y) + Z) * refpoint # internal radius offset
+	bottom = web(Segment(A, B))
 
-	if chamfer:  # chamfer case
-		# create a truncated profile (the top profile of the chamfer)
-		start = mix(footer, header, 0.6)  # primitive radius
-		k = tan(chamfer)
-		truncated = deepcopy(profile) # profile which will be truncated
-		for i, point in enumerate(profile.points):
-			# truncate points that overlap the primitive
-			r = length2(point)
-			if r > start**2:
-				r = sqrt(r)
-				profile.points[i] = point - vec3(0, 0, (r - start) * k)
-				truncated.points[i] = point * start / r
+	if helix_angle:  # helical tooth case
+		# Step to generate a helical transformation
+		step = settings.curve_resolution(
+			depth / cos(helix_angle), abs(depth * tan(helix_angle) / R), resolution
+		)
+		angle = depth * tan(helix_angle) / R / (step + 1)
+		h = depth / (step + 1)
+		bottom_gear_edge = profile.transform(translate(-half_depth * Z))
+		transformations = (
+			translate(i * h * Z) * rotate(angle * i, Z) for i in range(step + 2)
+		)
+		links = ((i, i + 1, 0) for i in range(step + 1))
 
-		# Profiles
-		top_profile = profile.transform(vec3(0, 0, half_depth))
-		bottom_profile = top_profile.transform(scaledir(Z, -1))
-		top_truncated = truncated.transform(vec3(0, 0, half_depth))
-		bottom_truncated = truncated.transform(vec3(0, 0, -half_depth))
+		# Generation of helical gear surface
+		bottom_gear_edge = profile.transform(translate(-half_depth * Z))
+		gear_surface = extrans(bottom_gear_edge, transformations, links)
+		gear_surface.mergeclose()
+
+		# Transformation from step 0 to step -1
+		tra = translate(depth * Z) * rotate(depth * tan(helix_angle) / R, Z)
+		# Generation of the body
+		if chamfer:
+			if isinstance(chamfer, (tuple, list)):
+				chamfer_angle, ratio = chamfer
+			elif isinstance(chamfer, float):
+				chamfer_angle, ratio = chamfer, 0.5
+			else:
+				chamfer_angle, ratio = pi / 8, 0.5
+			assert chamfer_angle > 0, "chamfer angle must be positive."
+			# Transformation for one step from step 0 to step 1
+			trs = translate(h * Z) * rotate(angle, Z)
+
+			# Axis for rotation to generate the chamfer
+			axis = normalize(cross(Z, A))
+
+			coeff = (footer + (1 - ratio) * (header - footer)) / header
+			M = (coeff * (X + Y) + Z) * refpoint 
+			# Compute closed points
+			C = rotatearound(-chamfer_angle, (M, axis)) * A # top
+			D = rotatearound(chamfer_angle, (M, axis)) * A # bottom
+
+			# Adjust points
+			t = _get_intersection(refpoint, trs * refpoint, M, D)
+			I = refpoint + t * (trs * refpoint - refpoint)
+			D = M + normalize(I - M) * length(M - D)
+
+			I = refpoint - t * (trs * refpoint - refpoint)
+			C = M + normalize(I - M) * length(M - C)
+
+			bottom = web([Segment(C, M), Segment(M, B)])
+			bottom.mergeclose()
+			top = web([Segment(D, M), Segment(M, B)]).transform(tra)
+			top.mergeclose()
+		else:
+			top = bottom.transform(tra)
+
+		body = revolution(2 * pi / z, (O, Z), top + bottom.flip())
+		body.mergeclose()
+
+	else:  # straight tooth case
+		# Generation of body
+		if chamfer:
+			if isinstance(chamfer, (tuple, list)):
+				chamfer_angle, ratio = chamfer
+			elif isinstance(chamfer, float):
+				chamfer_angle, ratio = chamfer, 0.5
+			else:
+				chamfer_angle, ratio = pi / 8, 0.5
+			assert chamfer_angle > 0, "chamfer angle must be positive."
+			# Axis for rotation to generate the chamfer
+			axis = normalize(cross(Z, A))
+
+			coeff = (footer + (1 - ratio) * (header - footer)) / header
+			M = (coeff * (X + Y) + Z) * refpoint 
+			# Compute closed points
+			C = rotatearound(-chamfer_angle, (M, axis)) * A # top
+			D = rotatearound(chamfer_angle, (M, axis)) * A # bottom
+
+			bottom = web([Segment(C, M), Segment(M, B)])
+			bottom.mergeclose()
+			top = web([Segment(D, M), Segment(M, B)]).transform(depth * Z)
+			top.mergeclose()
+		else:
+			top = bottom.transform(translate(depth * Z))
+
+		body = revolution(2 * pi / z, (O, Z), top + bottom.flip())
+		body.mergeclose()
 
 		# Surfaces
-		bp = partial(junction, tangents="straight", resolution = ("div", 0))
-		top_surface = triangulation(web([top_truncated, top_circle.flip()]))
-		bottom_surface = triangulation(web([bottom_truncated.flip(), bottom_circle]))
-		top_bevel = bp(top_truncated, top_profile.flip())
-		bottom_bevel = bp(bottom_truncated.flip(), bottom_profile)
-		gear_surface = bp(top_profile, bottom_profile.flip())
+		gear_surface = extrusion(
+			depth * 1.05 * Z,
+			profile.transform(translate(-half_depth * 1.05 * Z)),
+		)
+	
 
-		surfaces = (top_surface, bottom_surface, top_bevel, bottom_bevel, gear_surface)
-		mesh = reduce(add, surfaces)
-		mesh.mergeclose()
-	else:
-		if helix_angle:  # helical teeth case
-			# Edges of teeth
-			R = header # the largest radius of profile
-			# step to generate a helical transformation
-			step = settings.curve_resolution(depth / cos(helix_angle), depth * tan(helix_angle) / R, resolution)
-			angle = depth * tan(helix_angle) / R / (step + 1)
-			h = depth / (step + 1)
-			bottom_gear_edge = profile.transform(vec3(0, 0, -half_depth))
-			transformations = (
-				transform((vec3(0, 0, i * h), angleAxis(angle * i, Z)))
-				for i in range(step + 2)
-			)
-			links = ((i, i + 1, 0) for i in range(step + 1))
-			gear_surface = extrans(bottom_gear_edge, transformations, links)
-			t = transform((vec3(0, 0, depth), angleAxis(depth * tan(helix_angle) / R, Z)))
-			top_gear_edge = bottom_gear_edge.transform(t)
-		else:  # straight teeth case
-			# Edges of teeth
-			bottom_gear_edge = profile.transform(vec3(0, 0, -half_depth))
-			top_gear_edge = profile.transform(vec3(0, 0, half_depth))
-			gear_surface = extrusion(vec3(0, 0, depth), bottom_gear_edge)
+	# Boolean operation
+	result = intersection(body.flip(), gear_surface)
 
-		# Surfaces
-		top_surface = triangulation(web([top_gear_edge, top_circle.flip()]))
-		bottom_surface = triangulation(web([bottom_gear_edge.flip(), bottom_circle]))
-		mesh = gear_surface + top_surface + bottom_surface
-		mesh.mergeclose()
+	# Repetition for a complete exterior surface
+	mesh = repeat(result, z, rotatearound(2 * pi / z, (O, Z)))
+	mesh.mergeclose()
 	return mesh
 
 
@@ -812,7 +876,10 @@ def gear(
 	* Extra parameters for `gearexterior`
 
 		helix_angle (float):	helix angle to get a helical pinion in radian
-		chamfer (float):		chamfer angle - only for straight pinion
+		chamfer (bool | float | (float, float)):
+
+			set the parameter of chamfer `(angle, ratio)` such as `angle` is the chamfer angle,
+			`ratio` is where the chamfer is applied (`rmin + ratio * (rmax - rmin)`)
 
 	* Extra parameters for `gearstructure`
 
@@ -829,10 +896,11 @@ def gear(
 		- `int_height` impacts the height of the hub unless specified.
 		- if `hub_height` is null, there will be no hub.
 	"""
-	profile = repeat_circular(gearprofile(step, z, **kwargs), z)
+	# profile = repeat_circular(gearprofile(step, z, **kwargs), z)
+	profile = gearprofile(step, z, **kwargs)
 
 	# Parts
-	exterior = gearexterior(profile, depth, step, **kwargs)
+	exterior = gearexterior(profile, z, depth, step, **kwargs)
 	ext_int = minmax_radius(exterior.points)[0]
 	hub = gearhub(bore_radius, depth, int_height, hub_radius=min(2 * bore_radius, 0.9 * ext_int), **kwargs)
 	hub_ext = minmax_radius(hub.points)[1]
@@ -898,9 +966,10 @@ def spherical_involuteof(pitch_cone_angle:float, t0:float, alpha:float, t:float)
 		a normalized `vec3`
 	"""
 	cos_p, sin_p = cos(pitch_cone_angle), sin(pitch_cone_angle)
-	involute = lambda t, t0: spherical_involute(pitch_cone_angle, t0, t)
-	vec = lambda t: vec3(-cos_p * cos(t), -cos_p * sin(t), sin_p)
-	return cos(alpha) * involute(t, t0) + sin(alpha) * vec(t + t0)
+	return (
+		+ cos(alpha) * spherical_involute(pitch_cone_angle, t0, t) 
+		+ sin(alpha) * vec3(-cos_p * cos(t+t0), -cos_p * sin(t+t0), sin_p)
+		)
 
 
 def derived_spherical_involute(cone_angle:float, t0:float):
@@ -1001,7 +1070,7 @@ def spherical_rackprofile(z:float, pressure_angle:float=pi / 9, ka:float=1, kd:f
 	div = settings.curve_resolution(1, pi/z, resolution)
 	t_min, t_max, phase1, phase2, involute = spherical_rack_tools(z, pressure_angle, ka, kd)
 	
-	side1 = [involute(t, 0)         for t in linrange(t_min, t_max, div=div)]
+	side1 = [involute(t, 0)		 for t in linrange(t_min, t_max, div=div)]
 	side2 = [involute(-t, phase1)   for t in linrange(t_min, t_max, div=div)]
 	segment = Segment(involute(t_min, -phase2), side1[0]).mesh()
 	segment2 = Segment(side1[-1], side2[-1]).mesh()
@@ -1078,8 +1147,9 @@ def spherical_gearprofile(
 	div = settings.curve_resolution(1, 2*pi/z, resolution)
 	interference1 = [interference(t, -0.5 * phase_interference + beta) for t in linrange(0, t2, div=div)]
 	interference2 = [interference(-t, phase_diff + 0.5 * phase_interference - beta) for t in linrange(0, t2, div=div)]
-	side1 = interference1[:-1] + [involute(t, 0) for t in linrange(t1, t_max, div=div)]
-	side2 = interference2[:-1] + [involute(-t, phase_diff) for t in linrange(t1, t_max, div=div)]
+	side1 = Wire(interference1[:-1]) + Wire([involute(t, 0) for t in linrange(t1, t_max, div=div)])
+	side2 = Wire(interference2[:-1]) + Wire([involute(-t, phase_diff) for t in linrange(t1, t_max, div=div)])
+	side2.groups = side1.groups = ['interference', 'contact']
 
 	# Extreme points of sides to compute angle between them
 	a = interference(0, -0.5 * phase_interference + beta)
@@ -1087,8 +1157,10 @@ def spherical_gearprofile(
 	final_phase_empty = 2 * pi / z - anglebt(a * vec3(1, 1, 0), b * vec3(1, 1, 0))
 	top = Segment(involute(t_max, 0), involute(-t_max, phase_diff)).mesh()
 	bottom = Segment(angleAxis(-final_phase_empty, vec3(0, 0, 1)) * a, a).mesh()
+	top.groups = ['top']
+	bottom.groups = ['bottom']
 
-	return bottom + Wire(side1) + top + Wire(side2).flip()
+	return bottom + side1 + top + side2.flip()
 
 
 def cone_projection(profile: Wire, pitch_cone_angle:float) -> Wire:
@@ -1103,7 +1175,7 @@ def cone_projection(profile: Wire, pitch_cone_angle:float) -> Wire:
 	new_points = [1 / dot(ref(atan2(point.y, point.x)), point) * point for point in profile.points]
 	return Wire(new_points, indices=profile.indices)
 
-@cachefunc
+# @cachefunc
 def bevelgear(
 	step:float,
 	z:int,
@@ -1189,12 +1261,10 @@ def straight_bevel_gear(
 
 	# Generate spherical profiles
 	spherical_profile = spherical_gearprofile(z, gamma_p, pressure_angle, ka, kd, resolution=resolution) # one tooth
-	outside_profile = spherical_profile.transform(rho1 * 1.1)
-	inside_profile = spherical_profile.transform(rho0 * 0.9)
-
+	
 	# Generate teeth border
-	teeth_border = blendpair(outside_profile, inside_profile.flip(), tangents="straight")
-
+	teeth_border = extrusion((rho1*1.1)/(rho0*0.9), spherical_profile.transform(rho0*0.9))
+	
 	# Common values
 	v = vec3(1, 1, 0)
 	# angle1tooth = anglebt(spherical_profile[0] * v, spherical_profile[-1] * v)
@@ -1396,6 +1466,7 @@ def helical_bevel_gear(
 		wire = Wire([D, C, F, E, A, B]).segmented()
 
 	body = revolution(angle1tooth, (O, Z), wire)
+	# show([gear_surface, body])
 	onetooth = intersection(gear_surface, body)
 	all_teeth = repeat(onetooth, z, rotatearound(angle1tooth, (O, Z))).finish()
 

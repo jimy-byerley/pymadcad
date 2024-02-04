@@ -77,7 +77,7 @@ def wire(*arg, resolution=None) -> Wire:
 		:iterable of vec3:  create internal point list from it, and put trivial indices
 	'''
 	if not arg:	
-		raise TypeError('web take at least one argument')
+		raise TypeError('wire takes at least one argument')
 	if len(arg) == 1:	
 		arg = arg[0]
 	if isinstance(arg, Wire):		
