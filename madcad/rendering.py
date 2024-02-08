@@ -1150,11 +1150,13 @@ class View(ViewCommon, QOpenGLWidget):
 		
 		if QApplication.testAttribute(Qt.AA_ShareOpenGLContexts):
 			if not global_context:
-				global_context = mgl.create_context()
+				# global_context = mgl.create_context()
+				global_context = mgl.get_context()
 			self.scene.ctx = global_context
 		# or create a context
 		else:
-			self.scene.ctx = mgl.create_context()
+			# self.scene.ctx = mgl.create_context()
+			self.scene.ctx = mgl.get_context()
 		self.init()
 		self.preload()
 
