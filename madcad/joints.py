@@ -33,6 +33,10 @@ def drotate(angle, axis):
 	m -= mat4(outerProduct(axis, axis) / length2(axis))
 	return m
 	
+def dtranslate(direction):
+	m = translate(normalize(direction))
+	m[3][3] = 0
+	return m
 
 
 class Pivot(Joint):
@@ -41,15 +45,20 @@ class Pivot(Joint):
 	
 	def __init__(self, solids, axis: Axis, local=None):
 		self.solids = solids
-		self.axis = axis
 		local = local or axis
-		self.pre = mat4(quat(local[1], Z)) * translate(-local[0])
-		self.post = translate(axis[0]) * mat4(quat(Z, axis[1]))
-		self.position = axis[0]
+		
+		if isinstance(axis, mat4):
+			self.post = axis
+			self.pre = affineInverse(local)
+		elif isinstance(axis, Axis):
+			self.post = translate(axis[0]) * mat4(quat(Z, axis[1]))
+			self.pre = mat4(quat(local[1], Z)) * translate(-local[0])
+		else:
+			raise TypeError('Pivot can only be placed on an Axis or a mat4')
 		
 	def __repr__(self):
 		return '{}({}, Axis(({:.3g},{:.3g},{:.3g}), ({:.3g},{:.3g},{:.3g})))'.format(
-			self.__class__.__name__, self.solids, *self.axis[0], *self.axis[1])
+			self.__class__.__name__, self.solids, *self.post[3].xyz, *self.post[2].xyz)
 	
 	def direct(self, angle) -> mat4:
 		return self.post * rotate(angle, Z) * self.pre
@@ -72,14 +81,14 @@ class Pivot(Joint):
 	def scheme(self, maxsize, attach_start, attach_end):
 		size = settings.display['joint_size']
 		radius = size/4
-		axis = self.axis
 		sch = Scheme()
 		resolution = ('div', 16)
 		
-		sch.set(track=0, space=scale_solid(self.solids[0], fvec3(axis[0]), maxsize/size))
+		x,y,z,o = mat4x3(self.post)
+		sch.set(track=0, space=scale_solid(self.solids[0], fvec3(o), maxsize/size))
 		cylinder = gt.cylinder(
-						axis[0]-axis[1]*size*0.4, 
-						axis[0]+axis[1]*size*0.4, 
+						o-z*size*0.4, 
+						o+z*size*0.4, 
 						radius=size/4, 
 						resolution=resolution,
 						fill=False,
@@ -87,28 +96,26 @@ class Pivot(Joint):
 		sch.add(cylinder, shader='ghost')
 		sch.add(cylinder.outlines(), shader='line')
 		if attach_start:
-			v = normalize(noproject(start - axis[0], axis[1]))
+			v = normalize(noproject(start - o, z))
 			if not isfinite(v):
-				v,_,_ = dirbase(axis[1])
-			p = center + v*size/4
-			sch.add(gt.flatsurface([p, p + axis[1]*size*cornersize, p + v*size*cornersize]), shader='ghost')
+				v = x
+			p = o + v*size/4
+			sch.add(gt.flatsurface([p, p + z*size*cornersize, p + v*size*cornersize]), shader='ghost')
 			sch.add([p, p + v*size*cornersize, start], shader='line')
 		
-		
-		axis = self.axis.transform(affineInverse(self.post * self.pre))
-		sch.set(track=1, space=scale_solid(self.solids[1], fvec3(axis[0]), maxsize/size))
-		center = axis[0] + project(self.position[1]-axis[0], axis[1])
-		side = axis[1] * size * 0.5
+		x,y,z,o = mat4x3(affineInverse(self.post))
+		sch.set(track=1, space=scale_solid(self.solids[1], fvec3(o), maxsize/size))
 		c1 = primitives.Circle(
-						(center-axis[1]*size*0.5, -axis[1]), 
+						(o-z*size*0.5, -z), 
 						radius, 
 						resolution=resolution,
 						).mesh()
 		c2 = primitives.Circle(
-						(center+axis[1]*size*0.5, axis[1]), 
+						(o+z*size*0.5, z), 
 						radius, 
 						resolution=resolution,
 						).mesh()
+		sch.add([o-z*size*0.5, o+z*size*0.5], shader='line')
 		sch.add(c1, shader='line')
 		sch.add(c2, shader='line')
 		sch.add(gt.flatsurface(c1), shader='ghost')
@@ -116,10 +123,11 @@ class Pivot(Joint):
 		
 		sch.set(shader='fill')
 		if attach_end:
-			if dot(attach_end-axis[0], axis[1]) < 0:
+			side = z * size * 0.5
+			if dot(attach_end-o, z) < 0:
 				side = -side
 			if dot(attach_end-center-side, side) < 0:
-				attach = side + normalize(noproject(attach_end-center, axis[1]))*radius
+				attach = side + normalize(noproject(attach_end-center, z))*radius
 			else:
 				attach = side
 			sch.add([center-side, center+side])
@@ -135,31 +143,39 @@ class Planar(Joint):
 		this class holds an axis for each side, the axis origins are constrained to share the same projections on the normal
 	'''
 		
-	bounds = ((-inf, -inf), (inf, inf))
+	bounds = ((-inf, -inf, -inf), (inf, inf, inf))
 	
 	def __init__(self, solids, axis, local=None):
 		self.solids = solids
-		self.axis = axis
 		local = local or axis
-		self.pre = mat4(quat(local[1], Z)) * translate(-local[0])
-		self.post = translate(axis[0]) * mat4(quat(Z, axis[1]))
-		self.position = axis[0]
+		
+		if isinstance(axis, mat4):
+			self.post = axis
+			self.pre = affineInverse(local)
+		elif isinstance(axis, Axis):
+			self.post = translate(axis[0]) * mat4(quat(Z, axis[1]))
+			self.pre = mat4(quat(local[1], Z)) * translate(-local[0])
+		else:
+			raise TypeError('Planar can only be placed on an Axis or a mat4')
 	
 	def __repr__(self):
 		return '{}({}, Axis(({:.3g},{:.3g},{:.3g}), ({:.3g},{:.3g},{:.3g})))'.format(
-			self.__class__.__name__, self.solids, *self.axis[0], *self.axis[1])
+			self.__class__.__name__, self.solids, *self.post[3].xyz, *self.post[2].xyz)
 	
-	def direct(self, position: vec2):
-		return mat4(self.post) * translate(vec3(position)) * mat4(self.pre)
+	def direct(self, position: vec3):
+		return mat4(self.post) * translate(vec3(position.xy)) * rotate(position.z, Z) * mat4(self.pre)
 		
 	def inverse(self, matrix, close=None):
 		m = mat4(transpose(self.post)) * matrix * mat4(transpose(self.pre))
-		return vec2(m[3])
+		angle = atan2(m[0][1], m[0][0])
+		angle += (2*pi) * ((angle + pi - close) // (2*pi))
+		return vec3(m[3].xy, angle)
 		
-	def grad(self, position: vec2, delta=1e-6):
+	def grad(self, position: vec3, delta=1e-6):
 		return (
-			mat4(self.post) * translate(X) * mat4(self.pre),
-			mat4(self.post) * translate(Y) * mat4(self.pre),
+			self.post * translate(X) * rotate(position.z, Z) * self.pre,
+			self.post * translate(Y) * rotate(position.z, Z) * self.pre,
+			self.post * translate(position.xy) * drotate(position.z, Z) * self.pre,
 			)
 	
 	def transmitable(self, force, parameters=None, velocity=None):
@@ -172,29 +188,29 @@ class Planar(Joint):
 		size = settings.display['joint_size']
 		sch = Scheme()
 		
-		axis = self.axis
+		x,y,z,o = mat4x3(self.post)
 		sch.set(
 			track = 0, 
-			space = scale_solid(self.solids[0], fvec3(axis[0]), maxsize/size),
+			space = scale_solid(self.solids[0], fvec3(o), maxsize/size),
 			)
-		square = gt.square(axis.transform(axis[1]*0.2*size), size)
+		square = gt.parallelogram(x, y, origin=0.2*z, alignment=0.5)
 		sch.add(square.outlines(), shader='line')
 		sch.add(square, shader='ghost')
 		
 		if attach_start:
-			sch.add([axis[0], axis[0]+axis[1]*0.1*size, axis[0]+(x+y)*0.1*size], shader='fill')
-			
-		axis = self.axis.transform(affineInverse(self.post * self.pre))
+			sch.add([o, o+z*0.1*size, o+(x+y)*0.1*size], shader='fill')
+		
+		x,y,z,o = mat4x3(affineInverse(self.pre))
 		sch.set(
 			track = 1,
-			space = scale_solid(self.solids[1], fvec3(axis[0]), maxsize/size),
+			space = scale_solid(self.solids[1], fvec3(o), maxsize/size),
 			)
-		square = gt.square(axis.transform(-axis[1]*0.2*size).flip(), size)
+		square = gt.parallelogram(x, y, origin=-0.2*z, alignment=0.5)
 		sch.add(square.outlines(), shader='line')
 		sch.add(square, shader='ghost')
 		
 		if attach_end:
-			sch.add([axis[0], axis[0]+axis[1]*0.1*size, axis[0]+(x+y)*0.1*size], shader='fill')
+			sch.add([o, o+z*0.1*size, o+(x+y)*0.1*size], shader='fill')
 		
 		return sch
 
@@ -209,18 +225,17 @@ class Track(Joint):
 	
 	bounds = (-inf, inf)
 	
-	def __init__(self, solids, axis, local=None):
+	def __init__(self, solids, plane: mat3x4, local=None):
 		self.solids = (s1, s2)
 		self.axis = axis
 		self.offset = mat4(quat(axis, local or axis))
-		self.position = axis[0]
 	
 	def __repr__(self):
 		return '{}({}, Axis(({:.3g},{:.3g},{:.3g}), ({:.3g},{:.3g},{:.3g})))'.format(
 			self.__class__.__name__, self.solids, *self.axis[0], *self.axis[1])
 	
 	def direct(self, translation):
-		return translate(self.axis[1]*translation)
+		return translate(self.direction*translation) * self.pre
 		
 	def inverse(self, matrix, close=None):
 		m = matrix * hinverse(self.offset)
@@ -234,65 +249,63 @@ class Track(Joint):
 		normal = normalize(z0 + z1)
 		return Screw(noproject(action.resulting, normal), action.momentum, action.position)
 	
-	def scheme(self, solid, size, junc):
-		if solid is self.solids[0]:
-			o,x,y = self.bases[0]
-			y = normalize(noproject(y,x))
-			z = normalize(cross(x,y))
-			s = 0.25*size
-			line = Web(
-						[(x-y)*s, (x+y)*s, (x+y)*s, (-x+y)*s, (-x+y)*s, (-x-y)*s, (-x-y)*s, (x-y)*s],
-						[(0,1),(2,3),(4,5),(6,7)],
-						)
-			line.transform(o-size/2*z)
-			ext = generation.extrusion(size*z, line)
-			l = len(ext.points)
-			v = junc - o
-			if abs(dot(v,x)) > abs(dot(v,y)):
-				v = x if dot(v,x)>0 else -x
-			else:
-				v = y if dot(v,y)>0 else -y
-			p = o + v*0.25*size
-			ext.points.append(p)
-			ext.points.append(p + z*size*cornersize)
-			ext.points.append(p + v*size*cornersize)
-			ext.points.append(junc)
-			return Scheme(
-					ext.points, 
-					ext.faces, 
-					[(l,l+1,l+2)], 
-					[	(l+2, l+3),
-						(0,1),(2,3),(4,5),(6,7),
-						(0,8), (2,10), (4,12), (6,14), 
-						(8,9),(10,11),(12,13),(14,15)],
+	def scheme(self, maxsize, attach_start, attach_end):
+		o,x,y = self.bases[0]
+		y = normalize(noproject(y,x))
+		z = normalize(cross(x,y))
+		s = 0.25*size
+		line = Web(
+					[(x-y)*s, (x+y)*s, (x+y)*s, (-x+y)*s, (-x+y)*s, (-x-y)*s, (-x-y)*s, (x-y)*s],
+					[(0,1),(2,3),(4,5),(6,7)],
 					)
-		
-		elif solid is self.solids[1]:
-			o,x,y = self.bases[1]
-			y = noproject(y,x)
-			z = cross(x,y)
-			s = 0.15*size
-			line = Web(
-						[(x+y)*s, (-x+y)*s, (-x-y)*s, (x-y)*s],
-						[(0,2),(1,3)],
-						)
-			line.transform(o-size/2*z)
-			ext = generation.extrusion(size*z, line)
-			l = len(ext.points)
-			v = junc - o
-			v = z if dot(v, z) > 0 else -z
-			p = o + v*size/2
-			ext.points.append(p)
-			ext.points.append(junc)
-			return Scheme(
-					ext.points, 
-					[], 
-					[], 
-					[	(l, l+1),
-						(0,2), (1,3),
-						(0,4), (1,5), (2,6), (3,7),
-						(4,6), (5,7)],
+		line.transform(o-size/2*z)
+		ext = generation.extrusion(size*z, line)
+		l = len(ext.points)
+		v = junc - o
+		if abs(dot(v,x)) > abs(dot(v,y)):
+			v = x if dot(v,x)>0 else -x
+		else:
+			v = y if dot(v,y)>0 else -y
+		p = o + v*0.25*size
+		ext.points.append(p)
+		ext.points.append(p + z*size*cornersize)
+		ext.points.append(p + v*size*cornersize)
+		ext.points.append(junc)
+		return Scheme(
+				ext.points, 
+				ext.faces, 
+				[(l,l+1,l+2)], 
+				[	(l+2, l+3),
+					(0,1),(2,3),(4,5),(6,7),
+					(0,8), (2,10), (4,12), (6,14), 
+					(8,9),(10,11),(12,13),(14,15)],
+				)
+	
+		o,x,y = self.bases[1]
+		y = noproject(y,x)
+		z = cross(x,y)
+		s = 0.15*size
+		line = Web(
+					[(x+y)*s, (-x+y)*s, (-x-y)*s, (x-y)*s],
+					[(0,2),(1,3)],
 					)
+		line.transform(o-size/2*z)
+		ext = generation.extrusion(size*z, line)
+		l = len(ext.points)
+		v = junc - o
+		v = z if dot(v, z) > 0 else -z
+		p = o + v*size/2
+		ext.points.append(p)
+		ext.points.append(junc)
+		return Scheme(
+				ext.points, 
+				[], 
+				[], 
+				[	(l, l+1),
+					(0,2), (1,3),
+					(0,4), (1,5), (2,6), (3,7),
+					(4,6), (5,7)],
+				)
 
 
 class Gliding(Joint):
