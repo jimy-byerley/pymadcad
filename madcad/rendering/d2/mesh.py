@@ -415,8 +415,14 @@ class HatchedFacesDisplay:
     def render(self, view):
         if self.va:
             # setup uniforms
+            self.shader["line_slope"].write(fvec2(0.8, 0.4))    # vec2(dx, dy) where in reality, slope = dy / dx
+            self.shader["pattern_gap"] = 50.                    # gap between patterns
+            self.shader["repetition"] = 2.                      # number of parallel lines inside a pattern
+            self.shader["repetition_gap"] = 10.                 # gap betweenn repetitions inside a pattern
+
             # self.shader['select_color'].write(settings.display['select_color_face'])
-            self.shader['user_color'].write(self.color)
+            self.shader["user_color"].write(self.color)
+
             self.shader["layer"] = self.layer
             self.shader["world"].write(self.vertices.world)
             self.shader["view"].write(view.uniforms["view"])
