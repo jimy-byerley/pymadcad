@@ -7,23 +7,24 @@ from ...mathutils import *
 from PIL import Image
 from ...common import resourcedir
 import moderngl as mgl
+import random
 
 class MeshDisplay(Display):
     # {{{
     """Display render Meshes"""
 
-    def __init__(self, scene, hatched_part, filled_part, color=None):
+    def __init__(self, scene, hatched_part, filled_part, options):
         self.box = npboundingbox(filled_part[0])
         self.options = scene.options
 
         s = settings.display
-        color = fvec3(color or s["solid_color"])
+        color = fvec3(options.get("color") or s["solid_color"])
         line_color = (
             length(s["line_color"])
             + dot(color - s["solid_color"], s["line_color"] - s["solid_color"])
         ) * normalize(color + 1e-6)
 
-        self.hatched_display = HatchedMeshDisplay(scene, *hatched_part, line_color, color=None)
+        self.hatched_display = HatchedMeshDisplay(scene, *hatched_part, line_color, options, color=None)
         self.filled_display = FilledMeshDisplay(scene, *filled_part, line_color, color=None)
         self.vertices = self.filled_display.vertices
 
@@ -64,10 +65,10 @@ class MeshDisplay(Display):
 # Classes Display {{{
 class HatchedMeshDisplay(Display):
 
-    def __init__(self, scene, positions, normals, faces, lines, idents, line_color, color=None):
+    def __init__(self, scene, positions, normals, faces, lines, idents, line_color, options, color=None):
         self.box = npboundingbox(positions)
         self.vertices = Vertices(scene.ctx, positions, idents)
-        self.disp_faces = HatchedFacesDisplay(scene, self.vertices, normals, faces, color=color, layer=0)
+        self.disp_faces = HatchedFacesDisplay(scene, self.vertices, normals, faces, options, color=color, layer=0)
         self.disp_ghost = GhostDisplay(scene, self.vertices, normals, faces, color=line_color, layer=0)
         self.disp_groups = LinesDisplay(scene, self.vertices, lines, color=line_color, alpha=1, layer=-2e-6)
         self.disp_points = PointsDisplay(scene, self.vertices, range(len(positions)), layer=-3e-6)
@@ -369,9 +370,14 @@ class PointsDisplay:
 
 class HatchedFacesDisplay:
     # {{{
-    def __init__(self, scene, vertices, normals, faces, color, layer=0):
+    def __init__(self, scene, vertices, normals, faces, options, color, layer=0):
         s = settings.display
         self.color = fvec3(color or s["background_color"])
+        self.line_slope = fvec2(options.get("line_slope") or vec2(random.randint(-9, 10) or 1, random.randint(-9, 10) or 1))
+        self.pattern_gap = float(options.get("pattern_gap") or random.randint(1, 7) * 10)
+        self.repetition = int(options.get("repetition") or random.choices([1, 2, 3], [10, 2, 1], k=1)[0])
+        self.repetition_gap = float(options.get("repetition_gap") or self.pattern_gap / 5.)
+
         self.layer = layer
         self.vertices = vertices
         self.va = None
@@ -415,10 +421,10 @@ class HatchedFacesDisplay:
     def render(self, view):
         if self.va:
             # setup uniforms
-            self.shader["line_slope"].write(fvec2(0.8, 0.4))    # vec2(dx, dy) where in reality, slope = dy / dx
-            self.shader["pattern_gap"] = 50.                    # gap between patterns
-            self.shader["repetition"] = 2.                      # number of parallel lines inside a pattern
-            self.shader["repetition_gap"] = 10.                 # gap betweenn repetitions inside a pattern
+            self.shader["line_slope"].write(self.line_slope)    # vec2(dx, dy) where in reality, slope = dy / dx
+            self.shader["pattern_gap"] = self.pattern_gap       # gap between patterns
+            self.shader["repetition"] = self.repetition         # number of parallel lines inside a pattern
+            self.shader["repetition_gap"] = self.repetition_gap # gap betweenn repetitions inside a pattern
 
             # self.shader['select_color'].write(settings.display['select_color_face'])
             self.shader["user_color"].write(self.color)

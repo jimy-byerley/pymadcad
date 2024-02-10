@@ -711,7 +711,7 @@ class Mesh(NMesh):
 				scene,
 				hatched_part=buffer(reduce(iadd, meshs)),
 				filled_part=buffer(remaining_mesh),
-				color=self.options.get('color'),
+				options=self.options,
 			)
 	
 	def __repr__(self):
