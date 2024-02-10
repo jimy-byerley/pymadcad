@@ -206,8 +206,7 @@ else:
                     dx = gap.x() / view.height()
                     dy = gap.y() / view.height()
                     if nav == 'pan':
-                        print("PAN TO DEFINE")
-                        # view.navigation.pan(dx, dy)
+                        view.navigation.pan(dx, dy)
                     elif nav == 'zoom':		
                         middle = QPoint(view.width(), view.height())/2
                         num = (last - middle).manhattanLength()
@@ -271,6 +270,9 @@ else:
             self.center = fvec3(center)
             self.distance = distance
             self.tool = navigation_tool
+
+        def pan(self, dx, dy):
+            self.center += (-dx * fvec3(1., 0., 0.) + dy * fvec3(0., 1., 0.)) * self.distance / 2
 
         def zoom(self, f):
             self.distance *= f

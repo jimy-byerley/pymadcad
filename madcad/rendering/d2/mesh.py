@@ -13,7 +13,7 @@ class MeshDisplay(Display):
     """Display render Meshes"""
 
     def __init__(self, scene, hatched_part, filled_part, color=None):
-        self.box = npboundingbox(filled_part[0]) # TODO : add all positions
+        self.box = npboundingbox(filled_part[0])
         self.options = scene.options
 
         s = settings.display
@@ -26,7 +26,6 @@ class MeshDisplay(Display):
         self.hatched_display = HatchedMeshDisplay(scene, *hatched_part, line_color, color=None)
         self.filled_display = FilledMeshDisplay(scene, *filled_part, line_color, color=None)
         self.vertices = self.filled_display.vertices
-        # TODO : Make a common self.vertices
 
     def stack(self, scene):
         yield ((), "screen", -1, self.hatched_display.vertices.prerender)
