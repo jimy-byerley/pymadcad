@@ -604,15 +604,20 @@ def seperate(mesh: Mesh, plane: Tuple[vec3, vec3]) -> Tuple[list, list, list, li
         )
 
         # Order intersected points
-        conditions = (
-            map(operator.not_, check_is_upper)
-            if sum(check_is_upper) == 2
-            else check_is_upper
-        )
+        two_pts = sum(check_is_upper) == 2
+        conditions = map(operator.not_, check_is_upper) if two_pts else check_is_upper
         p0 = next(compress(pts, conditions))
         tn = normalize(cross(i1 - p0, i2 - p0))
         normal = mesh.facenormal(face)
-        return (i1, i2) if dot(tn, normal) > 0 else (i2, i1)
+        clockwise = dot(tn, normal) > 0
+        if two_pts and clockwise:
+            return (i1, i2)
+        elif two_pts and not clockwise:
+            return (i2, i1)
+        elif not two_pts and clockwise:
+            return (i2, i1)
+        else:
+            return (i1, i2)
 
     def add_remaining_faces(face, track, check_is_upper, intersected_points):
         if check_is_upper[2] and check_is_upper[0]:
@@ -622,6 +627,17 @@ def seperate(mesh: Mesh, plane: Tuple[vec3, vec3]) -> Tuple[list, list, list, li
 
         npoints = len(mesh_points)
         pi1, pi2 = intersected_points
+        conditions = (
+            map(operator.not_, check_is_upper)
+            if sum(check_is_upper) == 2
+            else check_is_upper
+        )
+        pts = mesh.facepoints(face)
+        p0 = next(compress(pts, conditions))
+        tn = normalize(cross(pi1 - p0, pi2 - p0))
+        normal = mesh.facenormal(face)
+        pi1, pi2 = (pi1, pi2) if dot(tn, normal) > 0 else (pi2, pi1)
+
         i = 0
         if pi1 in found_points:
             i1 = found_points[pi1]
@@ -675,7 +691,7 @@ def remove_straight_points(web: Web) -> Web:
         return list(zip(a, b))
 
     # Order edges
-    loops = suites(web.edges, oriented=False)
+    loops = suites(web.edges)
     edges = reduce(iadd, map(pairwise, loops))
     
     # Remove useless points on straight lines

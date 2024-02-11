@@ -1,9 +1,6 @@
-from functools import reduce
-from operator import iadd
 from .container import *
 from .web import Web
 from .wire import Wire
-
 
 class Mesh(NMesh):
 	''' set of triangles, used to represent volumes or surfaces.
@@ -689,13 +686,7 @@ class Mesh(NMesh):
 			from ..triangulation import triangulation
 
 			cut, remaining_mesh = section(m, scene.plane)
-			edges = {track: [] for track in range(len(cut.groups))}
-			for i, track in enumerate(cut.tracks):
-				edges[track].append(cut.edges[i])
-			meshs = [triangulation(Web(cut.points, loop)) for loop in edges.values()]
-			for i, mesh in enumerate(meshs):
-				if dot(mesh.facenormal(mesh.faces[0]), scene.plane[1]) > 0:
-					meshs[i] = mesh.flip()
+			cut_mesh = triangulation(cut)
 
 			def buffer(mesh):
 				normals, edges, idents = mesh.prepare()
@@ -709,7 +700,7 @@ class Mesh(NMesh):
 			
 			return MeshDisplay(
 				scene,
-				hatched_part=buffer(reduce(iadd, meshs)),
+				hatched_part=buffer(cut_mesh),
 				filled_part=buffer(remaining_mesh),
 				options=self.options,
 			)
