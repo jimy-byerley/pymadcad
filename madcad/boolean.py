@@ -730,7 +730,7 @@ def section(mesh: Mesh, plane: Tuple[vec3, vec3]) -> Tuple[Web, Mesh]:
     cut.strippoints()
     upper_mesh = Mesh(points=mesh_points, faces=upper_faces, tracks=tracks)
     q, n = plane
-    transformation = rotatearound(anglebt(Z, n), q, cross(Z, n))
+    transformation = rotatearound(anglebt(Z, n), q, cross(Z, n)) * mat4(angleAxis(pi * 0.5, X))
     return [cut.transform(transformation), upper_mesh.transform(transformation)]
 
 # --------------- stable API -------------------
