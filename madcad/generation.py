@@ -12,6 +12,7 @@ from . import settings
 from . import primitives
 from .nprint import nprint
 
+import itertools
 from copy import copy
 
 
@@ -576,6 +577,9 @@ def parallelogram(*directions, origin=vec3(0), align=vec3(0), fill=True) -> 'Mes
 				- if True, a mesh will be generated (forming a surface with 2 directions, or an envelope with 3 directions)
 				- if False, a Web will be generated
 	'''
+	try:				align = iter(align)
+	except TypeError:	align = itertools.repeat(align)
+	
 	# generate points by binary combinations
 	points = []
 	min = origin - sum(a*d  for a,d in zip(align, directions))

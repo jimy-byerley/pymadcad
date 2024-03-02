@@ -6,7 +6,6 @@
 	A Kinematic is a conceptual approach of mechanisms. It sort parts in groups called solids (in solids all parts have the same movement), and links the solids to each other using constraints named joints.
 	That way no matter what are the parts, or what are their shape, or how parts interact - solids movements can be deduced only from joints.
 
-<<<<<<< HEAD
 	This allows designing the mechanisms before designing its parts. This also allows visualizing the mechanism whether it is complete or not.
 	
 	As parts in the same solid all have the same movement, solids are considered to be undeformable. This allows the to use the Screw theory to represent the force and movement variables (see https://en.wikipedia.org/wiki/Screw_theory). 
@@ -19,17 +18,6 @@
 		- `Kinemanip` - a display to move mechanisms in the 3d view
 			
 	joints are defined in `madcad.joints`
-=======
-	So to analyze a mechanism we look at its kinematic. And that can be done prior or after the part design as it is independant.
-	
-	A kinematic in itself is a set of solids, observing movement relations. Those are modeled across the following classes: ``Solid`` and ``Kinematic``.
-	
-	Solids are considered to be rigid, this allows the to use the Screw theory to represent the force and movement variables (see https://en.wikipedia.org/wiki/Screw_theory). 
-	In this module, screws are called ``Screw``.
-	
-	.. tip::
-		In case of rigid solids, torsors makes possible to represent both the translative and rotative part of each movement aspect, independently from the point in the solid.
->>>>>>> master
 '''
 
 '''
@@ -807,10 +795,28 @@ class Kinematic:
 					raise KinematicError('position out of reach: kinematic cycles not closed')
 			poses[joint.solids[-1]] = tip
 		return poses
+		
+	def freedom(self, state) -> list:
+		''' 
+			list of free movement joint directions. the length of the list is the degree of freedom . 
+			
+			Note:
+				When state is a singular position in the kinematic, the degree of freedom is locally smaller or bigger than in other positions
+		'''
+		free = scipy.linalg.null_space(self.cost_grad(flatten_state(state)))
+		return [structure_state(x, state)  for x in free]
 	
 	def grad(self, state) -> dict:
-		''' return a gradient of the all the solids poses at the given joints position '''
+		''' 
+			return a gradient of the all the solids poses at the given joints position 
+			
+			Note:
+				this function will ignore any degree of freedom of the kinematic that is not defined in `direct_parameters`
+		'''
+		free = scipy.linalg.null_space(self.cost_grad(flatten_state(state)))
+		# orient the base of the null space so that they are the closest to the degrees of freedom and in same order
 		indev
+		return [direction[invp]/direction[dirp[i]]  for i in range(len(self.direct_parameters))]
 		
 	def direct(self, parameters: list, close=None) -> list:
 		''' 
