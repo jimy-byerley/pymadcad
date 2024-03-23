@@ -190,20 +190,6 @@ class Joint:
 	def display(self, scene):
 		return scene.display(self.scheme(inf, None, None))
 
-@dataclass
-class scale_solid:
-	''' scheme space scaling around a point in a given solid '''
-	solid: object
-	center: fvec3
-	size: float
-	pose: fmat4 = fmat4()
-	
-	def __call__(self, view):
-		m = view.uniforms['view'] * view.uniforms['world'] * self.pose
-		e = view.uniforms['proj'] * fvec4(1,1,(m*self.center).z,1)
-		e /= e[3]
-		return m * translate(self.center) * scale(fvec3(min(self.size, 2 / (e[1]*view.target.height))))
-
 
 def partial_difference_increment(f, i, x, d):
 	p = copy(x)
@@ -337,9 +323,11 @@ class Chain(Joint):
 		A `Chain` doesn't tolerate modifications of the type of its joints once instanciated. a joint placement can be modified as long as it doesn't change its hash.
 	'''
 	def __init__(self, joints):
+		# TODO: add an argument for displays, like solids in Kinematic constructor
+		
 		if not all(joints[i-1].solids[-1] == joints[i].solids[0]  
-				for i in range(len(joints))):
-			raise ValueError('joints do not form a direct chain, joints are not badly ordered or oriented')
+				for i in range(1, len(joints))):
+			raise ValueError('joints do not form a direct chain, joints are not ordered or badly oriented')
 		self.joints = joints
 		self.solids = (joints[0].solids[0], joints[-1].solids[-1])
 		
@@ -430,6 +418,9 @@ class Chain(Joint):
 		
 	def __repr__(self):
 		return '{}({})'.format(self.__class__.__name__, repr(self.joints))
+		
+	def display(self, scene):
+		return ChainManip(scene, self)
 	
 
 class Kinematic:
@@ -504,6 +495,8 @@ class Kinematic:
 	dtype = float
 	
 	def __init__(self, joints:list=[], solids:dict=None, ground=0, direct=None, inverse=None):
+		# TODO: rename solids something else as it only contains displayables
+		
 		if (direct is None) ^ (inverse is None):
 			raise TypeError("direct and inverse must be both provided or undefined")
 		elif direct and inverse:	
@@ -583,6 +576,97 @@ class Kinematic:
 	
 	def simplify(self) -> 'Self':
 		indev
+		
+	def cost_residuals(self, state):
+		'''
+			build residuals to minimize to satisfy the joint constraints
+			cost function returns residuals, the solver will optimize the sum of their squares
+		'''
+		# collect transformations
+		state = iter(state)
+		transforms = {}
+		for joint in self.joints:
+			if joint in fixed:
+				transforms[joint] = fixed[joint]
+			else:
+				transforms[joint] = joint.direct(next(state, empty))
+			if joint in self.rev:
+				transforms[self.rev.get(joint)] = affineInverse(transforms[joint])
+		
+		# chain transformations
+		residuals = np.empty((len(self.cycles), squeezed_homogeneous), self.dtype)
+		for i, cycle in enumerate(self.cycles):
+			# b is the transform of the complete cycle: it should be identity
+			b = mat4()
+			for joint in cycle:
+				b = b * transforms[joint]
+			# the residual of this matrix is the difference to identity
+			# pick only non-redundant components to reduce the problem size
+			residuals[i] = squeeze_homogeneous(b - mat4())
+			#residuals[i] **= 2
+		return residuals.ravel()
+		
+	def cost_jacobian(self, state):
+		''' jacobian of the residuals function '''
+		# collect gradient and transformations
+		state = iter(state)
+		transforms = {}
+		index = 0
+		for joint in self.joints:
+			if joint in fixed:
+				grad = ()
+				f = fixed[joint]
+				size = 0
+			else:
+				p = next(state, empty)
+				size = np.array(p).size
+				grad = joint.grad(p)
+				# ensure it is a jacobian and not a single derivative
+				if isinstance(grad, mat4) or isinstance(grad, np.ndarray) and grad.size == 16:
+					grad = grad,
+				# ensure the homogeneous factor is 0 for derivatives
+				for df in grad:
+					df[3][3] = 0
+				f = joint.direct(p)
+			transforms[joint] = (index, f, grad)
+			if joint in self.rev:
+				rf = affineInverse(f)
+				transforms[self.rev[joint]] = (index, rf, [-rf*df*rf  for df in grad])
+				
+			index += size
+		
+		# stack gradients, transformed by the chain successive transformations
+		jac = np.zeros((len(self.cycles), index, squeezed_homogeneous), self.dtype)
+		# jac = scipy.sparse.csr_matrix((len(cycles)*squeezed_homogeneous, self.nvars))
+		for icycle, cycle in enumerate(self.cycles):
+			grad = []
+			positions = []
+			# pre transformations
+			b = mat4(1)
+			for joint in cycle:
+				i, f, g = transforms[joint]
+				for j, df in enumerate(g):
+					grad.append(b*df)
+					positions.append(i+j)
+				b = b*f
+			# post transformations
+			b = mat4(1)
+			k = len(grad)-1
+			for joint in reversed(cycle):
+				i, f, g = transforms[joint]
+				for df in reversed(g):
+					grad[k] = grad[k]*b
+					k -= 1
+				b = f*b
+			
+			for ig, g in zip(positions, grad):
+				# print('-', icycle, ig)
+				jac[icycle, ig] = squeeze_homogeneous(g)
+				# jac[icycle*squeezed_homogeneous:(icycle+1)*squeezed_homogeneous, ig] = squeeze_homogeneous(g)
+		
+		# assert jac.transpose((0,2,1)).shape == (len(cycles), 9, nvars)
+		return jac.transpose((0,2,1)).reshape((len(self.cycles)*squeezed_homogeneous, index))
+		# return jac
 	
 	def solve(self, fixed:dict={}, close:list=None, precision=1e-6, maxiter=None) -> list:
 		'''
@@ -619,95 +703,6 @@ class Kinematic:
 			close = self.default
 		if len(self.cycles) == 0:
 			return close
-		
-		# build residuals to minimize
-		# cost function returns residuals, the solver will optimize the sum of their squares
-		def residuals(x):
-			# collect transformations
-			state = iter(structure_state(x, init))
-			transforms = {}
-			for joint in self.joints:
-				if joint in fixed:
-					transforms[joint] = fixed[joint]
-				else:
-					transforms[joint] = joint.direct(next(state, empty))
-				if joint in self.rev:
-					transforms[self.rev.get(joint)] = affineInverse(transforms[joint])
-			
-			# chain transformations
-			residuals = np.empty((len(self.cycles), squeezed_homogeneous), self.dtype)
-			for i, cycle in enumerate(self.cycles):
-				# b is the transform of the complete cycle: it should be identity
-				b = mat4()
-				for joint in cycle:
-					b = b * transforms[joint]
-				# the residual of this matrix is the difference to identity
-				# pick only non-redundant components to reduce the problem size
-				residuals[i] = squeeze_homogeneous(b - mat4())
-				#residuals[i] **= 2
-			return residuals.ravel()
-		
-		# jacobian of the residuals function
-		def jac(x):
-			# collect gradient and transformations
-			state = iter(structure_state(x, init))
-			transforms = {}
-			index = 0
-			for joint in self.joints:
-				if joint in fixed:
-					grad = ()
-					f = fixed[joint]
-					size = 0
-				else:
-					p = next(state, empty)
-					size = np.array(p).size
-					grad = joint.grad(p)
-					# ensure it is a jacobian and not a single derivative
-					if isinstance(grad, mat4) or isinstance(grad, np.ndarray) and grad.size == 16:
-						grad = grad,
-					# ensure the homogeneous factor is 0 for derivatives
-					for df in grad:
-						df[3][3] = 0
-					f = joint.direct(p)
-				transforms[joint] = (index, f, grad)
-				if joint in self.rev:
-					rf = affineInverse(f)
-					transforms[self.rev[joint]] = (index, rf, [-rf*df*rf  for df in grad])
-					
-				index += size
-			
-			# stack gradients, transformed by the chain successive transformations
-			jac = np.zeros((len(self.cycles), index, squeezed_homogeneous), self.dtype)
-			# jac = scipy.sparse.csr_matrix((len(cycles)*squeezed_homogeneous, self.nvars))
-			for icycle, cycle in enumerate(self.cycles):
-				grad = []
-				positions = []
-				# pre transformations
-				b = mat4(1)
-				for joint in cycle:
-					i, f, g = transforms[joint]
-					for j, df in enumerate(g):
-						grad.append(b*df)
-						positions.append(i+j)
-					b = b*f
-				# post transformations
-				b = mat4(1)
-				k = len(grad)-1
-				for joint in reversed(cycle):
-					i, f, g = transforms[joint]
-					for df in reversed(g):
-						grad[k] = grad[k]*b
-						k -= 1
-					b = f*b
-				
-				for ig, g in zip(positions, grad):
-					# print('-', icycle, ig)
-					jac[icycle, ig] = squeeze_homogeneous(g)
-					# jac[icycle*squeezed_homogeneous:(icycle+1)*squeezed_homogeneous, ig] = squeeze_homogeneous(g)
-			
-			# assert jac.transpose((0,2,1)).shape == (len(cycles), 9, nvars)
-			return jac.transpose((0,2,1)).reshape((len(self.cycles)*squeezed_homogeneous, index))
-			# return jac
 				
 		init = []
 		mins = []
@@ -720,44 +715,44 @@ class Kinematic:
 				maxes.append(bounds[1])
 		
 		# solve
-		from time import perf_counter as time
-		start = time()
+		# from time import perf_counter as time
+		# start = time()
 		
 		res = scipy.optimize.least_squares(
-					residuals, 
+					lambda x: self.cost_residuals(structure_state(x, init)), 
 					flatten_state(init, self.dtype), 
 					method = 'trf', 
 					bounds = (
 						flatten_state(mins, self.dtype), 
 						flatten_state(maxes, self.dtype),
 						), 
-					jac = jac, 
+					jac = lambda x: self.cost_jacobian(structure_state(x, init)), 
 					xtol = precision, 
 					# ftol = 0,
 					# gtol = 0,
 					max_nfev = maxiter,
 					)
 		
-		print('solved in', time() - start)
-		print(res)
-		np.set_printoptions(linewidth=np.inf)
-		estimated = res.jac
-		computed = jac(res.x)
-		# print(estimated, (np.abs(estimated) > 1e-3).sum())
-		# print()
-		# print(computed, (np.abs(computed) > 1e-3).sum())
-		
-		from matplotlib import pyplot as plt
-		# estimated = estimated.toarray()
-		# computed = computed.toarray()
-		plt.imshow(np.stack([
-			estimated*0, 
-			# np.abs(estimated)/np.abs(estimated).max(axis=1)[:,None],
-			# np.abs(computed)/np.abs(estimated).max(axis=1)[:,None],
-			np.log(np.abs(estimated))/10+0.5,
-			np.log(np.abs(computed))/10+0.5,
-			], axis=2))
-		plt.show()
+# 		print('solved in', time() - start)
+# 		print(res)
+# 		np.set_printoptions(linewidth=np.inf)
+# 		estimated = res.jac
+# 		# computed = self.jac(structure_state(res.x))
+# 		# print(estimated, (np.abs(estimated) > 1e-3).sum())
+# 		# print()
+# 		# print(computed, (np.abs(computed) > 1e-3).sum())
+# 		
+# 		from matplotlib import pyplot as plt
+# 		# estimated = estimated.toarray()
+# 		# computed = computed.toarray()
+# 		plt.imshow(np.stack([
+# 			estimated*0, 
+# 			# np.abs(estimated)/np.abs(estimated).max(axis=1)[:,None],
+# 			# np.abs(computed)/np.abs(estimated).max(axis=1)[:,None],
+# 			np.log(np.abs(estimated))/10+0.5,
+# 			np.log(np.abs(computed))/10+0.5,
+# 			], axis=2))
+		# plt.show()
 		
 		if not res.success:
 			raise KinematicError('failed to converge: '+res.message, res)
@@ -803,7 +798,7 @@ class Kinematic:
 			Note:
 				When state is a singular position in the kinematic, the degree of freedom is locally smaller or bigger than in other positions
 		'''
-		free = scipy.linalg.null_space(self.cost_grad(flatten_state(state)))
+		free = scipy.linalg.null_space(self.cost_jacobian(state))
 		return [structure_state(x, state)  for x in free]
 	
 	def grad(self, state) -> dict:
@@ -813,7 +808,7 @@ class Kinematic:
 			Note:
 				this function will ignore any degree of freedom of the kinematic that is not defined in `direct_parameters`
 		'''
-		free = scipy.linalg.null_space(self.cost_grad(flatten_state(state)))
+		free = scipy.linalg.null_space(self.cost_jacobian(state))
 		# orient the base of the null space so that they are the closest to the degrees of freedom and in same order
 		indev
 		return [direction[invp]/direction[dirp[i]]  for i in range(len(self.direct_parameters))]
@@ -1155,14 +1150,23 @@ class Solid:
 		s.pose = placement(*args, **kwargs)
 		return s
 		
+	def loc(self, *args):
+		transform = mat4()
+		for key in args:
+			transform = transform @ obj.pose
+		return transform
+	
 	def deloc(self, *args):
-		indev
+		obj = self
+		transform = mat4()
+		for key in args:
+			transform = transform @ obj.pose
+			obj = obj.content[key]
+		return obj.transform(transform)
+	
 	def reloc(self, *args):
 		indev
-	def loc(self, *args):
-		indev
 	
-
 	# convenient content access
 	def __getitem__(self, key):
 		''' Shorthand to `self.content` '''
@@ -1239,6 +1243,260 @@ class Solid:
 		def apply_pose(self):
 			self.pose = fmat4(self.solid.pose)
 
+from .rendering import Group
+
+@dataclass
+class scale_solid:
+	''' scheme space scaling around a point in a given solid '''
+	solid: object
+	center: fvec3
+	size: float
+	pose: fmat4 = fmat4()
+	
+	def __call__(self, view):
+		m = view.uniforms['view'] * view.uniforms['world'] * self.pose
+		e = view.uniforms['proj'] * fvec4(1,1,(m*self.center).z,1)
+		e /= e[3]
+		return m * translate(self.center) * scale(fvec3(min(self.size, 2 / (e[1]*view.target.height))))
+
+@dataclass
+class world_solid:
+	solid: object
+	pose: fmat4 = fmat4()
+	
+	def __call__(self, view):
+		return view.uniforms['view'] * view.uniforms['world'] * self.pose
+
+class ChainManip(Group):
+	''' object to display and interact with a robot in the 3d view
+
+		Attributes:
+		
+			robot:      the robot to get joint positions from
+			kinematic:  kinematic model of the robot. at contrary to `RobotDisplay`, it MUST be a chain kinematic
+			toolcenter (vec3):   the initial tool rotation point
+			joints:   True if each solid has a dedicated joint, then the joint menipulation mode is available
+			options (QManipOptions):   the helper widget setting the modes and so on
+	'''
+	min_colinearity = 1e-2
+	max_increment = 0.3
+	
+	def __init__(self, scene, chain, pose=None):
+		super().__init__(scene)
+		self.pose = pose or chain.default
+		self.tool = vec3(0)
+		self.chain = chain
+		# self.displays['point'] = PointDisplay(scene, toolcenter)
+		self.displays['scheme'] = scene.display(kinematic_scheme(chain.joints))
+		
+		for key, solid in enumerate(chain.solids):
+			try:
+				self.displays[key] = scene.display(solid)
+			except TypeError:
+				pass
+			
+	def stack(self, scene):
+		''' rendering stack requested by the madcad rendering system '''
+		yield ((), 'screen', -1, self.place_solids)
+		yield from super().stack(scene)
+
+	def place_solids(self, view):
+		world = self.world * self.local
+		parts = self.chain.parts(self.pose)
+		index = {}
+		for i, joint in enumerate(self.chain.joints):
+			solid = joint.solids[-1]
+			index[solid] = i+1
+			if display := self.displays.get(solid):
+				display.word = word * fmat4(parts[i])
+		for space in self.displays['scheme'].spacegens:
+			if isinstance(space, (world_solid, scale_solid)) and space.solid in index:
+				space.pose = world * fmat4(parts[index[space.solid]])
+
+	def control(self, view, key, sub, evt):
+		''' user event manager, optional part of the madcad rendering system '''
+		if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
+			evt.accept()
+		
+		if evt.type() == QEvent.MouseMove and evt.buttons() & Qt.LeftButton:
+			evt.accept()
+			# put the tool into the view, to handle events
+			view.tool.append(rendering.Tool(getattr(self, 'move_'+view.scene.options['kinematic_manipulation']), view, sub, evt))
+	
+	def move_joint(self, dispatcher, view, sub, evt):
+		# get 3d location of mouse
+		click = view.ptat(view.somenear(evt.pos()))
+		
+		# solid identifier
+		if sub[0] == 'scheme':
+			solid = sub[1]
+		elif sub[0] != 'point':
+			solid = sub[0]
+		else:
+			return
+		
+		# find the clicked solid, and joint controled
+		solids = self.chain.parts(self.pose)
+		joint = None
+		pre = False
+		best = 0
+		for i, candidate in enumerate(self.chain.joints):
+			if candidate.solids[0] == solid or candidate.solids[-1] == solid:
+				dist = distance(mat4(self.world * self.local) * (solids[i] * candidate.position[0]), click)
+				if dist > best:
+					best = dist
+					joint = i
+					pre = candidate.solids[0] == solid
+		anchor = affineInverse(mat4(self.world * self.local) * solids[joint+1]) * vec4(click,1)
+		
+		while True:
+			evt = yield
+			# drag
+			if evt.type() in (QEvent.MouseMove, QEvent.MouseButtonRelease):
+				evt.accept()
+				view.update()
+				if not (evt.buttons() & Qt.LeftButton):
+					break
+
+				solids = self.chain.parts(self.pose)
+				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world * self.local) * solids[joint]
+				direct = affineInverse(solids[joint]) * solids[joint+1]
+				target = qtpos(evt.pos(), view)
+				current = model * (direct * anchor)
+				move = target - current.xy / current.w
+
+				# solid move directions that can be acheived with this joint
+				jac = self.chain.joints[joint].grad(self.pose[joint])
+				prec = 1e-6
+				# combination of the closest directions to the mouse position
+				# several degrees of freedom
+				if hasattr(self.pose[joint], '__len__'):
+					# gradient of the screen position
+					grad = np.stack([
+						(model * (grad * anchor)).xy / current.w
+						for grad in jac])
+					# colinearity between the desired move and the gradient directions. it avoids the mechanisme to burst when close to a singularity and also when the mouse move is big
+					colinearity = min(1, sum(
+								dot(v, move)**2 / (length2(v) + length2(move) + prec)
+								for v in grad) / self.min_colinearity)
+					increment = np.linalg.lstsq(grad, move * colinearity)
+				# faster equivalent computation in case of one degree of freedom
+				else:
+					grad = (model * (jac * anchor)).xy / current.w
+					colinearity = min(1, 1e2 * dot(grad, move)**2 / (length2(grad) + length2(move) + prec))
+					increment = dot(grad, move * colinearity) / length2(grad)
+				
+				self.pose[joint] += clamp(increment, -self.max_increment, self.max_increment)
+
+	def move_translate(self, dispatcher, view, sub, evt):
+		# translate the tool
+		clicked = view.ptat(view.somenear(evt.pos()))
+		solid = self.chain.direct(self.pose)
+		anchor = affineInverse(mat4(self.world * self.local) * solid) * clicked
+		
+		while True:
+			evt = yield
+			# drag
+			if evt.type() in (QEvent.MouseMove, QEvent.MouseButtonRelease):
+				evt.accept()
+				view.update()
+				if not (evt.buttons() & Qt.LeftButton):
+					break
+
+				solid = self.chain.direct(self.pose)
+				jac = self.chain.grad(self.pose)
+				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world * self.local) * solid
+				current_anchor = model * anchor
+				current_tool = model * self.tool
+				target = qtpos(evt.pos(), view)
+				move = np.ravel(mat3(
+					target - current.xy / current.w,
+					vec3(0),
+					vec3(0),
+					))
+				
+				jac = np.stack([
+					np.ravel(mat3(model * grad * mat3x4(
+						vec4(anchor, 1) / current_anchor.w, 
+						vec4(self.tool, 1) / current_tool.w, 
+						vec4(sight, 0),
+						) / current.w))
+					for grad in jac])
+				colinearity = min(1, sum(
+					np.dot(grad, move)**2 / (normsq(grad) + normsq(move) + prec)
+					for grad in jac) / self.min_colinearity)
+				increment = np.linalg.lstsq(jac, move * colinearity)
+				
+				self.pose[joint] += clamp(increment, -self.max_increment, self.max_increment)
+
+	def move_rotate(self, dispatcher, view, sub, evt):
+		point = self.displays['point']
+		if sub[0] == 'point':
+			# move the tool point
+			center = point.world * point.position
+			while True:
+				evt = yield
+				# drag
+				if evt.type() in (QEvent.MouseMove, QEvent.MouseButtonRelease):
+					if not (evt.buttons() & Qt.LeftButton):
+						evt.accept()
+						break
+					evt.accept()
+					view.update()
+					point.position = hinverse(point.world) * fvec3(view.ptfrom(evt.pos(), center))
+
+				# finish movement
+				if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
+					evt.accept()
+					break
+		else:
+			# translate the tool
+			clicked = view.ptat(view.somenear(evt.pos()))
+			solid = self.chain.direct(self.pose)
+			anchor = affineInverse(mat4(self.world * self.local) * solid) * clicked
+			
+			while True:
+				evt = yield
+				# drag
+				if evt.type() in (QEvent.MouseMove, QEvent.MouseButtonRelease):
+					evt.accept()
+					view.update()
+					if not (evt.buttons() & Qt.LeftButton):
+						break
+
+					solid = self.chain.direct(self.pose)
+					jac = self.chain.grad(self.pose)
+					model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world * self.local) * solid
+					current_anchor = model * anchor
+					current_tool = model * self.tool
+					target = qtpos(evt.pos(), view)
+					move = np.ravel(mat3(
+						target - current.xy / current.w,
+						vec3(0),
+						vec3(0),
+						))
+					
+					jac = np.stack([
+						np.ravel(mat3(model * grad * mat3x4(
+							vec4(anchor, 1) / current_anchor.w, 
+							vec4(self.tool, 1) / current_tool.w, 
+							vec4(sight, 0),
+							) / current.w))
+						for grad in jac])
+					colinearity = min(1, sum(
+						np.dot(grad, move)**2 / (normsq(grad) + normsq(move) + prec)
+						for grad in jac) / self.min_colinearity)
+					increment = np.linalg.lstsq(jac, move * colinearity)
+					
+					self.pose[joint] += clamp(increment, -self.max_increment, self.max_increment)
+
+
+def qtpos(qtpos, view):
+	''' convert qt position in the widget to opengl screen coords in range (-1, 1) '''
+	return vec2(
+		+ (qtpos.x()/view.width() *2 -1),
+		- (qtpos.y()/view.height() *2 -1),
+		)
 
 		
 class Kinemanip(rendering.Group):
@@ -1331,37 +1589,25 @@ class Kinemanip(rendering.Group):
 
 	
 
-def makescheme(joints, color=None):
-	''' create kinematic schemes and add them as visual elements to the solids the joints applies on '''
-	# collect solids informations
-	assigned = set()
-	solids = {}
-	diag = vec3(0)
-	for cst in joints:
-		for solid, pos in zip(cst.solids, cst.position):
-			if id(solid) not in solids:
-				solids[id(solid)] = info = [solid, [], vec3(0), 0, Box()]
-			else:
-				info = solids[id(solid)]
-			info[1].append(cst)
-			if pos:
-				info[2] += pos
-				info[3] += 1
-				info[4].union_update(pos)
-	# get the junction size
-	#size = (max(diag) or 1) / (len(joints)+1)
-	size = 0.5 * max(max(info[4].width) / info[3] for info in solids.values())  or 1
+def kinematic_scheme(joints) -> 'Scheme':
+	''' create a kinematic scheme for the given joints '''
+	from .scheme import Scheme
 	
-	for info in solids.values():
-		container = info[0].content
-		if id(container) not in assigned:
-			container['scheme'] = Scheme([], [], [], [], color)
-			assigned.add(id(container))
-		scheme = container['scheme']
-		center = info[2]/info[3]
-		if not isfinite(center):	center = vec3(0)
-		for cst in info[1]:
-			scheme.extend(cst.scheme(info[0], size, center))
+	centers = {}
+	for joint in joints:
+		for solid, position in zip(joint.solids, joint.position):
+			centers[solid] = centers.get(solid, 0) + vec4(position, 1)
+	for solid, center in centers.items():
+		centers[solid] = center.xyz / center.w
+	
+	scheme = Scheme()
+	for joint in joints:
+		size = max(
+			distance(position, centers[solid])
+			for solid, position in zip(joint.solids, joint.position))
+		scheme += joint.scheme(size, centers[joint.solids[0]], centers[joint.solids[-1]])
+		
+	return scheme
 		
 
 def placement(*pairs, precision=1e-3):

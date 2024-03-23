@@ -4,8 +4,8 @@ from dataclasses import dataclass
 
 from .mathutils import *
 from .primitives import isaxis, Axis
-from .kinematic import Screw, Joint, scale_solid
-from .mesh import Mesh, Wire, web, Web
+from .kinematic import Screw, Joint, scale_solid, world_solid
+from .mesh import Mesh, Wire, wire, web, Web
 from .scheme import Scheme
 from . import generation as gt
 from . import generation, primitives, settings
@@ -40,9 +40,11 @@ class Revolute(Joint):
 		if isinstance(axis, mat4):
 			self.post = axis
 			self.pre = affineInverse(local)
+			self.position = axis[3].xyz, local[3].xyz
 		elif isinstance(axis, Axis):
 			self.post = translate(axis[0]) * mat4(quat(Z, axis[1]))
 			self.pre = mat4(quat(local[1], Z)) * translate(-local[0])
+			self.position = axis[0], local[0]
 		else:
 			raise TypeError('Revolute can only be placed on an Axis or a mat4')
 		
@@ -75,8 +77,8 @@ class Revolute(Joint):
 		x,y,z,o = dmat4x3(self.post)
 		sch.set(track=0, space=scale_solid(self.solids[0], fvec3(o), maxsize/size))
 		cylinder = gt.cylinder(
-						o-z*size*0.4, 
-						o+z*size*0.4, 
+						-z*size*0.4, 
+						+z*size*0.4, 
 						radius=size/4, 
 						resolution=resolution,
 						fill=False,
@@ -84,42 +86,45 @@ class Revolute(Joint):
 		sch.add(cylinder, shader='ghost')
 		sch.add(cylinder.outlines(), shader='line')
 		if attach_start:
-			v = normalize(noproject(start - o, z))
+			v = normalize(noproject(attach_start - o, z))
 			if not isfinite(v):
 				v = x
-			p = o + v*size/4
-			sch.add(gt.flatsurface([p, p + z*size*cornersize, p + v*size*cornersize]), shader='ghost')
-			sch.add([p, p + v*size*cornersize, start], shader='line')
+			p = v*size/4
+			sch.add(gt.flatsurface(wire([p, p + z*size*cornersize, p + v*size*cornersize])), shader='fill')
+			sch.set(shader='line')
+			sch.add(p)
+			sch.add(p + v*size*cornersize)
+			sch.add(attach_start, space=world_solid(self.solids[0]))
 		
 		x,y,z,o = dmat4x3(affineInverse(self.pre))
 		sch.set(track=1, space=scale_solid(self.solids[1], fvec3(o), maxsize/size))
 		c1 = primitives.Circle(
-						(o-z*size*0.5, -z), 
+						(-z*size*0.5, -z), 
 						radius, 
 						resolution=resolution,
 						).mesh()
 		c2 = primitives.Circle(
-						(o+z*size*0.5, z), 
+						(+z*size*0.5, z), 
 						radius, 
 						resolution=resolution,
 						).mesh()
-		sch.add([o-z*size*0.5, o+z*size*0.5], shader='line')
+		sch.add([z*size*0.5, o+z*size*0.5], shader='line')
 		sch.add(c1, shader='line')
 		sch.add(c2, shader='line')
 		sch.add(gt.flatsurface(c1), shader='ghost')
 		sch.add(gt.flatsurface(c2), shader='ghost')
 		
-		sch.set(shader='fill')
 		if attach_end:
 			side = z * size * 0.5
-			if dot(attach_end-o, z) < 0:
+			if dot(attach_end-o, side) < 0:
 				side = -side
-			if dot(attach_end-center-side, side) < 0:
-				attach = side + normalize(noproject(attach_end-center, z))*radius
+			if dot(attach_end-o-side, side) < 0:
+				attach = side + normalize(noproject(attach_end-o, z))*radius
 			else:
 				attach = side
-			sch.add([center-side, center+side])
-			sch.add([center+attach, junc])
+			sch.set(shader='line')
+			sch.add(attach)
+			sch.add(attach_end, space=world_solid(self.solids[1]))
 			
 		return sch
 
@@ -141,9 +146,11 @@ class Planar(Joint):
 		if isinstance(axis, mat4):
 			self.post = axis
 			self.pre = affineInverse(local)
+			self.position = axis[3].xyz, local[3].xyz
 		elif isinstance(axis, Axis):
 			self.post = translate(axis[0]) * mat4(quat(Z, axis[1]))
 			self.pre = mat4(quat(local[1], Z)) * translate(-local[0])
+			self.position = axis[0], local[0]
 		else:
 			raise TypeError('Planar can only be placed on an Axis or a mat4')
 	

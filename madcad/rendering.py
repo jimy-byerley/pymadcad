@@ -653,9 +653,9 @@ def writeproperty(func):
 
 class Group(Display):
 	''' A group is like a subscene '''
-	def __init__(self, scene, objs:'dict/list'=None, pose=1):
+	def __init__(self, scene, objs:'dict/list'=None, local=1):
 		self._world = fmat4(1)
-		self._pose = fmat4(pose)
+		self._local = fmat4(local)
 		self.displays = {}
 		if objs:	self.dequeue(scene, objs)
 	
@@ -695,9 +695,9 @@ class Group(Display):
 				yield ((key, *sub), target, priority, func)
 	
 	@writeproperty
-	def pose(self, pose):
+	def local(self, pose):
 		''' Pose of the group relatively to its parents '''
-		sub = self._world * self._pose
+		sub = self._world * self._local
 		for display in self.displays.values():
 			display.world = sub
 			
@@ -714,7 +714,7 @@ class Group(Display):
 		box = Box(center=fvec3(0), width=fvec3(-inf))
 		for display in self.displays.values():
 			box.union_update(display.box)
-		return box.transform(self._pose)
+		return box.transform(self._local)
 
 
 # dictionary to store procedures to override default object displays

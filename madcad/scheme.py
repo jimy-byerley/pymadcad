@@ -85,6 +85,7 @@ class Scheme:
 		self.components = []	# displayables associated to spaces
 		# for creation: last vertex inserted
 		self.current = {'color':fvec4(settings.display['annotation_color'],1), 'flags':0, 'layer':0, 'space':world, 'shader':'line', 'track':0, 'normal':fvec3(0)}
+		self.continuous = False
 		self.set(**kwargs)
 		
 	def __iadd__(self, other):
@@ -94,7 +95,7 @@ class Scheme:
 		'''
 		ls = len(self.spaces)
 		lv = len(self.vertices)
-		lt = max(self.tracks)+1
+		lt = max(map(itemgetter(5), self.vertices), default=0)
 		self.spaces.extend(other.spaces)
 		self.components.extend(other.components)
 		self.vertices.extend([
@@ -103,7 +104,7 @@ class Scheme:
 							v[5] + lt, 
 							v[6],
 						]  for v in other.vertices)
-		for shader, prims in other.primitives:
+		for shader, prims in other.primitives.items():
 			if shader not in self.primitives:
 				self.primitives[shader] = []
 			self.primitives[shader].extend(tuple(i+lv  for i in p) for p in prims)
@@ -150,6 +151,7 @@ class Scheme:
 		else:
 			indices = self.primitives[self.current['shader']]
 		l = len(self.vertices)
+		continuing = False
 		
 		if isinstance(obj, (Mesh,Web)):
 			self.vertices.extend([
@@ -173,6 +175,19 @@ class Scheme:
 			for e, track in zip(obj.edges, obj.tracks):
 				for p in e:
 					self.vertices[p+l][5] = track
+		elif isinstance(obj, vec3):
+			self.vertices.append([
+								self.current['space'], 
+								fvec3(obj), 
+								self.current['normal'], 
+								self.current['color'], 
+								self.current['layer'], 
+								self.current['track'], 
+								self.current['flags'],
+								])
+			continuing = True
+			if self.continuous:
+				indices.append((l-1, l))
 		
 		elif hasattr(obj, '__iter__'):
 			n = len(self.vertices)
@@ -194,6 +209,7 @@ class Scheme:
 		else:
 			self.component(obj)
 			
+		self.continuous = continuing
 		return self
 	
 	def component(self, obj, **kwargs):
