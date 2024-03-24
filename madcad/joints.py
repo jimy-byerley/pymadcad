@@ -115,15 +115,17 @@ class Revolute(Joint):
 		sch.add(gt.flatsurface(c2), shader='ghost')
 		
 		if attach_end:
+			sch.set(shader='line')
 			side = z * size * 0.5
 			if dot(attach_end-o, side) < 0:
 				side = -side
 			if dot(attach_end-o-side, side) < 0:
-				attach = side + normalize(noproject(attach_end-o, z))*radius
+				radial = normalize(noproject(attach_end-o, z))
+				sch.add(side + radial*radius)
+				sch.add(side + radial*2*radius)
+				# sch.add(radial*2*radius)
 			else:
-				attach = side
-			sch.set(shader='line')
-			sch.add(attach)
+				sch.add(side)
 			sch.add(attach_end, space=world_solid(self.solids[1]))
 			
 		return sch
@@ -362,12 +364,15 @@ class Cylindrical(Joint):
 		sch.add(cylinder, shader='ghost')
 		sch.add(cylinder.outlines(), shader='line')
 		if attach_start:
-			v = normalize(noproject(start - o, z))
+			v = normalize(noproject(attach_start - o, z))
 			if not isfinite(v):
 				v = x
-			p = o + v*size/4
-			sch.add(gt.flatsurface([p, p + z*size*cornersize, p + v*size*cornersize]), shader='ghost')
-			sch.add([p, p + v*size*cornersize, start], shader='line')
+			p = v*size/4
+			sch.add(gt.flatsurface(wire([p, p + z*size*cornersize, p + v*size*cornersize])), shader='fill')
+			sch.set(shader='line')
+			sch.add(p)
+			sch.add(p + v*size*cornersize)
+			sch.add(attach_start, space=world_solid(self.solids[0]))
 		
 		x,y,z,o = dmat4x3(affineInverse(self.pre))
 		sch.set(track=1, space=scale_solid(self.solids[1], fvec3(o), maxsize/size))
@@ -375,15 +380,18 @@ class Cylindrical(Joint):
 		
 		sch.set(shader='fill')
 		if attach_end:
+			sch.set(shader='line')
 			side = z * size * 0.5
-			if dot(attach_end-o, z) < 0:
+			if dot(attach_end-o, side) < 0:
 				side = -side
-			if dot(attach_end-center-side, side) < 0:
-				attach = side + normalize(noproject(attach_end-center, z))*radius
+			if dot(attach_end-o-side, side) < 0:
+				radial = normalize(noproject(attach_end-o, z))
+				sch.add(side + radial*radius)
+				sch.add(side + radial*2*radius)
+				# sch.add(radial*2*radius)
 			else:
-				attach = side
-			sch.add([center-side, center+side])
-			sch.add([center+attach, junc])
+				sch.add(side)
+			sch.add(attach_end, space=world_solid(self.solids[1]))
 			
 		return sch
 
