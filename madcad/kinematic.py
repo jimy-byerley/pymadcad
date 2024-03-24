@@ -1097,16 +1097,17 @@ class Solid:
 			<Mesh ...>
 			>>> s['whatever'] = vec3(5,2,1)
 	'''
-	def __init__(self, pose=None, **content):
-		self.pose = pose
+	
+	def __init__(self, pose=1, **content):
+		self.pose = mat4(pose)
 		self.content = content
 		
 	def __copy__(self):
-		return Solid(self.pose, self.content)
+		return Solid(self.pose, **self.content)
 	
-	def transform(self, trans) -> 'Solid':
+	def transform(self, value) -> 'Solid':
 		''' Displace the solid by the transformation '''
-		return Solid(transform(trans) * self.pose, **self.content)
+		return Solid(transform(value) * self.pose, **self.content)
 	
 	def place(self, *args, **kwargs) -> 'Solid': 
 		''' Strictly equivalent to `.transform(placement(...))`, see `placement` for parameters specifications. '''
@@ -1161,7 +1162,7 @@ class Solid:
 		def update(self, scene, solid):
 			if not isinstance(solid, Solid):	return
 			super().update(scene, solid.content)
-			self.local = solid.pose
+			self.local = fmat4(solid.pose)
 			return True
 		
 		def stack(self, scene):
@@ -1578,27 +1579,20 @@ def placement(*pairs, precision=1e-3):
 			...		)
 	'''
 	from .reverse import guessjoint
-	from random import random
 	
-	a, b = Solid(), Solid()
 	joints = []
 	for pair in pairs:
-		if len(pair) == 2:		joints.append(guessjoint(a, b, *pair, precision*0.25))
-		elif len(pair) == 3:	joints.append(pair[0](a, b, *pair[1:]))
+		if len(pair) == 2:		joints.append(guessjoint((0, 1), *pair, precision*0.25))
+		elif len(pair) == 3:	joints.append(pair[0]((0, 1), *pair[1:]))
 		else:
 			raise TypeError('incorrect pair definition', pair)
 	
-	# temporary ugly specialization for pivots because solvekin is bad
-	if len(joints) == 1 and type(joints[0]).__name__ == 'Pivot':
-		joint = joints[0]
-		return (
-			translate(joint.axis[1].origin)
-			* mat4(quat(joint.axis[0].direction, joint.axis[1].direction))
-			* translate(- joint.axis[0].origin)
-			)
-	
-	solvekin(joints, fixed=[b], precision=precision, maxiter=1000)
-	return a.pose
+	if len(joints) > 1:
+		kin = Kinematic(joints)
+		parts = kin.parts(kin.solve())
+		return affineInverse(parts[0]) * parts[1]
+	else:
+		return joints[0].direct(joints[0].default)
 	
 def convexhull(pts):
 	import scipy.spatial

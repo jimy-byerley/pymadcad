@@ -18,6 +18,7 @@ from itertools import accumulate
 from .mathutils import *
 from .primitives import *
 from .kinematic import Solid
+from .joints import Revolute
 from .mesh import Mesh, Web, Wire, web, wire
 from .generation import *
 from .blending import *
@@ -1258,15 +1259,14 @@ def bolt(a: vec3, b: vec3, dscrew: float, washera=False, washerb=False) -> Solid
 				#note_distance(O, -stceil(distance(a,b) + 1.2*dscrew)*Z, offset=2*dscrew*X),
 				#note_radius(rscrew['part'].group(0)),
 				#]
-	from .joints import Pivot
 	result = Solid(
-			screw = rscrew.place((Pivot, rscrew['axis'], Axis(a-thickness*dir*int(washera), -dir))), 
-			nut = rnut.place((Pivot, rnut['top'], Axis(b+thickness*dir*int(washerb), -dir))),
+			screw = rscrew.place((Revolute, rscrew['axis'], Axis(a-thickness*dir*int(washera), -dir))), 
+			nut = rnut.place((Revolute, rnut['top'], Axis(b+thickness*dir*int(washerb), -dir))),
 			)
 	if washera:
-		result['washera'] = rwasher.place((Pivot, rwasher['top'], Axis(a, dir)))
+		result['washera'] = rwasher.place((Revolute, rwasher['top'], Axis(a, dir)))
 	if washerb:
-		result['washerb'] = rwasher.place((Pivot, rwasher['top'], Axis(b, -dir)))
+		result['washerb'] = rwasher.place((Revolute, rwasher['top'], Axis(b, -dir)))
 	return result
 
 def screw_slot(axis: Axis, dscrew: float, rslot=None, hole=True, expand=True) -> Mesh:
