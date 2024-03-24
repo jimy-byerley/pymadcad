@@ -40,7 +40,7 @@
 from copy import copy, deepcopy
 from dataclasses import dataclass
 import itertools
-import numpy.core as np
+import numpy as np
 import scipy
 import moderngl as mgl
 from PyQt5.QtCore import Qt, QEvent	
@@ -382,14 +382,18 @@ class Chain(Joint):
 		b = mat4(1)
 		for x, joint in zip(parameters, self.joints):
 			f = joint.direct(x)
-			for df in joint.grad(x):
+			g = joint.grad(x)
+			if isinstance(g, mat4) or isinstance(g, np.ndarray) and g.size == 16:
+				g = g,
+			directs.append((f, len(grad)))
+			for df in g:
 				grad.append(b*df)
 			b = b*f
-			directs.append((f, len(x)))
 		# build the right side of the product
 		b = mat4(1)
+		i = len(grad)
 		for f,n in reversed(directs):
-			for i in range(n):
+			for i in reversed(range(n, i)):
 				grad[i] = grad[i]*b
 			b = f*b
 		return grad
@@ -1094,61 +1098,19 @@ class Solid:
 			>>> s['whatever'] = vec3(5,2,1)
 	'''
 	def __init__(self, pose=None, **content):
-		if isinstance(pose, tuple):
-			self.position = pose[0]
-			self.orientation = quat(pose[1])
-		elif isinstance(pose, mat4):
-			self.position = pose[3].xyz
-			self.orientation = quat(mat3(pose))
-		else:
-			self.position = vec3(0)
-			self.orientation = quat()
+		self.pose = pose
 		self.content = content
-	
-	# solver variable definition
-	slvvars = 'position', 'orientation',
-	
-	@property
-	def pose(self) -> 'mat4':
-		''' Transformation from local to global space, 
-			therefore containing the translation and rotation from the global origin 
-		'''
-		return transform(self.position, self.orientation)
-		
-	@pose.setter
-	def pose(self, mat):
-		self.position = vec3(mat[3])
-		self.orientation = quat_cast(mat3(mat))
 		
 	def __copy__(self):
-		s = Solid()
-		s.position = copy(self.position)
-		s.orientation = copy(self.orientation)
-		s.content = self.content
-		return s
+		return Solid(self.pose, self.content)
 	
 	def transform(self, trans) -> 'Solid':
 		''' Displace the solid by the transformation '''
-		s = copy(self)
-		if isinstance(trans, mat4):
-			rot, trans = quat_cast(mat3(trans)), vec3(trans[3])
-		elif isinstance(trans, mat3):
-			rot, trans = quat_cast(trans), 0
-		elif isinstance(trans, quat):
-			rot, trans = trans, 0
-		elif isinstance(trans, vec3):
-			rot, trans = 1, trans
-		else:
-			raise TypeError('Screw.transform() expect mat4, mat3 or vec3')
-		s.orientation = rot*self.orientation
-		s.position = trans + rot*self.position
-		return s
+		return Solid(transform(trans) * self.pose, **self.content)
 	
 	def place(self, *args, **kwargs) -> 'Solid': 
 		''' Strictly equivalent to `.transform(placement(...))`, see `placement` for parameters specifications. '''
-		s = copy(self)
-		s.pose = placement(*args, **kwargs)
-		return s
+		return Solid(placement(*args, **kwargs), **self.content)
 		
 	def loc(self, *args):
 		transform = mat4()
@@ -1178,7 +1140,7 @@ class Solid:
 	
 	def add(self, value):
 		''' Add an item in self.content, a key is automatically created for it and is returned '''
-		key = next(i 	for i in range(len(self.content)+1)	
+		key = next(i 	for i in range(len(self.content)+1)
 						if i not in self.content	)
 		self.content[key] = value
 		return key
@@ -1194,14 +1156,12 @@ class Solid:
 	class display(rendering.Group):
 		''' Movable `Group` for the rendering pipeline '''
 		def __init__(self, scene, solid):
-			super().__init__(scene, solid.content)
-			self.solid = solid
-			self.apply_pose()
+			super().__init__(scene, solid.content, local=solid.pose)
 		
 		def update(self, scene, solid):
 			if not isinstance(solid, Solid):	return
 			super().update(scene, solid.content)
-			self.solid = solid
+			self.local = solid.pose
 			return True
 		
 		def stack(self, scene):
@@ -1210,38 +1170,6 @@ class Solid:
 					continue
 				for sub,target,priority,func in display.stack(scene):
 					yield ((key, *sub), target, priority, func)
-				
-		def control(self, view, key, sub, evt):
-				# solid manipulation
-			if not view.scene.options['lock_solids'] and evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
-				evt.accept()
-				start = view.ptat(view.somenear(evt.pos()))
-				offset = self.solid.position - affineInverse(mat4(self.world)) * start
-				view.tool.append(rendering.Tool(self.move, view, start, offset))
-			# this click might have been a selection, ask for scene restack just in case
-			elif evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
-				view.scene.touch()
-				
-		def move(self, dispatcher, view, pt, offset):
-			moved = False
-			while True:
-				evt = yield
-				
-				if evt.type() == QEvent.MouseMove:
-					evt.accept()
-					moved = True
-					world = mat4(self.world)
-					pt = affineInverse(world) * view.ptfrom(evt.pos(), world * pt)
-					self.solid.position = pt + offset
-					self.apply_pose()
-					view.update()
-				
-				if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
-					if moved:	evt.accept()
-					break
-						
-		def apply_pose(self):
-			self.pose = fmat4(self.solid.pose)
 
 from .rendering import Group
 
@@ -1280,13 +1208,17 @@ class ChainManip(Group):
 	'''
 	min_colinearity = 1e-2
 	max_increment = 0.3
+	prec = 1e-6
 	
-	def __init__(self, scene, chain, pose=None):
+	def __init__(self, scene, chain, pose=None, toolcenter=None):
 		super().__init__(scene)
-		self.pose = pose or chain.default
-		self.tool = vec3(0)
+		# self.pose = pose or chain.default
+		self.pose = np.random.random(4)*3
+		self.toolcenter = chain.joints[-1].position[1]
 		self.chain = chain
-		# self.displays['point'] = PointDisplay(scene, toolcenter)
+		
+		from .displays import PointDisplay
+		self.displays['point'] = PointDisplay(scene, self.toolcenter)
 		self.displays['scheme'] = scene.display(kinematic_scheme(chain.joints))
 		
 		for key, solid in enumerate(chain.solids):
@@ -1294,7 +1226,14 @@ class ChainManip(Group):
 				self.displays[key] = scene.display(solid)
 			except TypeError:
 				pass
-			
+		
+		# self.panel = ToolRing(view)
+		# self.panel.addTool(qaction("madcad-kinematic-joint", self.switch_joint, "switch to joint mode"))
+		# self.panel.addTool(qaction("madcad-kinematic-internal", self.switch_internal, "switch to internal move mode"))
+		# self.panel.addTool(qaction("madcad-kinematic-translate", self.switch_translate, "switch to translation mode"))
+		# self.panel.addTool(qaction("madcad-kinematic-rotate", self.switch_rotate, "switch to rotation mode"))
+		# self.panel.addTool(qaction("madcad-kinematic-toolcenter", self.place_toolcenter, "place toolcenter"))
+	
 	def stack(self, scene):
 		''' rendering stack requested by the madcad rendering system '''
 		yield ((), 'screen', -1, self.place_solids)
@@ -1303,12 +1242,16 @@ class ChainManip(Group):
 	def place_solids(self, view):
 		world = self.world * self.local
 		parts = self.chain.parts(self.pose)
+		
+		self.displays['point'].position = fvec3(parts[-1] * self.toolcenter)
+		
 		index = {}
 		for i, joint in enumerate(self.chain.joints):
 			solid = joint.solids[-1]
 			index[solid] = i+1
 			if display := self.displays.get(solid):
 				display.word = word * fmat4(parts[i])
+		
 		for space in self.displays['scheme'].spacegens:
 			if isinstance(space, (world_solid, scale_solid)) and space.solid in index:
 				space.pose = world * fmat4(parts[index[space.solid]])
@@ -1317,6 +1260,12 @@ class ChainManip(Group):
 		''' user event manager, optional part of the madcad rendering system '''
 		if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
 			evt.accept()
+			
+		if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.RightButton:
+			evt.accept()
+			self.panel.setParent(view)
+			self.panel.move(evt.pos())
+			self.panel.show()
 		
 		if evt.type() == QEvent.MouseMove and evt.buttons() & Qt.LeftButton:
 			evt.accept()
@@ -1367,23 +1316,22 @@ class ChainManip(Group):
 
 				# solid move directions that can be acheived with this joint
 				jac = self.chain.joints[joint].grad(self.pose[joint])
-				prec = 1e-6
 				# combination of the closest directions to the mouse position
 				# several degrees of freedom
 				if hasattr(self.pose[joint], '__len__'):
 					# gradient of the screen position
-					grad = np.stack([
+					jac = np.stack([
 						(model * (grad * anchor)).xy / current.w
 						for grad in jac])
 					# colinearity between the desired move and the gradient directions. it avoids the mechanisme to burst when close to a singularity and also when the mouse move is big
 					colinearity = min(1, sum(
-								dot(v, move)**2 / (length2(v) + length2(move) + prec)
-								for v in grad) / self.min_colinearity)
-					increment = np.linalg.lstsq(grad, move * colinearity)
+								dot(grad, move)**2 / (length2(grad) + length2(move) + self.prec)
+								for grad in jac) / self.min_colinearity)
+					increment = np.linalg.lstsq(jac.transpose(), move * colinearity)
 				# faster equivalent computation in case of one degree of freedom
 				else:
 					grad = (model * (jac * anchor)).xy / current.w
-					colinearity = min(1, 1e2 * dot(grad, move)**2 / (length2(grad) + length2(move) + prec))
+					colinearity = min(1, 1e2 * dot(grad, move)**2 / (length2(grad) + length2(move) + self.prec))
 					increment = dot(grad, move * colinearity) / length2(grad)
 				
 				self.pose[joint] += clamp(increment, -self.max_increment, self.max_increment)
@@ -1392,7 +1340,8 @@ class ChainManip(Group):
 		# translate the tool
 		clicked = view.ptat(view.somenear(evt.pos()))
 		solid = self.chain.direct(self.pose)
-		anchor = affineInverse(mat4(self.world * self.local) * solid) * clicked
+		anchor = affineInverse(mat4(self.world * self.local) * solid) * vec4(clicked,1)
+		init_solid = solid
 		
 		while True:
 			evt = yield
@@ -1405,90 +1354,72 @@ class ChainManip(Group):
 
 				solid = self.chain.direct(self.pose)
 				jac = self.chain.grad(self.pose)
-				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world * self.local) * solid
-				current_anchor = model * anchor
-				current_tool = model * self.tool
-				target = qtpos(evt.pos(), view)
-				move = np.ravel(mat3(
-					target - current.xy / current.w,
-					vec3(0),
-					vec3(0),
-					))
+				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world * self.local)
+				current_anchor = model * solid * anchor
+				target_anchor = qtpos(evt.pos(), view)
 				
+				move = np.concatenate([
+					target_anchor - current_anchor.xy / current_anchor.w,
+					np.ravel(mat3(init_solid - solid)),
+					])
 				jac = np.stack([
-					np.ravel(mat3(model * grad * mat3x4(
-						vec4(anchor, 1) / current_anchor.w, 
-						vec4(self.tool, 1) / current_tool.w, 
-						vec4(sight, 0),
-						) / current.w))
+					np.concatenate([
+						(model * grad * anchor).xy / current_anchor.w, 
+						np.ravel(mat3(grad)), 
+						])
 					for grad in jac])
 				colinearity = min(1, sum(
-					np.dot(grad, move)**2 / (normsq(grad) + normsq(move) + prec)
+					np.dot(grad, move)**2 / (normsq(grad) + normsq(move) + self.prec)
 					for grad in jac) / self.min_colinearity)
-				increment = np.linalg.lstsq(jac, move * colinearity)
 				
-				self.pose[joint] += clamp(increment, -self.max_increment, self.max_increment)
+				increment = np.linalg.solve(jac @ jac.transpose() + np.eye(4)*self.prec, jac @ (move * colinearity))
+				# increment = np.linalg.pinv(jac @ jac.transpose()) @ (jac @ (move * colinearity))
+				
+				self.pose += increment.clip(-self.max_increment, self.max_increment)
 
 	def move_rotate(self, dispatcher, view, sub, evt):
-		point = self.displays['point']
-		if sub[0] == 'point':
-			# move the tool point
-			center = point.world * point.position
-			while True:
-				evt = yield
-				# drag
-				if evt.type() in (QEvent.MouseMove, QEvent.MouseButtonRelease):
-					if not (evt.buttons() & Qt.LeftButton):
-						evt.accept()
-						break
-					evt.accept()
-					view.update()
-					point.position = hinverse(point.world) * fvec3(view.ptfrom(evt.pos(), center))
-
-				# finish movement
-				if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
-					evt.accept()
+		# translate the tool
+		clicked = view.ptat(view.somenear(evt.pos()))
+		solid = self.chain.direct(self.pose)
+		anchor = affineInverse(mat4(self.world * self.local) * solid) * vec4(clicked,1)
+		tool = vec4(self.toolcenter,1)
+		init_tool = solid * tool
+		
+		while True:
+			evt = yield
+			# drag
+			if evt.type() in (QEvent.MouseMove, QEvent.MouseButtonRelease):
+				evt.accept()
+				view.update()
+				if not (evt.buttons() & Qt.LeftButton):
 					break
-		else:
-			# translate the tool
-			clicked = view.ptat(view.somenear(evt.pos()))
-			solid = self.chain.direct(self.pose)
-			anchor = affineInverse(mat4(self.world * self.local) * solid) * clicked
-			
-			while True:
-				evt = yield
-				# drag
-				if evt.type() in (QEvent.MouseMove, QEvent.MouseButtonRelease):
-					evt.accept()
-					view.update()
-					if not (evt.buttons() & Qt.LeftButton):
-						break
 
-					solid = self.chain.direct(self.pose)
-					jac = self.chain.grad(self.pose)
-					model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world * self.local) * solid
-					current_anchor = model * anchor
-					current_tool = model * self.tool
-					target = qtpos(evt.pos(), view)
-					move = np.ravel(mat3(
-						target - current.xy / current.w,
-						vec3(0),
-						vec3(0),
-						))
-					
-					jac = np.stack([
-						np.ravel(mat3(model * grad * mat3x4(
-							vec4(anchor, 1) / current_anchor.w, 
-							vec4(self.tool, 1) / current_tool.w, 
-							vec4(sight, 0),
-							) / current.w))
-						for grad in jac])
-					colinearity = min(1, sum(
-						np.dot(grad, move)**2 / (normsq(grad) + normsq(move) + prec)
-						for grad in jac) / self.min_colinearity)
-					increment = np.linalg.lstsq(jac, move * colinearity)
-					
-					self.pose[joint] += clamp(increment, -self.max_increment, self.max_increment)
+				solid = self.chain.direct(self.pose)
+				jac = self.chain.grad(self.pose)
+				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world * self.local)
+				current_tool = model * solid * tool
+				target_anchor = qtpos(evt.pos(), view)
+				target_tool = model * init_tool
+				
+				move = np.concatenate([
+					(init_tool - solid * tool).xyz,
+					(target_anchor - target_tool.xy/target_tool.w) 
+						- (model * solid * normalize(anchor - tool)).xy / current_tool.w,
+					])
+				jac = np.stack([
+					np.concatenate([
+						(grad * tool).xyz, 
+						(model * grad * normalize(anchor - tool)).xy / current_tool.w, 
+						])
+					for grad in jac])
+				colinearity = min(1, sum(
+					np.dot(grad, move)**2 / (normsq(grad) + normsq(move) + self.prec)
+					for grad in jac) / self.min_colinearity)
+				
+				increment = np.linalg.solve(jac @ jac.transpose() + np.eye(4)*self.prec, jac @ (move * colinearity))
+				# increment = np.linalg.pinv(jac @ jac.transpose()) @ (jac @ (move * colinearity))
+				
+				self.pose += increment.clip(-self.max_increment, self.max_increment)
 
 
 def qtpos(qtpos, view):
@@ -1498,6 +1429,8 @@ def qtpos(qtpos, view):
 		- (qtpos.y()/view.height() *2 -1),
 		)
 
+def normsq(x):
+	return (x*x).sum()
 		
 class Kinemanip(rendering.Group):
 	''' Display that holds a kinematic structure and allows the user to move it

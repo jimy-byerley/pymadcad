@@ -672,7 +672,7 @@ class Group(Display):
 			return False
 		
 		# update displays
-		sub = self._world * self._pose
+		sub = self._world * self._local
 		with scene.ctx:
 			scene.ctx.finish()
 			for key, obj in objs.items():
@@ -704,7 +704,7 @@ class Group(Display):
 	@writeproperty
 	def world(self, world):
 		''' Update children's world matrix applying the current pose in addition to world '''
-		sub = self._world * self._pose
+		sub = self._world * self._local
 		for display in self.displays.values():
 			display.world = sub
 			
