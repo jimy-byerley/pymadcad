@@ -196,7 +196,7 @@ class TextDisplay(rendering.Display):
 	
 	def render(self, view):		
 		self.shader['layer'] = self.layer
-		self.shader['color'].write(self.color)
+		self.shader['color'].write(fvec3(settings.display['select_color_line']) if self.selected else self.color)
 		self.shader['position'].write(fvec3(self.world * fvec4(self.position,1)))
 		self.shader['view'].write(view.uniforms['view'])
 		self.shader['proj'].write(view.uniforms['proj'])

@@ -52,57 +52,69 @@ from copy import copy
 from madcad.mathutils import COMPREC
 
 
-def rackprofile(step, h=None, offset=0, alpha=radians(20), resolution=None) -> Wire:
+def rackprofile(step, height=None, offset=0, asymetry=None, alpha=radians(20), resolution=None) -> Wire:
 	''' Generate a 1-period tooth profile for a rack
 
 		Parameters:
 
 			step:		period length over the primitive line
-			h:			tooth half height
+			height:			tooth half height
 			offset:	 	rack reference line offset with the primitive line (as a distance)
 						  - the primitive line is the adherence line with gears
 						  - the reference line is the line half the tooth is above and half below
 			alpha:		angle of the tooth sides, a.k.a  pressure angle of the contact
 	'''
+	# change name for convenience
+	h = height
+	a = asymetry
+	e = offset 
 	if h is None:
 		h = default_height(step, alpha)
-	e = offset  # change name for convenience
-	x = 0.5 + 2*e/step*tan(alpha)  # fraction of the tooth above the primitive circle
-
+	if a is None:
+		a = -0.1*h
+	ta = tan(alpha)
+	x = 0.5 - 2*e/step*ta  # fraction of the tooth above the primitive circle
+	
 	return Wire([
-		vec3(step*x/2 - tan(alpha) * ( h-e),   h-e,  0),
-		vec3(step*x/2 - tan(alpha) * (-h-e),  -h-e,  0),
-		vec3(step*(2-x)/2 + tan(alpha) * (-h-e),  -h-e,  0),
-		vec3(step*(2-x)/2 + tan(alpha) * ( h-e),   h-e,  0),
-		vec3(step*(2+x)/2 - tan(alpha) * ( h-e),   h-e,  0),
+		vec3(step*x/2 - ta * ( h-e-a),   h-e-a,  0),
+		vec3(step*x/2 - ta * (-h-e-a),  -h-e-a,  0),
+		vec3(step*(2-x)/2 + ta * (-h-e-a),  -h-e-a,  0),
+		vec3(step*(2-x)/2 + ta * ( h-e-a),   h-e-a,  0),
+		vec3(step*(2+x)/2 - ta * ( h-e-a),   h-e-a,  0),
 		], groups=['rack'])
 
 
-def gearprofile(step, z, h=None, offset=0, alpha=radians(20), resolution=None, **kwargs) -> Wire:
+def gearprofile(step, teeth, height=None, offset=0, asymetry=None, alpha=radians(20), resolution=None, **kwargs) -> Wire:
 	''' Generate a 1-period tooth profile for a straight gear
 
 
 		Parameters:
 
 			step:		period length over the primitive circle
-			z:			number of tooth on the gear this profile is meant for
-			h:			tooth half height
+			tooth:			number of tooth on the gear this profile is meant for
+			height:			tooth half height
 			offset:		offset distance of the matching rack profile (see above)
 			alpha:		pressure angle in the contact
 	'''
+	# change name for convenience
+	z = teeth
+	h = height
+	a = asymetry
 	if h is None:
 		h = default_height(step, alpha)
+	if a is None:
+		a = -0.1*h
 	p = step*z / (2*pi)	# primitive circle
 	c = p * cos(alpha)	# tangent circle to gliding axis
 
 	e = offset  # change name for convenience
 	#e = offset + 0.05*h  # the real offset is 5% (the 1*m, 1.25*m) when the standard says it is 0
-	x = 0.5 + 2*offset/step*tan(alpha)  # fraction of the tooth above the primitive circle
+	x = 0.5 + 2*e/step*tan(alpha)  # fraction of the tooth above the primitive circle
 
 	o0 = angle(involute(c, 0, tan(alpha)))	# offset of contact curve
-	oi = atan((h-e)/p * tan(alpha))		# offset of interference curve
+	oi = atan((h-e-a)/p * tan(alpha))		# offset of interference curve
 
-	l0 = involuteat(c, p+h+e)	# interval size of contact curve
+	l0 = involuteat(c, p+h+e+a)	# interval size of contact curve
 
 	# if the tooth height is unreachable, find the intersection between the two contact curves
 	t0 = -step/(2*p)*x - o0
@@ -116,7 +128,7 @@ def gearprofile(step, z, h=None, offset=0, alpha=radians(20), resolution=None, *
 		l0 = t-t0
 
 	# if there is an interference curve
-	interference = c > p-h+e
+	interference = c > p-h+e+a
 	if interference:
 		# Newton solver method
 		# to compute the parameters (t1, t2) of the intersection between contact line and interference line
@@ -129,7 +141,7 @@ def gearprofile(step, z, h=None, offset=0, alpha=radians(20), resolution=None, *
 			st1, st2 = sin(t1), sin(t2)
 			# function value
 			f = (	c*vec2(ct1,st1) + c*(t0-t1)*vec2(-st1,ct1)
-				+	(h-e-p)*vec2(ct2,st2) -p*(ti-t2)*vec2(-st2,ct2)
+				+	(h-e-a-p)*vec2(ct2,st2) -p*(ti-t2)*vec2(-st2,ct2)
 				)
 			# jacobian matrix (f partial derivatives)
 			J = mat2(
@@ -141,7 +153,7 @@ def gearprofile(step, z, h=None, offset=0, alpha=radians(20), resolution=None, *
 		li = t2 - ti	# interval size of interference curve
 		s0 = t0 - t1	# generation start of contact curve
 	else:
-		s0 = involuteat(c, p-h+e)
+		s0 = involuteat(c, p-h+e+a)
 
 	points = []
 	tracks = []
@@ -161,7 +173,7 @@ def gearprofile(step, z, h=None, offset=0, alpha=radians(20), resolution=None, *
 	if interference:
 		for i in range(n+1):
 			t = interpol1(ti+li, ti, i/n)
-			v = involuteof(p, ti, -h+e, t)
+			v = involuteof(p, ti, -h+e+a, t)
 			points.append(vec3(v,0))
 			tracks.append(1)
 	
@@ -175,7 +187,7 @@ def gearprofile(step, z, h=None, offset=0, alpha=radians(20), resolution=None, *
 	if interference:
 		for i in range(n+1):
 			t = interpol1(ti, ti-li, i/n)
-			v = involuteof(p, ti, -h+e, t)
+			v = involuteof(p, ti, -h+e+a, t)
 			points.append(vec3(v,0))
 			tracks.append(3)
 	# contact line

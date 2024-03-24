@@ -8,7 +8,7 @@ dictionaries:
 '''
 
 from math import pi, ceil, floor, sqrt
-from glm import fvec3, fvec4
+from glm import fvec3, fvec4, normalize
 import sys, os, yaml
 from os.path import dirname, exists
 
@@ -155,7 +155,6 @@ def use_qt_colors():
 		''' Convert a QColor or QPalette role to fvec3'''
 		c = palette.color(role)
 		return fvec3(c.red(), c.green(), c.blue()) / 255
-		
 	
 	selection = mix(fvec3(0.4, 1, 0), qtc(palette.Highlight), 0.6)
 	selection *= mix(1/max(selection), max(qtc(palette.Text)), 0.3)
@@ -167,7 +166,7 @@ def use_qt_colors():
 		'point_color': qtc(palette.Text),
 		'solid_color': mix(qtc(palette.Text), qtc(palette.Window), 0.7),
 		'schematics_color': qtc(palette.Link),
-		'annotation_color': mix(qtc(palette.Highlight), qtc(palette.Text), 0.5),
+		'annotation_color': mix(qtc(palette.Text)*normalize(qtc(palette.Highlight)+0.01), qtc(palette.Highlight), 0.5),
 		})
 
 

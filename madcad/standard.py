@@ -1259,12 +1259,15 @@ def bolt(a: vec3, b: vec3, dscrew: float, washera=False, washerb=False) -> Solid
 				#note_radius(rscrew['part'].group(0)),
 				#]
 	from .joints import Pivot
-	return Solid(
-			screw = rscrew.place((Pivot, rscrew['axis'], Axis(a-thickness*dir, -dir))), 
-			nut = rnut.place((Pivot, rnut['top'], Axis(b+thickness*dir, -dir))),
-			w1 = rwasher.place((Pivot, rwasher['top'], Axis(b, -dir))),
-			w2 = rwasher.place((Pivot, rwasher['top'], Axis(a, dir))),
+	result = Solid(
+			screw = rscrew.place((Pivot, rscrew['axis'], Axis(a-thickness*dir*int(washera), -dir))), 
+			nut = rnut.place((Pivot, rnut['top'], Axis(b+thickness*dir*int(washerb), -dir))),
 			)
+	if washera:
+		result['washera'] = rwasher.place((Pivot, rwasher['top'], Axis(a, dir)))
+	if washerb:
+		result['washerb'] = rwasher.place((Pivot, rwasher['top'], Axis(b, -dir)))
+	return result
 
 def screw_slot(axis: Axis, dscrew: float, rslot=None, hole=True, expand=True) -> Mesh:
 	''' slot shape for a screw

@@ -43,7 +43,7 @@ def extrusion(trans, line: Web, alignment:float=0) -> Mesh:
 				],
 				[(0,1,0)])
 
-def revolution(angle: float, axis: Axis, profile: Web, resolution=None) -> Mesh:
+def revolution(angle: float, axis: Axis, profile: Web, alignment: float=0, resolution=None) -> Mesh:
 	''' Create a revolution surface by extruding the given outline
 		`steps` is the number of steps between the start and the end of the extrusion
 		
@@ -65,7 +65,7 @@ def revolution(angle: float, axis: Axis, profile: Web, resolution=None) -> Mesh:
 	# use extrans
 	def trans():
 		for i in range(steps):
-			yield rotatearound(i/(steps-1)*angle, axis)
+			yield rotatearound((i/(steps-1) - alignment)*angle, axis)
 	def links():
 		for i in range(steps-2):          yield (i,i+1, 0)
 		if abs(angle-2*pi) <= NUMPREC:    yield (steps-2, 0, 0)
@@ -693,7 +693,7 @@ def square(axis:primitives.Axis, width:float) -> 'Mesh':
 	'''
 	x,y,z = dirbase(axis[1])
 	return Mesh(
-		typedlist([axis[0]+0.6*width*p   for p in ((x+y), (y-x), (-y-x), (-y+x))]),
+		typedlist([axis[0]+width*p   for p in ((x+y), (y-x), (-y-x), (-y+x))]),
 		typedlist([uvec3(0,1,2), uvec3(2,3,0)]),
 		groups=[None],
 		)

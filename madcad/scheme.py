@@ -249,7 +249,7 @@ class Scheme:
 				print('warning: the number of local spaces exceeds the arbitrary build-in limit of {}'.format(self.max_spaces))
 			
 			self.components = [(space,scene.display(obj))	for space,obj in sch.components]
-			
+			self._selected = False
 			
 			self.nidents = max(v[5] for v in sch.vertices)+1
 			self.box = boundingbox(
@@ -356,9 +356,8 @@ class Scheme:
 		def render(self, view):
 			''' Render each va in self.vas '''
 			ctx = view.scene.ctx
-			#self.compute_spaces(view)
-			for name in ['line', 'fill', 'ghost']:
-				if name not in self.vas:  
+			for name in self.vas:
+				if name not in self.shaders:
 					continue
 				shader = self.shaders[name]
 				va = self.vas[name]
@@ -385,6 +384,11 @@ class Scheme:
 			yield ((), 'ident', 2, self.identify)
 			for space,disp in self.components:
 				yield from disp.stack(scene)
+				
+		@writeproperty
+		def selected(self, value):
+			for space, disp in self.components:
+				disp.selected = value
 				
 class SchemeInstance:
 	def __init__(self, name, scheme, *kwargs):
