@@ -96,6 +96,7 @@ def stceil(x, precision=0.1):
 
 # --------- screw stuff -----------------------
 	
+bolt_color = vec3(0.2)
 	
 @cachefunc
 def screw(d, length, filet_length=None, head='SH', drive=None, detail=False):
@@ -151,7 +152,7 @@ def screw(d, length, filet_length=None, head='SH', drive=None, detail=False):
 					-vec3(r*0.8, 0, length),
 					-vec3(0, 0, length),
 					]) .segmented())
-	screw = (body + head).finish()
+	screw = (body + head).finish().option(color=bolt_color)
 	return Solid(part=screw, axis=axis)
 
 def screwdrive_torx(d):
@@ -371,7 +372,7 @@ def hexnut(d, w, h):
 	nut = intersection(base, ext)
 	chamfer(nut, nut.frontiers(4,5) + nut.frontiers(0,5), ('width', d*0.1))
 
-	nut.finish()
+	nut.finish().option(color=bolt_color)
 	return Solid(
 				part=nut, 
 				bottom=Axis(-0.5*h*Z, -Z, interval=(0,h)), 
@@ -449,7 +450,7 @@ def washer(d, e=None, h=None) -> Mesh:
 			tangents='straight',
 			)
 	return Solid(
-				part=extrusion(h*Z, surf), 
+				part=extrusion(h*Z, surf).option(color=bolt_color), 
 				top=Axis(h*Z, Z, interval=(0,h)), 
 				bottom=Axis(O, -Z, interval=(0,h)),
 				)

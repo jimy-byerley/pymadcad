@@ -1,15 +1,24 @@
 from madcad import *
-settings.primitives['curve_resolution'] = ('rad', 0.1)
+settings.primitives['curve_resolution'] = ('rad', 0.2)
 
-nballs = 6
+nballs = 8
 rball = 6/2
-rsphere = 2.7*rball
+rsphere = 1.5 * nballs*rball/pi
 helix = 0.2
 amax = radians(40)
-ecage = rball*0.4
+ecage = rball*0.6
 
 rinmax = distance(rotateY(rsphere*X, -amax/2), rotateY(rsphere*Z, amax))
 routmax = rsphere * cos(amax/2)
+
+rin = stfloor(rinmax*0.8)
+rout = rinmax
+hext = stceil(0.8*rsphere)
+
+nscrews = nballs//2
+dscrew = stceil(rsphere*0.2, 0.3)
+rscrews = stceil(rsphere+0.8*rball+dscrew, 0.05)
+
 
 
 balls = [icosphere(p, rball).option(color=vec3(0.1, 0.2, 0.4))
@@ -19,7 +28,7 @@ guide = revolution(pi, Axis(O,Y), guide_profile, alignment=0.5).flip()
 
 interior = intersection(
 		icosphere(O, rsphere-ecage), 
-		brick(width=2*rsphere*vec3(1, 1, sin(amax/2))),
+		brick(width=2*rsphere*vec3(1, 1, 1.1*sin(amax/2))),
 		)
 exterior = union(
 		icosphere(O, rsphere+ecage), 
@@ -51,9 +60,6 @@ mesh.mesh(balls).transform(rotate(-amax/2, Y))
 interior.transform(rotate(-amax, Y))
 
 
-rin = stfloor(rinmax*0.7)
-rout = rinmax
-hext = stceil(0.8*rsphere)
 
 interior = difference(interior, cylinder(-rsphere*Z, rsphere*Z, min(rsphere-rball*1.2, rin)))
 
@@ -87,25 +93,23 @@ exterior = intersection(
 	in_shape + in_shape.transform(scaledir(Z, -1)).flip(),
 	)
 
-dscrew = stceil(rsphere*0.2, 0.3)
-rscrews = stceil(rsphere+0.8*rball+dscrew, 0.05)
-hole = bolt_slot(rscrews*Y - rball*0.99*Z, rscrews*Y + rball*0.99*Z, dscrew)
+hole = bolt_slot(rscrews*Y - rball*0.99*Z, rscrews*Y + rball*0.99*Z, dscrew) .transform(rotate(pi/2+pi/nballs, Z))
 support = extrusion(2*rball*Z, flatsurface(convexoutline(
-	repeat(web(Circle(Axis(rscrews*Y,Z), 1.2*dscrew)), 3, rotate(2*pi/3, Z))
+	repeat(web(Circle(Axis(rscrews*Y,Z), 1.2*dscrew)).transform(rotate(pi/2 + pi/nballs, Z)), nscrews, rotate(2*pi/nscrews, Z))
 	+ web(Circle(Axis(O,Z), rsphere*1.1 + rball))
-	)), alignment=0.5).flip()
+	)), alignment=0.5).orient()
 
 e = pierce(support, exterior).islands()[0].transform(0.999)
 exterior = union(exterior, e)
-exterior = intersection(exterior, repeat(hole, 3, rotate(2*pi/3, Z)))
+exterior = intersection(exterior, repeat(hole, nscrews, rotate(2*pi/nscrews, Z)))
 
 annotations = [
-	note_distance(O, rscrews*Y, offset=1.5*rsphere*Z),
+	note_distance(O, rotate(pi/2 + pi/nballs, Z) * rscrews*Y, offset=1.5*rsphere*Z),
 	note_radius(hole.group(2), offset=rsphere),
 	note_radius(interior.group(9), offset=2.5*rsphere),
 	note_radius(balls[0], offset=1.5*rsphere),
 	]
 
-io.write(exterior, '/tmp/birfield/exterior.stl')
-io.write(interior, '/tmp/birfield/interior.stl')
-io.write(cage, '/tmp/birfield/cage.stl')
+#io.write(exterior, '/tmp/birfield/exterior.stl')
+#io.write(interior, '/tmp/birfield/interior.stl')
+#io.write(cage, '/tmp/birfield/cage.stl')
