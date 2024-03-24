@@ -2,8 +2,8 @@ from madcad import *
 from madcad.gear import gearprofile
 from functools import reduce
 import operator
-#settings.primitives['curve_resolution'] = ('rad', 0.05)
 settings.primitives['curve_resolution'] = ('rad', 0.2)
+#settings.primitives['curve_resolution'] = ('sqradm', 0.4)
 
 def ellipsis_perimeter(a, b):
 	return Circle(Axis(O,Z), a).mesh(resolution=('div', 128)).transform(scaledir(X, b/a)).length()
@@ -16,7 +16,7 @@ height = 30  # undeformed deformable height
 ellipsis_teeth = 60  # number of teeth on the ellipsis
 circle_teeth = ellipsis_teeth+2 # number of teeth on the circle
 dscrew_ext = stceil(rellipsis*0.15, 0.3)
-dscrew_int = stceil(rellipsis*0.1, 0.3)
+dscrew_int = stceil(rellipsis*0.08, 0.3)
 
 # the deformed shape keeps the same neutral fiber length
 aellipsis = rellipsis * circle_teeth/ellipsis_teeth  # ellipsis max
@@ -181,26 +181,25 @@ generator = difference(generator, in_holes)
 # exterior
 shoulder = hout*0.2
 rexterior = stceil(aellipsis*1.3 + 1.1*dscrew_ext, 0.05)
+rinner = max(aellipsis*1.08+teeth_height*1.1, rext+shoulder)
 exterior_profile = wire([
 	vec3(aellipsis, 0, -hellipsis*0.4),
-	vec3(aellipsis+teeth_height*1.2, 0, -hellipsis*0.6),
-	vec3(aellipsis+teeth_height*1.2, 0, -height+hout),
+	vec3(aellipsis+teeth_height*1.1, 0, -hellipsis*0.6),
+	vec3(aellipsis+teeth_height*1.1, 0, -height+hout*0.5+2*shoulder),
 	vec3(rext-shoulder, 0, -height+hout*0.5+shoulder),
 	vec3(rext-shoulder, 0, -height+hout*0.5),
 	vec3(rext, 0, -height+hout*0.5),
 	vec3(rext, 0, -height-hout*0.5),
-	vec3(rext*1.1, 0, -height-hout*0.5),
+	vec3(rinner, 0, -height-hout*0.5),
 
-	vec3(rext*1.1, 0, -height+hout*0.5),
-	vec3(aellipsis*1.2, 0, -height+hout),
-	vec3(aellipsis*1.2, 0, hellipsis*0.6-dscrew_ext),
+	vec3(rinner, 0, hellipsis*0.6-dscrew_ext),
 	vec3(rexterior + dscrew_ext, 0, hellipsis*0.6-dscrew_ext),
 	vec3(rexterior + dscrew_ext, 0, hellipsis*0.6),
 	vec3(aellipsis+teeth_height*1.2, 0, hellipsis*0.6),
 	vec3(aellipsis, 0, +hellipsis*0.4),
 	]).segmented().flip()
-bevel(exterior_profile, [10], ('width', dscrew_ext))
-chamfer(exterior_profile, [7], ('width', hout*0.5))
+bevel(exterior_profile, [8], ('width', dscrew_ext))
+chamfer(exterior_profile, [7], ('width', 0.5*(rinner - rext)))
 exterior = revolution(2*pi, Axis(O,Z), exterior_profile)
 exterior = intersection(exterior, circle_teeth.flip())
 
@@ -257,14 +256,12 @@ hat = difference(hat, hat_holes)
 # the butt the part holding the out bearing at the bottom
 butt_profile = wire([
 	vec3(rext-hout*0.3, 0, -height-hout*0.5),
-	vec3(rext*1.12, 0, -height-hout*0.5),
-	vec3(rext*1.12, 0, -height+hout*0.5),
-	vec3(aellipsis*1.22, 0, -height+hout),
-	vec3(aellipsis*1.22, 0, hellipsis*0.6-dscrew_ext),
+	vec3(rinner*1.02, 0, -height-hout*0.5),
+	vec3(rinner*1.02, 0, hellipsis*0.6-dscrew_ext),
 	vec3(rexterior + dscrew_ext, 0, hellipsis*0.6-dscrew_ext),
 	]).segmented()
 bevel(butt_profile, [1], ('width', hout*0.5))
-bevel(butt_profile, [4], ('width', dscrew_ext))
+bevel(butt_profile, [2], ('width', dscrew_ext))
 butt = thicken(revolution(2*pi, Axis(O,Z), butt_profile), hout*0.2)
 butt = difference(butt, exterior_holes)
 
@@ -312,3 +309,13 @@ annotations = [
 		offset=-2*height*Z),
 	note_leading(out_bearing['part'].group(2).transform(out_bearing.pose), text="{:.3g}x{:.3g}x{:.3g}".format(2*rint, 2*rext, hout)),
 	]
+
+color_bolts = vec3(0.2)
+out_bolts[0]['screw']['part'].option(color=color_bolts)
+out_bolts[0]['nut']['part'].option(color=color_bolts)
+out_bolts[0]['washera']['part'].option(color=color_bolts)
+out_bolts[0]['washerb']['part'].option(color=color_bolts)
+exterior_bolts[0]['screw']['part'].option(color=color_bolts)
+exterior_bolts[0]['nut']['part'].option(color=color_bolts)
+exterior_bolts[0]['washera']['part'].option(color=color_bolts)
+exterior_bolts[0]['washerb']['part'].option(color=color_bolts)

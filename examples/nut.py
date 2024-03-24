@@ -43,7 +43,7 @@ csts = [
 	Distance(P1, axis, 		0.9*w),
 	Distance(P4, axis, 		0.9*w),
 	]
-solve(csts, fixed=[O,X,Y,Z,P0,P5], precision=1e-6, method='CG')
+solve(csts, fixed=[O,X,Y,Z,P0,P5], precision=1e-6, method='trf')
 
 # generate a revolution surface from the profile
 base = revolution(radians(360), axis, profile)
@@ -74,4 +74,4 @@ notes = [
 	]
 
 # display what we want
-show([nut, notes])
+#show([nut, notes])

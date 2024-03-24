@@ -28,7 +28,8 @@ Thus, we obtain the involute of circle (with radius $r$):
 
 ### Few remarks
 
-An involute is symetric over $t_0$: 
+An involute is symetric over $t_0$:
+
 - $ \vec \theta([t_0, +\infty[) $    is an involute developed by a direct rotation
 - $ \vec \theta(]-\infty, t_0]) $    is an involute developed by a reverse rotation
 
