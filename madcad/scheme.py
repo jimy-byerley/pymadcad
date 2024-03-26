@@ -95,7 +95,7 @@ class Scheme:
 		'''
 		ls = len(self.spaces)
 		lv = len(self.vertices)
-		lt = max(map(itemgetter(5), self.vertices), default=0)
+		lt = max(map(itemgetter(5), self.vertices), default=0) + 1
 		self.spaces.extend(other.spaces)
 		self.components.extend(other.components)
 		self.vertices.extend([
@@ -446,63 +446,69 @@ def ubiquity(view):
 def world(view):
 	return view.uniforms['view'] * view.uniforms['world']
 
-def halo_world(position):
-	position = fvec4(position,1)
-	def mat(view):
-		center = view.uniforms['view'] * (view.uniforms['world'] * position)
+@dataclass
+class halo_world:
+	position: fvec3
+	def __call__(self, view):
+		center = view.uniforms['view'] * (view.uniforms['world'] * fvec4(position,1))
 		m = fmat4(1)
 		m[3] = center
 		return m
-	return mat
-def halo_view(position):
-	position = fvec4(position,1)
-	def mat(view):
-		center = view.uniforms['view'] * (view.uniforms['world'] * position)
+	
+@dataclass
+class halo_view:
+	position: fvec3 
+	def __call__(self, view):
+		center = view.uniforms['view'] * (view.uniforms['world'] * fvec4(self.position,1))
 		proj = view.uniforms['proj']
 		e = proj * fvec4(1,1,center.z,1)
 		e /= e[3]
 		m = fmat4(1/e[1])
 		m[3] = center
 		return m
-	return mat
-def halo_screen(position):
-	position = fvec4(position,1)
-	def mat(view):
-		center = view.uniforms['view'] * (view.uniforms['world'] * position)
+
+@dataclass
+class halo_screen:
+	position: fvec3
+	def __call__(self, view):
+		center = view.uniforms['view'] * (view.uniforms['world'] * fvec4(self.position,1))
 		e = view.uniforms['proj'] * fvec4(1,1,center.z,1)
 		e /= e[3]
 		m = fmat4(2/(e[1]*view.target.height))
 		m[3] = center
 		return m
-	return mat
 
-def scale_screen(center):
-	def mat(view):
+@dataclass
+class scale_screen:
+	center: fvec3
+	def __call__(self, view):
 		m = view.uniforms['view'] * view.uniforms['world']
-		e = view.uniforms['proj'] * fvec4(1,1,(m*center).z,1)
+		e = view.uniforms['proj'] * fvec4(1,1,(m*self.center).z,1)
 		e /= e[3]
-		return m * translate(center) * scale(fvec3(2 / (e[1]*view.target.height)))
-	return mat
+		return m * translate(self.center) * scale(fvec3(2 / (e[1]*view.target.height)))
 
-def scale_view(center):
-	def mat(view):
+@dataclass
+class scale_view:
+	center: fvec3
+	def __call__(self, view):
 		m = view.uniforms['view'] * view.uniforms['world']
-		e = view.uniforms['proj'] * fvec4(1,1,(m*center).z,1)
+		e = view.uniforms['proj'] * fvec4(1,1,(m*self.center).z,1)
 		e /= e[3]
-		return m * translate(center) * scale(fvec3(1 / e[1]))
-	return mat
+		return m * translate(self.center) * scale(fvec3(1 / e[1]))
 
-
-def halo_screen_flipping(position, offset):
-	position = fvec4(position,1)
-	def mat(view):
+@dataclass
+class halo_screen_flipping:
+	position: fvec3
+	offset: fvec3
+	
+	def __call__(self, view):
 		numprec = 1e-7
-		center = view.uniforms['view'] * (view.uniforms['world'] * position)
+		center = view.uniforms['view'] * (view.uniforms['world'] * fvec4(self.position,1))
 		e = view.uniforms['proj'] * fvec4(1,1,center.z,1)
 		e /= e[3]
 		screen_center = view.uniforms['proj'] * center
 		screen_center /= screen_center[3]
-		screen_tip = view.uniforms['proj'] * (view.uniforms['view'] * (view.uniforms['world'] * fvec4(offset, 0)))
+		screen_tip = view.uniforms['proj'] * (view.uniforms['view'] * (view.uniforms['world'] * fvec4(self.offset, 0)))
 		screen_tip /= -abs(screen_tip[3]) - numprec
 		if screen_tip[0] <= screen_center[0] + numprec:
 			flip = fvec4(1,1,1,1)
@@ -511,7 +517,6 @@ def halo_screen_flipping(position, offset):
 		m = fmat4(*(flip * 2/(e[1]*view.target.height)))
 		m[3] = center
 		return m
-	return mat
 
 def mesh_placement(mesh) -> '(pos,normal)':
 	''' Return an axis for placement of a note on the given object '''
@@ -1181,12 +1186,11 @@ def note_rotation(quaternion, color=None, size=0.4):
 	
 	sch.set(
 		space=ubiquity,
-		color=fvec4(color,1),
 		shader='line',
 		)
-	sch.add([size*cos(t)*x + size*sin(t)*y  for t in linrange(0, angle, step=0.1)])
-	sch.add([size*cos(t)*x + size*sin(t)*y  for t in linrange(0, 2*pi, step=0.1)], color=fvec4(color,0.2))
-	sch.add(gt.revolution(2*pi, (size*rend, tend), web([size*tend, size*tend-14*tend+3.6*rend])), 
+	sch.add([size*cos(t)*x + size*sin(t)*y  for t in linrange(0, angle, step=0.1)], color=fvec4(color,1))
+	sch.add([size*cos(t)*x + size*sin(t)*y  for t in linrange(angle, 2*pi, step=0.1)], color=fvec4(color,0.2))
+	sch.add(gt.revolution(2*pi, Axis(o, tend), web([o, -14*tend-3.6*rend]), resolution=('div', 8)), 
 		space=scale_screen_ubiquity(fvec3(size*rend)), 
 		color=fvec4(color,0.8), 
 		shader='fill',

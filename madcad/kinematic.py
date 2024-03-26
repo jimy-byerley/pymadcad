@@ -50,6 +50,7 @@ from .mathutils import *
 from .mesh import Mesh, Web, Wire, striplist, distance2_pm, typedlist_to_numpy
 from . import settings
 from . import rendering
+from . import scheme
 from . import nprint
 from .displays import BoxDisplay
 
@@ -1213,14 +1214,9 @@ class ChainManip(Group):
 	
 	def __init__(self, scene, chain, pose=None, toolcenter=None):
 		super().__init__(scene)
-		# self.pose = pose or chain.default
-		self.pose = np.random.random(4)*3
+		self.pose = pose or chain.default
 		self.toolcenter = chain.joints[-1].position[1]
 		self.chain = chain
-		
-		from .displays import PointDisplay
-		self.displays['point'] = PointDisplay(scene, self.toolcenter)
-		self.displays['scheme'] = scene.display(kinematic_scheme(chain.joints))
 		
 		for key, solid in enumerate(chain.solids):
 			try:
@@ -1228,23 +1224,21 @@ class ChainManip(Group):
 			except TypeError:
 				pass
 		
-		# self.panel = ToolRing(view)
-		# self.panel.addTool(qaction("madcad-kinematic-joint", self.switch_joint, "switch to joint mode"))
-		# self.panel.addTool(qaction("madcad-kinematic-internal", self.switch_internal, "switch to internal move mode"))
-		# self.panel.addTool(qaction("madcad-kinematic-translate", self.switch_translate, "switch to translation mode"))
-		# self.panel.addTool(qaction("madcad-kinematic-rotate", self.switch_rotate, "switch to rotation mode"))
-		# self.panel.addTool(qaction("madcad-kinematic-toolcenter", self.place_toolcenter, "place toolcenter"))
-	
+		self.displays['scheme'] = scene.display(
+					kinematic_toolcenter(self.toolcenter) 
+					+ kinematic_scheme(chain.joints))
+		
 	def stack(self, scene):
 		''' rendering stack requested by the madcad rendering system '''
 		yield ((), 'screen', -1, self.place_solids)
-		yield from super().stack(scene)
+		for item in super().stack(scene):
+			yield item
 
 	def place_solids(self, view):
 		world = self.world * self.local
 		parts = self.chain.parts(self.pose)
 		
-		self.displays['point'].position = fvec3(parts[-1] * self.toolcenter)
+		# self.displays['point'].position = fvec3(parts[-1] * self.toolcenter)
 		
 		index = {}
 		for i, joint in enumerate(self.chain.joints):
@@ -1256,6 +1250,11 @@ class ChainManip(Group):
 		for space in self.displays['scheme'].spacegens:
 			if isinstance(space, (world_solid, scale_solid)) and space.solid in index:
 				space.pose = world * fmat4(parts[index[space.solid]])
+			elif isinstance(space, scheme.halo_screen):
+				if view.scene.options['kinematic_manipulation'] == 'rotate':
+					space.position = fvec3(parts[-1] * self.toolcenter)
+				else:
+					space.position = fvec3(nan)
 
 	def control(self, view, key, sub, evt):
 		''' user event manager, optional part of the madcad rendering system '''
@@ -1271,32 +1270,40 @@ class ChainManip(Group):
 		if evt.type() == QEvent.MouseMove and evt.buttons() & Qt.LeftButton:
 			evt.accept()
 			# put the tool into the view, to handle events
-			view.tool.append(rendering.Tool(getattr(self, 'move_'+view.scene.options['kinematic_manipulation']), view, sub, evt))
+			if sub == ('scheme', 0):
+				view.tool.append(rendering.Tool(self.move_tool, view, sub, evt))
+			else:
+				view.tool.append(rendering.Tool(getattr(self, 'move_'+view.scene.options['kinematic_manipulation']), view, sub, evt))
+				
+	def move_tool(self, dispatcher, view, sub, evt):
+		place = mat4(self.world) * self.chain.direct(self.pose)
+		init = place * vec3(self.toolcenter)
+		offset = init - view.ptfrom(evt.pos(), init)
+		
+		while True:
+			evt = yield
+			# drag
+			if evt.type() in (QEvent.MouseMove, QEvent.MouseButtonRelease):
+				evt.accept()
+				view.update()
+				if not (evt.buttons() & Qt.LeftButton):
+					break
+			
+			self.toolcenter = affineInverse(place) * (view.ptfrom(evt.pos(), init) + offset)
 	
 	def move_joint(self, dispatcher, view, sub, evt):
-		# get 3d location of mouse
-		click = view.ptat(view.somenear(evt.pos()))
-		
-		# solid identifier
-		if sub[0] == 'scheme':
-			solid = sub[1]
-		elif sub[0] != 'point':
-			solid = sub[0]
-		else:
-			return
 		
 		# find the clicked solid, and joint controled
+		if sub[0] == 'scheme':
+			solid = (sub[1]-1)//2
+		else:
+			solid = sub[0]
+		
+		# TODO: support both using the joint or the chain methods
+		# get 3d location of mouse
+		click = view.ptat(view.somenear(evt.pos()))
 		solids = self.chain.parts(self.pose)
-		joint = None
-		pre = False
-		best = 0
-		for i, candidate in enumerate(self.chain.joints):
-			if candidate.solids[0] == solid or candidate.solids[-1] == solid:
-				dist = distance(mat4(self.world * self.local) * (solids[i] * candidate.position[0]), click)
-				if dist > best:
-					best = dist
-					joint = i
-					pre = candidate.solids[0] == solid
+		joint = max(0, solid-1)
 		anchor = affineInverse(mat4(self.world * self.local) * solids[joint+1]) * vec4(click,1)
 		
 		while True:
@@ -1522,6 +1529,33 @@ class Kinemanip(rendering.Group):
 
 
 	
+def kinematic_toolcenter(toolcenter):
+	''' create a scheme for drawing the toolcenter in kinematic manipulation '''
+	from .generation import revolution
+	from .mesh import web
+	from .scheme import Scheme, halo_screen
+	
+	color = settings.display['annotation_color']
+	angle = 2
+	radius = 60
+	size = 3
+	tend = -sin(angle)*X + cos(angle)*Y
+	rend = cos(angle)*X + sin(angle)*Y
+	sch = Scheme(
+		space=halo_screen(fvec3(toolcenter)), 
+		layer=1e-4,
+		shader='line',
+		track=0,
+		)
+	sch.add([size*cos(t)*X + size*sin(t)*Y   for t in linrange(0, 2*pi, step=0.2)], color=fvec4(color,1))
+	sch.add([radius*cos(t)*X + radius*sin(t)*Y  for t in linrange(0, angle, step=0.1)], color=fvec4(color,1))
+	sch.add([radius*cos(t)*X + radius*sin(t)*Y  for t in linrange(angle, 2*pi, step=0.1)], color=fvec4(color,0.2))
+	sch.add(
+		revolution(2*pi, (radius*rend, tend), web([radius*rend, radius*rend-14*tend-3.6*rend]), resolution=('div', 8)), 
+		shader='fill',
+		color=fvec4(color,0.8),
+		)
+	return sch
 
 def kinematic_scheme(joints) -> 'Scheme':
 	''' create a kinematic scheme for the given joints '''
