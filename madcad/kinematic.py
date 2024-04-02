@@ -55,12 +55,12 @@ from . import nprint
 from .displays import BoxDisplay
 
 __all__ = ['Screw', 'comomentum', 
-			'Solid', 'Kinematic', 'Kinemanip', 
-			'Joint', 'Weld', 'Free', 'Reverse', 'Chain', 
+			'Solid', 'Kinematic', 'KinematicManip', 
+			'Joint', 'Weld', 'Free', 'Reverse', 'Chain', 'ChainManip',
 			'KinematicError',
 			]
 
-
+mat4x3 = dmat4x3
 
 
 class KinematicError(Exception): 
@@ -247,22 +247,22 @@ class Free(Joint):
 		it is useful to control the explicit pose of a solid solid in a kinematic.
 	'''
 	bounds = (
-		squeeze_homogeneous(mat4(-1, -1, -1, 0,  -1, -1, -1, 0,  -1, -1, -1, 0,  -inf, -inf, -inf, 1)), 
-		squeeze_homogeneous(mat4(+1, +1, +1, 0,  +1, +1, +1, 0,  +1, +1, +1, 0,  +inf, +inf, +inf, 1)),
+		mat4x3(-1, -1, -1,  -1, -1, -1,  -1, -1, -1,   -inf, -inf, -inf), 
+		mat4x3(+1, +1, +1,  +1, +1, +1,  +1, +1, +1,   +inf, +inf, +inf),
 		)
-	default = squeeze_homogeneous(mat4())
+	default = mat4x3()
 	
 	def __init__(self, solids):
 		self.solids = solids
 	
 	def direct(self, parameters):
-		return unsqueeze_homogeneous(parameters)
+		return mat4(parameters)
 		
 	def inverse(self, matrix, close=None):
-		return squeeze_homogeneous(matrix)
+		return mat4x3(matrix)
 		
 	def grad(self, parameters):
-		grad = np.zeros(squeezed_homogeneous, 3, 4)
+		grad = np.zeros((squeezed_homogeneous, 4, 4))
 		for x in range(3):
 			for y in range(4):
 				grad[x+y][x][y] = 1
@@ -323,13 +323,14 @@ class Chain(Joint):
 		
 		A `Chain` doesn't tolerate modifications of the type of its joints once instanciated. a joint placement can be modified as long as it doesn't change its hash.
 	'''
-	def __init__(self, joints):
+	def __init__(self, joints, content:list=None):
 		# TODO: add an argument for displays, like solids in Kinematic constructor
 		
 		if not all(joints[i-1].solids[-1] == joints[i].solids[0]  
 				for i in range(1, len(joints))):
 			raise ValueError('joints do not form a direct chain, joints are not ordered or badly oriented')
 		self.joints = joints
+		self.content = content
 		self.solids = (joints[0].solids[0], joints[-1].solids[-1])
 		
 	@property
@@ -439,14 +440,14 @@ class Kinematic:
 			- each joint is a link between 2 solids (start, stop)
 			- each joint can provide a transformation matrix from its start solid to stop solid deduced from the joint position, as well as a gradient of this matrix
 			
-		A kinematic problem is definied by
+		A kinematic problem is defined by
 			- the joints we fix (or solids we fix, but fixing a solid can be done using a joint)
 			- the joints who stay free, whose positions need to be deduced from the fixed joints
 		
 		A list of joints can be seen as a graph of links between solids. The complexity of the kinematic probleme depends on
 		
 			- the number cycles
-			- the number of variables
+			- the degree of freedom
 		
 		Example:
 			
@@ -499,9 +500,7 @@ class Kinematic:
 	'''
 	dtype = float
 	
-	def __init__(self, joints:list=[], solids:dict=None, ground=0, direct=None, inverse=None):
-		# TODO: rename solids something else as it only contains displayables
-		
+	def __init__(self, joints:list=[], content:dict=None, ground=0, direct=None, inverse=None):
 		if (direct is None) ^ (inverse is None):
 			raise TypeError("direct and inverse must be both provided or undefined")
 		elif direct and inverse:	
@@ -509,7 +508,7 @@ class Kinematic:
 			self.direct_parameters = direct
 			self.inverse_parameters = inverse
 		
-		self.solids = solids
+		self.content = content
 		self.joints = joints
 		self.ground = ground
 		
@@ -582,7 +581,7 @@ class Kinematic:
 	def simplify(self) -> 'Self':
 		indev
 		
-	def cost_residuals(self, state):
+	def cost_residuals(self, state, fixed=()):
 		'''
 			build residuals to minimize to satisfy the joint constraints
 			cost function returns residuals, the solver will optimize the sum of their squares
@@ -611,12 +610,13 @@ class Kinematic:
 			#residuals[i] **= 2
 		return residuals.ravel()
 		
-	def cost_jacobian(self, state):
+	def cost_jacobian(self, state, fixed=()):
 		''' jacobian of the residuals function '''
 		# collect gradient and transformations
 		state = iter(state)
 		transforms = {}
 		index = 0
+		nprint(self.joints)
 		for joint in self.joints:
 			if joint in fixed:
 				grad = ()
@@ -624,6 +624,7 @@ class Kinematic:
 				size = 0
 			else:
 				p = next(state, empty)
+				print(joint, p)
 				size = np.array(p).size
 				grad = joint.grad(p)
 				# ensure it is a jacobian and not a single derivative
@@ -724,14 +725,14 @@ class Kinematic:
 		# start = time()
 		
 		res = scipy.optimize.least_squares(
-					lambda x: self.cost_residuals(structure_state(x, init)), 
+					lambda x: self.cost_residuals(structure_state(x, init), fixed), 
 					flatten_state(init, self.dtype), 
 					method = 'trf', 
 					bounds = (
 						flatten_state(mins, self.dtype), 
 						flatten_state(maxes, self.dtype),
 						), 
-					jac = lambda x: self.cost_jacobian(structure_state(x, init)), 
+					jac = lambda x: self.cost_jacobian(structure_state(x, init), fixed), 
 					xtol = precision, 
 					# ftol = 0,
 					# gtol = 0,
@@ -779,9 +780,10 @@ class Kinematic:
 			The arguments are the same as for `self.direct()`
 		'''
 		if isinstance(state, dict):
-			state = [state.get(joint) or joint.default  for joint in joints]
+			state = [state.get(joint) or joint.default  for joint in self.joints]
+		transforms = {}
 		# collect transformations
-		for joint, p in zip(joints, state):
+		for joint, p in zip(self.joints, state):
 			transforms[joint] = joint.direct(p)
 			if joint in self.rev:
 				transforms[self.rev[joint]] = affineInverse(transforms[joint])
@@ -813,10 +815,16 @@ class Kinematic:
 			Note:
 				this function will ignore any degree of freedom of the kinematic that is not defined in `direct_parameters`
 		'''
-		free = scipy.linalg.null_space(self.cost_jacobian(state))
-		# orient the base of the null space so that they are the closest to the degrees of freedom and in same order
-		indev
-		return [direction[invp]/direction[dirp[i]]  for i in range(len(self.direct_parameters))]
+		free = scipy.linalg.null_space(self.cost_jacobian(state)).transpose()
+		nprint('free', free)
+		# TODO: orient the base of the null space so that they are the closest to the degrees of freedom and in same order
+		inverses = sum(flatten_state(p.default, self.dtype).size  for p in self.inverse_parameters)
+		directs = sum(flatten_state(p.default, self.dtype).size  for p in self.direct_parameters)
+		jac = free[-inverses:] @ free[:directs].T
+		return [structure_state([ 
+					structure_state(df, inverse.default)
+					for inverse in self.inverse_parameters], direct.default)
+				for direct, df in zip(self.direct_parameters, jac)]
 		
 	def direct(self, parameters: list, close=None) -> list:
 		''' 
@@ -838,7 +846,7 @@ class Kinematic:
 	
 	def display(self, scene):
 		''' display allowing manipulation of kinematic '''
-		return Kinemanip(scene, self.joints, self.solids, self.ground)
+		return KinematicManip(scene, self)
 
 
 empty = ()
@@ -1214,45 +1222,44 @@ class ChainManip(Group):
 	
 	def __init__(self, scene, chain, pose=None, toolcenter=None):
 		super().__init__(scene)
-		self.pose = pose or chain.default
-		self.toolcenter = chain.joints[-1].position[1]
 		self.chain = chain
+		self.toolcenter = chain.joints[-1].position[1]
+		self.pose = pose or chain.default
+		self.parts = self.chain.parts(self.pose)
 		
-		for key, solid in enumerate(chain.solids):
-			try:
-				self.displays[key] = scene.display(solid)
-			except TypeError:
-				pass
+		from .rendering import displayable
+		if chain.content:
+			for key, solid in enumerate(chain.content):
+				if displayable(solid):
+					self.displays[key] = scene.display(solid)
 		
 		self.displays['scheme'] = scene.display(
 					kinematic_toolcenter(self.toolcenter) 
 					+ kinematic_scheme(chain.joints))
 		
+	# TODO: add content update method
+	
 	def stack(self, scene):
 		''' rendering stack requested by the madcad rendering system '''
 		yield ((), 'screen', -1, self.place_solids)
-		for item in super().stack(scene):
-			yield item
+		yield from super().stack(scene)
 
 	def place_solids(self, view):
 		world = self.world * self.local
-		parts = self.chain.parts(self.pose)
-		
-		# self.displays['point'].position = fvec3(parts[-1] * self.toolcenter)
 		
 		index = {}
 		for i, joint in enumerate(self.chain.joints):
 			solid = joint.solids[-1]
 			index[solid] = i+1
 			if display := self.displays.get(solid):
-				display.word = word * fmat4(parts[i])
+				display.word = word * fmat4(self.parts[i])
 		
 		for space in self.displays['scheme'].spacegens:
 			if isinstance(space, (world_solid, scale_solid)) and space.solid in index:
-				space.pose = world * fmat4(parts[index[space.solid]])
+				space.pose = world * fmat4(self.parts[index[space.solid]])
 			elif isinstance(space, scheme.halo_screen):
 				if view.scene.options['kinematic_manipulation'] == 'rotate':
-					space.position = fvec3(parts[-1] * self.toolcenter)
+					space.position = fvec3(self.parts[-1] * self.toolcenter)
 				else:
 					space.position = fvec3(nan)
 
@@ -1270,13 +1277,14 @@ class ChainManip(Group):
 		if evt.type() == QEvent.MouseMove and evt.buttons() & Qt.LeftButton:
 			evt.accept()
 			# put the tool into the view, to handle events
+			# TODO: allow changing mode during move
 			if sub == ('scheme', 0):
 				view.tool.append(rendering.Tool(self.move_tool, view, sub, evt))
 			else:
 				view.tool.append(rendering.Tool(getattr(self, 'move_'+view.scene.options['kinematic_manipulation']), view, sub, evt))
 				
 	def move_tool(self, dispatcher, view, sub, evt):
-		place = mat4(self.world) * self.chain.direct(self.pose)
+		place = mat4(self.world) * self.parts[-1]
 		init = place * vec3(self.toolcenter)
 		offset = init - view.ptfrom(evt.pos(), init)
 		
@@ -1302,9 +1310,8 @@ class ChainManip(Group):
 		# TODO: support both using the joint or the chain methods
 		# get 3d location of mouse
 		click = view.ptat(view.somenear(evt.pos()))
-		solids = self.chain.parts(self.pose)
 		joint = max(0, solid-1)
-		anchor = affineInverse(mat4(self.world * self.local) * solids[joint+1]) * vec4(click,1)
+		anchor = affineInverse(mat4(self.world * self.local) * self.parts[joint+1]) * vec4(click,1)
 		
 		while True:
 			evt = yield
@@ -1315,9 +1322,8 @@ class ChainManip(Group):
 				if not (evt.buttons() & Qt.LeftButton):
 					break
 
-				solids = self.chain.parts(self.pose)
-				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world * self.local) * solids[joint]
-				direct = affineInverse(solids[joint]) * solids[joint+1]
+				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world * self.local) * self.parts[joint]
+				direct = affineInverse(self.parts[joint]) * self.parts[joint+1]
 				target = qtpos(evt.pos(), view)
 				current = model * (direct * anchor)
 				move = target - current.xy / current.w
@@ -1343,11 +1349,12 @@ class ChainManip(Group):
 					increment = dot(grad, move * colinearity) / length2(grad)
 				
 				self.pose[joint] += clamp(increment, -self.max_increment, self.max_increment)
+				self.parts = self.chain.parts(self.pose)
 
 	def move_translate(self, dispatcher, view, sub, evt):
 		# translate the tool
 		clicked = view.ptat(view.somenear(evt.pos()))
-		solid = self.chain.direct(self.pose)
+		solid = self.parts[-1]
 		anchor = affineInverse(mat4(self.world * self.local) * solid) * vec4(clicked,1)
 		init_solid = solid
 		
@@ -1360,7 +1367,7 @@ class ChainManip(Group):
 				if not (evt.buttons() & Qt.LeftButton):
 					break
 
-				solid = self.chain.direct(self.pose)
+				solid = self.parts[-1]
 				jac = self.chain.grad(self.pose)
 				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world * self.local)
 				current_anchor = model * solid * anchor
@@ -1384,11 +1391,12 @@ class ChainManip(Group):
 				# increment = np.linalg.pinv(jac @ jac.transpose()) @ (jac @ (move * colinearity))
 				
 				self.pose += increment.clip(-self.max_increment, self.max_increment)
+				self.parts = self.chain.parts(self.pose)
 
 	def move_rotate(self, dispatcher, view, sub, evt):
 		# translate the tool
 		clicked = view.ptat(view.somenear(evt.pos()))
-		solid = self.chain.direct(self.pose)
+		solid = self.parts[-1]
 		anchor = affineInverse(mat4(self.world * self.local) * solid) * vec4(clicked,1)
 		tool = vec4(self.toolcenter,1)
 		init_tool = solid * tool
@@ -1402,7 +1410,7 @@ class ChainManip(Group):
 				if not (evt.buttons() & Qt.LeftButton):
 					break
 
-				solid = self.chain.direct(self.pose)
+				solid = self.parts[-1]
 				jac = self.chain.grad(self.pose)
 				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world * self.local)
 				current_tool = model * solid * tool
@@ -1428,6 +1436,7 @@ class ChainManip(Group):
 				# increment = np.linalg.pinv(jac @ jac.transpose()) @ (jac @ (move * colinearity))
 				
 				self.pose += increment.clip(-self.max_increment, self.max_increment)
+				self.parts = self.chain.parts(self.pose)
 
 
 def qtpos(qtpos, view):
@@ -1440,93 +1449,121 @@ def qtpos(qtpos, view):
 def normsq(x):
 	return (x*x).sum()
 		
-class Kinemanip(rendering.Group):
+class KinematicManip(Group):
 	''' Display that holds a kinematic structure and allows the user to move it
 	'''
 	
-	def __init__(self, scene, kinematic):
+	def __init__(self, scene, kinematic, pose=None):
+		super().__init__(scene)
 		self.kinematic = kinematic
-		self.update(kinematic.solids)
-	
-	def update(self, scene, kinematic):
-		# fail on any kinematic change
-		if not isinstance(kinematic, Kinematic) or len(self.solids) != len(kinematic.solids):	return
-		# keep current pose
-		for ss,ns in zip(self.solids, kinematic.solids):
-			ns.position = ss.position
-			ns.orientation = ss.orientation
-		# if any change in joints, rebuild the scheme
-		for sj, nj in zip(self.joints, kinematic.joints):
-			if type(sj) != type(nj) or sj.solids != nj.solids:
-				self._init(scene, kinematic)
-				return True
-		return super().update(scene, kinematic.solids)
+		self.toolcenter = ...
+		self.pose = self.kinematic.solve(close=pose or self.kinematic.default)
+		self.parts = self.kinematic.parts(self.pose)
 		
+		from .rendering import displayable
+		if self.kinematic.content:
+			for key, solid in self.kinematic.content.items():
+				if displayable(solid):
+					self.displays[key] = scene.display(solid)
+		
+		self.displays['scheme'] = scene.display(kinematic_scheme(kinematic.joints))
+		
+	def stack(self, scene):
+		''' rendering stack requested by the madcad rendering system '''
+		yield ((), 'screen', -1, self.place_solids)
+		yield from super().stack(scene)
+
+	def place_solids(self, view):
+		world = self.world * self.local
+		
+		for key in self.displays:
+			if key in self.parts:
+				self.displays[key].world = world * self.parts[key]
+		
+		for space in self.displays['scheme'].spacegens:
+			if isinstance(space, (world_solid, scale_solid)) and space.solid in self.parts:
+				space.pose = world * fmat4(self.parts[space.solid])
+
 	def control(self, view, key, sub, evt):
-		# no action on the root solid
-		if sub[0] in self.fixed:	return
-		
+		''' user event manager, optional part of the madcad rendering system '''
 		if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
-			# start solid drag
 			evt.accept()
-			solid = self.solids[sub[0]]
-			self.sizeref = max(norminf(self.box.width), 1)
-			start = vec3(affineInverse(mat4(self.world)) * vec4(view.ptat(view.somenear(evt.pos())),1))
-			offset = inverse(quat(solid.orientation)) * (start - solid.position)
-			view.tool.append(rendering.Tool(self.move, view, solid, start, offset))
+			
+		if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.RightButton:
+			evt.accept()
+			self.panel.setParent(view)
+			self.panel.move(evt.pos())
+			self.panel.show()
+		
+		if evt.type() == QEvent.MouseMove and evt.buttons() & Qt.LeftButton:
+			evt.accept()
+			# put the tool into the view, to handle events
+			# TODO: allow changing mode during move
+			if sub == ('scheme', 0):
+				view.tool.append(rendering.Tool(self.move_tool, view, sub, evt))
+			else:
+				view.tool.append(rendering.Tool(getattr(self, 'move_'+view.scene.options['kinematic_manipulation']), view, sub, evt))
 	
-	def move(self, dispatcher, view, solid, start, offset):
-		moved = False
+	def move_translate(self, dispatcher, view, sub, evt):
+		# identify the solid clicked
+		if sub[0] == 'scheme':  moved = sub[1]//2
+		else:                   moved = sub[0]
+		# define the kinematic problem in term of that solid
+		kinematic = Kinematic(
+			[], 
+			ground = self.kinematic.ground, 
+			direct = self.kinematic.joints,
+			inverse = [Free((self.kinematic.ground, moved))],
+			)
+		pose = (*self.pose, kinematic.joints[-1].inverse(self.parts[moved]))
+		# constants during translation
+		clicked = view.ptat(view.somenear(evt.pos()))
+		solid = self.parts[moved]
+		anchor = affineInverse(mat4(self.world * self.local) * solid) * vec4(clicked,1)
+		init_solid = solid
+		
 		while True:
 			evt = yield
-			
-			if evt.type() == QEvent.MouseMove:
+			# drag
+			if evt.type() in (QEvent.MouseMove, QEvent.MouseButtonRelease):
 				evt.accept()
-				moved = True
-				# unlock moving solid
-				if self.islocked(solid):
-					self.lock(view.scene, solid, False)
-				# displace the moved object
-				start = solid.position + quat(solid.orientation)*offset
-				pt = vec3(affineInverse(mat4(self.world)) * vec4(view.ptfrom(evt.pos(), start),1))
-				solid.position = pt - quat(solid.orientation)*offset
-				# solve
-				self.solve(False)
 				view.update()
-			
-			elif evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
-				if moved:	evt.accept()
-				break
-		
-		if moved:
-			# finish on a better precision
-			self.solve(True)
-			view.update()
-	
-	def lock(self, scene, solid, lock):
-		''' lock the pose of the given solid '''
-		if lock == self.islocked(solid):	
-			return
-		key = id(solid)
-		grp = self.displays[self.register[key]]
-		if lock:
-			# add solid's variables to fixed
-			self.locked.add(key)
-			box = Box(center=fvec3(0), width=fvec3(-inf))
-			for display in grp.displays.values():
-				box.union_update(display.box)
-			grp.displays['solid-fixed'] = BoxDisplay(scene, box, color=fvec3(settings.display['schematics_color']))
-			self.apply_poses()
-		else:
-			# remove solid's variables from fixed
-			self.locked.remove(key)
-			if 'solid-fixed' in grp.displays:
-				del grp.displays['solid-fixed']
-		scene.touch()
-		
-	def islocked(self, solid):
-		return id(solid) in self.locked
+				if not (evt.buttons() & Qt.LeftButton):
+					break
 
+				solid = self.parts[moved]
+				jac = kinematic.grad(pose)
+				nprint('jac', jac)
+				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world * self.local)
+				current_anchor = model * solid * anchor
+				target_anchor = qtpos(evt.pos(), view)
+				
+				move = np.concatenate([
+					target_anchor - current_anchor.xy / current_anchor.w,
+					np.ravel(mat3(init_solid - solid)),
+					])
+				jac = np.stack([
+					np.concatenate([
+						(model * grad * anchor).xy / current_anchor.w, 
+						np.ravel(mat3(grad)), 
+						])
+					for grad in jac])
+				colinearity = min(1, sum(
+					np.dot(grad, move)**2 / (normsq(grad) + normsq(move) + self.prec)
+					for grad in jac) / self.min_colinearity)
+				
+				increment = np.linalg.solve(jac @ jac.transpose() + np.eye(4)*self.prec, jac @ (move * colinearity))
+				
+				pose = self.kinematic.solve(close=pose + increment.clip(-self.max_increment, self.max_increment))
+				self.pose = pose[:len(self.pose)]
+				self.parts = self.chain.parts(self.pose)
+				
+	def move_joint(self, dispatcher, view, sub, evt):
+		# define the kinematic problem in term of that solid
+		# select the free direction the closest to a pure one-joint movement
+		directions = self.kinematic.freedom()
+		increment = ...
+		self.pose = self.kinematic.solve(close=self.pose + increment)
 
 	
 def kinematic_toolcenter(toolcenter):
