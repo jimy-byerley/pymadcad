@@ -25,12 +25,12 @@ print(Kinematic([
 
 print('3 pivots to inverse')
 print(Kinematic(
-	direct=[
+	inputs=[
 		Revolute((0,1), Axis(O,Z)),
 		Revolute((1,2), Axis(X,Z)),
 		Revolute((2,3), Axis(2*X,Z)),
 		],
-	inverse=[Free((0,3))], 
+	outputs=[Free((0,3))], 
 	).inverse([translate(-0.5*X)], close=np.random.random(15)))
 
 print('pivot loop')
