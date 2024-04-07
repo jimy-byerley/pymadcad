@@ -1,6 +1,7 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
 from dataclasses import dataclass
+import numpy as np
 
 from .mathutils import *
 from .primitives import isaxis, Axis
@@ -30,8 +31,7 @@ def dtranslate(direction):
 
 
 class Revolute(Joint):
-	bounds = (-inf, inf)
-	default = 0
+	dtype = np.dtype(float)
 	
 	def __init__(self, solids, axis: Axis, local=None):
 		self.solids = solids
@@ -53,7 +53,7 @@ class Revolute(Joint):
 			self.__class__.__name__, self.solids, *self.post[3].xyz, *self.post[2].xyz)
 	
 	def direct(self, angle) -> mat4:
-		return self.post * rotate(angle, Z) * self.pre
+		return self.post * rotate(float(angle), Z) * self.pre
 		
 	def inverse(self, matrix, close=None):
 		m = affineInverse(self.post) * mat3(matrix) * affineInverse(self.pre)
@@ -138,8 +138,7 @@ class Planar(Joint):
 		the initial state requires an additional distance between the solids
 		this class holds an axis for each side, the axis origins are constrained to share the same projections on the normal
 	'''
-		
-	bounds = ((-inf, -inf, -inf), (inf, inf, inf))
+	dtype = np.dtype((float, 3))
 	
 	def __init__(self, solids, axis, local=None):
 		self.solids = solids
@@ -220,8 +219,7 @@ class Prismatic(Joint):
 		the initial state requires more parameters: the relative placements of the solids
 		this class holds a base for each of the solids, bases are (0,X,Y)  where X,Y are constrained to keep the same direction across bases, and the bases origins lays on their common Z axis
 	'''
-	
-	bounds = (-inf, inf)
+	dtype = np.dtype(float)
 	
 	def __init__(self, solids, axis: Axis, local=None):
 		self.solids = solids
@@ -307,8 +305,7 @@ class Prismatic(Joint):
 
 
 class Cylindrical(Joint):
-	bounds = (vec2(-inf), vec2(inf))
-	default = vec2(0)
+	dtype = np.dtype([('rotation', float), ('translation', float)])
 	
 	def __init__(self, solids, axis: Axis, local=None):
 		self.solids = solids
@@ -403,6 +400,11 @@ class Ball(Joint):
 		the initial state doen't require more data
 		the class holds a point for each side
 	'''
+	
+	dtype = np.dtype((float, 4))
+	bounds = (quat(-1, -1, -1, -1), quat(1, 1, 1, 1))
+	default = quat()
+	
 	def __init__(self, solids, center, local=None):
 		self.solids = solids
 		local = local or center
@@ -415,9 +417,6 @@ class Ball(Joint):
 			self.post = translate(local)
 		else:
 			raise TypeError("ball can only be placed on a vec3 or mat4")
-	
-	bounds = (quat(-1,-1,-1,-1), quat(1,1,1,1))
-	default = quat()
 	
 	def direct(self, orient):
 		return self.post * mat4(quat(normalize(orient))) * self.pre
@@ -461,6 +460,10 @@ class PointSlider(Joint):
 		The initial state does not require more data
 		The class holds a normal axis for the plane side, and a point for the sphere side (that defaults to the axis' origin)
 	'''
+	dtype = np.dtype([('translation', float, 2), ('rotation', float, 4)])
+	bounds = ((-inf, quat(-1, -1, -1, -1)), (inf, quat(1, 1, 1, 1)))
+	default = (0, quat())
+	
 	def __init__(self, solids, axis, local=None):
 		self.solids = solids
 		self.axis = axis
@@ -474,12 +477,10 @@ class PointSlider(Joint):
 			self.pre = mat4(quat(local[1], Z)) * translate(-local[0])
 		else:
 			raise TypeError("PointSlider can only be placed on Axis or mat4")
-		
-	bounds = ([-inf]*6, [inf]*6)
 	
 	def direct(self, parameters):
-		translation = vec2(parameters[0:2])
-		rotation = quat(parameters[3:6])
+		translation = vec2(parameters['translation'])
+		rotation = quat(parameters['rotation'])
 		return self.post * translate(vec3(translation, 0)) * mat4(rotation) * self.pre
 		
 	def inverse(self, matrix, close=None):
@@ -529,6 +530,8 @@ class EdgeSlider(Joint):
 		The initial state does not require more data
 		The class holds a normal axis for the plane side, and a point for the sphere side (that defaults to the axis' origin)
 	'''
+	dtype = np.dtype([('translation', float, 2), ('rotation', float, 2)])
+	
 	def __init__(self, solids, axis, local=None):
 		self.solids = solids
 		self.axis = axis
@@ -540,11 +543,9 @@ class EdgeSlider(Joint):
 		else:
 			raise TypeError("EdgeSlider can only be placed on Axis or mat4")
 		
-	bounds = ([-inf]*4, [inf]*4)
-	
 	def direct(self, parameters):
-		translation = vec2(parameters[0:2])
-		rotation = quat(vec3(parameters[3:6], 0))
+		translation = vec2(parameters['translation'])
+		rotation = quat(vec3(parameters['rotation'], 0))
 		return self.post * translate(vec3(translation, 0)) * mat4(rotation) * self.pre
 		
 	def inverse(self, matrix, close=None):
@@ -591,6 +592,10 @@ class EdgeSlider(Joint):
 	
 
 class Ring(Joint):
+	dtype = np.dtype([('translation', float), ('rotation', float, 4)])
+	default = (0, quat())
+	bounds = ((-inf, quat(-1, -1, -1, -1)), (inf, quat(1, 1, 1, 1)))
+
 	def __init__(self, solids, center, local=None):
 		self.solids = solids
 		local = local or center
@@ -604,11 +609,9 @@ class Ring(Joint):
 		else:
 			raise TypeError("ball can only be placed on a vec3 or mat4")
 	
-	bounds = ((-inf, -1, -1, -1, -1), (inf, 1, 1, 1, 1))
-	default = (0, 1, 0, 0, 0)
 	
 	def direct(self, orient):
-		return self.post * translate(params[0]) * mat4(quat(params[1:5])) * self.pre
+		return self.post * translate(params['translation']) * mat4(quat(params['rotation'])) * self.pre
 	
 	def inverse(self, matrix, close=None):
 		return quat(affineInverse(self.post) * matrix * affineInverse(self.pre))
@@ -643,6 +646,8 @@ class Ring(Joint):
 
 	
 class Universal(Joint):
+	dtype = np.dtype((float, 2))
+	
 	def __init__(self, solids, axis, local=None):
 		self.solids = solids
 		local = local or axis
@@ -655,9 +660,6 @@ class Universal(Joint):
 			self.pre = mat4(quat(local[1], Z)) * translate(-local[0])
 		else:
 			raise TypeError('Universal joint can only be placed on an Axis or a mat4')
-	
-	bounds = (vec2(-inf), vec2(inf))
-	default = vec2(0)
 	
 	def direct(self, orient):
 		return self.post * mat4(quat(vec3(orient, 0))) * self.pre

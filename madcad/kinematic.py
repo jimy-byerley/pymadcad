@@ -39,6 +39,7 @@
 
 from copy import copy, deepcopy
 from dataclasses import dataclass
+from numpy.core import ndarray
 import itertools
 import numpy as np
 import scipy
@@ -102,6 +103,7 @@ class Joint:
 	
 	# parameter bounds if any
 	bounds = (-inf, inf)
+	default = 0
 	
 	def direct(self, parameters) -> 'mat4':
 		''' direct kinematic computation
@@ -219,8 +221,9 @@ class Weld(Joint):
 		
 		It is useful to fix solids between each other without actually making it the same solid in a kinematic.
 	'''
-	bounds = ((), ())
-	default = ()
+	dtype = np.dtype([])
+	bounds = (None, None)
+	default = None
 	
 	def __init__(self, solids, transform: mat4=None):
 		self.solids = solids
@@ -246,6 +249,7 @@ class Free(Joint):
 		
 		it is useful to control the explicit pose of a solid solid in a kinematic.
 	'''
+	dtype = np.dtype((float, (3, 4)))
 	bounds = (
 		mat4x3(-1, -1, -1,  -1, -1, -1,  -1, -1, -1,   -inf, -inf, -inf), 
 		mat4x3(+1, +1, +1,  +1, +1, +1,  +1, +1, +1,   +inf, +inf, +inf),
@@ -283,12 +287,13 @@ class Reverse(Joint):
 		self.position = self.joint.position
 		
 	@property
-	def default(self):
-		return self.joint.default
+	def dtype(self):    return self.joint.dtype
 		
 	@property
-	def bounds(self):
-		return self.joint.bounds
+	def default(self):   return self.joint.default
+		
+	@property
+	def bounds(self):    return self.joint.bounds
 		
 	def direct(self, parameters):
 		return affineInverse(self.joint.direct(parameters))
@@ -332,14 +337,12 @@ class Chain(Joint):
 		self.joints = joints
 		self.content = content
 		self.solids = (joints[0].solids[0], joints[-1].solids[-1])
-		
-	@property
-	def default(self):
-		return [joint.default  for joint in self.joints]
-		
-	@property
-	def bounds(self):
-		return [joint.bounds  for joint in self.joints]
+		self.dtype = np.dtype([(str(i), np.dtype(joint.dtype))   for i in enumerate(self.joints)])
+		self.default = np.array(tuple([joint.default  for joint in self.joints]), self.dtype)
+		self.bounds = (
+					np.array(tuple([joint.bounds[0]   for joint in self.joints]), self.dtype),
+					np.array(tuple([joint.bounds[1]   for joint in self.joints]), self.dtype),
+					)
 	
 	def direct(self, parameters):
 		b = mat4()
@@ -498,8 +501,6 @@ class Kinematic:
 			direct_parameters:   a list of joints to fix when calling `direct()`
 			inverse_parameters:  a list of joints to fix when calling `inverse()`
 	'''
-	dtype = float
-	
 	def __init__(self, joints:list=[], content:dict=None, ground=0, direct=None, inverse=None):
 		if (direct is None) ^ (inverse is None):
 			raise TypeError("direct and inverse must be both provided or undefined")
@@ -512,6 +513,13 @@ class Kinematic:
 		self.joints = joints
 		self.ground = ground
 		
+		self.dtype = np.dtype([(str(i), joint.dtype)  for i, joint in enumerate(self.joints)])
+		self.default = np.array([tuple([joint.default  for joint in self.joints])], self.dtype)
+		self.bounds = (
+			np.array([tuple([joint.bounds[0]  for joint in self.joints])], self.dtype),
+			np.array([tuple([joint.bounds[1]  for joint in self.joints])], self.dtype),
+			)
+		
 		# collect the joint graph as a connectivity and the solids
 		conn = {}  # connectivity {node: [node]}  with nodes being joints and solids
 		for joint in joints:
@@ -520,9 +528,9 @@ class Kinematic:
 				if solid not in conn:
 					conn[solid] = []
 				conn[solid].append(joint)
-			
+		
 		# number of scalar variables
-		vars = {joint: flatten_state(joint.default, self.dtype).size
+		vars = {joint: joint.dtype.itemsize / floatsize
 			for joint in conn  
 			if isinstance(joint, Joint)}
 		
@@ -563,14 +571,6 @@ class Kinematic:
 			self.cycles.append(chain)
 			
 		nprint('cycles', self.cycles)
-	
-	@property
-	def default(self):
-		return [joint.default  for joint in self.joints]
-		
-	@property
-	def bounds(self):
-		return [joint.bounds  for joint in self.joints]
 		
 	def to_chain(self) -> 'Chain':
 		indev
@@ -581,13 +581,13 @@ class Kinematic:
 	def simplify(self) -> 'Self':
 		indev
 		
-	def cost_residuals(self, state, fixed=()):
+	def cost_residuals(self, state: ndarray, fixed=()) -> ndarray:
 		'''
 			build residuals to minimize to satisfy the joint constraints
 			cost function returns residuals, the solver will optimize the sum of their squares
 		'''
 		# collect transformations
-		state = iter(state)
+		state = iter(state[0])
 		transforms = {}
 		for joint in self.joints:
 			if joint in fixed:
@@ -598,7 +598,7 @@ class Kinematic:
 				transforms[self.rev.get(joint)] = affineInverse(transforms[joint])
 		
 		# chain transformations
-		residuals = np.empty((len(self.cycles), squeezed_homogeneous), self.dtype)
+		residuals = np.empty((len(self.cycles), squeezed_homogeneous), float)
 		for i, cycle in enumerate(self.cycles):
 			# b is the transform of the complete cycle: it should be identity
 			b = mat4()
@@ -610,10 +610,10 @@ class Kinematic:
 			#residuals[i] **= 2
 		return residuals.ravel()
 		
-	def cost_jacobian(self, state, fixed=()):
+	def cost_jacobian(self, state: ndarray, fixed=()) -> ndarray:
 		''' jacobian of the residuals function '''
 		# collect gradient and transformations
-		state = iter(state)
+		state = iter(state[0])
 		transforms = {}
 		index = 0
 		nprint(self.joints)
@@ -623,9 +623,9 @@ class Kinematic:
 				f = fixed[joint]
 				size = 0
 			else:
-				p = next(state, empty)
+				p = next(state)
 				print(joint, p)
-				size = np.array(p).size
+				size = np.asarray(p).size
 				grad = joint.grad(p)
 				# ensure it is a jacobian and not a single derivative
 				if isinstance(grad, mat4) or isinstance(grad, np.ndarray) and grad.size == 16:
@@ -642,7 +642,7 @@ class Kinematic:
 			index += size
 		
 		# stack gradients, transformed by the chain successive transformations
-		jac = np.zeros((len(self.cycles), index, squeezed_homogeneous), self.dtype)
+		jac = np.zeros((len(self.cycles), index, squeezed_homogeneous), float)
 		# jac = scipy.sparse.csr_matrix((len(cycles)*squeezed_homogeneous, self.nvars))
 		for icycle, cycle in enumerate(self.cycles):
 			grad = []
@@ -674,7 +674,7 @@ class Kinematic:
 		return jac.transpose((0,2,1)).reshape((len(self.cycles)*squeezed_homogeneous, index))
 		# return jac
 	
-	def solve(self, fixed:dict={}, close:list=None, precision=1e-6, maxiter=None) -> list:
+	def solve(self, fixed:dict={}, close:list=None, precision=1e-6, maxiter=None) -> ndarray:
 		'''
 			compute the joint positions for the given fixed solids positions
 			
@@ -709,30 +709,35 @@ class Kinematic:
 			close = self.default
 		if len(self.cycles) == 0:
 			return close
-				
-		init = []
-		mins = []
-		maxes = []
-		for joint, p in zip(self.joints, close):
-			if joint not in fixed:
-				init.append(p)
-				bounds = joint.bounds
-				mins.append(bounds[0])
-				maxes.append(bounds[1])
+		if isinstance(close, ndarray):
+			if close.dtype != self.dtype:
+				close = close.view(self.dtype)
+		else:
+			close = np.asarray([tuple(close)], self.dtype)
+		
+		if fixed:
+			index = [str(i)   for i, joint in enumerate(self.joints)  if joint not in fixed]
+			dtype = np.dtype([(str(i), np.dtype(t))  for i,t in enumerate(self.joints)  if joint not in fixed])
+			init = np.asarray(close, self.dtype)[index].astype(dtype)
+			mins, maxes = self.bounds[0][index].astype(dtype), self.bounds[1][index].astype(dtype)
+		else:
+			dtype = self.dtype
+			init = np.asarray(close, self.dtype)
+			mins, maxes = self.bounds
 		
 		# solve
 		# from time import perf_counter as time
 		# start = time()
 		
 		res = scipy.optimize.least_squares(
-					lambda x: self.cost_residuals(structure_state(x, init), fixed), 
-					flatten_state(init, self.dtype), 
+					lambda x: self.cost_residuals(x.view(dtype), fixed), 
+					init.view(float), 
 					method = 'trf', 
 					bounds = (
-						flatten_state(mins, self.dtype), 
-						flatten_state(maxes, self.dtype),
+						mins.view(float), 
+						maxes.view(float),
 						), 
-					jac = lambda x: self.cost_jacobian(structure_state(x, init), fixed), 
+					jac = lambda x: self.cost_jacobian(x.view(dtype), fixed), 
 					xtol = precision, 
 					# ftol = 0,
 					# gtol = 0,
@@ -766,14 +771,15 @@ class Kinematic:
 			raise KinematicError('position out of reach: no solution found for closing the kinematic cycles')
 		
 		# structure results
-		result = iter(structure_state(res.x, init))
-		final = []
-		for joint, default in zip(self.joints, close):
-			if joint in fixed:
-				final.append(default)
-			else:
-				final.append(next(result))
-		return final
+		if fixed:
+			result = close.copy()
+			result[index] = res.x.view(dtype)
+			for i, joint in self.joints:
+				if joint in fixed:
+					result[str(i)] = fixed[joint]
+		else:
+			result = res.x.view(dtype)
+		return result
 	
 	def parts(self, state, precision=1e-6) -> dict:
 		''' return the pose of all solids in the kinematic for the given joints positions 
@@ -848,7 +854,7 @@ class Kinematic:
 		''' display allowing manipulation of kinematic '''
 		return KinematicManip(scene, self)
 
-
+floatsize = np.dtype(float).itemsize
 empty = ()
 
 def flatten(structured):
