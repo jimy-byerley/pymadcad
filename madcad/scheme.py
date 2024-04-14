@@ -95,13 +95,12 @@ class Scheme:
 		'''
 		ls = len(self.spaces)
 		lv = len(self.vertices)
-		lt = max(map(itemgetter(5), self.vertices), default=0) + 1
 		self.spaces.extend(other.spaces)
 		self.components.extend(other.components)
 		self.vertices.extend([
 							v[0] + ls, 
 							*v[1:5],
-							v[5] + lt, 
+							v[5], 
 							v[6],
 						]  for v in other.vertices)
 		for shader, prims in other.primitives.items():
@@ -167,14 +166,14 @@ class Scheme:
 			indices.extend(((a+l, b+l, c+l)  for a,b,c in obj.faces))
 			for f, track in zip(obj.faces, obj.tracks):
 				for p in f:
-					self.vertices[p+l][5] = track
+					self.vertices[p+l][5] += track
 			for i,n in enumerate(obj.vertexnormals()):
 				self.vertices[i+l][2] = n
 		elif isinstance(obj, Web):
 			indices.extend(((a+l, b+l)  for a,b in obj.edges))
 			for e, track in zip(obj.edges, obj.tracks):
 				for p in e:
-					self.vertices[p+l][5] = track
+					self.vertices[p+l][5] += track
 		elif isinstance(obj, vec3):
 			self.vertices.append([
 								self.current['space'], 
@@ -227,7 +226,7 @@ class Scheme:
 			:vb_vertices:  vertex buffer for vertices
 			:vas:          vertex array associated to each shader
 		'''
-		max_spaces = 32  # this maximum size of the spaces array must match the size in the shader
+		max_spaces = 64  # this maximum size of the spaces array must match the size in the shader
 		
 		@dataclass
 		class Shader:
@@ -246,7 +245,7 @@ class Scheme:
 			self.spaces = typedlist.full(fmat4(0), self.max_spaces)
 			self.spacegens = list(sch.spaces)
 			if len(self.spacegens) > self.max_spaces:
-				print('warning: the number of local spaces exceeds the arbitrary build-in limit of {}'.format(self.max_spaces))
+				raise OverflowError('the number of local spaces exceeds the arbitrary build-in limit of {}'.format(self.max_spaces))
 			
 			self.components = [(space,scene.display(obj))	for space,obj in sch.components]
 			self._selected = False

@@ -68,14 +68,14 @@ class Revolute(Joint):
 		l = force.locate(self.axis[0])
 		return Screw(l.resulting, project(l.momentum, self.axis[1]))
 		
-	def scheme(self, maxsize, attach_start, attach_end):
+	def scheme(self, index, maxsize, attach_start, attach_end):
 		size = settings.display['joint_size']
 		radius = size/4
 		sch = Scheme()
 		resolution = ('div', 16)
 		
 		x,y,z,o = dmat4x3(self.post)
-		sch.set(track=0, space=scale_solid(self.solids[0], fvec3(o), maxsize/size))
+		sch.set(track=index[self.solids[0]], space=scale_solid(self.solids[0], fvec3(o), maxsize/size))
 		cylinder = gt.cylinder(
 						-z*size*0.4, 
 						+z*size*0.4, 
@@ -97,7 +97,7 @@ class Revolute(Joint):
 			sch.add(attach_start, space=world_solid(self.solids[0]))
 		
 		x,y,z,o = dmat4x3(affineInverse(self.pre))
-		sch.set(track=1, space=scale_solid(self.solids[1], fvec3(o), maxsize/size))
+		sch.set(track=index[self.solids[1]], space=scale_solid(self.solids[1], fvec3(o), maxsize/size))
 		c1 = primitives.Circle(
 						(-z*size*0.5, -z), 
 						radius, 

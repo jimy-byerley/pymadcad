@@ -9,7 +9,7 @@ in uint v_ident;
 in uint v_flags;
 
 uniform mat4 proj;
-uniform mat4 spaces[32];
+uniform mat4 spaces[64];
 uniform uint startident;
 
 out vec3 normal;
