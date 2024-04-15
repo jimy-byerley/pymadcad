@@ -8,13 +8,12 @@ kinematic   - Kinematic solver/constraint system
 .. autoclass:: KinematicError
 
 .. autoclass:: Kinematic
-
-	.. autoproperty:: default
-	.. autoproperty:: bounds
 	
+	.. automethod:: cycles
 	.. automethod:: solve
 	.. automethod:: direct
 	.. automethod:: inverse
+	.. automethod:: freedom
 	.. automethod:: grad
 	.. automethod:: parts
 	.. automethod:: display
@@ -26,7 +25,7 @@ kinematic   - Kinematic solver/constraint system
 	
 	.. automethod:: grad
 	.. automethod:: transmit
-	.. automethod:: schemes
+	.. automethod:: scheme
 	.. automethod:: display
 	
 .. autoclass:: Weld
@@ -45,7 +44,8 @@ kinematic   - Kinematic solver/constraint system
 	
 	.. automethod:: display
 
-.. autoclass:: Kinemanip
+.. autoclass:: KinematicManip
+.. autoclass:: ChainManip
 
 
 .. autofunction:: arcs
@@ -55,13 +55,14 @@ kinematic   - Kinematic solver/constraint system
 
 .. autoclass:: Solid
 
-	.. autoproperty:: pose
-	
 	.. automethod:: transform
 	.. automethod:: place
 	
+	.. automethod:: loc
+	.. automethod:: deloc
+	
 	.. automethod:: set
-	.. automethod:: add
+	.. automethod:: append
 	.. automethod:: __getitem__
 	.. automethod:: __setitem__
 	.. automethod:: display

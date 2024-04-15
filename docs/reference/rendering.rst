@@ -145,7 +145,7 @@ Helpers to trick into the pipeline
 .. autoclass:: Group
 	:members: stack, __getitem__, dequeue, update
 	
-	.. autoproperty:: pose
+	.. autoproperty:: local
 	.. autoproperty:: world
 	.. autoproperty:: box
 

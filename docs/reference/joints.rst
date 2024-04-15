@@ -11,29 +11,33 @@ Usual joints
 
 	.. image:: /screenshots/joints-ball.png
 
-.. autoclass:: madcad.joints.Pivot
+.. autoclass:: madcad.joints.Revolute
 
-	.. image:: /screenshots/joints-pivot.png
+	.. image:: /screenshots/joints-revolute.png
 
-.. autoclass:: madcad.joints.Gliding
+.. autoclass:: madcad.joints.Cylindrical
 
-	.. image:: /screenshots/joints-gliding.png
+	.. image:: /screenshots/joints-cylindrical.png
 
-.. autoclass:: madcad.joints.Track
+.. autoclass:: madcad.joints.Prismatic
 
-	.. image:: /screenshots/joints-track.png
-
-.. autoclass:: madcad.joints.Punctiform
-
-	.. image:: /screenshots/joints-punctiform.png
+	.. image:: /screenshots/joints-prismatic.png
 
 .. autoclass:: madcad.joints.Planar
 
 	.. image:: /screenshots/joints-planar.png
 
-.. autoclass:: madcad.joints.Punctiform
+.. autoclass:: madcad.joints.PointSlider
+
+	.. image:: /screenshots/joints-pointslider.png
+
+.. autoclass:: madcad.joints.EdgeSlider
+
+	.. image:: /screenshots/joints-edgeslider.png
+
 .. autoclass:: madcad.joints.Ring
-.. autoclass:: madcad.joints.Hinge
+.. autoclass:: madcad.joints.Universal
+.. autoclass:: madcad.joints.ConstantVelocity
 
 
 Complex joints

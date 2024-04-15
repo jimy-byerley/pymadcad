@@ -14,28 +14,12 @@
 	This module mainly features:
 		- `Joint` - the base class for all joints, instances of joints define a kinematic
 		- `Kinematic` - the general kinematic solver
+		- `KinematicManip` - a display to move mechanisms in the 3d view
 		- `Chain` - a joint and kinematic solver dedicated to kinematic chains
-		- `Kinemanip` - a display to move mechanisms in the 3d view
+		- `ChainManip` - a display to move portions of mechanisms in the 3d view
 			
 	joints are defined in `madcad.joints`
 '''
-
-'''
-	
-	Kinematc([..., Free((0, n))])
-	.parts([joint_position]) -> [solid_position]
-	.solve({joint: position}, close: [joint_position]) -> [joint_position]
-	.grad([joint_position]) -> [mat4]
-	# kinematic solving with a set of constraints from the present constraints
-	.solve(dict(zip(inverse, pose)), close)
-	.solve(dict(zip(direct, pose)), close)
-	# for convenience, we can define 
-	Kinematic([..., Free((0,n))], direct=[...], inverse=[...])
-	.direct([joint_position], close: [joint_position]) -> [solid_position]
-	.inverse([solid_position], close: [joint_position]) -> [joint_position]
-
-'''
-
 
 from copy import copy, deepcopy
 from dataclasses import dataclass
@@ -190,6 +174,7 @@ class Joint:
 		raise NotImplemented
 	
 	def display(self, scene):
+		''' display showing the schematics of this joint, without interaction '''
 		return scene.display(self.scheme(inf, None, None))
 
 
@@ -432,6 +417,7 @@ class Chain(Joint):
 		return '{}({})'.format(self.__class__.__name__, repr(self.joints))
 		
 	def display(self, scene):
+		''' display allowing manipulation of the chain '''
 		return ChainManip(scene, self)
 	
 
@@ -458,18 +444,18 @@ class Kinematic:
 		Example:
 			
 			>>> # keep few joints apart, so we can use them as dict keys, for calling `solve`
-			>>> motor1 = Pivot((0,2), Axis(...))
-			>>> motor2 = Pivot((0,7), Axis(...))
+			>>> motor1 = Revolute((0,2), Axis(...))
+			>>> motor2 = Revolute((0,7), Axis(...))
 			>>> free = Free((7,4))
 			>>> # the kinematic solver object
 			>>> kinematic = Kinematic([
-			... 	Pivot((0,1), Axis(...)),
+			... 	Revolute((0,1), Axis(...)),
 			... 	motor1,
 			... 	motor2,
 			... 	Planar((7,3), ...),
-			... 	Gliding((1,3), ...),
+			... 	Cylindrical((1,3), ...),
 			... 	Ball((3,2), ...),
-			... 	Track((4,3), ...),
+			... 	Prismatic((4,3), ...),
 			... 	Planar((1,5), ...),
 			... 	Planar((1,6), ...),
 			... 	Weld((7,5), mat4(...)),
@@ -481,6 +467,28 @@ class Kinematic:
 		
 			.. image::
 				/schemes/kinematic-kinematic.svg
+				
+			one can also define a kinematic with notions of direct and inverse transformations.
+			The notion of direct and inverse is based on an input/output relation that we define as such: 
+			
+			- inputs is selection of joint coordinates
+			- outputs is a selection of solids poses
+			
+			>>> kinematic = Kinematic([
+			... 	Revolute((0,1), Axis(...)),
+			... 	Planar((7,3), ...),
+			... 	Cylindrical((1,3), ...),
+			... 	Ball((3,2), ...),
+			... 	Prismatic((4,3), ...),
+			... 	Planar((1,5), ...),
+			... 	Planar((1,6), ...),
+			... 	Weld((7,5), mat4(...)),
+			... 	Weld((7,6), mat4(...)),
+			...	],
+			...	ground = 7,
+			...	inputs = [motor1, motor2],
+			...	outputs = [4,5,6],
+			...	)
 		
 		.. tip::
 			If your kinematic is a chain of joints, then prefer using `Chain` to reduce the overhead of the genericity.
@@ -496,19 +504,23 @@ class Kinematic:
 				
 				each joint is a link between 2 solids, which are represented by a hashable object (it is common to designate these solids by integers, strings, or objects hashable by their id)
 				
-			solids:
+			content:
 				display object for each solid, this can be anything implementing the display protocol, and will be used only when this kinematic is displayed
 				
 			ground: the reference solid, all other solids positions will be relative to it
 			
-			direct_parameters:   a list of joints to fix when calling `direct()`
-			inverse_parameters:  a list of joints to fix when calling `inverse()`
+			inputs:   a list of joints to fix when calling `direct()`
+			outputs:  a list of solids to fix when calling `inverse()`
+			
+			default:  the default joint pose of the kinematic
+			bounds:   a tuple of (min, max) joint poses
 	'''
 	def __init__(self, joints:list=[], content:dict=None, ground=0, inputs=None, outputs=None):
 		
 		if (inputs is None) ^ (outputs is None):
 			raise TypeError("inputs and outputs must be both provided or undefined")
 		elif inputs and outputs:	
+			outputs = [Free(ground, out)  for out in outputs]
 			joints = inputs + joints + outputs
 			self.inputs = inputs
 			self.outputs = outputs
@@ -576,6 +588,17 @@ class Kinematic:
 					joint = self.rev[joint]
 				chain.append(joint)
 			self.cycles.append(chain)
+			
+	def cycles(self) -> list:
+		'''
+			return a list of minimal cycles decomposing the gkinematic graph
+			
+			Example:
+			
+				>>> len(kinematic.cycles())
+				5
+		'''
+		return self.cycles[:]
 	
 	def to_chain(self) -> 'Chain':
 		if self.cycles:
@@ -585,9 +608,6 @@ class Kinematic:
 	def to_urdf(self):  
 		indev
 	
-	def simplify(self) -> 'Self':
-		indev
-		
 	def cost_residuals(self, state, fixed=()):
 		'''
 			build residuals to minimize to satisfy the joint constraints
@@ -1100,10 +1120,8 @@ class Solid:
 		A Solid is just like a dictionary with a pose.
 	
 		Attributes:
-			orientation (quat):  rotation from local to world space
-			position (vec3):     displacement from local to world
+			pose (mat4):   placement matrix, it defines a base in which the solid's content is displayed
 			content (dict/list):      objects to display using the solid's pose
-			name (str):          optional name to display on the scheme
 			
 		Example:
 			
@@ -1159,7 +1177,7 @@ class Solid:
 		''' Shorthand to `self.content` '''
 		self.content[key] = value
 	
-	def add(self, value):
+	def append(self, value):
 		''' Add an item in self.content, a key is automatically created for it and is returned '''
 		key = next(i 	for i in range(len(self.content)+1)
 						if i not in self.content	)
@@ -1539,6 +1557,69 @@ class KinematicManip(Group):
 			
 			self.toolcenter = affineInverse(place) * (view.ptfrom(evt.pos(), init) + offset)
 	
+	def move_joint(self, dispatcher, view, sub, evt):
+		# identify the solid clicked
+		if sub[0] == 'scheme':  moved = self.index[sub[1]]
+		else:                   moved = sub[0]
+		if moved == 0:
+			return
+		# define the kinematic problem in term of that solid, so we can get a gradient
+		kinematic = Kinematic(
+			ground = self.kinematic.ground, 
+			inputs = self.kinematic.joints,
+			outputs = [moved],
+			)
+		pose = (
+			*self.pose, 
+			kinematic.joints[-1].inverse(self.parts[moved]),
+			)
+		# constants during translation
+		clicked = view.ptat(view.somenear(evt.pos()))
+		solid = self.parts[moved]
+		anchor = affineInverse(mat4(self.world * self.local) * solid) * vec4(clicked,1)
+		init_solid = solid
+		
+		while True:
+			evt = yield
+			# drag
+			if evt.type() in (QEvent.MouseMove, QEvent.MouseButtonRelease):
+				evt.accept()
+				view.update()
+				if not (evt.buttons() & Qt.LeftButton):
+					break
+
+				solid = self.parts[moved]
+				jac = kinematic.grad(pose)
+				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world * self.local)
+				current_anchor = model * solid * anchor
+				target_anchor = qtpos(evt.pos(), view)
+				
+				move = np.asarray(target_anchor - current_anchor.xy / current_anchor.w)
+				jac = np.stack([
+					np.asarray((model * grad * anchor).xy / current_anchor.w)
+					for grad in jac])
+				colinearity = min(1, sum(
+					np.dot(grad, move)**2 / (normsq(grad) + normsq(move) + self.prec)
+					for grad in jac) / self.min_colinearity)
+				
+				increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ (move * colinearity))
+				
+				# nprint('increment', increment, self.pose)
+				
+				self.pose = self.kinematic.solve(close=structure_state(
+					flatten_state(self.pose) 
+					+ increment.clip(-self.max_increment, self.max_increment),
+					self.pose))
+				# self.pose = structure_state(
+				# 	flatten_state(self.pose) 
+				# 	+ increment.clip(-self.max_increment, self.max_increment),
+				# 	self.pose)
+				self.parts = self.kinematic.parts(self.pose)
+				pose = (
+					*self.pose, 
+					kinematic.joints[-1].inverse(self.parts[moved]),
+					)
+	
 	def move_translate(self, dispatcher, view, sub, evt):
 		# identify the solid clicked
 		if sub[0] == 'scheme':  moved = self.index[sub[1]]
@@ -1547,10 +1628,9 @@ class KinematicManip(Group):
 			return
 		# define the kinematic problem in term of that solid, so we can get a gradient
 		kinematic = Kinematic(
-			[], 
 			ground = self.kinematic.ground, 
 			inputs = self.kinematic.joints,
-			outputs = [Free((self.kinematic.ground, moved))],
+			outputs = [moved],
 			)
 		pose = (
 			*self.pose, 
@@ -1617,10 +1697,9 @@ class KinematicManip(Group):
 			return
 		# define the kinematic problem in term of that solid, so we can get a gradient
 		kinematic = Kinematic(
-			[], 
 			ground = self.kinematic.ground, 
 			inputs = self.kinematic.joints,
-			outputs = [Free((self.kinematic.ground, moved))],
+			outputs = [moved],
 			)
 		pose = (
 			*self.pose, 
@@ -1682,7 +1761,7 @@ class KinematicManip(Group):
 					kinematic.joints[-1].inverse(self.parts[moved]),
 					)
 
-	
+
 index_toolcenter = 10000
 	
 def kinematic_toolcenter(toolcenter):
@@ -1754,7 +1833,7 @@ def placement(*pairs, precision=1e-3):
 		
 			>>> # get the transformation for the pose
 			>>> pose = placement(
-			...		(screw['part'].group(0), other['part'].group(44)),  # two cylinder surfaces: Gliding joint
+			...		(screw['part'].group(0), other['part'].group(44)),  # two cylinder surfaces: Cylindrical joint
 			...		(screw['part'].group(4), other['part'].group(25)),    # two planar surfaces: Planar joint
 			...		)  # solve everything to get solid's pose
 			>>> # apply the transformation to the solid
@@ -1767,7 +1846,7 @@ def placement(*pairs, precision=1e-3):
 			...		)
 			
 			>>> screw.place(
-			...		(Pivot, screw['axis'], other['screw_place']),
+			...		(Revolute, screw['axis'], other['screw_place']),
 			...		)
 	'''
 	from .reverse import guessjoint
