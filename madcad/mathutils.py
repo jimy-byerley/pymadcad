@@ -573,3 +573,83 @@ def boundingbox(obj, ignore=False, default=Box(width=vec3(-inf))) -> Box:
 		raise TypeError('unable to get a boundingbox from {}'.format(type(obj)))
 
 
+
+class Screw(object):
+	''' A 3D torsor aka Screw aka Wrench aka Twist - is a mathematical object defined as follow:
+		  * a resulting vector R
+		  * a momentum vector field M
+
+		The momentum is a function of space, satisfying the relationship:
+			M(A) = M(B) + cross(R, A-B)
+		
+		Therefore it is possible to represent a localized torsor such as:
+		  * R = resulting
+		  * M = momentum vector at position P
+		  * P = position at which M takes the current value
+		
+		Torsor are useful for generalized solid mechanics to handle multiple variables of the same nature:
+		  * Force torsor:	
+			  Screw(force, torque, pos)
+		  * Velocity (aka kinematic) torsor:
+			  Screw(rotation, velocity, pos)
+		  * Kinetic (inertia) torsor:
+			  Screw(linear movement quantity, rotational movement quantity, pos)
+			
+		  All these torsors makes it possible to represent all these values independently from expression location
+		  
+		  
+		Attributes:
+			resulting (vec3): 
+			momentum (vec3):
+			position (vec3):
+	'''
+	__slots__ = ('resulting', 'momentum', 'position')
+	def __init__(self, resulting=None, momentum=None, position=None):
+		self.resulting, self.momentum, self.position = resulting or vec3(0), momentum or vec3(0), position or vec3(0)
+	def locate(self, pt) -> 'Screw':
+		''' Gets the same torsor, but expressed for an other location '''
+		return Screw(self.resulting, self.momentum + cross(self.resulting, pt-self.position), pt)
+	
+	def transform(self, mat) -> 'Screw':
+		''' Changes the torsor from coordinate system '''
+		if isinstance(mat, mat4):
+			rot, trans = mat3(mat), vec3(mat[3])
+		elif isinstance(mat, mat3):
+			rot, trans = mat, 0
+		elif isinstance(mat, quat):
+			rot, trans = mat, 0
+		elif isinstance(mat, vec3):
+			rot, trans = 1, mat
+		else:
+			raise TypeError('Screw.transform() expect mat4, mat3 or vec3')
+		return Screw(rot*self.resulting, rot*self.momentum, rot*self.position + trans)
+	
+	def __add__(self, other):
+		if other.position != self.position:		other = other.locate(self.position)
+		return Screw(self.resulting+other.resulting, self.momentum+other.momentum, self.position)
+	
+	def __sub__(self, other):
+		if other.position != self.position:		other = other.locate(self.position)
+		return Screw(self.resulting-other.resulting, self.momentum-other.momentum, self.position)
+	
+	def __neg__(self):
+		return Screw(-self.resulting, -self.momentum, self.position)
+	
+	def __mul__(self, x):
+		return Screw(x*self.resulting, x*self.momentum, self.position)
+	
+	def __div__(self, x):
+		return Screw(self.resulting/x, self.momentum/x, self.position)
+		
+	def __repr__(self):
+		return '{}(\n\t{}, \n\t{}, \n\t{})'.format(self.__class__.__name__, repr(self.resulting), repr(self.momentum), repr(self.position))
+
+def comomentum(t1, t2):
+	''' Comomentum of screws:   `dot(M1, R2)  +  dot(M2, R1)`
+		
+		The result is independent of torsors location
+	'''
+	t2 = t2.locate(t1.position)
+	return dot(t1.momentum, t2.resulting) + dot(t2.momentum, t1.resulting)
+
+

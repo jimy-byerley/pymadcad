@@ -1,10 +1,9 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
-from dataclasses import dataclass
-
 from .mathutils import *
 from .primitives import isaxis, Axis
-from .kinematic import Screw, Joint, scale_solid, world_solid
+from .kinematic.solver import Joint
+from .kinematic.displays import scale_solid, world_solid
 from .mesh import Mesh, Wire, wire, web, Web
 from .scheme import Scheme
 from . import generation as gt
