@@ -49,7 +49,7 @@ from . import mesh
 def isprimitive(obj):
 	''' Return True if obj match the signature for primitives '''
 	return hasattr(obj, 'mesh') and hasattr(obj, 'slvvars')
-		
+
 Vector = Point = vec3
 
 

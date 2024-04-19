@@ -44,9 +44,6 @@ kinematic   - Kinematic solver/constraint system
 	
 	.. automethod:: display
 
-.. autoclass:: KinematicManip
-.. autoclass:: ChainManip
-
 
 .. autofunction:: arcs
 .. autofunction:: depthfirst
@@ -67,17 +64,7 @@ kinematic   - Kinematic solver/constraint system
 	.. automethod:: __setitem__
 	.. automethod:: display
 	
-	
 
-.. autoclass:: Screw
-	:members: locate, transform
-	
-	Of course, as any vector variables, ``Screw`` implements ``+ -`` with other ``Torsor``, and ``* /`` with ``float``
-
-.. autofunction:: comomentum
-
-
-	
 
 .. autofunction:: placement
 
@@ -101,3 +88,9 @@ kinematic   - Kinematic solver/constraint system
 
 .. autofunction:: explode_offsets
 
+
+
+.. automodule:: madcad.kinematic.displays
+
+.. autoclass:: KinematicManip
+.. autoclass:: ChainManip

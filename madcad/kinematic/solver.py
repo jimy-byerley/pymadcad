@@ -2,6 +2,7 @@
 __all__ = [
     'Kinematic', 'Joint', 'Weld', 'Free', 'Reverse', 'Chain',
     'flatten_state', 'structure_state',
+    'cycles', 'shortcycles', 'depthfirst', 'arcs',
     'KinematicError',
     ]
 

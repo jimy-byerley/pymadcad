@@ -22,17 +22,33 @@ from ..mesh import web
 from .solver import *
 
 
+class SolidDisplay(Group):
+    ''' Movable `Group` for the rendering pipeline '''
+    def __init__(self, scene, solid):
+        super().__init__(scene, solid.content, local=solid.pose)
+    
+    def update(self, scene, solid):
+        if not isinstance(solid, Solid):	return
+        super().update(scene, solid.content)
+        self.local = fmat4(solid.pose)
+        return True
+    
+    def stack(self, scene):
+        for key,display in self.displays.items():
+            if key == 'annotations' and not scene.options['display_annotations'] and not self.selected:
+                continue
+            for sub,target,priority,func in display.stack(scene):
+                yield ((key, *sub), target, priority, func)
+
 
 class ChainManip(Group):
 	''' object to display and interact with a robot in the 3d view
 
 		Attributes:
-		
-			robot:      the robot to get joint positions from
-			kinematic:  kinematic model of the robot. at contrary to `RobotDisplay`, it MUST be a chain kinematic
-			toolcenter (vec3):   the initial tool rotation point
-			joints:   True if each solid has a dedicated joint, then the joint menipulation mode is available
-			options (QManipOptions):   the helper widget setting the modes and so on
+			chain:  the kinematic chain this display is rendering
+			pose:   joints poses in the last rendered frame
+			parts:  solids poses in the last rendered frame
+			toolcenter (vec3):   current end-solid rotation point in rotation mode, relative to last solid
 	'''
 	min_colinearity = 1e-2
 	max_increment = 0.3
@@ -256,7 +272,14 @@ class ChainManip(Group):
 
 		
 class KinematicManip(Group):
-	''' Display that holds a kinematic structure and allows the user to move it
+	''' 
+        Display that holds a kinematic structure and allows the user to move it
+        
+        Attributes:
+            kinemaitc:  the kinematic this display is rendering
+            pose:       joints poses in the last rendered frame
+            parts:      solids poses in the last rendered frame
+            toolcenter:  current solid rotation point in rotation mode, relative to kinematic ground
 	'''
 	min_colinearity = 1e-2
 	max_increment = 0.3

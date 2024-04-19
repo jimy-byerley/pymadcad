@@ -2,7 +2,6 @@
 __all__ = ['Solid', 'placement', 'explode', 'explode_offsets']
 
 from ..mathutils import *
-from ..rendering import Group
 
 
 class Solid:
@@ -83,24 +82,9 @@ class Solid:
 		self.content.update(objs)
 		return self
 	
-	
-	class display(Group):
-		''' Movable `Group` for the rendering pipeline '''
-		def __init__(self, scene, solid):
-			super().__init__(scene, solid.content, local=solid.pose)
-		
-		def update(self, scene, solid):
-			if not isinstance(solid, Solid):	return
-			super().update(scene, solid.content)
-			self.local = fmat4(solid.pose)
-			return True
-		
-		def stack(self, scene):
-			for key,display in self.displays.items():
-				if key == 'annotations' and not scene.options['display_annotations'] and not self.selected:
-					continue
-				for sub,target,priority,func in display.stack(scene):
-					yield ((key, *sub), target, priority, func)
+	def display(self, scene):
+		from .display import SolidDisplay
+		return SolidDisplay(scene, self)
 
 
 def placement(*pairs, precision=1e-3):

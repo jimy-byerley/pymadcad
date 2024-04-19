@@ -258,3 +258,10 @@ Localy defined data types
 	.. automethod:: union_update
 	
 	.. automethod:: transform	
+
+.. autoclass:: Screw
+	:members: locate, transform
+	
+	Of course, as any vector variables, ``Screw`` implements ``+ -`` with other ``Torsor``, and ``* /`` with ``float``
+
+.. autofunction:: comomentum
