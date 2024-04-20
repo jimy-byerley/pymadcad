@@ -89,9 +89,8 @@ class Revolute(Joint):
 			if not isfinite(v):
 				v = x
 			p = v*size/4
-			sch.add(gt.flatsurface(wire([p, p + z*size*cornersize, p + v*size*cornersize])), shader='fill')
+			sch.add(gt.cone(p+size*cornersize*v, p, size*cornersize, fill=False, resolution=('div', 4)), shader='fill')
 			sch.set(shader='line')
-			sch.add(p)
 			sch.add(p + v*size*cornersize)
 			sch.add(attach_start, space=world_solid(self.solids[0]))
 		
@@ -138,7 +137,8 @@ class Planar(Joint):
 		this class holds an axis for each side, the axis origins are constrained to share the same projections on the normal
 	'''
 		
-	bounds = ((-inf, -inf, -inf), (inf, inf, inf))
+	bounds = (vec3(-inf), vec3(inf))
+	default = vec3(0, 0, 0)
 	
 	def __init__(self, solids, axis, local=None):
 		self.solids = solids
@@ -159,8 +159,8 @@ class Planar(Joint):
 		return '{}({}, Axis(({:.3g},{:.3g},{:.3g}), ({:.3g},{:.3g},{:.3g})))'.format(
 			self.__class__.__name__, self.solids, *self.post[3].xyz, *self.post[2].xyz)
 	
-	def direct(self, position: vec3):
-		return mat4(self.post) * translate(vec3(position.xy)) * rotate(position.z, Z) * mat4(self.pre)
+	def direct(self, position: tuple):
+		return mat4(self.post) * translate(vec3(position.xy, 0)) * rotate(position.z, Z) * mat4(self.pre)
 		
 	def inverse(self, matrix, close=None):
 		m = mat4(transpose(self.post)) * matrix * mat4(transpose(self.pre))
@@ -172,7 +172,7 @@ class Planar(Joint):
 		return (
 			self.post * translate(X) * rotate(position.z, Z) * self.pre,
 			self.post * translate(Y) * rotate(position.z, Z) * self.pre,
-			self.post * translate(position.xy) * drotate(position.z, Z) * self.pre,
+			self.post * translate(vec3(position.xy,0)) * drotate(position.z, Z) * self.pre,
 			)
 	
 	def transmitable(self, force, parameters=None, velocity=None):
@@ -181,33 +181,40 @@ class Planar(Joint):
 		return Screw(project(action.resulting, normal), noproject(action.momentum, normal), action.position)
 	
 	
-	def scheme(self, maxsize, attach_start, attach_end):		
+	def scheme(self, index, maxsize, attach_start, attach_end):		
 		size = settings.display['joint_size']
 		sch = Scheme()
+		gap = 0.1
 		
 		x,y,z,o = dmat4x3(self.post)
 		sch.set(
-			track = 0, 
+			track = index[self.solids[0]], 
 			space = scale_solid(self.solids[0], fvec3(o), maxsize/size),
 			)
-		square = gt.parallelogram(x*size, y*size, origin=o+0.1*size*z, align=0.5)
+		square = gt.parallelogram(x*size, y*size, origin=o-gap*size*z, align=0.5)
 		sch.add(square.outlines(), shader='line')
 		sch.add(square, shader='ghost')
 		
 		if attach_start:
-			sch.add([o, o+z*0.1*size, o+(x+y)*0.1*size], shader='fill')
+			sch.add(gt.cone(o-size*(gap+cornersize)*z, o-size*gap*z, size*cornersize, fill=False, resolution=('div', 4)), shader='fill')
+			sch.set(shader='line')
+			sch.add(o-size*(gap+cornersize)*z)
+			sch.add(attach_start, space=world_solid(self.solids[0]))
 		
 		x,y,z,o = dmat4x3(affineInverse(self.pre))
 		sch.set(
-			track = 1,
+			track = index[self.solids[1]],
 			space = scale_solid(self.solids[1], fvec3(o), maxsize/size),
 			)
-		square = gt.parallelogram(-x*size, y*size, origin=o-0.1*size*z, align=0.5)
+		square = gt.parallelogram(-x*size, y*size, origin=o+gap*size*z, align=0.5)
 		sch.add(square.outlines(), shader='line')
 		sch.add(square, shader='ghost')
 		
 		if attach_end:
-			sch.add([o, o+z*0.1*size, o+(x+y)*0.1*size], shader='fill')
+			sch.add(gt.cone(o+size*(gap+cornersize)*z, o+size*gap*z, size*cornersize, fill=False, resolution=('div', 4)), shader='fill')
+			sch.set(shader='line')
+			sch.add(o+size*(gap+cornersize)*z)
+			sch.add(attach_end, space=world_solid(self.solids[1]))
 		
 		return sch
 

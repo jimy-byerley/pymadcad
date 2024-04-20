@@ -19,7 +19,7 @@ from ..rendering import Group, displayable
 from ..scheme import Scheme, halo_screen
 from ..generation import revolution
 from ..mesh import web
-from .solver import *
+from .solver import Chain, Kinematic, regularize_grad, structure_state, flatten_state
 
 
 class SolidDisplay(Group):
@@ -138,7 +138,6 @@ class ChainManip(Group):
 		if sub[0] == 'scheme':	solid = sub[1]
 		else:					solid = sub[0]
 		
-		# TODO: support both using the joint or the chain methods
 		# get 3d location of mouse
 		click = view.ptat(view.somenear(evt.pos()))
 		joint = max(0, solid-1)
@@ -160,24 +159,17 @@ class ChainManip(Group):
 				move = target - current.xy / current.w
 
 				# solid move directions that can be acheived with this joint
-				jac = self.chain.joints[joint].grad(self.pose[joint])
+				jac = regularize_grad(self.chain.joints[joint].grad(self.pose[joint]))
+				# gradient of the screen position
+				jac = np.stack([
+					(model * (grad * anchor)).xy / current.w
+					for grad in jac])
+				# colinearity between the desired move and the gradient directions. it avoids the mechanisme to burst when close to a singularity and also when the mouse move is big
+				colinearity = min(1, sum(
+							dot(grad, move)**2 / (length2(grad) + length2(move) + self.prec)
+							for grad in jac) / self.min_colinearity)
 				# combination of the closest directions to the mouse position
-				# several degrees of freedom
-				if hasattr(self.pose[joint], '__len__'):
-					# gradient of the screen position
-					jac = np.stack([
-						(model * (grad * anchor)).xy / current.w
-						for grad in jac])
-					# colinearity between the desired move and the gradient directions. it avoids the mechanisme to burst when close to a singularity and also when the mouse move is big
-					colinearity = min(1, sum(
-								dot(grad, move)**2 / (length2(grad) + length2(move) + self.prec)
-								for grad in jac) / self.min_colinearity)
-					increment = la.lstsq(jac.transpose(), move * colinearity)
-				# faster equivalent computation in case of one degree of freedom
-				else:
-					grad = (model * (jac * anchor)).xy / current.w
-					colinearity = min(1, 1e2 * dot(grad, move)**2 / (length2(grad) + length2(move) + self.prec))
-					increment = dot(grad, move * colinearity) / length2(grad)
+				increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ (move * colinearity))
 				
 				self.pose[joint] += clamp(increment, -self.max_increment, self.max_increment)
 				self.parts = self.chain.parts(self.pose)
@@ -624,13 +616,14 @@ def kinematic_scheme(joints) -> '(Scheme, index)':
 			centers[solid] = centers.get(solid, 0) + vec4(position, 1)
 			index[solid] = index.get(solid, len(index))
 	for solid, center in centers.items():
-		centers[solid] = center.xyz / center.w
+		centers[solid] = center.xyz / center.w  if center.w > 1 else None
 	
 	scheme = Scheme()
 	for joint in joints:
 		size = max(
 			distance(position, centers[solid])
-			for solid, position in zip(joint.solids, joint.position))
+			for solid, position in zip(joint.solids, joint.position)
+			if centers[solid])
 		scheme += joint.scheme(index, size, centers[joint.solids[0]], centers[joint.solids[-1]])
 	
 	return scheme, index

@@ -91,6 +91,3 @@ kinematic   - Kinematic solver/constraint system
 
 
 .. automodule:: madcad.kinematic.displays
-
-.. autoclass:: KinematicManip
-.. autoclass:: ChainManip

@@ -1,10 +1,10 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 __all__ = [
-    'Kinematic', 'Joint', 'Weld', 'Free', 'Reverse', 'Chain',
-    'flatten_state', 'structure_state',
-    'cycles', 'shortcycles', 'depthfirst', 'arcs',
-    'KinematicError',
-    ]
+	'Kinematic', 'Joint', 'Weld', 'Free', 'Reverse', 'Chain',
+	'flatten_state', 'structure_state',
+	'cycles', 'shortcycles', 'depthfirst', 'arcs',
+	'KinematicError',
+	]
 
 from copy import copy, deepcopy
 import itertools
@@ -145,7 +145,7 @@ class Joint:
 	
 	def display(self, scene):
 		''' display showing the schematics of this joint, without interaction '''
-		return scene.display(self.scheme(inf, None, None))
+		return scene.display(self.scheme(dict(zip(self.solids, range(2))), inf, None, None))
 
 
 def partial_difference_increment(f, i, x, d):
@@ -167,9 +167,9 @@ def squeeze_homogeneous(m):
 	return np.asarray(m, order='F').ravel('F')[_squeeze]
 def unsqueeze_homogeneous(m):
 	return mat4(m[0], m[1], m[2], 0,  
-	           -m[1], m[3], m[4], 0,  
-	           -m[2],-m[4], m[5], 0,  
-	            m[6], m[7], m[8], 1)
+			-m[1], m[3], m[4], 0,  
+			-m[2],-m[4], m[5], 0,  
+				m[6], m[7], m[8], 1)
 
 
 class Weld(Joint):
@@ -339,15 +339,14 @@ class Chain(Joint):
 		return structure_state(res.x, close)
 	
 	def grad(self, parameters):
+		''' the jacobian of the flattened parameters list '''
 		# built the left side of the gradient product of the direct joint
 		directs = []
 		grad = []
 		b = mat4(1)
 		for x, joint in zip(parameters, self.joints):
 			f = joint.direct(x)
-			g = joint.grad(x)
-			if isinstance(g, mat4) or isinstance(g, np.ndarray) and g.size == 16:
-				g = g,
+			g = regularize_grad(joint.grad(x))
 			directs.append((f, len(grad)))
 			for df in g:
 				grad.append(b*df)
@@ -622,10 +621,7 @@ class Kinematic:
 			else:
 				p = next(state, empty)
 				size = np.array(p).size
-				grad = joint.grad(p)
-				# ensure it is a jacobian and not a single derivative
-				if isinstance(grad, mat4) or isinstance(grad, np.ndarray) and grad.size == 16:
-					grad = grad,
+				grad = regularize_grad(joint.grad(p))
 				# ensure the homogeneous factor is 0 for derivatives
 				for df in grad:
 					df[3][3] = 0
@@ -715,10 +711,6 @@ class Kinematic:
 				mins.append(bounds[0])
 				maxes.append(bounds[1])
 		
-		# solve
-		# from time import perf_counter as time
-		# start = time()
-		
 		res = scipy.optimize.least_squares(
 					lambda x: self.cost_residuals(structure_state(x, init), fixed), 
 					flatten_state(init), 
@@ -729,31 +721,8 @@ class Kinematic:
 						), 
 					jac = lambda x: self.cost_jacobian(structure_state(x, init), fixed), 
 					xtol = precision, 
-					# ftol = 0,
-					# gtol = 0,
 					max_nfev = maxiter,
 					)
-		
-# 		print('solved in', time() - start)
-# 		print(res)
-# 		np.set_printoptions(linewidth=np.inf)
-# 		estimated = res.jac
-# 		# computed = self.jac(structure_state(res.x))
-# 		# print(estimated, (np.abs(estimated) > 1e-3).sum())
-# 		# print()
-# 		# print(computed, (np.abs(computed) > 1e-3).sum())
-# 		
-# 		from matplotlib import pyplot as plt
-# 		# estimated = estimated.toarray()
-# 		# computed = computed.toarray()
-# 		plt.imshow(np.stack([
-# 			estimated*0, 
-# 			# np.abs(estimated)/np.abs(estimated).max(axis=1)[:,None],
-# 			# np.abs(computed)/np.abs(estimated).max(axis=1)[:,None],
-# 			np.log(np.abs(estimated))/10+0.5,
-# 			np.log(np.abs(computed))/10+0.5,
-# 			], axis=2))
-		# plt.show()
 		
 		if not res.success:
 			raise KinematicError('failed to converge: '+res.message, res)
@@ -1004,3 +973,9 @@ def arcs(conn: '{node: [node]}') -> '[[node]]':
 		propagate()
 		suites.append(suite)
 	return suites
+
+def regularize_grad(grad):
+	''' ensure it is a jacobian and not a single derivative '''
+	if isinstance(grad, mat4) or isinstance(grad, np.ndarray) and grad.size == 16:
+		return grad,
+	return grad

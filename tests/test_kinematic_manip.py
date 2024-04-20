@@ -23,19 +23,19 @@ np.set_printoptions(linewidth=1000, precision=3)
 # 	Revolute((3,0), Axis(Y,Z)),
 # 	])])
 
-print('2 free pivot loops')
-show([Kinematic([
-	Revolute((0,1), Axis(O,Z)),
-	Revolute((1,2), Axis(X,Z)),
-	Revolute((2,3), Axis(X+Y,Z)),
-	Revolute((3,0), Axis(Y,Z)),
-	Revolute((2,4), Axis(X-Z,Z)),
-	Revolute((4,5), Axis(2*X-Z,Z)),
-	Revolute((5,6), Axis(2*X+Y-Z,Z)),
-	Revolute((6,2), Axis(X+Y-Z,Z)),
-	])])
+# print('2 free pivot loops')
+# show([Kinematic([
+# 	Revolute((0,1), Axis(O,Z)),
+# 	Revolute((1,2), Axis(X,Z)),
+# 	Revolute((2,3), Axis(X+Y,Z)),
+# 	Revolute((3,0), Axis(Y,Z)),
+# 	Revolute((2,4), Axis(X-Z,Z)),
+# 	Revolute((4,5), Axis(2*X-Z,Z)),
+# 	Revolute((5,6), Axis(2*X+Y-Z,Z)),
+# 	Revolute((6,2), Axis(X+Y-Z,Z)),
+# 	])])
 
-# print('2 bound pivot loops')
+# # print('2 bound pivot loops')
 # show([Kinematic([
 # 	Revolute((0,1), Axis(O,Z)),
 # 	Revolute((1,2), Axis(X,Z)),
@@ -51,3 +51,9 @@ show([Kinematic([
 # 	joints.append(Revolute((i,i+1), Axis(vec3(i+1,i,0), X)))
 # 	joints.append(Revolute((i+1,i+2), Axis(vec3(i+1,i+1,0), Y)))
 # show([Chain(joints)])
+
+show([Chain([
+	Planar((0,1), Axis(X,-X)),
+	Revolute((1,2), Axis(O,Z)),
+	Planar((2,3), Axis(Y,Y)),
+	])])
