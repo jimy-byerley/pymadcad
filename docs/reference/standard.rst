@@ -167,3 +167,17 @@ convenient shapes to integrate standard parts
 	.. image:: /screenshots/bearing_slot_interior-evade.png
 	.. image:: /screenshots/bearing_slot_interior-expand.png
 
+kinematics
+~~~~~~~~~~
+
+.. autofunction:: scara
+
+	.. image:: /screenshots/standard-scara.png
+
+.. autofunction:: serial6
+
+	.. image:: /screenshots/standard-serial6.png
+
+.. autofunction:: serial7
+
+	.. image:: /screenshots/standard-serial7.png

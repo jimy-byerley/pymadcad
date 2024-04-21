@@ -1439,8 +1439,88 @@ def bearing_slot_interior(axis: Axis, dint: float, height: float, shouldering=Tr
 			])
 		profile.insert(0, profile[0] + expand*Z)
 	return revolution(2*pi, Axis(O,Z), wire(profile).segmented()) .transform(translate(axis[0]) * mat4(quat(Z, axis[1])))
+	
+	
+	
+	
 
+from .kinematic import Chain, Kinematic
+from .joints import *
+	
+def scara(backarm, forearm):
+	'''
+	kinematic of a classical *scara* robot arm
+	'''
+	return Chain([
+		Revolute(('base',1), Axis(O,Z)),
+		Revolute((1,2), Axis(backarm*X,Z), Axis(O,Z)),
+		Revolute((2,3), Axis(forearm*X,Z), Axis(O,Z)),
+		Prismatic((3,'tool'), Axis(-forearm*0.5*Z,Z)),
+		])
 
+def serial6(backarm, forearm):
+	''' 
+	kinematic of a classical serial robot arm with 7 degrees of freedom
+	
+	Parameters:
+		backarm:  backarm length
+		forearm:  forearm length
+	'''
+	return Chain([
+		Revolute(('base',1), Axis(-0.3*backarm*Z,Z)),  # shoulder 1
+		Revolute((1,2), Axis(O,Y)),  # shoulder 2
+		Revolute((2,3), Axis(backarm*Z,Y), Axis(O,Y)), # elbow
+		Revolute((3,4), Axis(0.5*forearm*Z,Z)),  # wrist 1
+		Revolute((4,5), Axis(forearm*Z,Y), Axis(O,Y)), # wrist 2
+		Revolute((5,'tool'), Axis(0.3*forearm*Z,Z)), # wrist 3
+		])
+
+def serial7(backarm, forearm):
+	''' 
+	kinematic of a classical serial robot arm with 7 degrees of freedom
+	
+	Parameters:
+		backarm:  backarm length
+		forearm:  forearm length
+	'''
+	return Chain([
+		Revolute(('base',1), Axis(-0.3*backarm*Z,Z)),  # shoulder 1
+		Revolute((1,2), Axis(O,Y)),  # shoulder 2
+		Revolute((2,3), Axis(0.5*backarm*Z,Z)),  # 7th degree
+		Revolute((3,4), Axis(backarm*Z,Y), Axis(O,Y)), # elbow
+		Revolute((4,5), Axis(0.5*forearm*Z,Z)),  # wrist 1
+		Revolute((5,6), Axis(forearm*Z,Y), Axis(O,Y)), # wrist 2
+		Revolute((6,'tool'), Axis(0.3*forearm*Z,Z)), # wrist 3
+		])
+
+def delta3(base, tool, backarm, forearm, forearm_width=None):
+	'''
+	kinematic of a classical delta robot with 3 degrees of freedom
+	
+	Parameters:
+		base:   the radius of motors placements
+		tool:   the radius of the tool's ball joints placements
+		backarm:  backarm length
+		forearm:  forearm length
+		forearm_width:  gap between the 2 forarm segments
+	'''
+	if forearm_width is None:	forearm_width = 0.1*forearm
+	from . import generation as gt
+	arms = gt.regon(Axis(O,Z), 1, 3).points
+	motors = []
+	joints = []
+	for i, p in enumerate(arms):
+		motors.append(Revolute(('base', f'backarm.{i}'), Axis(p,cross(Z, p*base)), Axis(O,Z)))
+		joints.append(Ball((f'backarm.{i}', f'forearm.{i}.0'), O + forearm_width*Y, O))
+		joints.append(Ball((f'backarm.{i}', f'forearm.{i}.1'), O - forearm_width*Y, O))
+		joints.append(Ball(('tool', f'forearm.{i}.0'), p*tool + forearm_width*Y, forearm*Z))
+		joints.append(Ball(('tool', f'forearm.{i}.1'), p*tool - forearm_width*Y, forearm*Z))
+	return Kinematic(joints, inputs=motors, outputs=['tool'], ground='base')
+
+def delta4(backarm, forearm):
+	indev
+def delta6(backarm, forearm):
+	indev
 	
 '''
 * profilés
