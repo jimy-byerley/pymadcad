@@ -164,16 +164,10 @@ class Scheme:
 							]  for p in obj.points)
 		if isinstance(obj, Mesh):
 			indices.extend(((a+l, b+l, c+l)  for a,b,c in obj.faces))
-			for f, track in zip(obj.faces, obj.tracks):
-				for p in f:
-					self.vertices[p+l][5] += track
 			for i,n in enumerate(obj.vertexnormals()):
 				self.vertices[i+l][2] = n
 		elif isinstance(obj, Web):
 			indices.extend(((a+l, b+l)  for a,b in obj.edges))
-			for e, track in zip(obj.edges, obj.tracks):
-				for p in e:
-					self.vertices[p+l][5] += track
 		elif isinstance(obj, vec3):
 			self.vertices.append([
 								self.current['space'], 

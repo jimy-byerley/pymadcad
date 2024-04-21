@@ -29,12 +29,17 @@ def dtranslate(direction):
 
 
 class Revolute(Joint):
+	''' Joint for revolution around an axis
+	'''
 	bounds = (-inf, inf)
 	default = 0
 	
-	def __init__(self, solids, axis: Axis, local=None):
+	def __init__(self, solids, axis: Axis, local=None, default=None):
 		self.solids = solids
 		local = local or axis
+		
+		if default is not None:
+			self.default = default
 		
 		if isinstance(axis, mat4):
 			self.post = axis
@@ -117,11 +122,10 @@ class Revolute(Joint):
 			side = z * size * 0.5
 			if dot(attach_end-o, side) < 0:
 				side = -side
-			if dot(attach_end-o-side, side) < 0:
+			if dot(attach_end, side)**2 < length2(attach_end)*length2(side) * 0.25:
 				radial = normalize(noproject(attach_end-o, z))
 				sch.add(side + radial*radius)
 				sch.add(side + radial*2*radius)
-				# sch.add(radial*2*radius)
 			else:
 				sch.add(side)
 			sch.add(attach_end, space=world_solid(self.solids[1]))
@@ -140,9 +144,12 @@ class Planar(Joint):
 	bounds = (vec3(-inf), vec3(inf))
 	default = vec3(0, 0, 0)
 	
-	def __init__(self, solids, axis, local=None):
+	def __init__(self, solids, axis, local=None, default=None):
 		self.solids = solids
 		local = local or axis
+		
+		if default is not None:
+			self.default = default
 		
 		if isinstance(axis, mat4):
 			self.post = axis
@@ -222,26 +229,33 @@ class Planar(Joint):
 class Prismatic(Joint):
 	''' Joint for translation only in a direction 
 		
-		Classical definition:  Track (direction vector)
+		Classical definition:  Prismatic (direction vector)
 		the initial state requires more parameters: the relative placements of the solids
 		this class holds a base for each of the solids, bases are (0,X,Y)  where X,Y are constrained to keep the same direction across bases, and the bases origins lays on their common Z axis
 	'''
 	
 	bounds = (-inf, inf)
+	default = 0
 	
-	def __init__(self, solids, axis: Axis, local=None):
+	def __init__(self, solids, axis: Axis, local=None, default=None):
 		self.solids = solids
 		local = local or axis
+		
+		if default is not None:
+			self.default = default
 		
 		if isinstance(axis, mat4):
 			self.post = axis
 			self.pre = affineInverse(local)
+			self.position = axis[3].xyz, local[3].xyz
 		elif isinstance(axis, vec3):
 			self.post = mat4(quat(Z, axis))
 			self.pre = mat4(quat(local, Z))
+			self.position = axis, local
 		elif isinstance(axis, Axis):
 			self.post = translate(axis[0]) * mat4(quat(Z, axis[1]))
 			self.pre = mat4(quat(local[1], Z)) * translate(-local[0])
+			self.position = axis[0], local[0]
 		else:
 			raise TypeError('Track can only be placed on a vec3, Axis or mat4')
 	
@@ -263,13 +277,13 @@ class Prismatic(Joint):
 		normal = normalize(z0 + z1)
 		return Screw(noproject(action.resulting, normal), action.momentum, action.position)
 	
-	def scheme(self, maxsize, attach_start, attach_end):
+	def scheme(self, index, maxsize, attach_start, attach_end):
 		size = settings.display['joint_size']
 		sch = Scheme()
 		
 		x,y,z,o = dmat4x3(self.post)
 		sch.set(
-			track = 0, 
+			track = index[self.solids[0]], 
 			space = scale_solid(self.solids[0], fvec3(o), maxsize/size),
 			)
 		profile = gt.parallelogram(0.4*size*x, 0.4*size*y, origin=o, align=0.5, fill=False)
@@ -284,13 +298,15 @@ class Prismatic(Joint):
 				v = x if dot(v,x)>0 else -x
 			else:
 				v = y if dot(v,y)>0 else -y
-				p = o + v*0.25*size
-				sch.add([p + z*size*cornersize, attach_start], shader='line')
-				sch.add([p, p + z*size*cornersize, v*size*cornersize], shader='fill')
+			p = o + v*0.2*size
+			sch.add(gt.cone(p+size*cornersize*v, p, size*cornersize, fill=False, resolution=('div', 4)), shader='fill')
+			sch.set(shader='line')
+			sch.add(p+size*cornersize*v)
+			sch.add(attach_start, space=world_solid(self.solids[0]))
 	
 		x,y,z,o = dmat4x3(affineInverse(self.pre))
 		sch.set(
-			track = 1, 
+			track = index[self.solids[1]], 
 			space = scale_solid(self.solids[1], fvec3(o), maxsize/size),
 			)
 		interior = gt.extrusion(size*z, Web([
@@ -301,31 +317,38 @@ class Prismatic(Joint):
 			],
 			[(0,1), (2,3)],
 			), alignment=0.5)
-		# sch.add(interior, shader='ghost')
 		sch.add(interior.outlines(), shader='line')
 		if attach_end:
-			v = junc - o
+			v = attach_end - o
 			v = z if dot(v, z) > 0 else -z
 			p = o + v*size/2
-			sch.add([p, attach_end])
+			sch.add(p)
+			sch.add(attach_end, space=world_solid(self.solids[1]))
 			
 		return sch
 
 
 class Cylindrical(Joint):
+	''' Joint with rotation and translation around an axis
+	'''
 	bounds = (vec2(-inf), vec2(inf))
 	default = vec2(0)
 	
-	def __init__(self, solids, axis: Axis, local=None):
+	def __init__(self, solids, axis: Axis, local=None, default=None):
 		self.solids = solids
 		local = local or axis
+		
+		if default is not None:
+			self.default = default
 		
 		if isinstance(axis, mat4):
 			self.post = axis
 			self.pre = affineInverse(local)
+			self.position = axis[3].xyz, local[3].xyz
 		elif isinstance(axis, Axis):
 			self.post = translate(axis[0]) * mat4(quat(Z, axis[1]))
 			self.pre = mat4(quat(local[1], Z)) * translate(-local[0])
+			self.position = axis[0], local[0]
 		else:
 			raise TypeError('Pivot can only be placed on an Axis or a mat4')
 		
@@ -342,9 +365,9 @@ class Cylindrical(Joint):
 		angle += (2*pi) * ((angle + pi - close) // (2*pi))
 		return angle, m[2][2]
 		
-	def grad(self, angle, delta=1e-6):
+	def grad(self, parameters, delta=1e-6):
 		return (
-			self.post * drotate(angle, Z) * self.pre,
+			self.post * drotate(parameters[0], Z) * self.pre,
 			self.post * dtranslate(Z) * self.pre,
 			)
 		
@@ -352,14 +375,14 @@ class Cylindrical(Joint):
 		l = force.locate(self.axis[0])
 		return Screw(l.resulting, project(l.momentum, self.axis[1]))
 		
-	def scheme(self, maxsize, attach_start, attach_end):
+	def scheme(self, index, maxsize, attach_start, attach_end):
 		size = settings.display['joint_size']
 		radius = size/4
 		sch = Scheme()
 		resolution = ('div', 16)
 		
 		x,y,z,o = dmat4x3(self.post)
-		sch.set(track=0, space=scale_solid(self.solids[0], fvec3(o), maxsize/size))
+		sch.set(track=index[self.solids[0]], space=scale_solid(self.solids[0], fvec3(o), maxsize/size))
 		cylinder = gt.cylinder(
 						o-z*size*0.4, 
 						o+z*size*0.4, 
@@ -374,14 +397,13 @@ class Cylindrical(Joint):
 			if not isfinite(v):
 				v = x
 			p = v*size/4
-			sch.add(gt.flatsurface(wire([p, p + z*size*cornersize, p + v*size*cornersize])), shader='fill')
+			sch.add(gt.cone(p+size*cornersize*v, p, size*cornersize, fill=False, resolution=('div', 4)), shader='fill')
 			sch.set(shader='line')
-			sch.add(p)
 			sch.add(p + v*size*cornersize)
 			sch.add(attach_start, space=world_solid(self.solids[0]))
 		
 		x,y,z,o = dmat4x3(affineInverse(self.pre))
-		sch.set(track=1, space=scale_solid(self.solids[1], fvec3(o), maxsize/size))
+		sch.set(track=index[self.solids[1]], space=scale_solid(self.solids[1], fvec3(o), maxsize/size))
 		sch.add([o-z*size*0.5, o+z*size*0.5], shader='line')
 		
 		sch.set(shader='fill')
@@ -390,11 +412,10 @@ class Cylindrical(Joint):
 			side = z * size * 0.5
 			if dot(attach_end-o, side) < 0:
 				side = -side
-			if dot(attach_end-o-side, side) < 0:
+			if dot(attach_end, side)**2 < length2(attach_end)*length2(side) * 0.25:
 				radial = normalize(noproject(attach_end-o, z))
 				sch.add(side + radial*radius)
 				sch.add(side + radial*2*radius)
-				# sch.add(radial*2*radius)
 			else:
 				sch.add(side)
 			sch.add(attach_end, space=world_solid(self.solids[1]))
@@ -409,16 +430,21 @@ class Ball(Joint):
 		the initial state doen't require more data
 		the class holds a point for each side
 	'''
-	def __init__(self, solids, center, local=None):
+	def __init__(self, solids, center, local=None, default=None):
 		self.solids = solids
 		local = local or center
+		
+		if default is not None:
+			self.default = default
 		
 		if isinstance(center, mat4):
 			self.pre = center
 			self.post = local
+			self.position = center[3].xyz, local[3].xyz
 		elif isinstance(center, vec3):
 			self.pre = translate(-center)
 			self.post = translate(local)
+			self.position = center, local
 		else:
 			raise TypeError("ball can only be placed on a vec3 or mat4")
 	
@@ -434,7 +460,7 @@ class Ball(Joint):
 	def transmit(self, force, parameters=None, velocity=None):
 		return Screw(vec3(0), force.momentum, self.center)
 	
-	def scheme(self, maxsize, attach_start, attach_end):
+	def scheme(self, index, maxsize, attach_start, attach_end):
 		from .primitives import ArcCentered
 		
 		size = settings.display['joint_size']
@@ -443,19 +469,27 @@ class Ball(Joint):
 		resolution = ('div', 16)
 		
 		center = self.post[3].xyz
-		sch.set(track=0, space=scale_solid(self.solids[0], fvec3(center), maxsize/size))
-		if attach_end:
-			x,y,z = dirbase(attach_end - center)
+		sch.set(track=index[self.solids[0]], space=scale_solid(self.solids[0], fvec3(center), maxsize/size))
+		if attach_start:
+			x,y,z = dirbase(normalize(center - attach_start))
 		else:
 			x,y,z = mat3()
 		profile = ArcCentered(Axis(center,y), center+x*radius, center-z*radius).mesh(resolution=resolution)
-		emisphere = gt.revolution(2*pi, Axis(center,z), profile, resolution)
+		emisphere = gt.revolution(2*pi, Axis(center,z), profile, resolution=resolution)
 		sch.add(emisphere, shader='ghost')
 		sch.add(emisphere.outlines(), shader='line')
+		if attach_start:
+			sch.set(shader='line')
+			sch.add(center - z*(radius+0*size*cornersize))
+			sch.add(attach_start, space=world_solid(self.solids[0]))
 		
-		center = affineInverse(self.pre)[3].xyz
-		sch.set(track=1, space=scale_solid(self.solids[1], fvec3(center), maxsize/size))
-		sch.add(gt.icosphere(center, radius*0.8, resolution), shader='ghost')
+		# center = affineInverse(self.pre)[3].xyz
+		sch.set(track=index[self.solids[1]], space=scale_solid(self.solids[1], fvec3(center), maxsize/size))
+		sch.add(gt.icosphere(center, radius*0.8, resolution=('div', 3)), shader='ghost')
+		if attach_end:
+			sch.set(shader='line')
+			sch.add(center + radius*0.8*normalize(attach_end-center))
+			sch.add(attach_end, space=world_solid(self.solids[1]))
 		
 		return sch
 
@@ -495,7 +529,7 @@ class PointSlider(Joint):
 			*quat(m),
 			)
 	
-	def scheme(self, maxsize, attach_start, attach_end):
+	def scheme(self, index, maxsize, attach_start, attach_end):
 		size = settings.display['joint_size']
 		radius = size * 0.2
 		resolution = ('div', 16)
@@ -503,7 +537,7 @@ class PointSlider(Joint):
 		
 		x,y,z,o = dmat4x3(self.post)
 		sch.set(
-			track = 0, 
+			track = index[self.solids[0]], 
 			space = scale_solid(self.solids[0], fvec3(o), maxsize/size),
 			)
 		square = gt.parallelogram(x*size, y*size, origin=o+radius*z, align=0.5)
@@ -516,7 +550,7 @@ class PointSlider(Joint):
 			sch.add([attach+cornersize*size*z, attach_start], shader='line')
 		
 		center = affineInverse(self.pre)[3].xyz
-		sch.set(track=1, space=scale_solid(self.solids[1], fvec3(center), maxsize/size))
+		sch.set(track=index[self.solids[1]], space=scale_solid(self.solids[1], fvec3(center), maxsize/size))
 		sch.add(gt.icosphere(center, radius, resolution), shader='ghost')
 		
 		if attach_end:
@@ -562,7 +596,7 @@ class EdgeSlider(Joint):
 			roll(q),
 			)
 	
-	def scheme(self, maxsize, attach_start, attach_end):
+	def scheme(self, index, maxsize, attach_start, attach_end):
 		size = settings.display['joint_size']
 		radius = 0.2*size
 		resolution = ('div', 16)
@@ -570,7 +604,7 @@ class EdgeSlider(Joint):
 		
 		x,y,z,o = dmat4x3(self.post)
 		sch.set(
-			track = 0, 
+			track = index[self.solids[0]], 
 			space = scale_solid(self.solids[0], fvec3(o), maxsize/size),
 			)
 		square = gt.parallelogram(x*size, y*size, origin=o+radius*z, align=0.5)
@@ -583,7 +617,7 @@ class EdgeSlider(Joint):
 			sch.add([o+cornersize*size*z, attach_start], shader='line')
 		
 		x,y,z,o = dmat4x3(affineInverse(self.pre))
-		sch.set(track=1, space=scale_solid(self.solids[1], fvec3(o), maxsize/size))
+		sch.set(track=index[self.solids[1]], space=scale_solid(self.solids[1], fvec3(o), maxsize/size))
 		cylinder = gt.cylinder(o-x*0.5*size, o+x*0.5*size, radius, fill=False, resolution=resolution)
 		sch.add(cylinder, shader='ghost')
 		sch.add(cylinder.outlines(), shader='line')
@@ -622,7 +656,7 @@ class Ring(Joint):
 	def transmit(self, force, parameters=None, velocity=None):
 		return Screw(vec3(0), force.momentum, self.center)
 	
-	def scheme(self, maxsize, attach_start, attach_end):
+	def scheme(self, index, maxsize, attach_start, attach_end):
 		from .primitives import ArcCentered
 		
 		size = settings.display['joint_size']
@@ -631,7 +665,7 @@ class Ring(Joint):
 		resolution = ('div', 16)
 		
 		center = self.post[3].xyz
-		sch.set(track=0, space=scale_solid(self.solids[0], fvec3(center), maxsize/size))
+		sch.set(track=index[self.solids[0]], space=scale_solid(self.solids[0], fvec3(center), maxsize/size))
 		if attach_end:
 			x,y,z = dirbase(attach_end - center)
 		else:
@@ -642,7 +676,7 @@ class Ring(Joint):
 		sch.add(emisphere.outlines(), shader='line')
 		
 		center = affineInverse(self.pre)[3].xyz
-		sch.set(track=1, space=scale_solid(self.solids[1], fvec3(center), maxsize/size))
+		sch.set(track=index[self.solids[1]], space=scale_solid(self.solids[1], fvec3(center), maxsize/size))
 		sch.add(gt.icosphere(center, radius*0.8, resolution), shader='ghost')
 		
 		return sch
@@ -835,3 +869,4 @@ class Cam(Joint):
 	
 class Contact(Joint):
 	pass
+

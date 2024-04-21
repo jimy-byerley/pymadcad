@@ -170,8 +170,7 @@ class ChainManip(Group):
 							for grad in jac) / self.min_colinearity)
 				# combination of the closest directions to the mouse position
 				increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ (move * colinearity))
-				
-				self.pose[joint] += clamp(increment, -self.max_increment, self.max_increment)
+				self.pose[joint] += increment.clip(-self.max_increment, self.max_increment)
 				self.parts = self.chain.parts(self.pose)
 
 	def move_translate(self, dispatcher, view, sub, evt):

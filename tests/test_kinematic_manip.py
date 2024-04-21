@@ -52,8 +52,17 @@ np.set_printoptions(linewidth=1000, precision=3)
 # 	joints.append(Revolute((i+1,i+2), Axis(vec3(i+1,i+1,0), Y)))
 # show([Chain(joints)])
 
-show([Chain([
-	Planar((0,1), Axis(X,-X)),
-	Revolute((1,2), Axis(O,Z)),
-	Planar((2,3), Axis(Y,Y)),
-	])])
+# show([Chain([
+# 	Planar((0,1), Axis(X,-X)),
+# 	Revolute((1,2), Axis(O,Z)),
+# 	Planar((2,3), Axis(Y,Y)),
+# 	])])
+
+# show([Chain([
+# 	Prismatic((0,1), Axis(X,-X)),
+# 	Ball((1,2), O),
+# 	Prismatic((2,3), Axis(Y,Y)),
+# 	])])
+
+from madcad import standard
+show([standard.serial6(1, 1), standard.serial7(1, 1)])

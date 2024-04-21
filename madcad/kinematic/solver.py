@@ -110,8 +110,8 @@ class Joint:
 		'''
 		grad = []
 		base = self.direct(parameters)
-		for i, x in enumerate(parameters):
-			grad.append((partial_difference_increment(self.direct, i, x, delta) - base) / delta)
+		for i in range(len(parameters)):
+			grad.append(partial_difference(self.direct, parameters, base, i, delta))
 		return grad
 	
 	def transmit(self, force: 'Screw', parameters=None, velocity=None) -> 'Screw':
@@ -148,15 +148,15 @@ class Joint:
 		return scene.display(self.scheme(dict(zip(self.solids, range(2))), inf, None, None))
 
 
-def partial_difference_increment(f, i, x, d):
+def partial_difference(f, x, fx, i, d):
 	p = copy(x)
 	try:
 		p[i] = x[i] + d
-		return self.direct(p)
+		return (f(p) - fx) / d
 	except KinematicError:
 		try:
 			p[i] = x[i] - d
-			return self.direct(p)
+			return (f(p) - fx) / d
 		except KinematicError:
 			pass
 	raise ValueError('cannot compute below or above parameter {} given value'.format(i))
@@ -840,7 +840,9 @@ def structure_state(flat, structure):
 				structured.append(next(it))
 		return structured
 	elif isinstance(structure, (vec1, vec2, vec3, vec4, quat)):
-		return type(structure)(*flat[:len(structure)])
+		return type(structure)(*[x  for i,x in zip(range(len(structure)), flat)])
+	elif isinstance(structure, np.ndarray):
+		return np.asarray([x  for i,x in zip(range(structure.size), flat)], float)
 	else:
 		raise TypeError("cannot structure {}".format(type(structure)))
 
