@@ -220,7 +220,7 @@ class Scheme:
 			:vb_vertices:  vertex buffer for vertices
 			:vas:          vertex array associated to each shader
 		'''
-		max_spaces = 64  # this maximum size of the spaces array must match the size in the shader
+		max_spaces = 4096  # this maximum size of the spaces array must match the size in the shader
 		
 		@dataclass
 		class Shader:
@@ -236,7 +236,7 @@ class Scheme:
 			self.shaders, self.shader_ident = scene.resource('scheme', self.load)
 			
 			# switch to array indexed spaces
-			self.spaces = typedlist.full(fmat4(0), self.max_spaces)
+			self.spaces = typedlist.full(fmat4(0), len(sch.spaces))
 			self.spacegens = list(sch.spaces)
 			if len(self.spacegens) > self.max_spaces:
 				raise OverflowError('the number of local spaces exceeds the arbitrary build-in limit of {}'.format(self.max_spaces))
@@ -259,6 +259,7 @@ class Scheme:
 					*v[4:]
 					)			
 			self.vb_vertices = ctx.buffer(vertices)
+			self.b_spaces = ctx.buffer(self.spaces, dynamic=True)
 			verticesdef = [(self.vb_vertices, 'u1 3f4 3f4 4f1 f4 u2 u1', 
 								'space', 
 								'v_position', 
@@ -345,6 +346,8 @@ class Scheme:
 				invview = affineInverse(view.uniforms['view'])
 				for space,disp in self.components:
 					disp.world = invview * self.spaces[space]
+			self.b_spaces.write(self.spaces)
+			self.b_spaces.bind_to_uniform_block(0)
 		
 		def render(self, view):
 			''' Render each va in self.vas '''
@@ -356,7 +359,7 @@ class Scheme:
 				va = self.vas[name]
 				ctx.enable_only(shader.enable)
 				ctx.blend_func = shader.blend_func
-				shader.program['spaces'].write(self.spaces)
+				shader.program['b_spaces'].binding = 0
 				shader.program['proj'].write(view.uniforms['proj'])
 				shader.program['highlight'].write( fvec4(fvec3(settings.display['select_color_line']), 0.5) if self.selected else fvec4(0) )
 				va.render()
@@ -364,8 +367,8 @@ class Scheme:
 		
 		def identify(self, view):
 			''' Render all the triangles and lines for identification '''
+			self.shader_ident['b_spaces'].binding = 0
 			self.shader_ident['startident'] = view.identstep(self.nidents)
-			self.shader_ident['spaces'].write(self.spaces)
 			self.shader_ident['proj'].write(view.uniforms['proj'])
 			
 			if self.vai_lines:		self.vai_lines.render(mgl.LINES)
