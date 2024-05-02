@@ -181,3 +181,5 @@ kinematics
 .. autofunction:: serial7
 
 	.. image:: /screenshots/standard-serial7.png
+
+.. autofunction:: delta3

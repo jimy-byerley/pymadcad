@@ -754,12 +754,13 @@ def uvsphere(center:vec3, radius:float, alignment=vec3(0,0,1), resolution=None) 
 	mesh.mergeclose()
 	return mesh
 
-def regon(axis:primitives.Axis, radius, n, alignment=None) -> 'Wire':
+def regon(axis:primitives.Axis, radius, n, alignment=vec3(1,0,0)) -> 'Wire':
 	''' Create a regular n-gon `Wire`, the same way we create a `Circle` '''
-	return primitives.Circle(axis, radius, 
-				resolution=('div',n), 
-				alignment=alignment or vec3(1,0,0),
-				).mesh() .segmented()
+	x,y,z = dirbase(axis[1], alignment)
+	return wire(typedlist(
+		radius*(cos(2*pi*i/n)*x + sin(2*pi*i/n)*y)  
+		for i in range(n)
+		)).close().segmented()
 
 def repeat(pattern, n:int, transform):
 	''' Create a mesh duplicating n times the given pattern, each time applying the given transform.

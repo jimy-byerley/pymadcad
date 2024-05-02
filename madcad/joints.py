@@ -310,10 +310,10 @@ class Prismatic(Joint):
 			space = scale_solid(self.solids[1], fvec3(o), maxsize/size),
 			)
 		interior = gt.extrusion(size*z, Web([
-			o-0.15*size*(x+y),
-			o+0.15*size*(x+y),
-			o-0.15*size*(x-y),
-			o+0.15*size*(x-y),
+			o-0.2*size*(x+y),
+			o+0.2*size*(x+y),
+			o-0.2*size*(x-y),
+			o+0.2*size*(x-y),
 			],
 			[(0,1), (2,3)],
 			), alignment=0.5)
@@ -422,7 +422,7 @@ class Cylindrical(Joint):
 			
 		return sch
 
-
+from .nprint import nprint
 class Ball(Joint):
 	''' Joint for rotation all around a point.
 	
@@ -438,24 +438,56 @@ class Ball(Joint):
 			self.default = default
 		
 		if isinstance(center, mat4):
-			self.pre = center
-			self.post = local
+			self.post = center
+			self.pre = affineInverse(local)
 			self.position = center[3].xyz, local[3].xyz
 		elif isinstance(center, vec3):
-			self.pre = translate(-center)
-			self.post = translate(local)
+			self.post = translate(center)
+			self.pre = translate(-local)
 			self.position = center, local
 		else:
 			raise TypeError("ball can only be placed on a vec3 or mat4")
 	
-	bounds = (quat(-1,-1,-1,-1), quat(1,1,1,1))
+	bounds = (quat(-2,-2,-2,-2), quat(2,2,2,2))
 	default = quat()
 	
 	def direct(self, orient):
-		return self.post * mat4(quat(normalize(orient))) * self.pre
+		return self.post * mat4(normalize(quat(orient))) * self.pre
 	
 	def inverse(self, matrix, close=None):
 		return quat(affineInverse(self.post) * matrix * affineInverse(self.pre))
+		
+	def grad(self, orient):
+		a,b,c,d = orient
+		return (
+			self.post * mat4( 
+				 2*a,  2*d, -2*c, 0,
+				-2*d,  2*a,  2*b, 0,
+				 2*c, -2*b,  2*a, 0,
+				 0,   0,     0,   0,
+				) * self.pre,
+			self.post * mat4(
+				 2*b,  2*c,  2*d, 0,
+				 2*c, -2*b,  2*a, 0,
+				 2*d, -2*a, -2*b, 0,
+				 0,    0,    0,   0,
+				) * self.pre,
+			self.post * mat4(
+				-2*c,  2*b, -2*a, 0,
+				 2*b,  2*c,  2*d, 0,
+				 2*a,  2*d, -2*c, 0,
+				 0,    0,    0,   0,
+				) * self.pre,
+			self.post * mat4(
+				-2*d,  2*a,  2*b, 0,
+				-2*a, -2*d,  2*c, 0,
+				 2*b,  2*c,  2*d, 0,
+				 0,    0,    0,   0,
+				) * self.pre,
+			)
+			
+	def normalize(self, orient):
+		return normalize(quat(orient))
 	
 	def transmit(self, force, parameters=None, velocity=None):
 		return Screw(vec3(0), force.momentum, self.center)
@@ -474,21 +506,21 @@ class Ball(Joint):
 			x,y,z = dirbase(normalize(center - attach_start))
 		else:
 			x,y,z = mat3()
-		profile = ArcCentered(Axis(center,y), center+x*radius, center-z*radius).mesh(resolution=resolution)
-		emisphere = gt.revolution(2*pi, Axis(center,z), profile, resolution=resolution)
+		profile = ArcCentered(Axis(O,y), x*radius, -z*radius).mesh(resolution=resolution)
+		emisphere = gt.revolution(2*pi, Axis(O,z), profile, resolution=resolution)
 		sch.add(emisphere, shader='ghost')
 		sch.add(emisphere.outlines(), shader='line')
 		if attach_start:
 			sch.set(shader='line')
-			sch.add(center - z*(radius+0*size*cornersize))
+			sch.add(-z*radius)
 			sch.add(attach_start, space=world_solid(self.solids[0]))
 		
-		# center = affineInverse(self.pre)[3].xyz
+		center = affineInverse(self.pre)[3].xyz
 		sch.set(track=index[self.solids[1]], space=scale_solid(self.solids[1], fvec3(center), maxsize/size))
-		sch.add(gt.icosphere(center, radius*0.8, resolution=('div', 3)), shader='ghost')
+		sch.add(gt.icosphere(O, radius*0.8, resolution=('div', 3)), shader='ghost')
 		if attach_end:
 			sch.set(shader='line')
-			sch.add(center + radius*0.8*normalize(attach_end-center))
+			sch.add(radius*0.8*normalize(attach_end-center))
 			sch.add(attach_end, space=world_solid(self.solids[1]))
 		
 		return sch
@@ -666,7 +698,7 @@ class Ring(Joint):
 		
 		center = self.post[3].xyz
 		sch.set(track=index[self.solids[0]], space=scale_solid(self.solids[0], fvec3(center), maxsize/size))
-		if attach_end:
+		if attach_start:
 			x,y,z = dirbase(attach_end - center)
 		else:
 			x,y,z = mat3()
@@ -705,6 +737,44 @@ class Universal(Joint):
 	def inverse(self, matrix, close=None):
 		m = quat(affineInverse(self.post) * matrix * affineInverse(self.pre))
 		return vec2(pitch(m), yaw(m))
+		
+	def grad(self, orient):
+		pitch, yaw = orient
+		return (
+			self.post * drotate(pitch, X) * self.pre,
+			self.post * drotate(pitch, Y) * self.pre,
+			)
+			
+	def scheme(self, index, maxsize, attach_start, attach_end):
+		from .primitives import ArcCentered
+		
+		size = settings.display['joint_size']
+		radius = size/3
+		sch = Scheme()
+		resolution = ('div', 16)
+		
+		x,y,z,o = dmat4x3(self.post)
+		sch.set(track=index[self.solids[0]], space=scale_solid(self.solids[0], fvec3(o), maxsize/size))
+		if attach_start:
+			o = self.post[3].xyz
+			x,y,z = dirbase(attach_end - center, x)
+			sch.add(attach_start, space=world_solid(self.solids[0]))
+			sch.add(o - z*radius)
+		sch.add(ArcCentered(Axis(o,x), y*radius, -y*radius).mesh(resolution), shader='line')
+		sch.add([y, -y])
+		
+		sch.set(track=index[self.solids[1]], space=scale_solid(self.solids[1], fvec3(o), maxsize/size))
+		x,y,z,o = affineInverse(self.pre)
+		if attach_end:
+			o = affineInverse(self.pre)[3].xyz
+			x,y,z = dirbase(attach_end - center, y)
+			sch.add(attach_end, space=world_solid(self.solids[1]))
+			sch.add(o - z*radius)
+		sch.add(ArcCentered(Axis(o,y), x*radius, -x*radius).mesh(resolution), shader='line')
+		sch.add([x, -x])
+		
+		return sch
+		
 	
 	
 class ConstantVelocity(Joint):

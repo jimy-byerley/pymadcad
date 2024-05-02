@@ -88,6 +88,8 @@ class Scheme:
 		self.continuous = False
 		self.set(**kwargs)
 		
+		# TODO: regroup spaces when duplicates exists
+		
 	def __iadd__(self, other):
 		''' Concatenante the content of an other scheme in the current one
 			

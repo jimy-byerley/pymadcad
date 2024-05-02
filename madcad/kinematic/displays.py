@@ -170,7 +170,11 @@ class ChainManip(Group):
 							for grad in jac) / self.min_colinearity)
 				# combination of the closest directions to the mouse position
 				increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ (move * colinearity))
-				self.pose[joint] += increment.clip(-self.max_increment, self.max_increment)
+				self.pose[joint] = (np.asarray(self.pose[joint]) 
+										+ increment * min(1, self.max_increment / np.abs(increment).max())
+										) .clip(*self.chain.joints[joint].bounds)
+				if hasattr(self.chain.joints[joint], 'normalize'):
+					self.pose[joint] = self.chain.joints[joint].normalize(self.pose[joint])
 				self.parts = self.chain.parts(self.pose)
 
 	def move_translate(self, dispatcher, view, sub, evt):
@@ -210,9 +214,15 @@ class ChainManip(Group):
 					for grad in jac) / self.min_colinearity)
 				
 				increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ (move * colinearity))
-				# increment = la.pinv(jac @ jac.transpose()) @ (jac @ (move * colinearity))
 				
-				self.pose += increment.clip(-self.max_increment, self.max_increment)
+				self.pose = structure_state((
+								flatten_state(self.pose)
+								+ increment * min(1, self.max_increment / np.abs(increment).max())
+								),
+								self.pose)
+				for i, joint in enumerate(self.chain.joints):
+					if hasattr(joint, 'normalize'):
+						self.pose[i] = joint.normalize(self.pose[i])
 				self.parts = self.chain.parts(self.pose)
 
 	def move_rotate(self, dispatcher, view, sub, evt):
@@ -257,7 +267,9 @@ class ChainManip(Group):
 				increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ (move * colinearity))
 				# increment = la.pinv(jac @ jac.transpose()) @ (jac @ (move * colinearity))
 				
-				self.pose += increment.clip(-self.max_increment, self.max_increment)
+				self.pose = (self.pose 
+								+ increment * min(1, self.max_increment / np.abs(increment).max())
+								).clip(*self.chain.bounds)
 				self.parts = self.chain.parts(self.pose)
 
 
@@ -396,16 +408,34 @@ class KinematicManip(Group):
 				
 				increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ (move * colinearity))
 				
-				# nprint('increment', increment, self.pose)
+				nprint('increment', increment, self.pose)
 				
-				self.pose = self.kinematic.solve(close=structure_state(
-					flatten_state(self.pose) 
-					+ increment.clip(-self.max_increment, self.max_increment),
-					self.pose))
-				# self.pose = structure_state(
+				# self.pose = self.kinematic.solve(close=structure_state(
 				# 	flatten_state(self.pose) 
-				# 	+ increment.clip(-self.max_increment, self.max_increment),
-				# 	self.pose)
+				# 	+ increment * min(1, self.max_increment / np.abs(increment).max()),
+				# 	self.pose), maxiter=10, precision=1e-3)
+				
+				self.pose = structure_state(
+					flatten_state(self.pose) 
+					+ increment * min(1, self.max_increment / np.abs(increment).max()),
+					self.pose)
+					
+				for i in range(4):
+					move = -self.kinematic.cost_residuals(self.pose)
+					jac = self.kinematic.cost_jacobian(self.pose).transpose()
+					colinearity = min(1, sum(
+						np.dot(grad, move)**2 / (normsq(grad) + normsq(move) + self.prec)
+						for grad in jac) / self.min_colinearity)
+					increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ move)
+					self.pose = structure_state(
+						flatten_state(self.pose)
+						+ increment * min(1, self.max_increment / np.abs(increment).max()),
+						self.pose)
+						
+					for i, joint in enumerate(self.kinematic.joints):
+						if hasattr(joint, 'normalize'):
+							self.pose[i] = joint.normalize(self.pose[i])
+				
 				self.parts = self.kinematic.parts(self.pose)
 				pose = (
 					*self.pose, 
@@ -611,21 +641,28 @@ def kinematic_scheme(joints) -> '(Scheme, index)':
 	index = {}
 	centers = {}
 	for joint in joints:
-		for solid, position in zip(joint.solids, joint.position):
-			centers[solid] = centers.get(solid, 0) + vec4(position, 1)
-			index[solid] = index.get(solid, len(index))
+		if hasattr(joint, 'position'):
+			for solid, position in zip(joint.solids, joint.position):
+				centers[solid] = centers.get(solid, 0) + vec4(position, 1)
+				index[solid] = index.get(solid, len(index))
 	for solid, center in centers.items():
 		centers[solid] = center.xyz / center.w  if center.w > 1 else None
 	
+	nprint('index', index)
 	scheme = Scheme()
 	for joint in joints:
-		size = max(
-			distance(position, centers[solid])
-			for solid, position in zip(joint.solids, joint.position)
-			if centers[solid])
-		scheme += joint.scheme(index, size, centers[joint.solids[0]], centers[joint.solids[-1]])
+		if hasattr(joint, 'position'):
+			size = sum(
+				vec2(distance(position, centers[solid]), 1)
+				for solid, position in zip(joint.solids, joint.position)
+				if centers[solid])
+			size = 1.5*size.x / size.y
+			
+			sch = joint.scheme(index, size, centers[joint.solids[0]], centers[joint.solids[-1]])
+			if sch is not NotImplemented:
+				scheme += sch
 	
-	return scheme, index
+	return scheme, {v: k  for k, v in index.items()}
 		
 
 

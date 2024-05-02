@@ -156,7 +156,7 @@ def partial_difference(f, x, fx, i, d):
 	except KinematicError:
 		try:
 			p[i] = x[i] - d
-			return (f(p) - fx) / d
+			return (fx - f(p)) / d
 		except KinematicError:
 			pass
 	raise ValueError('cannot compute below or above parameter {} given value'.format(i))
@@ -207,29 +207,56 @@ class Free(Joint):
 		it is useful to control the explicit pose of a solid solid in a kinematic.
 	'''
 	bounds = (
-		np.array([-1, -1, -1,  -1, -1, -1,  -inf, -inf, -inf], float), 
-		np.array([+1, +1, +1,  +1, +1, +1,  +inf, +inf, +inf], float),
+		np.array([-2]*4 + [-inf]*3, float), 
+		np.array([+2]*4 + [+inf]*3, float), 
 		)
-	default = squeeze_homogeneous(mat4())
+	default = np.array([1,0,0,0,   0,0,0], float)
 	
 	def __init__(self, solids):
 		self.solids = solids
 	
 	def direct(self, parameters):
-		return unsqueeze_homogeneous(parameters)
+		m = mat4(quat(parameters[:4]))
+		m[3] = vec4(parameters[4:],1)
+		return m
 		
 	def inverse(self, matrix, close=None):
-		return squeeze_homogeneous(matrix)
+		return np.concatenate([quat(matrix), matrix[3].xyz])
 		
 	def grad(self, parameters):
-		h = np.zeros(squeezed_homogeneous, float)
-		grad = np.zeros((squeezed_homogeneous, 4, 4))
-		for i in range(squeezed_homogeneous):
-			h[i] = 1
-			grad[i] = unsqueeze_homogeneous(h)
-			h[i] = 0
-		grad[:,3,3] = 0
-		return grad
+		a,b,c,d,*_ = parameters
+		return (
+			mat4( 
+				 2*a,  2*d, -2*c, 0,
+				-2*d,  2*a,  2*b, 0,
+				 2*c, -2*b,  2*a, 0,
+				 0,   0,     0,   0,
+				),
+			mat4(
+				 2*b,  2*c,  2*d, 0,
+				 2*c, -2*b,  2*a, 0,
+				 2*d, -2*a, -2*b, 0,
+				 0,    0,    0,   0,
+				),
+			mat4(
+				-2*c,  2*b, -2*a, 0,
+				 2*b,  2*c,  2*d, 0,
+				 2*a,  2*d, -2*c, 0,
+				 0,    0,    0,   0,
+				),
+			mat4(
+				-2*d,  2*a,  2*b, 0,
+				-2*a, -2*d,  2*c, 0,
+				 2*b,  2*c,  2*d, 0,
+				 0,    0,    0,   0,
+				),
+			translate(X),
+			translate(Y),
+			translate(Z),
+			)
+			
+	def normalize(self, parameters):
+		return np.concatenate([normalize(quat(parameters[:4])), parameters[4:]])
 	
 	def __repr__(self):
 		return '{}({})'.format(self.__class__.__name__, self.solids)
@@ -272,9 +299,8 @@ class Reverse(Joint):
 	def __repr__(self):
 		return '{}({})'.format(self.__class__.__name__, self.joint)
 		
-	def scheme(self, scene):
-		a, b = self.joint.scheme(scene)
-		return (b, a)
+	def scheme(self, index, maxsize, attach_start, attach_end):
+		return self.joint.scheme(index, maxsize, attach_end, attach_start)
 
 class Chain(Joint):
 	''' 
@@ -558,6 +584,7 @@ class Kinematic:
 					joint = self.rev[joint]
 				chain.append(joint)
 			self.cycles.append(chain)
+		nprint(self.cycles)
 			
 	def cycles(self) -> list:
 		'''
@@ -715,19 +742,21 @@ class Kinematic:
 					lambda x: self.cost_residuals(structure_state(x, init), fixed), 
 					flatten_state(init), 
 					method = 'trf', 
-					bounds = (
-						flatten_state(mins), 
-						flatten_state(maxes),
-						), 
+					# bounds = (
+					# 	flatten_state(mins), 
+					# 	flatten_state(maxes),
+					# 	), 
 					jac = lambda x: self.cost_jacobian(structure_state(x, init), fixed), 
 					xtol = precision, 
 					max_nfev = maxiter,
+					# tr_solver = 'lsmr',
 					)
 		
-		if not res.success:
-			raise KinematicError('failed to converge: '+res.message, res)
-		if np.any(np.abs(res.fun) > precision):
-			raise KinematicError('position out of reach: no solution found for closing the kinematic cycles')
+		# if not res.success:
+		# 	raise KinematicError('failed to converge: '+res.message, res)
+		# print(res)
+		# if np.any(np.abs(res.fun) > precision):
+			# raise KinematicError('position out of reach: no solution found for closing the kinematic cycles')
 		
 		# structure results
 		result = iter(structure_state(res.x, init))
@@ -756,9 +785,9 @@ class Kinematic:
 		for joint in self.order:
 			base = poses.get(joint.solids[0]) or mat4()
 			tip = base * transforms[joint]
-			if joint.solids[-1] in poses:
-				if np.any(np.abs(poses[joint.solids[-1]] - tip) > precision):
-					raise KinematicError('position out of reach: kinematic cycles not closed')
+			# if joint.solids[-1] in poses:
+				# if np.any(np.abs(poses[joint.solids[-1]] - tip) > precision):
+					# raise KinematicError('position out of reach: kinematic cycles not closed')
 			poses[joint.solids[-1]] = tip
 		return poses
 		
@@ -787,10 +816,16 @@ class Kinematic:
 			raise KinematicError("the defined degrees of freedom cannot move") from err
 		# unsqueeze and nullify homogeneous coordinate
 		result = []
-		for grad in jac.T:
-			grad = unsqueeze_homogeneous(grad)
-			grad[3][3] = 0
-			result.append(grad)
+		# for i,grad in enumerate(jac.T):
+		# 	grad = unsqueeze_homogeneous(grad)
+		# 	grad[3][3] = 0
+		# 	result.append(grad)
+		
+		dmats = [j.grad(s)  for j,s in zip(self.joints[-len(self.outputs):], state[-len(self.outputs):])]
+		for i,djoint in enumerate(jac.T):
+			for dmat in dmats:
+				result.append(sum( dm * dj   for dm,dj in zip(dmat,djoint) ))
+					
 		return result
 		
 	def direct(self, parameters: list, close=None) -> list:

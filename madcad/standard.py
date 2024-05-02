@@ -1460,7 +1460,7 @@ def scara(backarm, forearm):
 
 def serial6(backarm, forearm):
 	''' 
-	kinematic of a classical serial robot arm with 7 degrees of freedom
+	kinematic of a classical serial robot arm with 6 degrees of freedom
 	
 	Parameters:
 		backarm:  backarm length
@@ -1510,17 +1510,32 @@ def delta3(base, tool, backarm, forearm, forearm_width=None):
 	motors = []
 	joints = []
 	for i, p in enumerate(arms):
-		motors.append(Revolute(('base', f'backarm.{i}'), Axis(p,cross(Z, p*base)), Axis(O,Z)))
-		joints.append(Ball((f'backarm.{i}', f'forearm.{i}.0'), O + forearm_width*Y, O))
-		joints.append(Ball((f'backarm.{i}', f'forearm.{i}.1'), O - forearm_width*Y, O))
-		joints.append(Ball(('tool', f'forearm.{i}.0'), p*tool + forearm_width*Y, forearm*Z))
-		joints.append(Ball(('tool', f'forearm.{i}.1'), p*tool - forearm_width*Y, forearm*Z))
+		motors.append(Revolute(('base', f'backarm.{i}'), Axis(p,cross(Z, p*base)), Axis(O,X)))
+		joints.append(Ball((f'backarm.{i}', f'forearm.{i}.0'), backarm*Z + forearm_width*X, O))
+		joints.append(Ball((f'backarm.{i}', f'forearm.{i}.1'), backarm*Z - forearm_width*X, O))
+		joints.append(Ball(('tool', f'forearm.{i}.0'), p*tool + forearm_width*cross(Z,p), forearm*Z))
+		joints.append(Ball(('tool', f'forearm.{i}.1'), p*tool - forearm_width*cross(Z,p), forearm*Z))
+		
+		# joints.append(Ball((f'backarm.{i}', f'forearm.{i}.0'), backarm*Z + forearm_width*X, O))
+		# joints.append(Ball((f'backarm.{i}', f'forearm.{i}.1'), backarm*Z - forearm_width*X, O))
+		# joints.append(Ball(('tool', f'forearm.{i}.0'), p*tool + forearm_width*cross(Z,p), forearm*Z))
+		# joints.append(Ball(('tool', f'forearm.{i}.1'), p*tool - forearm_width*cross(Z,p), forearm*Z))
 	return Kinematic(joints, inputs=motors, outputs=['tool'], ground='base')
 
 def delta4(backarm, forearm):
 	indev
 def delta6(backarm, forearm):
 	indev
+	
+# def stewart(base, tool, shaft, gap=None):
+# 	if gap is None:	gap = base*0.1
+# 	shafts = gt.regon(Axis(O,Z), 1, 3).points
+# 	motors = []
+# 	joints = []
+# 	for i in range(len(shafts)):
+# 		motors.append(Cylindrical((f'shaft.{i}.base', f'shaft.{i}.tool'), Axis(0.5*arm*Z, Z)))
+# 		joints.append(UniversalJoint(('base', f'shaft.{i}.base'), Axis(base*directions[i] - gap*cross(Z,directions[i]), directions[i]), Axis(O,X)))
+# 		joints.append(UniversalJoint(('base', f'shaft.{i+1}.base'), Axis(base*directions[i] + gap*cross(Z,directions[i]), directions[i]), Axis(O,X)))
 	
 '''
 * profilés
