@@ -406,7 +406,8 @@ class KinematicManip(Group):
 					np.dot(grad, move)**2 / (normsq(grad) + normsq(move) + self.prec)
 					for grad in jac) / self.min_colinearity)
 				
-				increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ (move * colinearity))
+				# increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ (move * colinearity))
+				increment = 0.
 				
 				nprint('increment', increment, self.pose)
 				
@@ -426,7 +427,7 @@ class KinematicManip(Group):
 					colinearity = min(1, sum(
 						np.dot(grad, move)**2 / (normsq(grad) + normsq(move) + self.prec)
 						for grad in jac) / self.min_colinearity)
-					increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ move)
+					# increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ move)
 					self.pose = structure_state(
 						flatten_state(self.pose)
 						+ increment * min(1, self.max_increment / np.abs(increment).max()),
