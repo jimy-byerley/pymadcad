@@ -3,6 +3,7 @@ from madcad.primitives import Axis
 from madcad.kinematic import *
 from madcad.joints import *
 from madcad.rendering import show
+from madcad import standard
 import numpy as np
 
 np.set_printoptions(linewidth=1000, precision=3)
@@ -23,7 +24,7 @@ np.set_printoptions(linewidth=1000, precision=3)
 # 	Revolute((3,0), Axis(Y,Z)),
 # 	])])
 
-# print('2 free pivot loops')
+# # print('2 free pivot loops')
 # show([Kinematic([
 # 	Revolute((0,1), Axis(O,Z)),
 # 	Revolute((1,2), Axis(X,Z)),
@@ -61,8 +62,23 @@ np.set_printoptions(linewidth=1000, precision=3)
 # show([Chain([
 # 	Prismatic((0,1), Axis(X,-X)),
 # 	Ball((1,2), O),
-# 	Prismatic((2,3), Axis(Y,Y)),
+# 	Reverse(Prismatic((3,2), Axis(Y,Y))),
 # 	])])
 
-from madcad import standard
-show([standard.serial6(1, 1), standard.serial7(1, 1)])
+# show([Chain([
+# 	Ball((0,1), -X-Y),
+# 	Ball((1,2), X-Y),
+# 	Ball((2,3), X+Y),
+# 	Ball((3,4), -X+Y),
+# 	])])
+
+# show([Kinematic([
+# 	Ball((0,1), -X-Y),
+# 	Ball((1,2), X-Y),
+# 	Ball((2,3), X+Y),
+# 	Ball((3,0), -X+Y),
+# 	])])
+
+# show([standard.serial6(1, 1), standard.serial7(1, 1)])
+
+show([standard.delta3(1, 0.5, 1, 2)])

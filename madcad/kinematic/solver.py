@@ -692,7 +692,7 @@ class Kinematic:
 		# assert jac.transpose((0,2,1)).shape == (len(cycles), 9, nvars)
 		return jac.transpose((0,2,1)).reshape((len(self.cycles)*squeezed_homogeneous, index))
 	
-	def solve(self, fixed:dict={}, close:list=None, precision=1e-6, maxiter=None) -> list:
+	def solve(self, fixed:dict={}, close:list=None, precision=1e-6, maxiter=None, strict=True) -> list:
 		'''
 			compute the joint positions for the given fixed solids positions
 			
@@ -722,44 +722,60 @@ class Kinematic:
 				>>> kinematic.solve({motor1: radians(90), motor2: radians(15)})
 				[...]
 		'''
-		
 		if close is None:
 			close = self.default
 		if len(self.cycles) == 0:
 			return close
-				
-		init = []
+		if strict is True:
+			strict = precision
+		elif not strict or strict <= 0:
+			strict = 0.
+		
+		max_increment = 0.3
+		prec = 1e-6
+		
+		# state when some joints are fixed
+		state = []
 		mins = []
 		maxes = []
 		for joint, p in zip(self.joints, close):
 			if joint not in fixed:
-				init.append(p)
+				state.append(p)
 				bounds = joint.bounds
 				mins.append(bounds[0])
 				maxes.append(bounds[1])
 		
-		res = scipy.optimize.least_squares(
-					lambda x: self.cost_residuals(structure_state(x, init), fixed), 
-					flatten_state(init), 
-					method = 'trf', 
-					# bounds = (
-					# 	flatten_state(mins), 
-					# 	flatten_state(maxes),
-					# 	), 
-					jac = lambda x: self.cost_jacobian(structure_state(x, init), fixed), 
-					xtol = precision, 
-					max_nfev = maxiter,
-					# tr_solver = 'lsmr',
-					)
-		
-		# if not res.success:
-		# 	raise KinematicError('failed to converge: '+res.message, res)
-		# print(res)
-		# if np.any(np.abs(res.fun) > precision):
-			# raise KinematicError('position out of reach: no solution found for closing the kinematic cycles')
+		k = 0
+		while True:
+			k += 1
+			if maxiter and k > maxiter and not strict:
+				break
+			
+			move = -self.cost_residuals(state)
+			error = np.abs(move).max()
+			if error <= precision:
+				break
+			elif maxiter and k > maxiter:
+				if error <= strict:
+					break
+				else:
+					raise KinematicError('convergence failed after maximum iterations')
+			
+			# newton method with a pseudo inverse
+			jac = self.cost_jacobian(state).transpose()
+			increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*prec, jac @ move)
+			state = structure_state(
+				flatten_state(state)
+				+ increment * min(1, max_increment / np.abs(increment).max()),
+				state)
+			
+			for i, joint in enumerate(self.joints):
+				if hasattr(joint, 'normalize'):
+					state[i] = joint.normalize(state[i])
+		print('solved in', k)
 		
 		# structure results
-		result = iter(structure_state(res.x, init))
+		result = iter(state)
 		final = []
 		for joint, default in zip(self.joints, close):
 			if joint in fixed:
@@ -785,10 +801,11 @@ class Kinematic:
 		for joint in self.order:
 			base = poses.get(joint.solids[0]) or mat4()
 			tip = base * transforms[joint]
-			# if joint.solids[-1] in poses:
-				# if np.any(np.abs(poses[joint.solids[-1]] - tip) > precision):
-					# raise KinematicError('position out of reach: kinematic cycles not closed')
-			poses[joint.solids[-1]] = tip
+			if joint.solids[-1] in poses:
+				if np.abs(poses[joint.solids[-1]] - tip).max() > precision:
+					raise KinematicError('position out of reach: kinematic cycles not closed')
+			else:
+				poses[joint.solids[-1]] = tip
 		return poses
 		
 	def freedom(self, state, precision=1e-6) -> list:
@@ -798,7 +815,7 @@ class Kinematic:
 			Note:
 				When state is a singular position in the kinematic, the degree of freedom is locally smaller or bigger than in other positions
 		'''
-		return scipy.linalg.null_space(self.cost_jacobian(state), precision).transpose()
+		return null_space(self.cost_jacobian(state), precision).transpose()
 	
 	def grad(self, state) -> dict:
 		''' 
@@ -814,18 +831,12 @@ class Kinematic:
 			jac = outputs @ la.inv(inputs.T @ inputs) @ inputs.T
 		except la.LinAlgError as err:
 			raise KinematicError("the defined degrees of freedom cannot move") from err
-		# unsqueeze and nullify homogeneous coordinate
+		# get matrix derivatives for each output joint
 		result = []
-		# for i,grad in enumerate(jac.T):
-		# 	grad = unsqueeze_homogeneous(grad)
-		# 	grad[3][3] = 0
-		# 	result.append(grad)
-		
 		dmats = [j.grad(s)  for j,s in zip(self.joints[-len(self.outputs):], state[-len(self.outputs):])]
 		for i,djoint in enumerate(jac.T):
 			for dmat in dmats:
 				result.append(sum( dm * dj   for dm,dj in zip(dmat,djoint) ))
-					
 		return result
 		
 	def direct(self, parameters: list, close=None) -> list:
@@ -881,6 +892,16 @@ def structure_state(flat, structure):
 	else:
 		raise TypeError("cannot structure {}".format(type(structure)))
 
+def null_space(m, rcond=None):
+	''' equivalent to `scipy.linalg.null_space` but 10x faster because using the numpy SVD '''
+	u, s, vh = la.svd(m)
+	M, N = u.shape[0], vh.shape[1]
+	if rcond is None:
+		rcond = np.finfo(s.dtype).eps * max(M, N)
+	tol = np.amax(s) * rcond
+	dim = np.sum(s > tol, dtype=int)
+	return vh[dim:,:].T.conj()
+
 def cycles(conn: '{node: [node]}') -> '[[node]]':
 	''' extract a set of any-length cycles decomposing the graph '''
 	todo
@@ -891,6 +912,7 @@ def shortcycles(conn: '{node: [node]}', costs: '{node: float}', branch=True, tre
 		
 		.. image:: /schemes/kinematic-cycles.svg
 	'''
+	# TODO: debug this because now it is not producing the shortest cycles
 	# orient the graph in a depth-first way, and search for fusion points
 	distances = {}
 	merges = []
