@@ -48,7 +48,7 @@ scene = {
 	'display_grid': True,
 	'display_annotations': True,
 	'surface_shading': True,
-	'kinematic_manipulation': 'rotate',
+	'kinematic_manipulation': 'joint',
 	
 	'lock_solids': True,
 	

@@ -63,22 +63,23 @@ print(Kinematic([
 	Revolute((4,3), Axis(2*X+Y,Z)),
 	]).solve(close=2*pi*np.random.random(6)))
 
-print('stretched chain')
-njoints = 80
-joints = []
-for i in range(0, njoints, 2):
-	joints.append(Revolute((i,i+1), Axis(vec3(i+1,i,0), X)))
-	joints.append(Revolute((i+1,i+2), Axis(vec3(i+1,i+1,0), Y)))
-joints[-1].solids = (len(joints)-1, 0)
-print(Kinematic(joints).solve(close=2*pi*np.random.random(len(joints))))
+# print('stretched chain')
+# njoints = 80
+# joints = []
+# for i in range(0, njoints, 2):
+# 	joints.append(Revolute((i,i+1), Axis(vec3(i+1,i,0), X)))
+# 	joints.append(Revolute((i+1,i+2), Axis(vec3(i+1,i+1,0), Y)))
+# joints[-1].solids = (len(joints)-1, 0)
+# print(Kinematic(joints).solve(close=2*pi*np.random.random(len(joints)), precision=1e-3, maxiter=1000))
 
 print('looping chain')
+njoints = 80
 joints = []
 for i in range(0, njoints, 2):
 	joints.append(Revolute((i,i+1), Axis(X,X), Axis(O,X)))
 	joints.append(Revolute((i+1,i+2), Axis(Y,Y), Axis(O,Y)))
 joints[-1].solids = (len(joints)-1, 0)
-print(Kinematic(joints).solve(close=2*pi*np.random.random(len(joints))))
+print(Kinematic(joints).solve(close=2*pi*np.random.random(len(joints)), maxiter=1000))
 
 print('grid')
 size = 5
@@ -91,4 +92,4 @@ for x in range(size):
 			joints.append(Revolute((name(x-1,y), name(x,y)), Axis(vec3(1,0,0),Z), Axis(O,Z)))
 		if y > 0:
 			joints.append(Revolute((name(x,y-1), name(x,y)), Axis(vec3(0,1,0),Z), Axis(O,Z)))
-print(Kinematic(joints).solve(close=2*pi*np.random.random(len(joints))))
+print(Kinematic(joints).solve(close=2*pi*np.random.random(len(joints)), precision=1e-3, maxiter=1000))

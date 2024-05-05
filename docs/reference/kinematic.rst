@@ -9,21 +9,25 @@ kinematic   - Kinematic solver/constraint system
 
 .. autoclass:: Kinematic
 	
-	.. automethod:: cycles
-	.. automethod:: solve
+	.. automethod:: normalize
 	.. automethod:: direct
 	.. automethod:: inverse
-	.. automethod:: freedom
 	.. automethod:: grad
+	.. automethod:: cycles
+	.. automethod:: solve
+	.. automethod:: freedom
 	.. automethod:: parts
 	.. automethod:: display
+	
+	.. automethod:: to_chain
 
 .. autoclass:: Joint
 	
+	.. automethod:: normalize
 	.. automethod:: direct
 	.. automethod:: inverse
-	
 	.. automethod:: grad
+	
 	.. automethod:: transmit
 	.. automethod:: scheme
 	.. automethod:: display
@@ -36,6 +40,10 @@ kinematic   - Kinematic solver/constraint system
 
 .. autoclass:: Chain
 
+	.. automethod:: normalize
+	.. automethod:: direct
+	.. automethod:: inverse
+	.. automethod:: grad
 	.. automethod:: parts
 	
 	.. automethod:: to_kinematic

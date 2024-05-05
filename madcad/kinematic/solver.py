@@ -58,19 +58,19 @@ class Joint:
 	# parameter bounds if any
 	bounds = (-inf, inf)
 	
-	def normalize(self, parameters) -> 'params':
+	def normalize(self, state) -> 'params':
 		'''  make the given joint coordinates consistent. For most joint is is a no-op or just coordinates clipping
 		
 			for complex joints coordinates containing quaternions or directions or so, it may need to perform normalizations or orthogonalizations or so on.
 			This operation may be implemented in-place or not.
 		'''
-		return parameters
+		return state
 	
-	def direct(self, parameters) -> 'mat4':
+	def direct(self, state) -> 'mat4':
 		''' direct kinematic computation
 		
 			Parameters:
-				parameters:	
+				state:	
 				
 					the parameters defining the joint state
 					It can be any type accepted by `numpy.array`
@@ -80,10 +80,10 @@ class Joint:
 		'''
 		raise NotImplemented
 	
-	def inverse(self, matrix, close=None) -> 'params':
+	def inverse(self, matrix, close=None, precision=1e-6, maxiter=None, strict=0.) -> list:
 		''' inverse kinematic computation
 		
-			the default implementation is using a least squares method on the matrix coefficients
+			the default implementation is using a newton method to nullify the error between the given and acheived matrices
 			
 			Parameters:
 				matrix:	the transfer matrix from solids `self.stop` to `self.start` we want the parameters for
@@ -92,37 +92,67 @@ class Joint:
 					a know solution we want the result the closest to.
 					if not specified, it defaults to `self.default`
 			
+				precision: 
+					desired error tolerance on the given matrix, this function returns once reached
+				strict:  
+					expected error tolerance on the given matrix, if not reached after `maxiter` iterations, this function will raise `KinematicError`.
+					Leave it to 0 to raise when `precision` has not been reached
+				maxiter:  
+					maximum number of iterations allowed, or None if not limit
+			
 			Returns:
 				the joint parameters so that `self.direct(self.inverse(x)) == x` (modulo numerical precision)
 		'''
-		res = scipy.optimize.least_squares(
-			lambda x: np.asanyarray(self.direct(x) - matrix).ravel()**2, 
-			close if close is not None else self.default, 
-			bounds=self.bounds,
-			)
-		if res.success:
-			return res.x
-		raise KinematicError('unable to inverse')
+		if close is None:
+			close = self.default
+		max_increment = 0.3
+		
+		state = close
+		k = 0
+		while True:
+			k += 1
+			if maxiter and k > maxiter and not strict:
+				break
+			
+			move = matrix - self.direct(state)
+			error = np.abs(move).max()
+			if error <= precision:
+				break
+			elif maxiter and k > maxiter:
+				if error <= strict:
+					break
+				else:
+					raise KinematicError('convergence failed after maximum iterations')
+			
+			# newton method with a pseudo inverse
+			jac = self.grad(state)
+			increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ move)
+			# apply correction to pose
+			state = self.normalize(structure_state(
+							flatten_state(state)
+							+ increment * min(1, max_increment / np.abs(increment).max()), 
+							state))
+		return state
 	
-	def grad(self, parameters, delta=1e-6) -> '[mat4]':
+	def grad(self, state, delta=1e-6) -> '[mat4]':
 		''' compute the gradient of the direct kinematic 
 		
 			The default implementation is using a finite differentiation
 		
 			Parameters:
-				parameters:	anything accepted by `self.direct()` including singularities
+				state:	anything accepted by `self.direct()` including singularities
 				delta:	finite differentiation interval
 			
 			Returns:
 				a list of the matrix derivatives of `self.direct()`, one each parameter
 		'''
 		grad = []
-		base = self.direct(parameters)
-		for i in range(len(parameters)):
-			grad.append(partial_difference(self.direct, parameters, base, i, delta))
+		base = self.direct(state)
+		for i in range(len(state)):
+			grad.append(partial_difference(self.direct, state, base, i, delta))
 		return grad
 	
-	def transmit(self, force: 'Screw', parameters=None, velocity=None) -> 'Screw':
+	def transmit(self, force: 'Screw', state=None, velocity=None) -> 'Screw':
 		''' compute the force transmited by the kinematic chain in free of its moves
 			
 			The default implementation uses the direct kinematic gradient to compute the moving directions of the chain
@@ -130,21 +160,21 @@ class Joint:
 			Parameters:
 				force:	force sent by `self.start` in its coordinate system
 				
-				parameters:  
+				state:  
 					
 					the joint position in which the joint is at the force transmision instant.
 					If not specified it defaults to `self.default` (many joints transmit the same regardless of their position)
 				
 				velocity:  
 				
-					current derivative of `parameters` at the transmision instant
+					current derivative of `state` at the transmision instant
 					Perfect joints are transmiting the same regardless of their velocity
 					
 			Returns:	
 				force received by `self.stop` in its coordinate system
 		'''
-		if not parameters:	parameters = self.default
-		grad = self.grad(parameters)
+		if not state:	state = self.default
+		grad = self.grad(state)
 		indev
 	
 	def scheme(self, size: float, junc: vec3=None) -> '[Scheme]':
@@ -212,7 +242,7 @@ class Free(Joint):
 		joint of complete freedom.
 		it adds no effective constraint to the start and end solids. its parameter is its transformation matrix.
 		
-		it is useful to control the explicit pose of a solid solid in a kinematic.
+		it is useful to control the explicit relative pose of solids in a kinematic.
 	'''
 	def __init__(self, solids):
 		self.solids = solids
@@ -327,6 +357,10 @@ class Reverse(Joint):
 	def scheme(self, index, maxsize, attach_start, attach_end):
 		return self.joint.scheme(index, maxsize, attach_end, attach_start)
 
+
+
+
+
 class Chain(Joint):
 	''' 
 		Kinematic chain, This chain of joints acts like one only joint
@@ -337,17 +371,26 @@ class Chain(Joint):
 		This class is often used instead of `Kinematic` when possible, because having more efficient `inverse()` and `direct()` methods dedicated to kinematics with one only cycle. It also has simpler in/out parameters since a chain has only two ends where a random kinematic may have many
 		
 		A `Chain` doesn't tolerate modifications of the type of its joints once instanciated. a joint placement can be modified as long as it doesn't change its hash.
-	'''
-	def __init__(self, joints, content:list=None):
-		# TODO: add an argument for displays, like solids in Kinematic constructor
 		
+		Attributes:
+			joints (list):  
+				joints in the chaining order
+				it must satisfy `joints[i].solids[-1] == joints[i+1].solids[0]`
+			content (list):
+				displayables matching solids, its length must be `len(joints)+1`
+			
+			solids (tuple):  the (start,end) joints of the chain, as defined in `Joint`
+			default:  the default joints positions
+			bounds:   the (min,max) joints positions
+	'''
+	def __init__(self, joints, content:list=None, default=None):
 		if not all(joints[i-1].solids[-1] == joints[i].solids[0]  
 				for i in range(1, len(joints))):
 			raise ValueError('joints do not form a direct chain, joints are not ordered or badly oriented')
 		self.joints = joints
 		self.content = content
 		self.solids = (joints[0].solids[0], joints[-1].solids[-1])
-		self.default = [joint.default  for joint in self.joints]
+		self.default = default or [joint.default  for joint in self.joints]
 		self.bounds = (
 			[joint.bounds[0]  for joint in self.joints],
 			[joint.bounds[1]  for joint in self.joints],
@@ -359,49 +402,19 @@ class Chain(Joint):
 			state[i] = joint.normalize(state[i])
 		return state
 	
-	def direct(self, parameters):
+	def direct(self, state) -> mat4:
 		b = mat4()
-		for x, joint in zip(parameters, self.joints):
+		for x, joint in zip(state, self.joints):
 			b *= joint.direct(x)
 		return b
 	
-	def inverse(self, matrix, close=None, precision=1e-6, maxiter=None):
-		if close is None:
-			close = self.default
-		
-		def cost(x):
-			cost = squeeze_homogeneous(self.direct(structure_state(x, close)) - matrix)
-			return np.asanyarray(cost).ravel()
-			
-		def jac(x):
-			jac = self.grad(structure_state(x, close))
-			return np.asanyarray(flatten(jac)).reshape((len(x), squeezed_homogeneous)).transpose((1,0))
-		
-		# solve
-		res = scipy.optimize.least_squares(
-					cost, 
-					flatten_state(close), 
-					method = 'trf', 
-					bounds = (
-						flatten_state(mins), 
-						flatten_state(maxes),
-						), 
-					jac = jac, 
-					xtol = precision, 
-					max_nfev = maxiter,
-					)
-		if not res.success:
-			raise KinematicError(res.message, res)
-			
-		return structure_state(res.x, close)
-	
-	def grad(self, parameters):
+	def grad(self, state) -> list:
 		''' the jacobian of the flattened parameters list '''
 		# built the left side of the gradient product of the direct joint
 		directs = []
 		grad = []
 		b = mat4(1)
-		for x, joint in zip(parameters, self.joints):
+		for x, joint in zip(state, self.joints):
 			f = joint.direct(x)
 			g = regularize_grad(joint.grad(x))
 			directs.append((f, len(grad)))
@@ -417,15 +430,15 @@ class Chain(Joint):
 			b = f*b
 		return grad
 	
-	def parts(self, parameters) -> list:
+	def parts(self, state) -> list:
 		''' return the pose of each solid in the chain '''
 		solids = [mat4()] * (len(self.joints)+1)
 		for i in range(len(self.joints)):
-			solids[i+1] = solids[i] * self.joints[i].direct(parameters[i])
+			solids[i+1] = solids[i] * self.joints[i].direct(state[i])
 		return solids
 		
 	def to_kinematic(self) -> 'Kinematic':
-		return Kinematic(direct=self.joints, inverse=[Free(self.solids)], ground=self.solids[0])
+		return Kinematic(inputs=self.joints, outputs=[self.solids[-1]], ground=self.solids[0])
 		
 	def to_dh(self) -> '(dh, transforms)':
 		''' 
@@ -542,8 +555,9 @@ class Kinematic:
 			default:  the default joint pose of the kinematic
 			bounds:   a tuple of (min, max) joint poses
 	'''
-	def __init__(self, joints:list=[], content:dict=None, ground=0, inputs=None, outputs=None):
-		
+	def __init__(self, joints:list=[], content:dict=None, ground=None, inputs=None, outputs=None):
+		if ground is None and joints:
+			ground = joints[0].solids[0]
 		if (inputs is None) ^ (outputs is None):
 			raise TypeError("inputs and outputs must be both provided or undefined")
 		elif inputs and outputs:	
@@ -632,9 +646,6 @@ class Kinematic:
 			raise ValueError("this kinematic has cycles and do not form a chain")
 		return Chain(self.cycles[0])
 	
-	def to_urdf(self):  
-		indev
-	
 	def cost_residuals(self, state, fixed=()):
 		'''
 			build residuals to minimize to satisfy the joint constraints
@@ -722,7 +733,7 @@ class Kinematic:
 		# assert jac.transpose((0,2,1)).shape == (len(cycles), 9, nvars)
 		return jac.transpose((0,2,1)).reshape((len(self.cycles)*squeezed_homogeneous, index))
 	
-	def solve(self, fixed:dict={}, close:list=None, precision=1e-6, maxiter=None, strict=True) -> list:
+	def solve(self, fixed:dict={}, close:list=None, precision=1e-6, maxiter=None, strict=0.) -> list:
 		'''
 			compute the joint positions for the given fixed solids positions
 			
@@ -731,9 +742,13 @@ class Kinematic:
 				close:  
 					the joint positions we want the result the closest to. 
 					If not provided, `self.default` will be used
-				precision:
-					the precision of the expected loop closing. kinematic loop transformations ending with a difference above this precision will raise a `KinematicError`
-				maxiter: maximum number of iterations allowed to the solver
+				precision:  
+					the desired precision tolerance for kinematic loops closing. this function returns once reached
+				strict:  
+					expected error tolerance on the kinematic loops closing, if not reached after `maxiter` iterations, this function will raise `KinematicError`.
+					Leave it to 0 to raise when `precision` has not been reached
+				maxiter:  
+					maximum number of iterations allowed, or None if not limit
 			
 			Return:  the joint positions allowing the kinematic to have the fixed solids in the given poses
 			Raise: KinematicError if no joint position can satisfy the fixed positions
@@ -756,29 +771,22 @@ class Kinematic:
 			close = self.default
 		if len(self.cycles) == 0:
 			return close
-		if strict is True:
-			strict = precision
-		elif not strict or strict <= 0:
-			strict = 0.
 		
 		max_increment = 0.3
 		prec = 1e-6
 		
 		# state when some joints are fixed
+		joints = []
 		state = []
-		mins = []
-		maxes = []
 		for joint, p in zip(self.joints, close):
 			if joint not in fixed:
+				joints.append(joint)
 				state.append(p)
-				bounds = joint.bounds
-				mins.append(bounds[0])
-				maxes.append(bounds[1])
 		
 		k = 0
 		while True:
 			k += 1
-			if maxiter and k > maxiter and not strict:
+			if maxiter and k > maxiter and strict==inf:
 				break
 			
 			move = -self.cost_residuals(state)
@@ -799,10 +807,9 @@ class Kinematic:
 				+ increment * min(1, max_increment / np.abs(increment).max()),
 				state)
 			
-			for i, joint in enumerate(self.joints):
-				if hasattr(joint, 'normalize'):
-					state[i] = joint.normalize(state[i])
-		print('solved in', k)
+			for i, joint in enumerate(joints):
+				state[i] = joint.normalize(state[i])
+		print('acheived in iteration', k, 'with error', error)
 		
 		# structure results
 		result = iter(state)
@@ -817,6 +824,9 @@ class Kinematic:
 	def parts(self, state, precision=1e-6) -> dict:
 		''' return the pose of all solids in the kinematic for the given joints positions 
 			The arguments are the same as for `self.direct()`
+			
+			Parameters:
+				precision:  error tolerance for kinematic loop closing, if a loop is above this threshold this function will raise `KinematicError`
 		'''
 		if isinstance(state, dict):
 			state = [state.get(joint) or joint.default  for joint in self.joints]
@@ -832,6 +842,7 @@ class Kinematic:
 			base = poses.get(joint.solids[0]) or mat4()
 			tip = base * transforms[joint]
 			if joint.solids[-1] in poses:
+				# check that the given state is consistent, meaning kinematic loops are closed
 				if np.abs(poses[joint.solids[-1]] - tip).max() > precision:
 					raise KinematicError('position out of reach: kinematic cycles not closed')
 			else:
@@ -858,7 +869,7 @@ class Kinematic:
 			return a gradient of the all the solids poses at the given joints position 
 			
 			Note:
-				this function will ignore any degree of freedom of the kinematic that is not defined in `direct_parameters`
+				this function will ignore any degree of freedom of the kinematic that is not defined in `inputs`
 		'''
 		free = self.freedom(state).T
 		inputs, outputs = free[:self.inputs_dim], free[-self.outputs_dim:]

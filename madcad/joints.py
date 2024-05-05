@@ -422,7 +422,6 @@ class Cylindrical(Joint):
 			
 		return sch
 
-from .nprint import nprint
 class Ball(Joint):
 	''' Joint for rotation all around a point.
 	
