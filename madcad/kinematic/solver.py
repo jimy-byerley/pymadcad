@@ -58,6 +58,14 @@ class Joint:
 	# parameter bounds if any
 	bounds = (-inf, inf)
 	
+	def normalize(self, parameters) -> 'params':
+		'''  make the given joint coordinates consistent. For most joint is is a no-op or just coordinates clipping
+		
+			for complex joints coordinates containing quaternions or directions or so, it may need to perform normalizations or orthogonalizations or so on.
+			This operation may be implemented in-place or not.
+		'''
+		return parameters
+	
 	def direct(self, parameters) -> 'mat4':
 		''' direct kinematic computation
 		
@@ -206,14 +214,17 @@ class Free(Joint):
 		
 		it is useful to control the explicit pose of a solid solid in a kinematic.
 	'''
+	def __init__(self, solids):
+		self.solids = solids
+		
 	bounds = (
 		np.array([-2]*4 + [-inf]*3, float), 
 		np.array([+2]*4 + [+inf]*3, float), 
 		)
 	default = np.array([1,0,0,0,   0,0,0], float)
-	
-	def __init__(self, solids):
-		self.solids = solids
+			
+	def normalize(self, parameters):
+		return np.concatenate([normalize(quat(parameters[:4])), parameters[4:]])
 	
 	def direct(self, parameters):
 		m = mat4(quat(parameters[:4]))
@@ -226,6 +237,7 @@ class Free(Joint):
 	def grad(self, parameters):
 		a,b,c,d,*_ = parameters
 		return (
+			# derivatives of quaternion based rotation matrix (column major of course)
 			mat4( 
 				 2*a,  2*d, -2*c, 0,
 				-2*d,  2*a,  2*b, 0,
@@ -250,6 +262,7 @@ class Free(Joint):
 				 2*b,  2*c,  2*d, 0,
 				 0,    0,    0,   0,
 				),
+			# derivatives of translation (column major of course)
 			mat4(
 				 0,    0,    0,   0,
 				 0,    0,    0,   0,
@@ -269,9 +282,6 @@ class Free(Joint):
 				 0,    0,    1,   0,
 				),
 			)
-			
-	def normalize(self, parameters):
-		return np.concatenate([normalize(quat(parameters[:4])), parameters[4:]])
 	
 	def __repr__(self):
 		return '{}({})'.format(self.__class__.__name__, self.solids)
@@ -342,6 +352,12 @@ class Chain(Joint):
 			[joint.bounds[0]  for joint in self.joints],
 			[joint.bounds[1]  for joint in self.joints],
 			)
+		
+	def normalize(self, state) -> list:
+		''' inplace normalize the joint coordinates in the given state '''
+		for i, joint in enumerate(self.joints):
+			state[i] = joint.normalize(state[i])
+		return state
 	
 	def direct(self, parameters):
 		b = mat4()
@@ -821,6 +837,12 @@ class Kinematic:
 			else:
 				poses[joint.solids[-1]] = tip
 		return poses
+		
+	def normalize(self, state) -> list:
+		''' inplace normalize the joint coordinates in the given state '''
+		for i, joint in enumerate(self.joints):
+			state[i] = joint.normalize(state[i])
+		return state
 		
 	def freedom(self, state, precision=1e-6) -> list:
 		''' 

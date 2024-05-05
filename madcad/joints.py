@@ -450,6 +450,9 @@ class Ball(Joint):
 	
 	bounds = (quat(-2,-2,-2,-2), quat(2,2,2,2))
 	default = quat()
+			
+	def normalize(self, orient):
+		return normalize(quat(orient))
 	
 	def direct(self, orient):
 		return self.post * mat4(normalize(quat(orient))) * self.pre
@@ -485,9 +488,6 @@ class Ball(Joint):
 				 0,    0,    0,   0,
 				) * self.pre,
 			)
-			
-	def normalize(self, orient):
-		return normalize(quat(orient))
 	
 	def transmit(self, force, parameters=None, velocity=None):
 		return Screw(vec3(0), force.momentum, self.center)

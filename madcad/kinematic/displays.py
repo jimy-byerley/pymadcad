@@ -170,11 +170,10 @@ class ChainManip(Group):
 							for grad in jac) / self.min_colinearity)
 				# combination of the closest directions to the mouse position
 				increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ (move * colinearity))
-				self.pose[joint] = (np.asarray(self.pose[joint]) 
+				self.pose[joint] = self.chain.joints[joint].normalize(
+										(np.asarray(self.pose[joint]) 
 										+ increment * min(1, self.max_increment / np.abs(increment).max())
-										) .clip(*self.chain.joints[joint].bounds)
-				if hasattr(self.chain.joints[joint], 'normalize'):
-					self.pose[joint] = self.chain.joints[joint].normalize(self.pose[joint])
+									) .clip(*self.chain.joints[joint].bounds))
 				self.parts = self.chain.parts(self.pose)
 
 	def move_translate(self, dispatcher, view, sub, evt):
@@ -284,16 +283,18 @@ class KinematicManip(Group):
             parts:      solids poses in the last rendered frame
             toolcenter:  current solid rotation point in rotation mode, relative to kinematic ground
 	'''
-	min_colinearity = 1e-2
 	max_increment = 0.3
 	prec = 1e-6
+	move_precision = 1e-4
+	stay_precision = 1e-6
+	tolerated_precision = 1e-1
 	
 	def __init__(self, scene, kinematic, pose=None, toolcenter=None):
 		super().__init__(scene)
 		self.kinematic = kinematic
 		self.toolcenter = toolcenter or vec3(0)
-		self.pose = self.kinematic.solve(close=pose or self.kinematic.default, maxiter=10000, precision=1e-2, strict=1e-1)
-		self.parts = self.kinematic.parts(self.pose, precision=1e-1)
+		self.pose = self.kinematic.solve(close=pose or self.kinematic.default, maxiter=10000, precision=self.move_precision, strict=self.tolerated_precision)
+		self.parts = self.kinematic.parts(self.pose, precision=self.tolerated_precision)
 		
 		if self.kinematic.content:
 			for key, solid in self.kinematic.content.items():
@@ -360,6 +361,45 @@ class KinematicManip(Group):
 					break
 			
 			self.toolcenter = affineInverse(place) * (view.ptfrom(evt.pos(), init) + offset)
+					
+	def move_opt(self, optmove, optjac):
+		'''
+			newton method step for moving the mechanism
+			
+			Parameters:
+				optmove:  the vector of the desired optional movement
+				optjac:   the jacobian of the residuals for the desired optional movement
+		'''
+		costmove = -self.kinematic.cost_residuals(self.pose)
+		# priority factor, lowering the optional move while the closed loop error is big
+		priority = self.move_precision / max(self.move_precision, (costmove**2).max())
+		# colinearity factor, lowering the optional move while it doesn't match the mechanism degrees of freedom
+		colinearity = min(1, max(
+			np.dot(optgrad, optmove)**2 / (normsq(optgrad) * normsq(optmove) + self.prec**4)
+			for optgrad in optjac))
+		
+		# complete problem to solve
+		move = np.hstack([
+			optmove * colinearity * priority, 
+			costmove,
+			])
+		jac = np.hstack([
+			optjac,
+			self.kinematic.cost_jacobian(self.pose).transpose(),
+			])
+		increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ move)
+		# assemble the new pose and normalize it
+		newpose = self.kinematic.normalize(structure_state(
+			flatten_state(self.pose)
+			+ increment * min(1, self.max_increment / np.abs(increment).max()),
+			self.pose))
+		
+		# try to move
+		try:
+			self.parts = self.kinematic.parts(self.pose, precision=self.tolerated_precision)
+			self.pose = newpose
+		except KinematicError:
+			pass
 	
 	def move_joint(self, dispatcher, view, sub, evt):
 		# identify the solid clicked
@@ -373,15 +413,10 @@ class KinematicManip(Group):
 			inputs = self.kinematic.joints,
 			outputs = [moved],
 			)
-		pose = (
-			*self.pose, 
-			kinematic.joints[-1].inverse(self.parts[moved]),
-			)
 		# constants during translation
 		clicked = view.ptat(view.somenear(evt.pos()))
 		solid = self.parts[moved]
 		anchor = affineInverse(mat4(self.world * self.local) * solid) * vec4(clicked,1)
-		init_solid = solid
 		
 		while True:
 			evt = yield
@@ -392,106 +427,23 @@ class KinematicManip(Group):
 				if not (evt.buttons() & Qt.LeftButton):
 					break
 
-				solid = self.parts[moved]
-				jac = kinematic.grad(pose)
 				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world * self.local)
-				current_anchor = model * solid * anchor
 				target_anchor = qtpos(evt.pos(), view)
-				
-				move = np.asarray(target_anchor - current_anchor.xy / current_anchor.w)
-				jac = np.stack([
-					np.asarray((model * grad * anchor).xy / current_anchor.w)
-					for grad in jac])
-				colinearity = min(1, sum(
-					np.dot(grad, move)**2 / (normsq(grad) + normsq(move) + self.prec)
-					for grad in jac) / self.min_colinearity)
-				
-				increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ (move * colinearity))
-				
-				try:
-					self.pose = self.kinematic.solve(close=structure_state(
-						flatten_state(self.pose) 
-						+ increment * min(1, self.max_increment / np.abs(increment).max()),
-						self.pose), maxiter=20, precision=1e-3, strict=1e-1)
-				except KinematicError:
-					pass
-				else:
-					self.parts = self.kinematic.parts(self.pose, precision=1.)
-					pose = (
-						*self.pose, 
-						kinematic.joints[-1].inverse(self.parts[moved]),
-						)
-	
-	def move_joint(self, dispatcher, view, sub, evt):
-		# identify the solid clicked
-		if sub[0] == 'scheme':  moved = self.index[sub[1]]
-		else:                   moved = sub[0]
-		if moved == 0:
-			return
-		# define the kinematic problem in term of that solid, so we can get a gradient
-		kinematic = Kinematic(
-			ground = self.kinematic.ground, 
-			inputs = self.kinematic.joints,
-			outputs = [moved],
-			)
-		pose = (
-			*self.pose, 
-			kinematic.joints[-1].inverse(self.parts[moved]),
-			)
-		# constants during translation
-		clicked = view.ptat(view.somenear(evt.pos()))
-		solid = self.parts[moved]
-		anchor = affineInverse(mat4(self.world * self.local) * solid) * vec4(clicked,1)
-		init_solid = solid
-		
-		while True:
-			evt = yield
-			# drag
-			if evt.type() in (QEvent.MouseMove, QEvent.MouseButtonRelease):
-				evt.accept()
-				view.update()
-				if not (evt.buttons() & Qt.LeftButton):
-					break
-
-				freejac = kinematic.grad(pose)
-				target_anchor = qtpos(evt.pos(), view)
+				freejac = kinematic.grad((
+					*self.pose, 
+					kinematic.joints[-1].inverse(self.parts[moved]),
+					))
 				
 				for i in range(10):
 					solid = self.parts[moved]
-					model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world * self.local)
 					current_anchor = model * solid * anchor
 					
-					move = np.concatenate([
-						np.asarray(target_anchor - current_anchor.xy / current_anchor.w),
-						-self.kinematic.cost_residuals(self.pose),
-						])
-					jac = np.hstack([
-						np.stack([
-							np.asarray((model * grad * anchor).xy / current_anchor.w)
-							for grad in freejac]),
-						self.kinematic.cost_jacobian(self.pose).transpose(),
-						])
-					colinearity = min(1, max(
-						np.dot(grad[:2], move[:2])**2 / (normsq(grad[:2]) * normsq(move[:2]) + self.prec**4)
-						for grad in jac) / 1)
-					move[:2] *= 1e-4 / max(1e-4, (move[2:]**2).max())
-					move[:2] *= colinearity
-					increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ move)
-					
-					self.pose = structure_state(
-						flatten_state(self.pose)
-						+ increment * min(1, self.max_increment / np.abs(increment).max()),
-						self.pose)
-					
-					for i, joint in enumerate(self.kinematic.joints):
-						if hasattr(joint, 'normalize'):
-							self.pose[i] = joint.normalize(self.pose[i])
-					
-					self.parts = self.kinematic.parts(self.pose, precision=10.)
-				pose = (
-					*self.pose, 
-					kinematic.joints[-1].inverse(self.parts[moved]),
-					)
+					self.move_opt(
+						optmove = np.asarray(target_anchor - current_anchor.xy / current_anchor.w),
+						optjac = np.stack([
+								np.asarray((model * grad * anchor).xy / current_anchor.w)
+								for grad in freejac]),
+						)
 	
 	def move_translate(self, dispatcher, view, sub, evt):
 		# identify the solid clicked
@@ -505,10 +457,6 @@ class KinematicManip(Group):
 			inputs = self.kinematic.joints,
 			outputs = [moved],
 			)
-		pose = (
-			*self.pose, 
-			kinematic.joints[-1].inverse(self.parts[moved]),
-			)
 		# constants during translation
 		clicked = view.ptat(view.somenear(evt.pos()))
 		solid = self.parts[moved]
@@ -524,43 +472,29 @@ class KinematicManip(Group):
 				if not (evt.buttons() & Qt.LeftButton):
 					break
 
-				solid = self.parts[moved]
-				jac = kinematic.grad(pose)
 				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world * self.local)
-				current_anchor = model * solid * anchor
 				target_anchor = qtpos(evt.pos(), view)
-				
-				move = np.concatenate([
-					target_anchor - current_anchor.xy / current_anchor.w,
-					np.ravel(mat3(init_solid - solid)),
-					])
-				jac = np.stack([
-					np.concatenate([
-						(model * grad * anchor).xy / current_anchor.w, 
-						np.ravel(mat3(grad)), 
-						])
-					for grad in jac])
-				colinearity = min(1, sum(
-					np.dot(grad, move)**2 / (normsq(grad) + normsq(move) + self.prec)
-					for grad in jac) / self.min_colinearity)
-				
-				increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ (move * colinearity))
-				
-				# nprint('increment', increment, self.pose)
-				
-				self.pose = self.kinematic.solve(close=structure_state(
-					flatten_state(self.pose) 
-					+ increment.clip(-self.max_increment, self.max_increment),
-					self.pose))
-				# self.pose = structure_state(
-				# 	flatten_state(self.pose) 
-				# 	+ increment.clip(-self.max_increment, self.max_increment),
-				# 	self.pose)
-				self.parts = self.kinematic.parts(self.pose)
-				pose = (
+				jac = kinematic.grad((
 					*self.pose, 
 					kinematic.joints[-1].inverse(self.parts[moved]),
-					)
+					))
+					
+				for i in range(10):
+					solid = self.parts[moved]
+					current_anchor = model * solid * anchor
+				
+					self.move_opt(
+						optmove = np.concatenate([
+							target_anchor - current_anchor.xy / current_anchor.w,
+							np.ravel(mat3(init_solid - solid)),
+							]),
+						optjac = np.stack([
+							np.concatenate([
+								(model * grad * anchor).xy / current_anchor.w, 
+								np.ravel(mat3(grad)), 
+								])
+							for grad in jac]),
+						)
 				
 	def move_rotate(self, dispatcher, view, sub, evt):
 		# identify the solid clicked
@@ -573,10 +507,6 @@ class KinematicManip(Group):
 			ground = self.kinematic.ground, 
 			inputs = self.kinematic.joints,
 			outputs = [moved],
-			)
-		pose = (
-			*self.pose, 
-			kinematic.joints[-1].inverse(self.parts[moved]),
 			)
 		# constants during translation
 		clicked = view.ptat(view.somenear(evt.pos()))
@@ -594,45 +524,31 @@ class KinematicManip(Group):
 				if not (evt.buttons() & Qt.LeftButton):
 					break
 
-				solid = self.parts[moved]
-				jac = kinematic.grad(pose)
 				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world * self.local)
-				current_tool = model * solid * tool
 				target_anchor = qtpos(evt.pos(), view)
 				target_tool = model * init_tool
-				
-				move = np.concatenate([
-					(init_tool - solid * tool).xyz,
-					(target_anchor - target_tool.xy/target_tool.w) 
-						- (model * solid * normalize(anchor - tool)).xy / current_tool.w,
-					])
-				jac = np.stack([
-					np.concatenate([
-						(grad * tool).xyz, 
-						(model * grad * normalize(anchor - tool)).xy / current_tool.w, 
-						])
-					for grad in jac])
-				colinearity = min(1, sum(
-					np.dot(grad, move)**2 / (normsq(grad) + normsq(move) + self.prec)
-					for grad in jac) / self.min_colinearity)
-				
-				increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ (move * colinearity))
-				
-				# nprint('increment', increment, self.pose)
-				
-				self.pose = self.kinematic.solve(close=structure_state(
-					flatten_state(self.pose) 
-					+ increment.clip(-self.max_increment, self.max_increment),
-					self.pose))
-				# self.pose = structure_state(
-				# 	flatten_state(self.pose) 
-				# 	+ increment.clip(-self.max_increment, self.max_increment),
-				# 	self.pose)
-				self.parts = self.kinematic.parts(self.pose)
-				pose = (
+				jac = kinematic.grad((
 					*self.pose, 
 					kinematic.joints[-1].inverse(self.parts[moved]),
-					)
+					))
+				
+				for i in range(10):
+					solid = self.parts[moved]
+					current_tool = model * solid * tool
+				
+					self.move_opt(
+						optmove = np.concatenate([
+							(init_tool - solid * tool).xyz,
+							(target_anchor - target_tool.xy/target_tool.w) 
+								- (model * solid * normalize(anchor - tool)).xy / current_tool.w,
+							]),
+						optjac = np.stack([
+							np.concatenate([
+								(grad * tool).xyz, 
+								(model * grad * normalize(anchor - tool)).xy / current_tool.w, 
+								])
+							for grad in jac]),
+						)
 
 
 
