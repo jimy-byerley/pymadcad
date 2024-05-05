@@ -176,6 +176,22 @@ class ChainManip(Group):
 									) .clip(*self.chain.joints[joint].bounds))
 				self.parts = self.chain.parts(self.pose)
 
+	def move(self, move, jac):
+		''' newton method step for moving the mechanism
+		'''
+		colinearity = min(1, sum(
+			np.dot(grad, move)**2 / (normsq(grad) + normsq(move) + self.prec)
+			for grad in jac) / self.min_colinearity)
+		
+		increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ (move * colinearity))
+		
+		self.pose = self.chain.normalize(structure_state((
+						flatten_state(self.pose)
+						+ increment * min(1, self.max_increment / np.abs(increment).max())
+						),
+						self.pose))
+		self.parts = self.chain.parts(self.pose)
+
 	def move_translate(self, dispatcher, view, sub, evt):
 		# translate the tool
 		clicked = view.ptat(view.somenear(evt.pos()))
@@ -198,31 +214,18 @@ class ChainManip(Group):
 				current_anchor = model * solid * anchor
 				target_anchor = qtpos(evt.pos(), view)
 				
-				move = np.concatenate([
-					target_anchor - current_anchor.xy / current_anchor.w,
-					np.ravel(mat3(init_solid - solid)),
-					])
-				jac = np.stack([
-					np.concatenate([
-						(model * grad * anchor).xy / current_anchor.w, 
-						np.ravel(mat3(grad)), 
-						])
-					for grad in jac])
-				colinearity = min(1, sum(
-					np.dot(grad, move)**2 / (normsq(grad) + normsq(move) + self.prec)
-					for grad in jac) / self.min_colinearity)
-				
-				increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ (move * colinearity))
-				
-				self.pose = structure_state((
-								flatten_state(self.pose)
-								+ increment * min(1, self.max_increment / np.abs(increment).max())
-								),
-								self.pose)
-				for i, joint in enumerate(self.chain.joints):
-					if hasattr(joint, 'normalize'):
-						self.pose[i] = joint.normalize(self.pose[i])
-				self.parts = self.chain.parts(self.pose)
+				self.move(
+					move = np.concatenate([
+						target_anchor - current_anchor.xy / current_anchor.w,
+						np.ravel(mat3(init_solid - solid)),
+						]),
+					jac = np.stack([
+						np.concatenate([
+							(model * grad * anchor).xy / current_anchor.w, 
+							np.ravel(mat3(grad)), 
+							])
+						for grad in jac]),
+					)
 
 	def move_rotate(self, dispatcher, view, sub, evt):
 		# translate the tool
@@ -248,29 +251,20 @@ class ChainManip(Group):
 				target_anchor = qtpos(evt.pos(), view)
 				target_tool = model * init_tool
 				
-				move = np.concatenate([
-					(init_tool - solid * tool).xyz,
-					(target_anchor - target_tool.xy/target_tool.w) 
-						- (model * solid * normalize(anchor - tool)).xy / current_tool.w,
-					])
-				jac = np.stack([
-					np.concatenate([
-						(grad * tool).xyz, 
-						(model * grad * normalize(anchor - tool)).xy / current_tool.w, 
-						])
-					for grad in jac])
-				colinearity = min(1, sum(
-					np.dot(grad, move)**2 / (normsq(grad) + normsq(move) + self.prec)
-					for grad in jac) / self.min_colinearity)
-				
-				increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ (move * colinearity))
-				# increment = la.pinv(jac @ jac.transpose()) @ (jac @ (move * colinearity))
-				
-				self.pose = (self.pose 
-								+ increment * min(1, self.max_increment / np.abs(increment).max())
-								).clip(*self.chain.bounds)
-				self.parts = self.chain.parts(self.pose)
-
+				self.move(
+					move = np.concatenate([
+						(init_tool - solid * tool).xyz,
+						(target_anchor - target_tool.xy/target_tool.w) 
+							- (model * solid * normalize(anchor - tool)).xy / current_tool.w,
+						]),
+					jac = np.stack([
+						np.concatenate([
+							(grad * tool).xyz, 
+							(model * grad * normalize(anchor - tool)).xy / current_tool.w, 
+							])
+						for grad in jac]),
+					)
+		
 
 		
 class KinematicManip(Group):
@@ -285,6 +279,9 @@ class KinematicManip(Group):
 	'''
 	max_increment = 0.3
 	prec = 1e-6
+	
+	move_maxiter = 8
+	stay_maxiter = 10000
 	move_precision = 1e-4
 	stay_precision = 1e-6
 	tolerated_precision = 1e-1
@@ -293,7 +290,7 @@ class KinematicManip(Group):
 		super().__init__(scene)
 		self.kinematic = kinematic
 		self.toolcenter = toolcenter or vec3(0)
-		self.pose = self.kinematic.solve(close=pose or self.kinematic.default, maxiter=10000, precision=self.move_precision, strict=self.tolerated_precision)
+		self.pose = self.kinematic.solve(close=pose or self.kinematic.default, maxiter=self.stay_maxiter, precision=self.move_precision, strict=self.tolerated_precision)
 		self.parts = self.kinematic.parts(self.pose, precision=self.tolerated_precision)
 		
 		if self.kinematic.content:
@@ -434,7 +431,7 @@ class KinematicManip(Group):
 					kinematic.joints[-1].inverse(self.parts[moved]),
 					))
 				
-				for i in range(10):
+				for i in range(self.move_maxiter):
 					solid = self.parts[moved]
 					current_anchor = model * solid * anchor
 					
@@ -479,7 +476,7 @@ class KinematicManip(Group):
 					kinematic.joints[-1].inverse(self.parts[moved]),
 					))
 					
-				for i in range(10):
+				for i in range(self.move_maxiter):
 					solid = self.parts[moved]
 					current_anchor = model * solid * anchor
 				
@@ -532,7 +529,7 @@ class KinematicManip(Group):
 					kinematic.joints[-1].inverse(self.parts[moved]),
 					))
 				
-				for i in range(10):
+				for i in range(self.move_maxiter):
 					solid = self.parts[moved]
 					current_tool = model * solid * tool
 				
