@@ -292,8 +292,8 @@ class KinematicManip(Group):
 		super().__init__(scene)
 		self.kinematic = kinematic
 		self.toolcenter = toolcenter or vec3(0)
-		self.pose = self.kinematic.solve(close=pose or self.kinematic.default, maxiter=10000, precision=1e-3, strict=1e-2)
-		self.parts = self.kinematic.parts(self.pose, precision=1e-2)
+		self.pose = self.kinematic.solve(close=pose or self.kinematic.default, maxiter=10000, precision=1e-2, strict=1e-1)
+		self.parts = self.kinematic.parts(self.pose, precision=1e-1)
 		
 		if self.kinematic.content:
 			for key, solid in self.kinematic.content.items():
@@ -422,7 +422,7 @@ class KinematicManip(Group):
 						kinematic.joints[-1].inverse(self.parts[moved]),
 						)
 	
-	def move_joint2(self, dispatcher, view, sub, evt):
+	def move_joint(self, dispatcher, view, sub, evt):
 		# identify the solid clicked
 		if sub[0] == 'scheme':  moved = self.index[sub[1]]
 		else:                   moved = sub[0]
@@ -453,34 +453,41 @@ class KinematicManip(Group):
 				if not (evt.buttons() & Qt.LeftButton):
 					break
 
-				solid = self.parts[moved]
-				jac = kinematic.grad(pose)
-				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world * self.local)
-				current_anchor = model * solid * anchor
+				freejac = kinematic.grad(pose)
 				target_anchor = qtpos(evt.pos(), view)
 				
-				move = np.asarray(target_anchor - current_anchor.xy / current_anchor.w)
-				jac = np.hstack([
-					np.stack([
-						np.asarray((model * grad * anchor).xy / current_anchor.w)
-						for grad in jac]),
-					self.cost_jacobian(state).transpose(),
-					])
-				colinearity = min(1, sum(
-					np.dot(grad, move)**2 / (normsq(grad) + normsq(move) + self.prec)
-					for grad in jac) / self.min_colinearity)
-				increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ (move * colinearity))
-				
-				state = structure_state(
-					flatten_state(state)
-					+ increment * min(1, max_increment / np.abs(increment).max()),
-					state)
-				
-				for i, joint in enumerate(self.joints):
-					if hasattr(joint, 'normalize'):
-						state[i] = joint.normalize(state[i])
-				
-				self.parts = self.kinematic.parts(self.pose, precision=1.)
+				for i in range(10):
+					solid = self.parts[moved]
+					model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world * self.local)
+					current_anchor = model * solid * anchor
+					
+					move = np.concatenate([
+						np.asarray(target_anchor - current_anchor.xy / current_anchor.w),
+						-self.kinematic.cost_residuals(self.pose),
+						])
+					jac = np.hstack([
+						np.stack([
+							np.asarray((model * grad * anchor).xy / current_anchor.w)
+							for grad in freejac]),
+						self.kinematic.cost_jacobian(self.pose).transpose(),
+						])
+					colinearity = min(1, max(
+						np.dot(grad[:2], move[:2])**2 / (normsq(grad[:2]) * normsq(move[:2]) + self.prec**4)
+						for grad in jac) / 1)
+					move[:2] *= 1e-4 / max(1e-4, (move[2:]**2).max())
+					move[:2] *= colinearity
+					increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ move)
+					
+					self.pose = structure_state(
+						flatten_state(self.pose)
+						+ increment * min(1, self.max_increment / np.abs(increment).max()),
+						self.pose)
+					
+					for i, joint in enumerate(self.kinematic.joints):
+						if hasattr(joint, 'normalize'):
+							self.pose[i] = joint.normalize(self.pose[i])
+					
+					self.parts = self.kinematic.parts(self.pose, precision=10.)
 				pose = (
 					*self.pose, 
 					kinematic.joints[-1].inverse(self.parts[moved]),
@@ -718,4 +725,5 @@ def qtpos(qtpos, view):
 		)
 
 def normsq(x):
-	return (x*x).sum()
+	x = x.ravel()
+	return np.dot(x,x)

@@ -1521,6 +1521,7 @@ def delta3(base, tool, backarm, forearm, forearm_width=None):
 		# joints.append(Ball(('tool', f'forearm.{i}.0'), p*tool + forearm_width*cross(Z,p), forearm*Z))
 		# joints.append(Ball(('tool', f'forearm.{i}.1'), p*tool - forearm_width*cross(Z,p), forearm*Z))
 	return Kinematic(joints, inputs=motors, outputs=['tool'], ground='base')
+	# return Kinematic(motors+joints, ground='base')
 
 def delta4(backarm, forearm):
 	indev

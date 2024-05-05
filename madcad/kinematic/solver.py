@@ -250,9 +250,24 @@ class Free(Joint):
 				 2*b,  2*c,  2*d, 0,
 				 0,    0,    0,   0,
 				),
-			translate(X),
-			translate(Y),
-			translate(Z),
+			mat4(
+				 0,    0,    0,   0,
+				 0,    0,    0,   0,
+				 0,    0,    0,   0,
+				 1,    0,    0,   0,
+				),
+			mat4(
+				 0,    0,    0,   0,
+				 0,    0,    0,   0,
+				 0,    0,    0,   0,
+				 0,    1,    0,   0,
+				),
+			mat4(
+				 0,    0,    0,   0,
+				 0,    0,    0,   0,
+				 0,    0,    0,   0,
+				 0,    0,    1,   0,
+				),
 			)
 			
 	def normalize(self, parameters):
@@ -584,7 +599,6 @@ class Kinematic:
 					joint = self.rev[joint]
 				chain.append(joint)
 			self.cycles.append(chain)
-		nprint(self.cycles)
 			
 	def cycles(self) -> list:
 		'''
@@ -797,7 +811,7 @@ class Kinematic:
 			if joint in self.rev:
 				transforms[self.rev[joint]] = affineInverse(transforms[joint])
 		# chain transformations
-		poses = {}
+		poses = {self.order[0].solids[0]: mat4()}
 		for joint in self.order:
 			base = poses.get(joint.solids[0]) or mat4()
 			tip = base * transforms[joint]
