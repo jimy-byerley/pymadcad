@@ -27,7 +27,7 @@ display = {
 	'solid_color': fvec3(0.2, 0.2, 0.2),  # surface color of meshes
 	'solid_color_front': 1., # surface intensity for portions of surface parallel to the view direction
 	'solid_color_side': 0.2, # surface intensity for portions of surface orthogonal to the view direction
-	'solid_reflectivity': 6, # intensity of surface reflections
+	'solid_reflectivity': 4, # intensity of surface reflections
 	'solid_reflect': 'skybox-white.png', # skybox texture for reflects
 	'line_color': fvec3(0.9, 0.9, 0.9),  # wire color
 	'point_color': fvec3(0.9, 0.9, 0.9),  # points color
