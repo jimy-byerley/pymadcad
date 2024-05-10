@@ -1,5 +1,6 @@
 from madcad import *
 from madcad.gear import gearprofile
+from madcad.joints import *
 from functools import reduce
 import operator
 #settings.primitives['curve_resolution'] = ('rad', 0.2)
@@ -16,7 +17,7 @@ rellipsis = 40    # underformed deformable radius
 height = 30  # undeformed deformable height
 ellipsis_teeth = 60  # number of teeth on the ellipsis
 circle_teeth = ellipsis_teeth+2 # number of teeth on the circle
-dscrew_ext = stceil(rellipsis*0.15, 0.3)
+dscrew_ext = stceil(rellipsis*0.10, 0.3)
 dscrew_int = stceil(rellipsis*0.08, 0.3)
 
 # the deformed shape keeps the same neutral fiber length
@@ -29,8 +30,10 @@ bellipsis = fbisect(predicate, aellipsis, 0.5*aellipsis)  # ellipsis min
 hellipsis = rellipsis*0.3   # teeth depth
 thickness = rellipsis*0.02  # thickness of the deformable part
 rprimitive = rellipsis*(1 + 1.2*pi/ellipsis_teeth)  # primitive radius of the teeth on the ellipsis
+
 teeth_step = 2*pi*rprimitive / ellipsis_teeth  # common step of the teeth profile
 teeth_height = teeth_step
+rcircle = rprimitive * circle_teeth / ellipsis_teeth
 
 # output bearing
 rint = stceil(rellipsis*0.8)  # output bearing interior radius
@@ -59,7 +62,7 @@ circle_teeth = extrusion(
 				circle_teeth, 
 				rotate(2*pi/circle_teeth, Z),
 				),
-			alignment=0.5)
+			alignment=0.5).flip()
 ellipsis_teeth = extrusion(
 			1.5*hellipsis*Z,
 			repeat(
@@ -78,52 +81,52 @@ ellipsis_teeth = intersection(
 					])),
 			)
 
-
 # deformable part
 deformable_profile = wire([
-	vec3(rint - thickness, 0, -height-hout*0.5),
-	vec3(rint - thickness, 0, -height+hout*0.5 + thickness),
+	vec3(rint - 2*thickness, 0, -height+hout*0.5 + thickness),
 	vec3(rellipsis, 0, -height+hout*0.5 + thickness),
 	vec3(rellipsis, 0, -hellipsis),
 	vec3(rellipsis, 0, -hellipsis*0.7),
 	vec3(rellipsis, 0, hellipsis*0.5),
 	]).segmented()
-bevel(deformable_profile, [2], ('width', rint*0.15))
+bevel(deformable_profile, [1], ('width', rint*0.15))
 deformable = revolution(2*pi, Axis(O,Z), deformable_profile)
 deformable = thicken(deformable, thickness)
 deformable = union(deformable, ellipsis_teeth)
 
 # output shaft interface
+out_rint = stfloor(rint-1.6*dscrew_ext)
 out_shoulder = revolution(2*pi, Axis(O,Z), wire([
-	vec3(rint*1.15, 0, -height+hout*0.65),
-	vec3(rint*0.6, 0, -height+hout*0.65),
-	vec3(rint*0.6, 0, -height-hout*0.5),
+	vec3(rint, 0, -height+hout*0.65),
+	vec3(out_rint, 0, -height+hout*0.65),
+	vec3(out_rint, 0, -height-hout*0.5),
 	vec3(rint, 0, -height-hout*0.5),
-	]).segmented().flip())
+	]).close().segmented().flip())
 deformable = union(deformable, out_shoulder)
-out_shape = extrusion(-0.3*hout*Z, revolution(2*pi, Axis(O,Z), wire([
-	vec3(rint*0.6, 0, -height-hout*0.5),
+out_shape = thicken(revolution(2*pi, Axis(O,Z), wire([
+	vec3(out_rint, 0, -height-hout*0.5),
 	vec3(rint*1.1, 0, -height-hout*0.5),
-	])))
+	])), stceil(0.5*hout))
 
+rbolts = stfloor(rint-0.8*dscrew_ext)
 out_bolts = [bolt(
-				p+(-height-hout*0.8)*Z, 
-				p+(-height+hout*0.65)*Z, 
+				p+(-height-hout*1.)*Z, 
+				p+(-height)*Z, 
 				dscrew_ext,
 				washera=True,
-				washerb=True,
-				)  for p in regon(Axis(O,Z), stfloor(rint*0.8), 4)]
+				nutb=False,
+				)  for p in regon(Axis(O,Z), rbolts, 4)]
 out_holes = [cylinder(
 				p+(-height-hout)*Z,
 				p+(-height+hout)*Z,
 				dscrew_ext*0.55,
-				) for p in regon(Axis(O,Z), stfloor(rint*0.8), 4).points]
+				) for p in regon(Axis(O,Z), rbolts, 4).points]
 out_holes += [cylinder(
 				p+(-height-hout)*Z,
 				p+(-height+hout)*Z,
 				0.55*stfloor(dscrew_ext*0.9, 0.3),
 				) .transform(rotate(pi/4, Z))
-			 for p in regon(Axis(O,Z), stfloor(rint*0.8), 4).points]
+			 for p in regon(Axis(O,Z), stfloor(rint-0.8*dscrew_ext), 4).points]
 out_shape = difference(out_shape, mesh.mesh(out_holes))
 deformable = difference(deformable, mesh.mesh(out_holes))
 
@@ -157,116 +160,111 @@ deformable = union(deformable, revolution(2*pi, Axis(O,Z), ellipsis_exterior))
 
 # wave generator
 rgenerator = rellipsis - 2.2*rball
+bgenerator = bellipsis - 2.2*rball
 generator_thickness = rellipsis*0.1
 generator_profile = wire([
 		vec3(teeth_height*1.5, 0, -hellipsis*0.5), 
 		vec3(rgenerator, 0, -hellipsis*0.5), 
 		[vec3(rballs - rball*cos(t), 0, rball*sin(t))   for t in linrange(-radians(40), radians(40), div=10)],
 		vec3(rgenerator, 0, hellipsis*0.5),
-		vec3(rgenerator - 0.5*generator_thickness, 0, hellipsis*0.5), 
+		vec3(rgenerator - 0.3*generator_thickness, 0, hellipsis*0.5), 
 		vec3(rgenerator - generator_thickness, 0, 0), 
 		vec3(teeth_height*1.5, 0, 0), 
 		]).flip()
 generator = revolution(2*pi, Axis(O,Z), generator_profile) .transform(deform)
-generator = difference(generator, cylinder(-hellipsis*Z, hellipsis*Z, rgenerator - generator_thickness - dscrew_int*2.5))
+generator = difference(generator, cylinder(-hellipsis*Z, hellipsis*Z, bgenerator - generator_thickness))
+
+in_rint = stfloor(bgenerator - generator_thickness - 2*dscrew_int, 0.05)
+generator_interface_profile = wire([
+	vec3(bgenerator - generator_thickness*0.2, 0, -hellipsis*0.1),
+	vec3(bgenerator - generator_thickness*0.2, 0, -height+hout*0.5+3*thickness),
+	vec3(out_rint, 0, -height+hout*0.5+3*thickness),
+	vec3(in_rint, 0, -height+hout),
+	vec3(in_rint, 0, -height+hout+2*dscrew_int),
+	vec3(bgenerator - generator_thickness +thickness, 0, -height+hout+2*dscrew_int),
+	vec3(bgenerator - generator_thickness +thickness, 0, -hellipsis*0.1),
+	]).segmented()
+bevel(generator_interface_profile, [3], ('width', dscrew_int))
+generator_interface = revolution(2*pi, Axis(O,Z), generator_interface_profile)
+generator = union(generator, generator_interface)
+
 in_bolts = [
-	bolt(p, p-0.5*hellipsis*Z, dscrew_int)
-	for p in regon(Axis(O,Z), stfloor(rgenerator - generator_thickness - dscrew_int*1.2), 4, alignment=X+Y).points
+	bolt(p, p-dscrew_int*Z, dscrew_int, washera=True, nutb=False)
+	for p in regon(Axis((-height+hout+2*dscrew_int)*Z, Z), in_rint + dscrew_int, 4).points
 	]
-in_holes = mesh.mesh([
-	cylinder(p+hellipsis*Z, p-hellipsis*Z, dscrew_int*0.55)
-	for p in regon(Axis(O,Z), stfloor(rgenerator - generator_thickness - dscrew_int*1.2), 4, alignment=X+Y).points
-	])
-generator = difference(generator, in_holes)
+
+
 
 # exterior
-shoulder = hout*0.2
-rexterior = stceil(aellipsis*1.3 + 1.1*dscrew_ext, 0.05)
-rinner = max(aellipsis*1.08+teeth_height*1.1, rext+shoulder)
-exterior_profile = wire([
-	vec3(aellipsis, 0, -hellipsis*0.4),
-	vec3(aellipsis+teeth_height*1.1, 0, -hellipsis*0.6),
-	vec3(aellipsis+teeth_height*1.1, 0, -height+hout*0.5+2*shoulder),
-	vec3(rext-shoulder, 0, -height+hout*0.5+shoulder),
-	vec3(rext-shoulder, 0, -height+hout*0.5),
-	vec3(rext, 0, -height+hout*0.5),
-	vec3(rext, 0, -height-hout*0.5),
-	vec3(rinner, 0, -height-hout*0.5),
+shell = 0.2*hout
+rshell = max(rcircle+0.5*teeth_step, rext)+shell
+rext_out = stceil(rshell + 2*dscrew_ext, 0.05)
 
-	vec3(rinner, 0, hellipsis*0.6-dscrew_ext),
-	vec3(rexterior + dscrew_ext, 0, hellipsis*0.6-dscrew_ext),
-	vec3(rexterior + dscrew_ext, 0, hellipsis*0.6),
-	vec3(aellipsis+teeth_height*1.2, 0, hellipsis*0.6),
-	vec3(aellipsis, 0, +hellipsis*0.4),
-	]).segmented().flip()
-bevel(exterior_profile, [8], ('width', dscrew_ext))
-chamfer(exterior_profile, [7], ('width', 0.5*(rinner - rext)))
-exterior = revolution(2*pi, Axis(O,Z), exterior_profile)
-exterior = intersection(exterior, circle_teeth.flip())
+exterior_lower_profile = wire([
+	vec3(in_rint*0.9, 0, +0.6*hellipsis+shell),
+	vec3(rcircle*0.9, 0, +0.6*hellipsis+shell),
+	vec3(rshell, 0, +0.5*hellipsis+shell),
 
-exterior_bolts_placement = regon(Axis(hellipsis*0.6*Z,Z), rexterior, 6).points
-exterior_bolts = [bolt(
-			p+dscrew_ext*0.5*Z,
-			p-dscrew_ext*2*Z,
-			dscrew_ext,
-			washera=True,
-			washerb=True,
-			)
-		for p in exterior_bolts_placement]
-exterior_holes = mesh.mesh((
-		[cylinder(
-			p+dscrew_ext*Z,
-			p-dscrew_ext*3*Z,
-			dscrew_ext*0.55,
-			) 
-			for p in exterior_bolts_placement]
-		+ [cylinder(
-			p+dscrew_ext*Z,
-			p-dscrew_ext*3*Z,
-			0.55*stceil(dscrew_ext*0.9, 0.3),
-			) .transform(rotate(pi/12, Z))
-			for p in exterior_bolts_placement]
-		))
-exterior = difference(exterior, exterior_holes)
+	vec3(rshell, 0, -height+1.2*hout),
+	vec3(rext_out, 0, -height+1.2*hout),
+	vec3(rext_out, 0, -height-0.7*hout),
+	vec3(mix(rint, rext, 0.7), 0, -height-0.7*hout),
+	vec3(mix(rint, rext, 0.7), 0, -height-0.5*hout),
+	vec3(rext, 0, -height-0.5*hout),
+	vec3(rext, 0, -height+0.5*hout),
+	vec3(mix(rint, rext, 0.7), 0, -height+0.5*hout),
+	vec3(mix(rint, rext, 0.7), 0, -height+0.7*hout),
+	vec3(rshell - shell, 0, -height+0.7*hout),
 
-# the hat is what is fixing the motor on the in side of the gearbox
-hat = thicken(revolution(2*pi, Axis(O,Z), wire([
-	vec3(rexterior + dscrew_ext, 0, hellipsis*0.6),
-	vec3(aellipsis*1.1, 0, hellipsis*0.6),
-	vec3(aellipsis*1, 0, hellipsis*0.6 + dscrew_int),
-	vec3(bellipsis*0.655, 0, hellipsis*0.6 + dscrew_int),
-	]).segmented()), dscrew_int*0.5)
-hat = difference(hat, exterior_holes)
-
-hat_screws_placement = regon(
-		Axis((hellipsis*0.6 + dscrew_int)*Z, Z), 
-		stfloor(aellipsis - 1.2*dscrew_int, 0.2), 
-		4,
-		).points
-hat_screws = [screw(dscrew_int, dscrew_int*2)
-			.transform(translate(p) * rotate(pi,X))
-			for p in hat_screws_placement]
-hat_holes = mesh.mesh([cylinder(
-			p+dscrew_int*Z,
-			p-dscrew_int*Z,
-			dscrew_int*0.55,
-			) 
-			for p in hat_screws_placement])
-hat = difference(hat, hat_holes)
-
-# the butt the part holding the out bearing at the bottom
-butt_profile = wire([
-	vec3(rext-hout*0.3, 0, -height-hout*0.5),
-	vec3(rinner*1.02, 0, -height-hout*0.5),
-	vec3(rinner*1.02, 0, hellipsis*0.6-dscrew_ext),
-	vec3(rexterior + dscrew_ext, 0, hellipsis*0.6-dscrew_ext),
+	vec3(rcircle+0.5*teeth_step, 0, -0.6*hellipsis),
+	vec3(rcircle-0.5*teeth_step, 0, -0.4*hellipsis),
 	]).segmented()
-bevel(butt_profile, [1], ('width', hout*0.5))
-bevel(butt_profile, [2], ('width', dscrew_ext))
-butt = thicken(revolution(2*pi, Axis(O,Z), butt_profile), hout*0.2)
-butt = difference(butt, exterior_holes)
+exterior_upper_profile = wire([
+	vec3(rcircle+0.5*teeth_step, 0, +0.5*hellipsis),
+	vec3(rcircle*0.9, 0, +0.6*hellipsis),
+	vec3(in_rint, 0, +0.6*hellipsis),
+	vec3(in_rint, 0, +0.6*hellipsis+2*shell),
+	]).segmented()
+bevel(exterior_lower_profile, [2,3,12,13], ('width', 0.5*dscrew_ext))
 
 
+exterior = intersection(
+	revolution(2*pi, Axis(O,Z), exterior_lower_profile),
+	union(
+		revolution(2*pi, Axis(O,Z), exterior_upper_profile),
+		circle_teeth,
+		),
+	)
+
+exterior_out = difference(exterior, square(Axis(-height*Z, -Z), 2*rshell))
+exterior_in = difference(exterior, square(Axis((-height+hout*0.8)*Z, Z), 2*rshell))
+exterior_mid = difference(exterior, square(Axis(-height*Z, Z), 2*rshell) + square(Axis((-height+hout*0.8)*Z, -Z), 2*rshell))
+
+ext_out_bolts = [bolt(
+		p-0.7*hout*Z,
+		p+1.2*hout*Z,
+		dscrew_ext,
+		washera=True,
+		washerb=True)
+	for p in regon(Axis(-height*Z,Z), rext_out - dscrew_ext, 8).points]
+	
+
+holding_defs = [
+	(Axis(rbolts*rotate(pi/8,    Z)*X + (-height-1*hout)*Z, -Z),  dscrew_ext, 1.3*hout, 0.5*hout),
+	(Axis(rbolts*rotate(pi/8+pi, Z)*X + (-height-1*hout)*Z, -Z),  dscrew_ext, 1.3*hout, 0.5*hout),	
+	(Axis((rext_out-dscrew_ext)*rotate(pi/8,    Z)*X + (-height-0.7*hout)*Z, -Z),  dscrew_ext, 1.3*hout, 0.7*hout),	
+	(Axis((rext_out-dscrew_ext)*rotate(pi/8+pi, Z)*X + (-height-0.7*hout)*Z, -Z),  dscrew_ext, 1.3*hout, 0.7*hout),	
+	]
+holding_slots = Mesh()
+holding_screws = []
+for a, d, h, p in holding_defs:
+	holding_screws.append(screw(d, h, head='flat').place((Revolute, Axis(O,Z), a)))
+	holding_slots += screw_slot(Axis(a[0]-a[1]*0.1, a[1]), d, hole=p, screw=h-p, flat=True)
+deformable = intersection(deformable, holding_slots)
+out_shape = intersection(out_shape, holding_slots)
+exterior_out = intersection(exterior_out, holding_slots)
+exterior_in = intersection(exterior_in, holding_slots)
+exterior_mid = intersection(exterior_mid, holding_slots)
 
 # export parts to print
 #io.write(deformable, '/tmp/deformable.stl')
@@ -283,7 +281,6 @@ cage = cage.transform(deform) .option(color=vec3(0.5,0.3,0))
 deformable = deformable.transform(deform) .option(color=vec3(0.2, 0.3, 0.4))
 #ellipsis_teeth = ellipsis_teeth.transform(deform)
 # balls are not deformed but moved
-#balls = balls.transform(deform)
 balls = reduce(operator.add, [
 		ball.transform(p)   
 		for p in regon(Axis(O,Z), rballs, nballs)
@@ -291,11 +288,9 @@ balls = reduce(operator.add, [
 					.points
 		]) .option(color=vec3(0.1, 0.2, 0.4))
 
+
 annotations = [
 	note_radius(balls.islands()[0], offset=height),
-	note_leading(hat.group(4), text="hat shape depends on the motor fixture\nthis hat is designed for motors with\n a front screwable shape\n\nTODO: make it the same part as exterior"),
-	note_leading(O, offset=height*Z, text="gearbox is sealed by the motor\n if the motor is hollowshaft,\n it must seal it through the generator"),
-	note_leading(-height*Z, offset=-height*Z, text="gearbox is sealed by closing this hole,\n or linking it to the generator\n\nTODO: provide sealing"),
 	note_distance(
 		O, 
 		in_bolts[0]['screw']['axis'].transform(in_bolts[0]['screw'].pose).origin,
@@ -304,9 +299,5 @@ annotations = [
 		O, 
 		noproject(out_bolts[0]['screw']['axis'].transform(out_bolts[0]['screw'].pose).origin, Z),
 		offset=-2*height*Z),
-	note_distance(
-		O, 
-		noproject(exterior_bolts[0]['screw']['axis'].transform(exterior_bolts[0]['screw'].pose).origin, Z),
-		offset=-2*height*Z),
-	note_leading(out_bearing['part'].group(2).transform(out_bearing.pose), text="{:.3g}x{:.3g}x{:.3g}".format(2*rint, 2*rext, hout)),
 	]
+

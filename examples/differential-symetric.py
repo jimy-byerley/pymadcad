@@ -1,5 +1,6 @@
 from madcad import *
 from madcad.gear import *
+from madcad.joints import *
 
 def sbevelgear(step, z, pitch_cone_angle, **kwargs):
 	part = bevelgear(step, z, pitch_cone_angle, **kwargs)
@@ -23,10 +24,10 @@ def bolt(a, b, dscrew, washera=False, washerb=False):
 				note_radius(rscrew['part'].group(0)),
 				]
 	return Solid(
-			screw = rscrew.place((Pivot, rscrew['axis'], Axis(a-thickness*dir, -dir))), 
-			nut = rnut.place((Pivot, rnut['top'], Axis(b+thickness*dir, -dir))),
-			w1 = rwasher.place((Pivot, rwasher['top'], Axis(b, -dir))),
-			w2 = rwasher.place((Pivot, rwasher['top'], Axis(a, dir))),
+			screw = rscrew.place((Revolute, rscrew['axis'], Axis(a-thickness*dir, -dir))), 
+			nut = rnut.place((Revolute, rnut['top'], Axis(b+thickness*dir, -dir))),
+			w1 = rwasher.place((Revolute, rwasher['top'], Axis(b, -dir))),
+			w2 = rwasher.place((Revolute, rwasher['top'], Axis(a, dir))),
 			)
 
 # the discretisation paremeter can be set high for exportation, or small for quick computations
@@ -202,8 +203,8 @@ annotations = [
 
 # the rest is only prospective from now
 
-option1 = (sbevelgear(10, 24, radians(70), helix_angle=radians(20), bore_height=0, bore_radius=bearing_radius)
-			.transform(translate(5*Z) * rotate(pi,X)))
+#option1 = (sbevelgear(10, 24, radians(70), helix_angle=radians(20), bore_height=0, bore_radius=bearing_radius)
+#			.transform(translate(5*Z) * rotate(pi,X)))
 top_stuff = Solid(part=part_top).transform(30*Z)
 
 
@@ -221,7 +222,7 @@ def sbevelgear(step, z, pitch_cone_angle, **kwargs):
 option2 = (sbevelgear(8, 20, radians(70),  helix_angle=radians(20), bore_radius=bearing_radius, bore_height=0, resolution=('sqradm', 0.5))
 			.transform(translate(50*Z) * rotate(pi,X)))
 
-option3 = Solid(part=gear(8, 22, 10, helix_angle=radians(20), bore_radius=space_radius, hub_height=0)).transform(-8*Z)
+#option3 = Solid(part=gear(8, 22, 10, helix_angle=radians(20), bore_radius=space_radius, hub_height=0)).transform(-8*Z)
 
 ## export the parts to print
 #io.write(part_top, '/tmp/differentiel-part-top.stl')

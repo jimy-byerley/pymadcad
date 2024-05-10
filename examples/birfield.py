@@ -1,7 +1,7 @@
 from madcad import *
 settings.primitives['curve_resolution'] = ('rad', 0.2)
 
-nballs = 8
+nballs = 6
 rball = 6/2
 rsphere = 1.5 * nballs*rball/pi
 helix = 0.2
@@ -28,7 +28,7 @@ guide = revolution(pi, Axis(O,Y), guide_profile, alignment=0.5).flip()
 
 interior = intersection(
 		icosphere(O, rsphere-ecage), 
-		brick(width=2*rsphere*vec3(1, 1, 1.1*sin(amax/2))),
+		brick(width=2*rsphere*vec3(1, 1, 1.2*sin(amax/2))),
 		)
 exterior = union(
 		icosphere(O, rsphere+ecage), 
