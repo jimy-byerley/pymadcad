@@ -340,12 +340,13 @@ class Turntable:
 		self.tool = navigation_tool
 		
 	def rotate(self, dx, dy, dz):
+		if abs(self.pitch) > 3.2:	dx = -dx
 		self.yaw += dx*pi
 		self.pitch += dy*pi
-		if self.pitch > pi/2:	self.pitch = pi/2
-		if self.pitch < -pi/2:	self.pitch = -pi/2
+		if self.pitch > pi:	self.pitch -= 2*pi
+		if self.pitch < -pi: self.pitch += 2*pi
 	def pan(self, dx, dy):
-		mat = transpose(mat3_cast(inverse(fquat(fvec3(pi/2-self.pitch, 0, -self.yaw)))))
+		mat = transpose(fmat3(inverse(fquat(fvec3(pi/2-self.pitch, 0, -self.yaw)))))
 		self.center += ( mat[0] * -dx + mat[1] * dy) * self.distance/2
 	def zoom(self, f):
 		self.distance *= f
@@ -353,7 +354,7 @@ class Turntable:
 	def matrix(self) -> fmat4:
 		# build rotation from view euler angles
 		rot = inverse(fquat(fvec3(pi/2-self.pitch, 0, -self.yaw)))
-		mat = translate(mat4_cast(rot), -self.center)
+		mat = translate(fmat4(rot), -self.center)
 		mat[3][2] -= self.distance
 		return mat
 
@@ -372,13 +373,13 @@ class Orbit:
 		# rotate from view euler angles
 		self.orient = inverse(fquat(fvec3(-dy, -dx, dz) * pi)) * self.orient
 	def pan(self, dx, dy):
-		x,y,z = transpose(mat3_cast(self.orient))
+		x,y,z = transpose(fmat3(self.orient))
 		self.center += (fvec3(x) * -dx + fvec3(y) * dy) * self.distance/2
 	def zoom(self, f):
 		self.distance *= f
 	
 	def matrix(self) -> fmat4:
-		mat = translate(mat4_cast(self.orient), -self.center)
+		mat = translate(fmat4(self.orient), -self.center)
 		mat[3][2] -= self.distance
 		return mat
 
