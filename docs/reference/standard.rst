@@ -183,3 +183,5 @@ kinematics
 	.. image:: /screenshots/standard-serial7.png
 
 .. autofunction:: delta3
+
+	.. image:: /screenshots/standard-delta3.png
