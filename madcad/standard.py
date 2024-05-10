@@ -136,7 +136,6 @@ def screw(d, length, filet_length=None, head='SH', drive=None, detail=False):
 	if filet_length is None:	filet_length = length - 0.05*d
 	elif length < filet_length:	raise ValueError('filet_length must be smaller than length')
 	
-	
 	head, drive = screw_spec(head, drive)
 	head = globals()['screwhead_'+head](d)
 	if drive:
@@ -145,12 +144,13 @@ def screw(d, length, filet_length=None, head='SH', drive=None, detail=False):
 		
 	r = 0.5*d
 	axis = Axis(O, Z, interval=(-length,r))
+	top = head.box().min.z
 	body = revolution(2*pi, axis, wire([
-					-vec3(r, 0, 0.05*d),
-					-vec3(r, 0, length-filet_length),
-					-vec3(r, 0, length-r*0.2),
-					-vec3(r*0.8, 0, length),
-					-vec3(0, 0, length),
+					vec3(r, 0, top),
+					vec3(r, 0, min(top, -length+filet_length)),
+					vec3(r, 0, -length+r*0.2),
+					vec3(r*0.8, 0, -length),
+					vec3(0, 0, -length),
 					]) .segmented())
 	screw = (body + head).finish().option(color=bolt_color)
 	return Solid(part=screw, axis=axis)
@@ -243,11 +243,11 @@ def screwhead_flat(d):
 	e = 0.1*d
 	
 	return revolution(2*pi, (O,Z), web([
-		vec3(0, 0, h+e),
-		vec3(0, r, h+e),
-		vec3(0, r, h),
-		vec3(0, 0.5*d, 0),
-		]) .segmented() )
+		vec3(0, 0, 0),
+		vec3(0, r, 0),
+		vec3(0, r, -e),
+		vec3(0, 0.5*d, -0.5*d-e),
+		]) .segmented() ).finish()
 	
 def screwhead_none(d):
 	indev
@@ -1241,36 +1241,38 @@ def slidebearing(dint, h=None, thickness=None, shoulder=None, opened=False) -> S
 	return Solid(part=part, axis=axis)
 
 	
-def bolt(a: vec3, b: vec3, dscrew: float, washera=False, washerb=False) -> Solid:
+def bolt(a: vec3, b: vec3, dscrew: float, washera=False, washerb=False, nutb=True) -> Solid:
 	''' convenient function to create a screw, nut and washers assembly 
 	
 		Parameters:
 			a:  the screw placement
 			b:  the nut placement
 			dscrew:  the screw `d` parameter
-			washera:  if True, place a washer between the screw head and `a`
-			washerb:  if True, place a washer between the nut and `b`
+			washera:  if True, place a washer between the screw head at `a`
+			washerb:  if True, place a washer between the nut at `b`
+			butb:    if True, place a nut at `b`
 	'''
 	dir = normalize(b-a)
 	rwasher = washer(dscrew)
 	thickness = rwasher['part'].box().width.z
 	rscrew = screw(dscrew, stceil(distance(a,b) + 1.2*dscrew, precision=0.2))
-	rnut = nut(dscrew)
 	#rscrew['annotations'] = [
 				#note_distance(O, -stceil(distance(a,b) + 1.2*dscrew)*Z, offset=2*dscrew*X),
 				#note_radius(rscrew['part'].group(0)),
 				#]
 	result = Solid(
 			screw = rscrew.place((Revolute, rscrew['axis'], Axis(a-thickness*dir*int(washera), -dir))), 
-			nut = rnut.place((Revolute, rnut['top'], Axis(b+thickness*dir*int(washerb), -dir))),
 			)
 	if washera:
 		result['washera'] = rwasher.place((Revolute, rwasher['top'], Axis(a, dir)))
 	if washerb:
 		result['washerb'] = rwasher.place((Revolute, rwasher['top'], Axis(b, -dir)))
+	if nutb:
+		rnut = nut(dscrew)
+		result['nut'] = rnut.place((Revolute, rnut['top'], Axis(b+thickness*dir*int(washerb), -dir)))
 	return result
 
-def screw_slot(axis: Axis, dscrew: float, rslot=None, hole=True, expand=True) -> Mesh:
+def screw_slot(axis: Axis, dscrew: float, rslot=None, hole=True, screw=0., expand=True, flat=False) -> Mesh:
 	''' slot shape for a screw
 		the result can then be used in a boolean operation to reserve set a screw place in an arbitrary shape
 		
@@ -1279,11 +1281,13 @@ def screw_slot(axis: Axis, dscrew: float, rslot=None, hole=True, expand=True) ->
 			dscrew: the screw diameter
 			rslot:  the screw head slot radius
 			hole:   
-				- if `True`, enables a cylindric hole for screw body
+				- if `True`, enables a cylindric hole for screw body of length `dscrew*3`
 				- if `float`, it is the screw hole length
+			screw:  if non zero, this is the length of a thiner portion of hole after `hole`, the diameter is adjusted so that the screw can screw in
 			expand: 
 				- if `True`, enables slots sides
 				- if `float`, it is the slot sides height
+			flat:   if True, the slot will be conic do receive a flat head screw
 	'''
 	if not rslot:	rslot = 1.1*dscrew
 	o = axis[0]
@@ -1294,11 +1298,17 @@ def screw_slot(axis: Axis, dscrew: float, rslot=None, hole=True, expand=True) ->
 		if isinstance(expand, bool):		expand = 2*rslot
 		profile.append(o + rslot*x + expand*z)
 	profile.append(o + rslot*x)
-	if hole:
-		if isinstance(hole, bool):	hole = dscrew*3
-		profile.append(o + 0.5*dscrew*x)
+	if hole or screw:
+		if not hole and not screw:  hole = dscrew*3
+		if flat:
+			profile.append(o + 0.5*dscrew*(x-z) - (rslot-dscrew)*z)
+			hole = max(hole, -profile[-1].z)
+		else:
+			profile.append(o + 0.5*dscrew*x)
 		profile.append(o + 0.5*dscrew*x - hole*z)
-		profile.append(o - (hole+0.5*dscrew)*z)
+		profile.append(o + 0.4*dscrew*x - (hole+0.1*dscrew)*z)
+		profile.append(o + 0.4*dscrew*x - hole*z - screw*z)
+		profile.append(o - (hole+screw+0.4*dscrew)*z)
 	else:
 		profile.append(o)
 	return revolution(2*pi, Axis(o,-z), wire(profile).segmented()).finish()
