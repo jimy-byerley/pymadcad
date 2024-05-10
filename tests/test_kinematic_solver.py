@@ -30,7 +30,8 @@ print(Kinematic(
 		Revolute((1,2), Axis(X,Z)),
 		Revolute((2,3), Axis(2*X,Z)),
 		],
-	outputs=[Free((0,3))], 
+	outputs=[3], 
+	ground=0,
 	).inverse([translate(-0.5*X)], close=np.random.random(15)))
 
 print('pivot loop')
@@ -63,14 +64,14 @@ print(Kinematic([
 	Revolute((4,3), Axis(2*X+Y,Z)),
 	]).solve(close=2*pi*np.random.random(6)))
 
-# print('stretched chain')
-# njoints = 80
-# joints = []
-# for i in range(0, njoints, 2):
-# 	joints.append(Revolute((i,i+1), Axis(vec3(i+1,i,0), X)))
-# 	joints.append(Revolute((i+1,i+2), Axis(vec3(i+1,i+1,0), Y)))
-# joints[-1].solids = (len(joints)-1, 0)
-# print(Kinematic(joints).solve(close=2*pi*np.random.random(len(joints)), precision=1e-3, maxiter=1000))
+print('stretched chain')
+njoints = 80
+joints = []
+for i in range(0, njoints, 2):
+	joints.append(Revolute((i,i+1), Axis(vec3(i+1,i,0), X)))
+	joints.append(Revolute((i+1,i+2), Axis(vec3(i+1,i+1,0), Y)))
+joints[-1].solids = (len(joints)-1, 0)
+print(Kinematic(joints).solve(close=2*pi*np.random.random(len(joints)), precision=1e-3, maxiter=1000))
 
 print('looping chain')
 njoints = 80

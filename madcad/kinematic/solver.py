@@ -556,8 +556,9 @@ class Kinematic:
 			bounds:   a tuple of (min, max) joint poses
 	'''
 	def __init__(self, joints:list=[], content:dict=None, ground=None, inputs=None, outputs=None):
-		if ground is None and joints:
-			ground = joints[0].solids[0]
+		if ground is None:
+			if joints:	ground = joints[0].solids[0]
+			if inputs:  ground = inputs[0].solids[0]
 		if (inputs is None) ^ (outputs is None):
 			raise TypeError("inputs and outputs must be both provided or undefined")
 		elif inputs and outputs:	
@@ -789,7 +790,7 @@ class Kinematic:
 			if maxiter and k > maxiter and strict==inf:
 				break
 			
-			move = -self.cost_residuals(state)
+			move = -self.cost_residuals(state, fixed)
 			error = np.abs(move).max()
 			if error <= precision:
 				break
@@ -800,7 +801,7 @@ class Kinematic:
 					raise KinematicError('convergence failed after maximum iterations')
 			
 			# newton method with a pseudo inverse
-			jac = self.cost_jacobian(state).transpose()
+			jac = self.cost_jacobian(state, fixed).transpose()
 			increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*prec, jac @ move)
 			state = structure_state(
 				flatten_state(state)

@@ -23,22 +23,23 @@ from .solver import Chain, Kinematic, KinematicError, regularize_grad, structure
 
 
 class SolidDisplay(Group):
-    ''' Movable `Group` for the rendering pipeline '''
-    def __init__(self, scene, solid):
-        super().__init__(scene, solid.content, local=solid.pose)
-    
-    def update(self, scene, solid):
-        if not isinstance(solid, Solid):	return
-        super().update(scene, solid.content)
-        self.local = fmat4(solid.pose)
-        return True
-    
-    def stack(self, scene):
-        for key,display in self.displays.items():
-            if key == 'annotations' and not scene.options['display_annotations'] and not self.selected:
-                continue
-            for sub,target,priority,func in display.stack(scene):
-                yield ((key, *sub), target, priority, func)
+	''' Movable `Group` for the rendering pipeline '''
+	def __init__(self, scene, solid):
+		super().__init__(scene, solid.content, local=solid.pose)
+	
+	def update(self, scene, solid):
+		from .assembly import Solid
+		if not isinstance(solid, Solid):	return
+		super().update(scene, solid.content)
+		self.local = fmat4(solid.pose)
+		return True
+	
+	def stack(self, scene):
+		for key,display in self.displays.items():
+			if key == 'annotations' and not scene.options['display_annotations'] and not self.selected:
+				continue
+			for sub,target,priority,func in display.stack(scene):
+				yield ((key, *sub), target, priority, func)
 
 
 class ChainManip(Group):

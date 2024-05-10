@@ -1127,7 +1127,7 @@ def note_base(matrix, color=None, labels=('X', 'Y', 'Z'), name=None, size=0.4):
 		center = None
 		directions = mat3(matrix)
 	elif isinstance(matrix, (dmat4,fmat4)):
-		if transpose(matrix)[3] != vec4(0,0,0,1):
+		if length2(transpose(matrix)[3] - vec4(0,0,0,1)) > NUMPREC:
 			raise TypeError('mat4 must be affine in order to be displayed')
 		center = vec3(matrix[3])
 		directions = mat3(mat4(matrix))

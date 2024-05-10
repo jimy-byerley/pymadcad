@@ -83,7 +83,7 @@ class Solid:
 		return self
 	
 	def display(self, scene):
-		from .display import SolidDisplay
+		from .displays import SolidDisplay
 		return SolidDisplay(scene, self)
 
 
@@ -121,7 +121,7 @@ def placement(*pairs, precision=1e-3):
 			...		(Revolute, screw['axis'], other['screw_place']),
 			...		)
 	'''
-	from .reverse import guessjoint
+	from ..reverse import guessjoint
 	
 	joints = []
 	for pair in pairs:
@@ -133,9 +133,9 @@ def placement(*pairs, precision=1e-3):
 	if len(joints) > 1:
 		kin = Kinematic(joints)
 		parts = kin.parts(kin.solve())
-		return affineInverse(parts[0]) * parts[1]
+		return affineInverse(parts[1]) * parts[0]
 	else:
-		return joints[0].direct(joints[0].default)
+		return affineInverse(joints[0].direct(joints[0].default))
 	
 def convexhull(pts):
 	import scipy.spatial

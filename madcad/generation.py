@@ -758,7 +758,7 @@ def regon(axis:primitives.Axis, radius, n, alignment=vec3(1,0,0)) -> 'Wire':
 	''' Create a regular n-gon `Wire`, the same way we create a `Circle` '''
 	x,y,z = dirbase(axis[1], alignment)
 	return wire(typedlist(
-		radius*(cos(2*pi*i/n)*x + sin(2*pi*i/n)*y)  
+		axis[0] + radius*(cos(2*pi*i/n)*x + sin(2*pi*i/n)*y)  
 		for i in range(n)
 		)).close().segmented()
 

@@ -508,9 +508,6 @@ class Mesh(NMesh):
 		# get connectivity and set of edges to manage
 		conn = connef(self.faces)
 		edges = set(edgekey(*edge)   for edge in edges)
-		# collect the points to multiply
-		ranks = Counter(p  for e in edges for p in e)
-		separations = set(p  for p, count in ranks.items() if count > 1)
 		newfaces = deepcopy(self.faces)
 		# for each edge, reassign neighboring faces to the proper points
 		for edge in edges:
