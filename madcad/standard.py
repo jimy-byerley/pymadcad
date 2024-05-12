@@ -1272,7 +1272,7 @@ def bolt(a: vec3, b: vec3, dscrew: float, washera=False, washerb=False, nutb=Tru
 		result['nut'] = rnut.place((Revolute, rnut['top'], Axis(b+thickness*dir*int(washerb), -dir)))
 	return result
 
-def screw_slot(axis: Axis, dscrew: float, rslot=None, hole=True, screw=0., expand=True, flat=False) -> Mesh:
+def screw_slot(axis: Axis, dscrew: float, rslot=None, hole=0., screw=0., expand=True, flat=False) -> Mesh:
 	''' slot shape for a screw
 		the result can then be used in a boolean operation to reserve set a screw place in an arbitrary shape
 		
@@ -1299,15 +1299,14 @@ def screw_slot(axis: Axis, dscrew: float, rslot=None, hole=True, screw=0., expan
 		profile.append(o + rslot*x + expand*z)
 	profile.append(o + rslot*x)
 	if hole or screw:
-		if not hole and not screw:  hole = dscrew*3
 		if flat:
 			profile.append(o + 0.5*dscrew*(x-z) - (rslot-dscrew)*z)
-			hole = max(hole, -profile[-1].z)
+			hole = max(hole, dot(o-profile[-1], z))
 		else:
 			profile.append(o + 0.5*dscrew*x)
 		profile.append(o + 0.5*dscrew*x - hole*z)
 		profile.append(o + 0.4*dscrew*x - (hole+0.1*dscrew)*z)
-		profile.append(o + 0.4*dscrew*x - hole*z - screw*z)
+		profile.append(o + 0.4*dscrew*x - (hole+screw)*z)
 		profile.append(o - (hole+screw+0.4*dscrew)*z)
 	else:
 		profile.append(o)
