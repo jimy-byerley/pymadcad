@@ -183,10 +183,14 @@ def pierce_mesh(m1, m2, side=False, prec=None, strict=False) -> Mesh:
 						proj = dot(m1.points[f[i]] - m1.points[f[i-1]], m2.facenormal(f2))  * (-1 if side else 1)
 						if proj > prec:
 							used[fi] = 1
+							conn1[(f[i-1], f[i])] = fi
+							conn1[(f[i], f[i-2])] = fi
 							front.append((f[i], f[i-1]))
 							front.append((f[i-2], f[i]))
 						elif proj < -prec:
 							used[fi] = -1
+							conn1[(f[i-1], f[i])] = fi
+							conn1[(f[i], f[i-2])] = fi
 							front.append((f[i], f[i-1]))
 							front.append((f[i-2], f[i]))
 						break
@@ -215,8 +219,8 @@ def pierce_mesh(m1, m2, side=False, prec=None, strict=False) -> Mesh:
 		newfront = []
 		for edge in front:
 			if edge in conn1:
-				source = conn1.get((edge[1], edge[0]), 0)
-				#assert used[source]
+				source = conn1[(edge[1], edge[0])]
+				assert used[source]
 				fi = conn1[edge]
 
 				if not used[fi] or (used[source]*used[fi] < 0 and abs(used[fi]) > abs(used[source])):
@@ -224,7 +228,10 @@ def pierce_mesh(m1, m2, side=False, prec=None, strict=False) -> Mesh:
 					used[fi] = used[source] + (1 if used[source]>0 else -1)
 					f = m1.faces[fi]
 					for i in range(3):
-						if edgekey(f[i-1],f[i]) not in stops:	
+						if edgekey(f[i-1],f[i]) not in stops:
+							# the connectivity might have a different face for this edge in case of empty triangles, so avoid pushing an orphan edge, lets correct the connectivity
+							conn1[(f[i-1], f[i])] = fi
+							assert used[fi]
 							newfront.append((f[i],f[i-1]))
 		front = newfront
 	
