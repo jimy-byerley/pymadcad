@@ -152,24 +152,6 @@ def extrans(section, transformations, links=None) -> Mesh:
 	groups = {}       # groups created by the extransion
 	
 	l = len(section.points)
-	
-	# generate all sections faces using links
-	if links:
-		for a,b,u in links:
-			al = a*l
-			bl = b*l
-			for (c,d),v in zip(section.edges, section.tracks):
-				mesh.faces.append((al+c, al+d, bl+d))
-				mesh.faces.append((al+c, bl+d, bl+c))
-				t = groups.setdefault((u,v), len(groups))
-				mesh.tracks.append(t)
-				mesh.tracks.append(t)
-			# find extremities
-			if face:
-				if a in extremities:   del extremities[a]
-				else:	               extremities[a] = True
-				if b in extremities:   del extremities[b]
-				else:                  extremities[b] = False
 		
 	# generate all sections points using transformations
 	k = 0
@@ -179,14 +161,26 @@ def extrans(section, transformations, links=None) -> Mesh:
 		if k and not links:
 			al, bl, u = (k-1)*l, k*l, 0
 			for (c,d),v in zip(section.edges, section.tracks):
-				mesh.faces.append((al+c, al+d, bl+d))
-				mesh.faces.append((al+c, bl+d, bl+c))
 				t = groups.setdefault((u,v), len(groups))
-				mesh.tracks.append(t)
-				mesh.tracks.append(t)
+				mkquad(mesh, (al+c, al+d, bl+d, bl+c), t)
 		# keep extremities transformations
-		elif face and k in extremities:
+		elif face:
 			kept[k] = trans
+	
+	# generate all sections faces using links
+	if links:
+		for a,b,u in links:
+			al = a*l
+			bl = b*l
+			for (c,d),v in zip(section.edges, section.tracks):
+				t = groups.setdefault((u,v), len(groups))
+				mkquad(mesh, (al+c, al+d, bl+d, bl+c), t)
+			# find extremities
+			if face:
+				if a in extremities:   del extremities[a]
+				else:	               extremities[a] = True
+				if b in extremities:   del extremities[b]
+				else:                  extremities[b] = False
 			
 	if not links:
 		extremities[0] = True
