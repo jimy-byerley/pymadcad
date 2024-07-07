@@ -444,13 +444,8 @@ def washer(d, e=None, h=None) -> Mesh:
 		if e is None:	e = d*2
 		if h is None:	h = d*0.1
 	
-	surf = blendpair(
-			Circle((O,-Z), d/2), 
-			Circle((O,Z), e/2),
-			tangents='straight',
-			)
 	return Solid(
-				part=extrusion(h*Z, surf).option(color=bolt_color), 
+				part=thicken(revolution(2*pi, Axis(O,-Z), web([d/2*X, e/2*X])), h).option(color=bolt_color), 
 				top=Axis(h*Z, Z, interval=(0,h)), 
 				bottom=Axis(O, -Z, interval=(0,h)),
 				)

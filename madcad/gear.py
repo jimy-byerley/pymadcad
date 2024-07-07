@@ -135,7 +135,7 @@ def gearprofile(step, teeth, height=None, offset=0, asymetry=None, alpha=radians
 		t0, ti = o0, oi
 		# initial state
 		t1 = t0 - tan(alpha)	# put contact line on primitive
-		t2 = ti + sqrt(c**2 - (p-h+e)**2) /p	# put interference point on base circle
+		t2 = ti + sqrt(c**2 - (p-h+e+a)**2) /p	# put interference point on base circle
 		for i in range(8):
 			ct1, ct2 = cos(t1), cos(t2)
 			st1, st2 = sin(t1), sin(t2)
@@ -631,12 +631,10 @@ def gearexterior(
 			I = refpoint - t * (trs * refpoint - refpoint)
 			C = M + normalize(I - M) * length(M - C)
 
-			bottom = web([Segment(C, M), Segment(M, B)])
-			bottom.mergeclose()
-			top = web([Segment(D, M), Segment(M, B)]).transform(tra)
-			top.mergeclose()
+			bottom = web([C,M,B])
+			top = web([D,M,B]).transform(depth*Z)
 		else:
-			top = bottom.transform(tra)
+			top = bottom.transform(depth*Z)
 
 		body = revolution(2 * pi / z, (O, Z), top + bottom.flip())
 		body.mergeclose()
@@ -660,12 +658,10 @@ def gearexterior(
 			C = rotatearound(-chamfer_angle, (M, axis)) * A # top
 			D = rotatearound(chamfer_angle, (M, axis)) * A # bottom
 
-			bottom = web([Segment(C, M), Segment(M, B)])
-			bottom.mergeclose()
-			top = web([Segment(D, M), Segment(M, B)]).transform(depth * Z)
-			top.mergeclose()
+			bottom = web([C,M,B])
+			top = web([D,M,B]).transform(depth*Z)
 		else:
-			top = bottom.transform(translate(depth * Z))
+			top = bottom.transform(depth*Z)
 
 		body = revolution(2 * pi / z, (O, Z), top + bottom.flip())
 		body.mergeclose()
@@ -673,7 +669,8 @@ def gearexterior(
 		# Surfaces
 		gear_surface = extrusion(
 			depth * 1.05 * Z,
-			profile.transform(translate(-half_depth * 1.05 * Z)),
+			profile,
+			alignment=0.5,
 		)
 	
 
