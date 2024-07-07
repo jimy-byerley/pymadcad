@@ -161,8 +161,8 @@ bgenerator = bellipsis - 2.2*rball
 generator_thickness = rellipsis*0.1
 generator_profile = wire([
 		vec3(teeth_height*1.5, 0, -hellipsis*0.5), 
-		vec3(rgenerator, 0, -hellipsis*0.5), 
-		[vec3(rballs - rball*cos(t), 0, rball*sin(t))   for t in linrange(-radians(40), radians(40), div=10)],
+		vec3(rballs, 0, -hellipsis*0.5), 
+		[vec3(rballs - rball*cos(t), 0, 1.05*rball*sin(t))   for t in linrange(-radians(90), radians(40), div=10)],
 		vec3(rgenerator, 0, hellipsis*0.5),
 		vec3(rgenerator - generator_thickness, 0, hellipsis*0.5), 
 		vec3(teeth_height*1.5, 0, 0), 
@@ -183,6 +183,7 @@ generator_interface_profile = wire([
 bevel(generator_interface_profile, [3], ('width', dscrew_int))
 generator_interface = revolution(2*pi, Axis(O,Z), generator_interface_profile)
 generator = union(generator, generator_interface)
+#cut.multicut(generator, generator.frontiers(4,8), ('width', 0.4*rball))
 
 in_bolts = []
 in_bolts_slots = Mesh()
@@ -324,3 +325,12 @@ annotations = [
 	note_radius(out_shape.group(2), offset=-height*Z),
 	note_radius(exterior_in.group(10), offset=height*Z),
 	]
+
+'''
+# notes
+- elargir entrée des billes dans la cage
+- etendre levre inferieure de la gorge du generateur pour empecher aux billes de tomber pendant le montage
+- verifier hauteur bearing
+'''
+
+print(2*rint, 2*rext, hout)
