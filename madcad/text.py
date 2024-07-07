@@ -62,8 +62,10 @@ def font_locations():
 def exploredir(dir):
 	''' list directory elements as string file paths '''
 	if os.path.exists(dir):
-		for sub in os.listdir(dir):
-			yield os.path.join(dir, sub)
+		if os.path.isdir(dir):
+			yield dir
+			for sub in os.listdir(dir):
+				yield from exploredir(os.path.join(dir, sub))
 	
 def font_list():
 	''' yield all font files found '''
