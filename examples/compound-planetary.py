@@ -200,6 +200,7 @@ sun = Circle(Axis(in_center,Z), carrier.radius - planet_in.radius)
 
 gears_placeholder = [carrier, planet_out, crown_out, planet_in, crown_in, sun]
 
+play = 0.2
 gap = 0.1*support_height
 hole = min(
 	carrier.radius - planet_out.radius - 0.6*out_step - shell_thickness, 
@@ -224,11 +225,13 @@ out_placeholder = [
 # generate all gears teeth
 vangle = radians(20)
 hangle = radians(10)
-sun_teeth = hgear(in_step, zsun, height+2*gap, -hangle, offset=-0.1*in_step, asymetry=-0.1) .transform(rotate(pi/zsun-pi*zplanet_in/zsun, Z)) .transform(sun.center)
-crown_in_teeth = hgear(in_step, zcrown_in, height+4*gap, hangle, offset=0.1*in_step, asymetry=0.1).flip() .transform(crown_in.center)
-crown_out_teeth = hgear(out_step, zcrown_out, height+2*support_height, hangle, offset=0, asymetry=0.2).transform(crown_out.center).flip()
+sun_teeth = inflate(hgear(in_step, zsun, height+2*gap, -hangle, offset=-0.1*in_step, asymetry=-0.1) .transform(rotate(pi/zsun-pi*zplanet_in/zsun, Z)) .transform(sun.center), -play)
+crown_in_teeth = inflate(hgear(in_step, zcrown_in, height+4*gap, hangle, offset=0.1*in_step, asymetry=0.1).flip() .transform(crown_in.center), -play)
+crown_out_teeth = inflate(hgear(out_step, zcrown_out, height+2*support_height, hangle, offset=0, asymetry=0.2).transform(crown_out.center).flip(), -play)
 planet_in_teeth = hgear(in_step, zplanet_in, height+2*gap, hangle, offset=0.1*in_step, asymetry=0.0).transform(planet_in.center) .option(color=color_gear)
 planet_out_teeth = hgear(out_step, zplanet_out, height+2*gap, hangle, offset=0, asymetry=0.2).transform(planet_out.center) .option(color=color_gear)
+
+
 
 # place as much planets as possible, their phasing is constrained by the sun and and crown
 max_planets = floor(pi*(zcrown_out - zplanet_out) / (zplanet_out + pi))
@@ -253,7 +256,7 @@ planets = [(
 
 
 # support prevending the planets from collapsing under the pressure put by the torque of out crown 
-rsupport = carrier.radius - planet_out.radius + 0.4*out_step
+rsupport = carrier.radius - planet_out.radius + 0.4*out_step - 2*play
 planets_support = wire([
 	(support_height+0.5*height-gap)*Z + hole*X,
 	(support_height+0.5*height-gap)*Z + rsupport*X,
@@ -399,9 +402,12 @@ in_ext_screw = bolt(
 
 holes, bolts_out_ext = circular_screwing(
 	Axis(out_ext.axis.origin + bearing_height*1.7*Z, -Z), 
-	out_ext.radius, bearing_height*1.7, dscrew_out, diameters=2, hold=bearing_height*0.8)
+	out_ext.radius, bearing_height*1.7, dscrew_out, 
+	diameters=2, hold=bearing_height*0.8)
 shell = intersection(shell, holes)
-holes, bolts_out_int = circular_screwing(out_int.axis, out_int.radius, bearing_height*1.7, dscrew_out, diameters=2, hold=True)
+holes, bolts_out_int = circular_screwing(out_int.axis, 
+	out_int.radius, bearing_height*1.7, dscrew_out, 
+	diameters=2, hold=1.3*dscrew_out)
 out = intersection(out, holes)
 holes, bolts_in_ext = circular_screwing(in_ext.axis, in_ext.radius, dscrew_in, dscrew_in, diameters=2)
 shell = intersection(shell, holes)
