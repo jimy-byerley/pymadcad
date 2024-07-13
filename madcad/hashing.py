@@ -12,6 +12,120 @@ from functools import reduce
 from math import floor, ceil, sqrt, inf
 
 
+# ------ connectivity tools -------
+		
+
+def edgekey(a,b):
+	''' Return a key for a non-directional edge '''
+	if a < b:	return (a,b)
+	else:		return (b,a)
+	
+def facekeyo(a,b,c):
+	''' Return a key for an oriented face '''
+	if a < b and b < c:		return (a,b,c)
+	elif a < b:				return (c,a,b)
+	else:					return (b,c,a)
+	
+def arrangeface(f, p):
+	''' Return the face indices rotated the way `p` is the first index, if `p` is in the face '''
+	if   p == f[1]:	return f[1],f[2],f[0]
+	elif p == f[2]:	return f[2],f[0],f[1]
+	else:			return f
+	
+def arrangeedge(e, p):
+	''' Return the edge indices rotated the way `p` is the first index, if `p` is in the edge '''
+	if p == e[1]:	return e[1], e[0]
+	else:			return e
+
+def connpp(ngons):
+	''' Point to point connectivity 
+		
+		input is a list of ngons (tuple of 2 to n indices)
+	'''
+	conn = {}
+	for loop in ngons:
+		for i in range(len(loop)):
+			for a,b in ((loop[i-1],loop[i]), (loop[i],loop[i-1])):
+				if a not in conn:		conn[a] = [b]
+				elif b not in conn[a]:	conn[a].append(b)
+	return conn
+	
+def connef(faces):
+	''' Oriented edge to face connectivity '''
+	conn = {}
+	for i,f in enumerate(faces):
+		for e in ((f[0],f[1]), (f[1],f[2]), (f[2],f[0])):
+			conn[e] = i
+	return conn
+	
+def connpe(edges):
+	''' Point to edge connectivity '''
+	conn = Asso()
+	for i,edge in enumerate(edges):
+		for p in edge:
+			conn.add(p,i)
+	return conn
+
+
+def connexity(links):
+	''' Return the number of links referencing each point as a dictionary {point: num links} '''
+	reach = {}
+	for l in links:
+		for p in l:
+			reach[p] = reach.get(p,0) +1
+	return reach
+
+def suites(lines, oriented=True, cut=True, loop=False):
+	''' Return a list of the suites that can be formed with lines.
+		`lines` is an iterable of edges
+		
+		Parameters:
+			oriented:      specifies that (a,b) and (c,b) will not be assembled
+			cut:           cut suites when they are crossing each others
+		
+		Return a list of the sequences that can be formed
+	'''
+	# TODO: rewrite this to use hashmaps instead of search loops
+	lines = list(lines)
+	# get contiguous suite of points
+	suites = []
+	while lines:
+		suite = list(lines.pop())
+		found = True
+		while found:
+			found = False
+			for i,edge in enumerate(lines):
+				if edge[-1] == suite[0]:		suite[0:1] = edge
+				elif edge[0] == suite[-1]:		suite[-1:] = edge
+				# for unoriented lines
+				elif not oriented and edge[0] == suite[0]:		suite[0:1] = reversed(edge)
+				elif not oriented and edge[-1] == suite[-1]:	suite[-1:] = reversed(edge)
+				else:
+					continue
+				lines.pop(i)
+				found = True
+				break
+			if loop and suite[-1] == suite[0]:	break
+		suites.append(suite)
+	# cut at suite intersections (sub suites or crossing suites)
+	if cut:
+		reach = {}
+		for suite in suites:
+			for p in suite:
+				reach[p] = reach.get(p,0) + 1
+		for suite in suites:
+			for i in range(1,len(suite)-1):
+				if reach[suite[i]] > 1:
+					suites.append(suite[i:])
+					suite[i+1:] = []
+					break
+	return suites
+	
+
+
+
+# --- hashed storages  -----
+
 class PositionMap:
 	''' Holds objects associated with their location.
 		Every object can be bound to multiple locations, and each location can hold multiple objects.
@@ -343,4 +457,153 @@ class PointSet:
 		s.union(self.points)
 		s.difference(iterable)
 		return s
+
+
+class Asso(object):
+	''' Associative container.
+		This is a sort dict that stores as many values as we want for each key. The return value for a key is then always an iterable of the associated values, even when the value set to the key is unique and is not an iterator.
+		
+		Asso(iterable)				the iterable must yields (key,value) pairs
+		Asso(keys=[], values=[])	build form existing lists, assuming they are already sorted
+	'''
+	__slots__ = '_table'
+	
+	def __init__(self, iter=None):
+		if isinstance(iter, Asso):
+			self._table = dict(iter.table)
+		else:
+			self._table = {}
+			if iter:
+				self.update(iter)
+		
+	def __getitem__(self, key):
+		''' return an iterable of the objects associated to the given key '''
+		i = 0
+		while True:
+			k = (i,key)
+			if k not in self._table:
+				break
+			yield self._table[k]
+			i += 1
+			
+	def add(self, key, value):
+		''' associate a new value to this key '''
+		i = 0
+		while True:
+			k = (i,key)
+			if k not in self._table:
+				self._table[k] = value
+				return
+			i += 1
+	
+	def remove(self, key, value):
+		l = self.connexity(key)-1
+		i = l
+		while i>=0:
+			k = (i,key)
+			if self._table[k] == value:
+				last = (l,key)
+				self._table[k] = self._table[last]
+				del self._table[last]
+				return
+			i -= 1
+		raise KeyError('key not in table')
+		
+	def discard(self, key, value):
+		''' remove all (key,value) pair of that table '''
+		l = self.connexity(key)-1
+		i = l
+		while i>=0:
+			k = (i,key)
+			if self._table[k] == value:
+				last = (l,key)
+				self._table[k] = self._table[last]
+				del self._table[last]
+				l -= 1
+			i -= 1
+	
+	def update(self, other):
+		''' append all key,value associations to this Asso '''
+		if isinstance(other, dict):
+			other = other.items()
+		for k,v in other:
+			self.add(k,v)
+		
+	def __add__(self, other):
+		new = Asso()
+		new._table = dict(self._table)
+		new.update(other)
+		return new
+		
+		
+	def __delitem__(self, key):
+		''' delete all associations with this key '''
+		i = 0
+		while True:
+			k = (i,k)
+			if k not in self._table:
+				break
+			del self._table[k]
+			i += 1
+	
+	def clear(self):
+		''' empty the container '''
+		self._table.clear()
+
+	def items(self):
+		''' iterator of (key, value) pairs '''
+		for k,v in self._table.items():
+			yield k[1],v
+
+	def keys(self):
+		''' iterator of the keys '''
+		for k,v in self._table:
+			yield k[1]
+		
+	def values(self):
+		''' iterator of the values '''
+		return self._table.values()
+		
+	def connexity(self, key):
+		''' return the number of values associated to the given key '''
+		i = 0
+		while True:
+			k = (i,key)
+			if k not in self._table:
+				break
+			i += 1
+		return i
+		
+
+	def __contains__(self, key):
+		''' return True if key is associated to something '''
+		return (0,key) in self._table
+		
+	def __repr__(self):
+		return 'Asso([{}])'.format(', '.join(
+					'({}, {})'.format(repr(k), repr(v))	
+						for k,v in self.items()
+					))
+
+def test_asso():
+	m = Asso([
+			(1,'truc'), 
+			(2,'machin'),
+			(12, 'chose'),
+			(1, 'bidule'),
+			])
+	nprint('created', m)
+	
+	m.update([
+		(1,'machin'),
+		(-1,'gna'),
+		])
+	nprint('updated', m)
+	
+	m.add(1, 2)
+	nprint('inserted', m)
+	
+	assert set(m[1]) == {'truc', 'bidule', 2, 'machin'}
+	assert set(m[12]) == {'chose'}
+
 

@@ -9,8 +9,8 @@
 
 import scipy.spatial
 from .mathutils import *
-from .mesh import Mesh, Web, Wire, edgekey, facekeyo, arrangeface, connef, connpe, numpy_to_typedlist, typedlist_to_numpy
-from .asso import Asso
+from .mesh import Mesh, Web, Wire, numpy_to_typedlist, typedlist_to_numpy
+from .hashing import Asso, edgekey, facekeyo, arrangeface, connef, connpe
 
 from copy import copy
 from collections import Counter

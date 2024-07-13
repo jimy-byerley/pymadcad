@@ -10,8 +10,7 @@ from numbers import Integral, Real
 import math
 
 from ..mathutils import *
-from ..asso import Asso
-from .. import hashing
+from ..hashing import *
 from .. import settings
 
 
@@ -65,7 +64,7 @@ class NMesh(object):
 		if limit is None:	limit = self.precision()
 		
 		merges = {}
-		points = hashing.PointSet(limit)
+		points = PointSet(limit)
 		for i in range(len(self.points)):
 			used = points.add(self.points[i])
 			if used != i:	merges[i] = used
@@ -281,115 +280,6 @@ def ensure_typedlist(obj, dtype):
 		return obj
 	else:
 		return typedlist(obj, dtype)
-
-
-
-
-# ------ connectivity tools -------
-		
-
-def edgekey(a,b):
-	''' Return a key for a non-directional edge '''
-	if a < b:	return (a,b)
-	else:		return (b,a)
-	
-def facekeyo(a,b,c):
-	''' Return a key for an oriented face '''
-	if a < b and b < c:		return (a,b,c)
-	elif a < b:				return (c,a,b)
-	else:					return (b,c,a)
-	
-def arrangeface(f, p):
-	''' Return the face indices rotated the way the `p` is the first one '''
-	if   p == f[1]:	return f[1],f[2],f[0]
-	elif p == f[2]:	return f[2],f[0],f[1]
-	else:			return f
-	
-def arrangeedge(e, p):
-	if p == e[1]:	return e[1], e[0]
-	else:			return e
-
-def connpp(ngons):
-	''' Point to point connectivity 
-		input is a list of ngons (tuple of 2 to n indices)
-	'''
-	conn = {}
-	for loop in ngons:
-		for i in range(len(loop)):
-			for a,b in ((loop[i-1],loop[i]), (loop[i],loop[i-1])):
-				if a not in conn:		conn[a] = [b]
-				elif b not in conn[a]:	conn[a].append(b)
-	return conn
-	
-def connef(faces):
-	''' Connectivity dictionary, from oriented edge to face '''
-	conn = {}
-	for i,f in enumerate(faces):
-		for e in ((f[0],f[1]), (f[1],f[2]), (f[2],f[0])):
-			conn[e] = i
-	return conn
-	
-def connpe(edges):
-	conn = Asso()
-	for i,edge in enumerate(edges):
-		for p in edge:
-			conn.add(p,i)
-	return conn
-
-
-def connexity(links):
-	''' Return the number of links referencing each point as a dictionary {point: num links} '''
-	reach = {}
-	for l in links:
-		for p in l:
-			reach[p] = reach.get(p,0) +1
-	return reach
-
-def suites(lines, oriented=True, cut=True, loop=False):
-	''' Return a list of the suites that can be formed with lines.
-		`lines` is an iterable of edges
-		
-		Parameters:
-			oriented:      specifies that (a,b) and (c,b) will not be assembled
-			cut:           cut suites when they are crossing each others
-		
-		Return a list of the sequences that can be formed
-	'''
-	lines = list(lines)
-	# get contiguous suite of points
-	suites = []
-	while lines:
-		suite = list(lines.pop())
-		found = True
-		while found:
-			found = False
-			for i,edge in enumerate(lines):
-				if edge[-1] == suite[0]:		suite[0:1] = edge
-				elif edge[0] == suite[-1]:		suite[-1:] = edge
-				# for unoriented lines
-				elif not oriented and edge[0] == suite[0]:		suite[0:1] = reversed(edge)
-				elif not oriented and edge[-1] == suite[-1]:	suite[-1:] = reversed(edge)
-				else:
-					continue
-				lines.pop(i)
-				found = True
-				break
-			if loop and suite[-1] == suite[0]:	break
-		suites.append(suite)
-	# cut at suite intersections (sub suites or crossing suites)
-	if cut:
-		reach = {}
-		for suite in suites:
-			for p in suite:
-				reach[p] = reach.get(p,0) + 1
-		for suite in suites:
-			for i in range(1,len(suite)-1):
-				if reach[suite[i]] > 1:
-					suites.append(suite[i:])
-					suite[i+1:] = []
-					break
-	return suites
-
 
 
 # ----- internal helpers ------

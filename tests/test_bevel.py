@@ -1,6 +1,5 @@
 # test intersections
 from madcad import vec3, saddle, tube, ArcThrough, Web, web, filet, chamfer, show
-from madcad.mesh import suites
 from madcad.bevel import multicut
 from madcad.nprint import nprint
 from copy import deepcopy

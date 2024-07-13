@@ -22,11 +22,14 @@ import glm
 from operator import itemgetter
 from collections import deque
 from dataclasses import dataclass
+import numpy.linalg
+import numpy as np
 
 from .mathutils import *
 from .rendering import Display
 from .common import resourcedir
-from .mesh import Mesh, Web, Wire, web, wire, mesh_distance, connef, connpe, edgekey, arrangeface, arrangeedge
+from .mesh import Mesh, Web, Wire, web, wire, mesh_distance
+from .hashing import connef, connpe, connpp, edgekey, arrangeface, arrangeedge
 from .rendering import Displayable, writeproperty, overrides
 from .text import TextDisplay, textsize
 from .primitives import *
@@ -768,9 +771,6 @@ def note_radius(mesh, offset=None, d=None, tol=None, text=None, propagate=2):
 	note.add([place, arrowplace])
 	return note
 	
-import numpy.linalg
-import numpy as np
-from .mesh import connpp
 	
 def mesh_curvature_radius(mesh, conn=None, normals=None, propagate=2) -> '(distance, point)':
 	''' Find the minimum curvature radius of a mesh.

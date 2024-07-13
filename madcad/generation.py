@@ -6,7 +6,8 @@
 
 from .mathutils import *
 from .primitives import Axis
-from .mesh import Mesh, Web, Wire, edgekey, facekeyo, MeshError, web, wire, suites, mkquad, mktri
+from .mesh import Mesh, Web, Wire, MeshError, web, wire, mkquad, mktri
+from .hashing import edgekey, facekeyo, suites
 from . import triangulation
 from . import settings
 from . import primitives

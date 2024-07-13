@@ -34,9 +34,9 @@ from functools import singledispatch
 from time import time
 from math import inf
 from .mathutils import *
+from .hashing import *
 from . import core
-from .mesh import Mesh, Web, Wire, web, edgekey, connef, connpe, line_simplification
-from . import hashing
+from .mesh import Mesh, Web, Wire, web, line_simplification
 from . import triangulation
 
 __all__ = ['pierce', 'boolean', 'intersection', 'union', 'difference']
@@ -65,8 +65,8 @@ def cut_mesh(m1, m2, prec=None) -> '(Mesh, Web)':
 	frontier = Web(m1.points, groups=m2.faces)	# cut points for each face from m2
 	
 	# topology informations for optimization
-	points = hashing.PointSet(prec, manage=m1.points)
-	prox2 = hashing.PositionMap(max(hashing.meshcellsize(m2), hashing.meshcellsize(m1)))
+	points = PointSet(prec, manage=m1.points)
+	prox2 = PositionMap(max(meshcellsize(m2), meshcellsize(m1)))
 	for f2 in range(len(m2.faces)):
 		prox2.add(m2.facepoints(f2), f2)
 	conn = connef(m1.faces)
@@ -282,8 +282,8 @@ def cut_web(w1: Web, ref: Web, prec=None) -> '(Web, Wire)':
 	frontier = Wire(w1.points, [], [], groups=ref.edges)
 	
 	# topology informations for optimization
-	points = hashing.PointSet(prec, manage=w1.points)
-	prox = hashing.PositionMap(hashing.meshcellsize(ref))
+	points = PointSet(prec, manage=w1.points)
+	prox = PositionMap(meshcellsize(ref))
 	for e in range(len(ref.edges)):
 		prox.add(ref.edgepoints(e), e)
 	conn = connpe(w1.edges)
@@ -453,8 +453,8 @@ def cut_web_mesh(w1: Web, ref: Mesh, prec=None) -> '(Web, Wire)':
 	frontier = Wire(w1.points, [], [], groups=ref.faces)
 	
 	# topology informations for optimization
-	points = hashing.PointSet(prec, manage=w1.points)
-	prox = hashing.PositionMap(hashing.meshcellsize(ref))
+	points = PointSet(prec, manage=w1.points)
+	prox = PositionMap(meshcellsize(ref))
 	for f in range(len(ref.faces)):
 		prox.add(ref.facepoints(f), f)
 	conn = connpe(w1.edges)

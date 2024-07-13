@@ -8,6 +8,7 @@
 
 from .mathutils import *
 from .mesh import *
+from .hashing import *
 from . import generation as gt
 from . import hashing
 from . import text

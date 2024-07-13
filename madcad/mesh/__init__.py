@@ -60,9 +60,7 @@ from ..mathutils import *
 
 __all__ = [
 		'Mesh', 'Web', 'Wire', 'MeshError', 'web', 'wire', 
-		'connpp', 'connpp', 'connpe', 'connef',
-		'edgekey', 'facekeyo', 'arrangeface', 'arrangeedge', 
-		'suites', 'line_simplification', 'mesh_distance', 'striplist',
+		'line_simplification', 'mesh_distance', 'striplist',
 		'typedlist_to_numpy', 'numpy_to_typedlist', 'ensure_typedlist',
 		]
 
@@ -74,9 +72,7 @@ from .wire import Wire
 from .conversions import *
 from .container import (
 	MeshError, NMesh,
-	connpe, connef, connpp, connexity,
-	facekeyo, edgekey, arrangeface, arrangeedge,
-	suites, striplist,
+	striplist,
 	typedlist_to_numpy, numpy_to_typedlist, ensure_typedlist,
 	)
 

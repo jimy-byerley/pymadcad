@@ -6,7 +6,8 @@ from .mathutils import (
 		anglebt, cross, dot, length, distance, normalize, noproject,
 		distance_pp, distance_pa, distance_pe, distance_aa, distance_ae,
 		)
-from .mesh import Mesh, Web, edgekey, connpp, connef
+from .mesh import Mesh, Web
+from .hashing import edgekey, connpp, connef
 
 __all__ = ['select', 'stopangle', 'crossover', 'straight', 'short', 'selexpr', 'edgenear']
 
