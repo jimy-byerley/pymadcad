@@ -8,16 +8,19 @@ hashing    - Fast access to space associated data
 Connectivity
 ------------
 
-.. autofunction:: madcad.mesh.edgekey
-.. autofunction:: madcad.mesh.facekeyo
-.. autofunction:: madcad.mesh.arrangeface
-.. autofunction:: madcad.mesh.arrangeedge
-.. autofunction:: madcad.mesh.connpp
-.. autofunction:: madcad.mesh.connef
-.. autofunction:: madcad.mesh.connpe
-.. autofunction:: madcad.mesh.connexity
+.. autofunction:: edgekey
+.. autofunction:: facekeyo
+.. autofunction:: arrangeface
+.. autofunction:: arrangeedge
+.. autofunction:: connpp
+.. autofunction:: connef
+.. autofunction:: connpe
+.. autofunction:: connexity
 
-.. autofunction:: madcad.mesh.suites
+.. autofunction:: suites
+
+Specific Hashmaps
+-----------------
 
 .. autoclass:: PositionMap
 	:members: keysfor, update, add, get, display, __contains__
@@ -30,5 +33,5 @@ Connectivity
 	:undoc-members:
 
 .. autoclass:: Asso
-	:automembers:
+	:members: __getitem__, __contains__, add, remove, discard, update, __add__, clear, items, keys, values, connexity
 	:undoc-members:
