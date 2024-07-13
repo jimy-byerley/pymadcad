@@ -32,8 +32,10 @@ from .io import cachefunc
 __all__ = [	'nut', 'screw', 'washer', 'bolt',
 			'coilspring_compression', 'coilspring_tension', 'coilspring_torsion',
 			'bearing', 'slidebearing',
-			'section_s', 'section_w', 'section_c', 'section_l', 'section_tslot',
+			'section_s', 'section_w', 'section_c', 'section_l', 'section_tslot', 'grooves',
 			'screw_slot', 'bolt_slot', 'bearing_slot_exterior', 'bearing_slot_interior',
+			'circular_screwing',
+			'grooves_profile', 'grooves',
 			'stfloor', 'stceil',
 			]
 
@@ -641,6 +643,7 @@ standard_ipn = [
 	(550, 200, 19.0, 30.0),
 	(600, 215, 21.6, 32.4),
 	]
+
 	
 # --------------------- coilspring stuff ------------------------
 
@@ -1443,15 +1446,104 @@ def bearing_slot_interior(axis: Axis, dint: float, height: float, shouldering=Tr
 			])
 		profile.insert(0, profile[0] + expand*Z)
 	return revolution(2*pi, Axis(O,Z), wire(profile).segmented()) .transform(translate(axis[0]) * mat4(quat(Z, axis[1])))
+
+
+def circular_screwing(axis, radius, height, dscrew, diameters:int=1, div:int=8, hold:float=0) -> '(Mesh, list)':
+	''' holes and bolts to screw a circular perimeter
 	
+		Parameters:
+			axis:  placement of circle around which the screws are placed
+			radius: radius of the perimeter on which to put the screws
+			height: bolts length
+			dscrew: diameter of the biggest screws
+			diameters: each biggest screw is followed by this number-1 of additional smaller diameters
+			div: number of biggest screws distributed uniformly on the perimeter
+			hold: 
+				if non zero, holding screws of the given length are added to help the assembly.
+				if True, the holding screws length is automatically determined.
+				
+		Return: a tuple (holes:Mesh, bolts:list) where the bolts is a list of `Solid`
+	'''
+	holes = Mesh()
+	bolts = []
+	x,y,z = dirbase(axis.direction)
+	a = axis.origin + radius*x
+	b = axis.origin + radius*x + height*z
+	gap = 0.1*dscrew*z
+	enlarge = 1.05
+	bolts.append(bolt(a, b, dscrew))
+	for i in range(diameters):
+		holes += cylinder(a-gap, b+gap, enlarge*stfloor(0.8**i * dscrew)/2) .transform(rotatearound(i*1.4*dscrew/radius, axis))
+	holes = repeataround(holes, 8, axis).flip()
+	if hold is True:
+		hole = 1.5*dscrew
+	if hold:
+		angle = 1.7*dscrew/radius
+		holes += repeataround(screw_slot(Axis(a+gap,-z), dscrew, 
+					screw=height-hold, 
+					hole=hold, 
+					flat=True), 2) .transform(rotatearound(-angle, axis))
+		bolts.append(screw(dscrew, height, head='flat')
+			.place((Revolute, Axis(O,Z), Axis(a,-z)))
+			.transform(rotatearound(-angle, axis)))
+		bolts.append(screw(dscrew, height, head='flat')
+			.place((Revolute, Axis(O,Z), Axis(a,-z)))
+			.transform(rotatearound(pi-angle, axis)))
+	return holes, bolts
 	
-	
+
+def grooves_profile(radius, repetitions:int=16, alignment=0.5, angle=radians(40)) -> Wire:
+	''' Coupling grooves profile 
+		
+		- The size of grooves depend on the pressure angle and the number of grooves
+		
+		Parameters:
+		
+			radius: the radius around which the grooves are placed
+			repetitions: the number of grooves to put on the circle perimeter
+			alignemnt: fraction of the grooves height
+				- exterior grooves usually have alignment=1
+				- interior grooves usually have alignemnt=0
+			angle: pressure angle of the grooves
+	'''
+	r = radius
+	h = r/n / tan(angle)
+	def profile(t, min=-1, max=1):
+		return (r+(0.5-align)*h+h*sin(n*t)) * vec3(cos(t), sin(t), 0)
+	return wire([ profile(t, -1, 0.7)
+		for t in linrange(0, 2*pi, div=12*n, end=False) ]).close()
+
+def grooves(radius, height, repetitions:int=16, alignment=0.5, angle=radians(40)) -> Mesh:
+	''' Coupling grooves surface
+		
+		- The bottom and top bevels direction depend on the alignment
+		- The size of grooves depend on the pressure angle and the number of grooves
+		
+		Parameters:
+		
+			radius: the radius around which the grooves are placed
+			height: the length of the grooves, including transition bevels
+			repetitions: the number of grooves to put on the circle perimeter
+			alignemnt: fraction of the grooves height
+				- exterior grooves usually have alignment=1
+				- interior grooves usually have alignemnt=0
+			angle: pressure angle of the grooves
+	'''
+	h = r/n / tan(angle)
+	if alignment > 0.5:    s = 1+h/radius
+	else:                  s = 1-h/radius
+	return extrans(grooves_profile(radius, repetitions, alignment, angle), [
+				scale(vec3(s)),
+				translate(h*Z),
+				translate((height-h)*Z),
+				translate(height*Z) * scale(vec3(s)),
+				])
 	
 
 from .kinematic import Chain, Kinematic
 from .joints import *
 	
-def scara(backarm, forearm):
+def scara(backarm:float, forearm:float) -> Kinematic:
 	'''
 	kinematic of a classical *scara* robot arm
 	'''
@@ -1462,7 +1554,7 @@ def scara(backarm, forearm):
 		Prismatic((3,'tool'), Axis(-forearm*0.5*Z,Z)),
 		])
 
-def serial6(backarm, forearm):
+def serial6(backarm:float, forearm:float) -> Kinematic:
 	''' 
 	kinematic of a classical serial robot arm with 6 degrees of freedom
 	
@@ -1479,7 +1571,7 @@ def serial6(backarm, forearm):
 		Revolute((5,'tool'), Axis(0.3*forearm*Z,Z)), # wrist 3
 		])
 
-def serial7(backarm, forearm):
+def serial7(backarm:float, forearm:float) -> Kinematic:
 	''' 
 	kinematic of a classical serial robot arm with 7 degrees of freedom
 	
@@ -1497,7 +1589,7 @@ def serial7(backarm, forearm):
 		Revolute((6,'tool'), Axis(0.3*forearm*Z,Z)), # wrist 3
 		])
 
-def delta3(base, tool, backarm, forearm, forearm_width=None):
+def delta3(base:float, tool:float, backarm:float, forearm:float, forearm_width:float=None) -> Kinematic:
 	'''
 	kinematic of a classical delta robot with 3 degrees of freedom
 	
@@ -1527,10 +1619,10 @@ def delta3(base, tool, backarm, forearm, forearm_width=None):
 	return Kinematic(joints, inputs=motors, outputs=['tool'], ground='base')
 	# return Kinematic(motors+joints, ground='base')
 
-def delta4(backarm, forearm):
-	indev
-def delta6(backarm, forearm):
-	indev
+# def delta4(backarm, forearm) -> Kinematic:
+# 	indev
+# def delta6(backarm, forearm) -> Kinematic:
+# 	indev
 	
 # def stewart(base, tool, shaft, gap=None):
 # 	if gap is None:	gap = base*0.1
