@@ -61,7 +61,7 @@ exp.check()
 assert exp.issurface()
 results.append(exp)
 
-cylinder = revolution(pi, Axis(O,X), wire([vec3(0,1,0), vec3(1,1,0)])) .flip()
+cylinder = revolution(wire([vec3(0,1,0), vec3(1,1,0)]), Axis(O,X), pi) .flip()
 exp = expand(cylinder, 0.5)
 exp.check()
 assert exp.issurface()

@@ -65,10 +65,14 @@ def revolution(shape, axis=Axis(O,Z), angle:float=2*pi, alignment:float=0, resol
 	for pt in shape.points:
 		radius = max(radius, length(noproject(pt-axis[0], axis[1])))
 	div = settings.curve_resolution(abs(angle*radius), abs(angle), resolution)
+	def links():
+		for i in range(div):          yield (i,i+1, 0)
+		if abs(angle-2*pi) <= NUMPREC:    yield (div, 0, 0)
+		else:                             yield (div, div+1, 0)
 	return extrans(shape, (
 		rotatearound(t*angle, axis)
 		for t in linrange(0-alignment, 1-alignment, div=div)
-		))
+		), links())
 
 def helix(shape, height:float, angle:float, radius:float=1., axis=Axis(O,Z), alignment:float=0., resolution=None) -> Mesh:
 	''' Extrude the given shape by rotating and translating along an axis
@@ -767,9 +771,8 @@ def icosphere(center:vec3, radius:float, resolution=None) -> 'Mesh':
 	
 		Points are obtained from a subdivided icosahedron and reprojected on the desired radius.
 	'''
-	ico = icosahedron(center, radius)
 	div = settings.curve_resolution(2/6*pi*radius, 2/6*pi, resolution)
-	ico = subdivide(ico, div-1)
+	ico = icosahedron(center, radius).subdivide(div-1)
 	for i,p in enumerate(ico.points):
 		ico.points[i] = center + radius * normalize(p-center)
 	return ico
@@ -777,13 +780,13 @@ def icosphere(center:vec3, radius:float, resolution=None) -> 'Mesh':
 def uvsphere(center:vec3, radius:float, alignment=vec3(0,0,1), resolution=None) -> 'Mesh':
 	''' A simple uvsphere (simple sphere obtained with a revolution of an arc) '''
 	x,y,z = dirbase(alignment)
-	mesh = revolution(2*pi, 
-			(center, z),
+	mesh = revolution(
 			web(primitives.ArcCentered(
 				(center,x), 
 				center+radius*z, 
 				center-radius*z, 
 				resolution=resolution)),
+			Axis(center, z),
 			resolution=resolution)
 	mesh.mergeclose()
 	return mesh

@@ -288,7 +288,7 @@ class Prismatic(Joint):
 			)
 		profile = gt.parallelogram(0.4*size*x, 0.4*size*y, origin=o, align=0.5, fill=False)
 		profile.tracks = typedlist(range(len(profile.edges)))
-		exterior = gt.extrusion(size*z, profile, alignment=0.5)
+		exterior = gt.extrusion(profile, size*z, alignment=0.5)
 		exterior.splitgroups()
 		sch.add(exterior, shader='ghost')
 		sch.add(exterior.outlines(), shader='line')
@@ -309,14 +309,14 @@ class Prismatic(Joint):
 			track = index[self.solids[1]], 
 			space = scale_solid(self.solids[1], fvec3(o), maxsize/size),
 			)
-		interior = gt.extrusion(size*z, Web([
+		interior = gt.extrusion(Web([
 			o-0.2*size*(x+y),
 			o+0.2*size*(x+y),
 			o-0.2*size*(x-y),
 			o+0.2*size*(x-y),
 			],
 			[(0,1), (2,3)],
-			), alignment=0.5)
+			), size*z, alignment=0.5)
 		sch.add(interior.outlines(), shader='line')
 		if attach_end:
 			v = attach_end - o
@@ -506,7 +506,7 @@ class Ball(Joint):
 		else:
 			x,y,z = mat3()
 		profile = ArcCentered(Axis(O,y), x*radius, -z*radius).mesh(resolution=resolution)
-		emisphere = gt.revolution(2*pi, Axis(O,z), profile, resolution=resolution)
+		emisphere = gt.revolution(profile, Axis(O,z), resolution=resolution)
 		sch.add(emisphere, shader='ghost')
 		sch.add(emisphere.outlines(), shader='line')
 		if attach_start:
@@ -702,7 +702,7 @@ class Ring(Joint):
 		else:
 			x,y,z = mat3()
 		profile = ArcCentered(Axis(center,y), center+x*radius, center-z*radius).mesh(resolution=resolution)
-		emisphere = gt.revolution(2*pi, Axis(center,z), profile, resolution)
+		emisphere = gt.revolution(profile, Axis(center,z), resolution)
 		sch.add(emisphere, shader='ghost')
 		sch.add(emisphere.outlines(), shader='line')
 		
@@ -837,7 +837,7 @@ class Gear(Joint):
 			b, w = -b, -w
 		
 		profile = Web([r+b+w, r+b, r+b, r, r-b, r-b, r-b+w], [(0,1),(2,3),(3,4),(5,6)])
-		surf = generation.revolution(2*pi, self.axis[i0], profile, resolution=('rad',0.1))
+		surf = generation.revolution(profile, self.axis[i0], resolution=('rad',0.1))
 		l = len(profile.points)
 		sch = Scheme(surf.points, surf.faces, [], [(i,i+l) for i in range(3, len(surf.points)-l, l)])
 		sch.extend(Scheme([junc, mix(o,r,0.8), r], [], [], [(0,1),(1,2)]))
@@ -887,12 +887,13 @@ class Helicoid(Joint):
 			z = cross(x,y)
 			center = o + project(self.position[0]-o, z)
 			cyl = generation.extrusion(
-						z*size, 
 						web(primitives.Circle(
-								(center-z*size*0.5, z), 
-								radius, 
-								resolution=('div', 16),
-						)))
+							(center-z*size*0.5, z), 
+							radius, 
+							resolution=('div', 16),
+							)),
+						z*size, 
+						)
 			l = len(cyl.points)
 			v = junc - center
 			v = normalize(noproject(v,z))

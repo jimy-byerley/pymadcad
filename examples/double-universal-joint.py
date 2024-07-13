@@ -21,7 +21,7 @@ def cardan_side(rint, rext, rtop, thickness, height):
 	
 	body = union(
 			icosphere(O, rext),
-			revolution(2*pi, Axis(O,Z), wire([
+			revolution(wire([
 				Softened([
 					vec3(rext*0.9, 0, height*0.2),
 					vec3(rext*0.6, 0, height*0.4),
@@ -39,22 +39,22 @@ def cardan_side(rint, rext, rtop, thickness, height):
 	body.mergeclose()
 
 	shape = intersection(
-		inflate(extrusion(mat3(5), profile.flip()), -margin),
+		inflate(extrusion(profile.flip(), mat3(5)), -margin),
 		body + icosphere(O, thickness*rext).flip(),
 		)
 	
 	rscrew = stfloor(0.6*rtop)/2
 	
-	pocket = extrusion(rext*Y, flatsurface(convexoutline(web([
+	pocket = extrusion(flatsurface(convexoutline(web([
 		Circle(Axis(vec3(0, rtop*1.8, rext*thickness + 2*rscrew), Y), 2.7*rscrew),
 		Segment(
 			vec3(+rtop, rtop*1.5, height),
 			vec3(-rtop, rtop*1.5, height)),
-		])))).orient()
+		]))), rext*Y).orient()
 	pocket = union(pocket, 
-				extrusion(rtop*Y, flatsurface(
-					Circle(Axis(vec3(0, rtop*1.35, height - 1.5*rtop), -Y), 2.7*rscrew)
-				)))
+				extrusion(
+					flatsurface(Circle(Axis(vec3(0, rtop*1.35, height - 1.5*rtop), -Y), 2.7*rscrew)),
+					rtop*Y))
 	removal = union(
 				pocket + pocket.transform(scaledir(Y, -1)).flip(),
 				(	  cylinder(
@@ -69,11 +69,11 @@ def cardan_side(rint, rext, rtop, thickness, height):
 				)
 	shape = difference(shape, removal)
 	
-	hole = revolution(2*pi, Axis(O,Y), wire([
+	hole = revolution(wire([
 		vec3(rint+0.1*rext, rext, 0),
 		vec3(rint, rext-rint*0.3, 0),
 		vec3(rint, 0, 0),
-		]).segmented().flip()) .qualify('axis', 'joint')
+		]).segmented().flip(), Axis(O,Y)) .qualify('axis', 'joint')
 	result = intersection(
 			shape, 
 			hole + hole.transform(scaledir(Y,-1)).flip(),
@@ -127,7 +127,7 @@ def moyeu(brext, rext, thickness, brint=None, slot=False):
 		]) .segmented()
 	profile.qualify('axis', select=1)
 	chamfer(profile, [1], ('radius', 0.1*brext))
-	tip = revolution(2*pi, Axis(O,X), profile)
+	tip = revolution(profile, Axis(O,X))
 	tip.finish()
 
 	if slot:
@@ -197,7 +197,7 @@ def cardan_middle(rint, rext, rtop, thickness, height):
 	
 	body = union(
 			icosphere(O, rext) + icosphere(O + 2*rext*Z, rext),
-			revolution(2*pi, Axis(O,Z), wire([
+			revolution(wire([
 				Softened([
 					vec3(rext*0.9, 0, height*0.2),
 					vec3(rext*0.6, 0, height*0.4),
@@ -209,8 +209,8 @@ def cardan_middle(rint, rext, rtop, thickness, height):
 
 	shape = intersection(
 		intersection(
-			inflate(extrusion(mat3(5), profile.flip()), -margin),
-			inflate(extrusion(mat3(5), profile).transform(scaledir(Z, -1)).transform(2*rext*Z), -margin),
+			inflate(extrusion(profile.flip(), mat3(5)), -margin),
+			inflate(extrusion(profile, mat3(5)).transform(scaledir(Z, -1)).transform(2*rext*Z), -margin),
 			),
 		body + icosphere(O, thickness*rext).flip() + icosphere(O + 2*rext*Z, thickness*rext).flip(),
 		)
@@ -223,11 +223,11 @@ def cardan_middle(rint, rext, rtop, thickness, height):
 		2*rscrew*1.2).flip()
 	shape = difference(shape, removal)
 	
-	hole = revolution(2*pi, Axis(O,Y), wire([
+	hole = revolution(wire([
 		vec3(rint+0.1*rext, rext, 0),
 		vec3(rint, rext-rint*0.3, 0),
 		vec3(rint, 0, 0),
-		]).segmented().flip()) .qualify('axis', 'joint')
+		]).segmented().flip(), Axis(O,Y)) .qualify('axis', 'joint')
 	result = intersection(
 			shape, 
 			hole + hole.transform(scaledir(Y,-1)).flip() 

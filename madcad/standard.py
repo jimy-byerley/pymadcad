@@ -147,7 +147,7 @@ def screw(d, length, filet_length=None, head='SH', drive=None, detail=False):
 	r = 0.5*d
 	axis = Axis(O, Z, interval=(-length,r))
 	top = head.box().min.z
-	body = revolution(2*pi, axis, wire([
+	body = revolution(wire([
 					vec3(r, 0, top),
 					vec3(r, 0, min(top, -length+filet_length)),
 					vec3(r, 0, -length+r*0.2),
@@ -162,7 +162,7 @@ def screwdrive_torx(d):
 	
 def screwdrive_hex(d):
 	base = regon((-0.3*d*Z, -Z), 0.5*d, 6)
-	socket = extrusion(d*Z, base) + blendloop(base, center=-0.6*d*Z, weight=-1)
+	socket = extrusion(base, d*Z) + blendloop(base, center=-0.6*d*Z, weight=-1)
 	socket.mergeclose()
 	return socket
 	
@@ -173,12 +173,13 @@ def screwdrive_slot(d):
 	w = 0.15*d
 	h = 0.3*d
 	e = 2*d
-	return extrusion(2*e*X, web([
+	return extrusion(web([
 				vec3(-e, w, h),
 				vec3(-e, w, -h),
 				vec3(-e, -w, -h),
 				vec3(-e, -w, h),
-				]) .segmented())
+				]) .segmented(), 
+				2*e*X)
 
 def screwhead_socket(d):
 	''' Screw head shape for socket head (SH) '''
@@ -193,7 +194,7 @@ def screwhead_socket(d):
 			vec3(r-c,   0,  h),
 			vec3(0,     0,  h),
 			]) .segmented()
-	head = revolution(-2*pi, (O,Z), profile)
+	head = revolution(profile.flip())
 	head.finish()
 	return head
 	
@@ -203,15 +204,15 @@ def screwhead_hex(d):
 	h = 0.6*d
 	c = 0.05*d
 	
-	profile = extrusion(2*d*Z, regon((-d*Z,Z), r, 6))
-	cone = revolution(2*pi, (O,Z), web([
-		vec3(0,       0, h),
-		vec3(0.8*r,   0, h),
-		vec3(1.01*r,  0, h*0.8),
-		vec3(1.01*r,  0, 0),
-		vec3(0.5*d+c, 0, 0),
-		vec3(0.5*d,   0, -c),
-		]) .segmented())
+	profile = extrusion(regon((-d*Z,Z), r, 6), 2*d*Z)
+	cone = revolution(web([
+			vec3(0,       0, h),
+			vec3(0.8*r,   0, h),
+			vec3(1.01*r,  0, h*0.8),
+			vec3(1.01*r,  0, 0),
+			vec3(0.5*d+c, 0, 0),
+			vec3(0.5*d,   0, -c),
+			]) .segmented())
 	head = intersection(cone, profile)
 	head.finish()
 	return head
@@ -237,14 +238,14 @@ def screwhead_button(d):
 			vec3(0, 0.5*d, -c),
 			]) .segmented(),
 		]
-	return revolution(2*pi, (O,Z), profile)
+	return revolution(profile)
 	
 def screwhead_flat(d):
 	r = d
 	h = 0.5*d
 	e = 0.1*d
 	
-	return revolution(2*pi, (O,Z), web([
+	return revolution(web([
 		vec3(0, 0, 0),
 		vec3(0, r, 0),
 		vec3(0, r, -e),
@@ -364,11 +365,11 @@ def hexnut(d, w, h):
 		vec3(0.95*w,	0,	-0.5*h),
 		vec3(0.5*d,	0,	-0.5*h),
 		]) .close() .segmented()
-	base = revolution(2*pi, Axis(O,Z), web(profile))
+	base = revolution(web(profile))
 	
 	# exterior hexagon shape
 	hexagon = regon((-h*Z,Z),  w/cos(radians(30)), 6)
-	ext = extrusion(2*h*Z, hexagon)
+	ext = extrusion(hexagon, 2*h*Z)
 	
 	# intersect everything
 	nut = intersection(base, ext)
@@ -447,7 +448,7 @@ def washer(d, e=None, h=None) -> Mesh:
 		if h is None:	h = d*0.1
 	
 	return Solid(
-				part=thicken(revolution(2*pi, Axis(O,-Z), web([d/2*X, e/2*X])), h).option(color=bolt_color), 
+				part=thicken(revolution(web([e/2*X, d/2*X])), h).option(color=bolt_color), 
 				top=Axis(h*Z, Z, interval=(0,h)), 
 				bottom=Axis(O, -Z, interval=(0,h)),
 				)
@@ -948,7 +949,7 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False) -> Solid:
 		exterior += wire(ArcCentered((rb*X,-Y), vec3(rext-e, 0, -hr), vec3(rext-e, 0, hr)))
 		interior.close()
 		exterior.close()
-		part = revolution(2*pi, axis, web([exterior, interior])) .option(color=bearing_color)
+		part = revolution(web([exterior, interior]), axis) .option(color=bearing_color)
 
 		nb = int(0.7 * pi*rb/rr)	# number of balls that can fit in
 		balls = repeat(icosphere(rb*X, rr), nb, angleAxis(radians(360)/nb, Z)) .option(color=vec3(0,0.1,0.2))
@@ -962,11 +963,11 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False) -> Solid:
 		cage_profile.mergeclose()
 
 		surf = extrusion(
+				cage_profile, 
 				mat3(
 					(rb-rr*0.6)/rb, 
 					(rb-rr*0.6)/rb, 
 					1), 
-				cage_profile, 
 				alignment=0.5)
 
 		cage = thicken(
@@ -992,7 +993,7 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False) -> Solid:
 				exterior[0]]) .segmented()
 			)
 		return Solid(
-				part=revolution(2*pi, axis, web([exterior, interior]))
+				part=revolution(web([exterior, interior]), axis)
 						.option(color=bearing_color), 
 				axis=axis)
 
@@ -1066,15 +1067,17 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 			]) .segmented()
 		exterior += Wire([p3])
 
-		part = revolution(2*pi, axis, web([
+		part = revolution(web([
 					exterior, 
 					interior,
-					]).flip() ) .option(color=bearing_color)
+					]).flip(), axis) .option(color=bearing_color)
 	
 		# create conic rollers
-		roller = revolution(2*pi, angled, Segment(mix(p1,p3,0.05), mix(p3,p1,0.05)))
+		roller = revolution(Segment(mix(p1,p3,0.05), mix(p3,p1,0.05)), angled)
+		roller.check()
 		for hole in roller.outlines().islands():
 			roller += flatsurface(wire(hole))
+			roller.check()
 
 		# number of rollers that can fit in
 		nb = int(pi*(rint+rext) / (2.5*distance_pa(p1,angled)))
@@ -1089,7 +1092,7 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 			p6 + (distance(p1,p3)+1.8*e) * angled[1],
 			])
 		bevel(cage_profile, [1], ('radius',c))
-		cage = revolution(2*pi, axis, cage_profile)
+		cage = revolution(cage_profile, axis)
 		cage = pierce(cage, inflate(rollers, 0.5*c), False)
 		cage = thicken(cage, c) .option(color=bearing_cage_color)
 		
@@ -1100,8 +1103,9 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 	else:
 		# assemble and close rings profiles
 		return Solid(
-				part=revolution(2*pi, axis, 
-					(exterior + interior) .close() .flip()
+				part=revolution(
+					(exterior + interior) .close() .flip(),
+					axis,
 					) .option(color=bearing_color), 
 				axis=axis)
 		
@@ -1142,7 +1146,7 @@ def bearing_thrust(dint, dext, h, detail=False) -> Solid:
 		bot += wire(ArcCentered((rb*X,-Y), vec3(rb-hr, 0, -w+e), vec3(rb+hr, 0, -w+e)))
 		top.close()
 		bot.close()
-		part = revolution(2*pi, axis, web([top, bot])) .option(color=bearing_color)
+		part = revolution(web([top, bot]), axis) .option(color=bearing_color)
 		
 		# number of balls to place
 		nb = int(0.8 * pi*rb/rr)
@@ -1158,7 +1162,7 @@ def bearing_thrust(dint, dext, h, detail=False) -> Solid:
 			])
 		bevel(cage_profile, [1,2], ('radius',c), resolution=('div',1))
 		
-		cage_surf = revolution(2*pi, axis, cage_profile)
+		cage_surf = revolution(cage_profile, axis)
 		cage_surf = pierce(cage_surf, inflate(balls, 0.2*c), False)
 		cage = thicken(cage_surf, c) .option(color=bearing_cage_color)
 		
@@ -1182,7 +1186,7 @@ def bearing_thrust(dint, dext, h, detail=False) -> Solid:
 			)
 
 		return Solid(
-				part=revolution(2*pi, axis, web([top, bot])) .option(color=bearing_color), 
+				part=revolution(web([top, bot]), axis) .option(color=bearing_color), 
 				axis=axis)
 
 	
@@ -1224,7 +1228,7 @@ def slidebearing(dint, h=None, thickness=None, shoulder=None, opened=False) -> S
 		bevel(profile, [1], ('radius', 1.5*thickness), resolution=('div',2))
 
 	axis = Axis(O,Z, interval=(-h,0))
-	shape = revolution(1.98*pi if opened else 2*pi, axis, profile)
+	shape = revolution(profile, axis, 1.98*pi if opened else 2*pi)
 	
 	part = thicken(shape, thickness) .option(color=bearing_color)
 	line = (  select(part, vec3(-rint,0,-h), stopangle(pi/2))
@@ -1308,7 +1312,7 @@ def screw_slot(axis: Axis, dscrew: float, rslot=None, hole=0., screw=0., expand=
 		profile.append(o - (hole+screw+0.4*dscrew)*z)
 	else:
 		profile.append(o)
-	return revolution(2*pi, Axis(o,-z), wire(profile).segmented()).finish()
+	return revolution(wire(profile).segmented(), Axis(o,-z)).finish()
 
 def bolt_slot(a: vec3, b: vec3, dscrew: float, rslot=None, hole=True, expanda=True, expandb=True) -> Mesh:
 	''' bolt shape for a screw
@@ -1345,8 +1349,9 @@ def bolt_slot(a: vec3, b: vec3, dscrew: float, rslot=None, hole=True, expanda=Tr
 			profile.append(o)
 		return wire(profile).segmented()
 
-	return revolution(2*pi, Axis(a,-z), 
-			one_slot(a,x,z, expanda) + one_slot(b,x,-z, expandb).flip()
+	return revolution(
+			one_slot(a,x,z, expanda) + one_slot(b,x,-z, expandb).flip(),
+			Axis(a,-z),
 			).finish()
 
 def bearing_slot_exterior(axis: Axis, dext: float, height: float, shouldering=True, circlip=False, evade=True, expand=True):
@@ -1396,7 +1401,7 @@ def bearing_slot_exterior(axis: Axis, dext: float, height: float, shouldering=Tr
 			profile[-1] - 0.05*rext*(Z-X) - expand*Z,
 			])
 		profile.insert(0, profile[0] + expand*Z)
-	return revolution(2*pi, Axis(O,-Z), wire(profile).segmented()) .transform(translate(axis[0]) * mat4(quat(Z, axis[1])))
+	return revolution(wire(profile).segmented(), Axis(O,-Z)) .transform(translate(axis[0]) * mat4(quat(Z, axis[1])))
 
 def bearing_slot_interior(axis: Axis, dint: float, height: float, shouldering=True, circlip=False, evade=True, expand=True) -> Mesh:
 	''' slot for a bearing interior ring, such as returned by `bearing()`
@@ -1445,7 +1450,7 @@ def bearing_slot_interior(axis: Axis, dint: float, height: float, shouldering=Tr
 			profile[-1] - 0.1*rint*(Z+X) - expand*Z,
 			])
 		profile.insert(0, profile[0] + expand*Z)
-	return revolution(2*pi, Axis(O,Z), wire(profile).segmented()) .transform(translate(axis[0]) * mat4(quat(Z, axis[1])))
+	return revolution(wire(profile).segmented(), Axis(O,Z)) .transform(translate(axis[0]) * mat4(quat(Z, axis[1])))
 
 
 def circular_screwing(axis, radius, height, dscrew, diameters:int=1, div:int=8, hold:float=0) -> '(Mesh, list)':

@@ -36,7 +36,7 @@ from .mathutils import *
 from .mesh import Web, Wire, Mesh, web, wire
 from .blending import junction, blendpair
 from .generation import extrusion, revolution, repeat, extrans
-from .primitives import Circle, ArcCentered, Segment
+from .primitives import Circle, ArcCentered, Segment, Axis
 from .triangulation import triangulation
 from .selection import *
 from .rendering import show
@@ -50,6 +50,10 @@ from functools import reduce, partial
 from operator import add
 from copy import copy
 from madcad.mathutils import COMPREC
+
+
+
+color_gear = vec3(0.2, 0.3, 0.4)
 
 
 def rackprofile(step, height=None, offset=0, asymetry=None, alpha=radians(20), resolution=None) -> Wire:
@@ -350,7 +354,7 @@ def pattern_circle(
 
 	top_profile = reduce(add, top_webs)
 	bottom_profile = reduce(add, bottom_webs)
-	surfaces = extrusion(vec3(0, 0, depth - 2 * int_height), bottom_webs[0].flip())
+	surfaces = extrusion(bottom_webs[0].flip(), vec3(0, 0, depth - 2 * int_height))
 
 	mesh = triangulation(top_profile) + triangulation(bottom_profile) + surfaces
 	mesh.mergeclose()
@@ -446,7 +450,7 @@ def create_pattern_rect(
 
 	top_profile = reduce(add, top_webs)
 	bottom_profile = reduce(add, bottom_webs)
-	surfaces = extrusion(vec3(0, 0, depth - 2 * int_height), bottom_webs[0].flip())
+	surfaces = extrusion(bottom_webs[0].flip(), vec3(0, 0, depth - 2 * int_height))
 	
 	mesh = triangulation(top_profile) + triangulation(bottom_profile) + surfaces
 	mesh.mergeclose()
@@ -636,7 +640,7 @@ def gearexterior(
 		else:
 			top = bottom.transform(depth*Z)
 
-		body = revolution(2 * pi / z, (O, Z), top + bottom.flip())
+		body = revolution(top + bottom.flip(), angle=2*pi/z)
 		body.mergeclose()
 
 	else:  # straight tooth case
@@ -663,13 +667,13 @@ def gearexterior(
 		else:
 			top = bottom.transform(depth*Z)
 
-		body = revolution(2 * pi / z, (O, Z), top + bottom.flip())
+		body = revolution(top + bottom.flip(), angle=2*pi/z)
 		body.mergeclose()
 
 		# Surfaces
 		gear_surface = extrusion(
-			depth * 1.05 * Z,
 			profile,
+			depth * 1.05 * Z,
 			alignment=0.5,
 		)
 	
@@ -763,7 +767,7 @@ def gearhub(
 	top_surface = triangulation(web(bore_circle).flip() + web(hub_circle))
 
 	# Lateral surfaces
-	lateral_surfaces = extrusion(vec3(0, 0, -hub_height - depth), web(bore_circle))
+	lateral_surfaces = extrusion(web(bore_circle), vec3(0, 0, -hub_height - depth))
 
 	# Bottom part
 	axis = (vec3(0, 0, -depth / 2), vec3(0, 0, 1))
@@ -1272,7 +1276,7 @@ def straight_bevel_gear(
 	spherical_profile = spherical_gearprofile(z, gamma_p, pressure_angle, ka, kd, resolution=resolution) # one tooth
 	
 	# Generate teeth border
-	teeth_border = extrusion((rho1*1.1)/(rho0*0.9), spherical_profile.transform(rho0*0.9))
+	teeth_border = extrusion(spherical_profile.transform(rho0*0.9), (rho1*1.1)/(rho0*0.9))
 	
 	# Common values
 	v = vec3(1, 1, 0)
@@ -1313,7 +1317,7 @@ def straight_bevel_gear(
 		wire = Wire([D, C, F, E, A, B]).segmented()
 
 	axis = (O, Z)
-	body = revolution(angle1tooth, axis, wire, resolution=resolution)
+	body = revolution(wire, axis, angle1tooth, resolution=resolution)
 	one_tooth = intersection(body.transform(phase_tooth_body), teeth_border)
 	all_teeth = repeat(one_tooth, z, rotatearound(angle1tooth, axis))
 	all_teeth.finish()
@@ -1474,7 +1478,7 @@ def helical_bevel_gear(
 		F = vec3(0, 0, rho0 * cos(gamma_r))
 		wire = Wire([D, C, F, E, A, B]).segmented()
 
-	body = revolution(angle1tooth, (O, Z), wire)
+	body = revolution(wire, Axis(O, Z), angle1tooth)
 	# show([gear_surface, body])
 	onetooth = intersection(gear_surface, body)
 	all_teeth = repeat(onetooth, z, rotatearound(angle1tooth, (O, Z))).finish()

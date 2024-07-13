@@ -11,7 +11,7 @@ Imagine you want to make a revolution of a section. You start by defining the po
     from madcad import *
     points = [O, X, X + Z, 2 * X + Z, 2 * (X + Z), X + 2 * Z, X + 5 * Z, 5 * Z]
     section = Wire(points)
-    rev = revolution(2 * pi, (O, Z), section)
+    rev = revolution(section)
     show([section, rev.transform(translate(6 * X))])
 
 .. image:: /screenshots/goodpractices/rev0.png
@@ -28,7 +28,7 @@ By default, when the `Wire` is created, the set of points is defined as a *discr
     from madcad import *
     points = [O, X, X + Z, 2 * X + Z, 2 * (X + Z), X + 2 * Z, X + 5 * Z, 5 * Z]
     section = Wire(points).segmented()
-    rev = revolution(2 * pi, (O, Z), section)
+    rev = revolution(section)
     show([section, rev.transform(translate(6 * X))])
 
 .. image:: /screenshots/goodpractices/rev1.png
@@ -47,7 +47,7 @@ A surface in `madcad` is oriented which means it has a bright side and a dark si
     from madcad import *
     points = [O, X, X + Z, 2 * X + Z, 2 * (X + Z), X + 2 * Z, X + 5 * Z, 5 * Z]
     section = Wire(points).segmented().flip() # quicker on Wire because there are less points
-    rev = revolution(2 * pi, (O, Z), section) # or .flip() here
+    rev = revolution(section) # or .flip() here
     show([section, rev.transform(translate(6 * X))])
 
 .. image:: /screenshots/goodpractices/rev2.png
@@ -64,7 +64,7 @@ There are still remaining dark surfaces on the top and the bottom of the revolut
     from madcad import *
     points = [O, X, X + Z, 2 * X + Z, 2 * (X + Z), X + 2 * Z, X + 5 * Z, 5 * Z]
     section = Wire(points).segmented().flip()
-    rev = revolution(2 * pi, (O, Z), section)
+    rev = revolution(section)
     rev.mergeclose()
     show([rev])
 
@@ -83,7 +83,7 @@ You should also consider *qualifying* groups of your part when you are defining 
     hole = Circle((O, Z), 5)
     profile = web([exterior, web(hole).flip().qualify("hole")]) # qualify "hole" for future usage
     result = (
-        extrusion(depth * Z, profile)
+        extrusion(profile, depth * Z)
         + flatsurface(profile)
         + flatsurface(profile.transform(depth * Z).flip())
     )
@@ -107,7 +107,7 @@ The main idea is to be able to extract groups of your part without guessing thei
     hole = Circle((O, Z), 5)
     profile = web([exterior, web(hole).flip()])
     result = (
-        extrusion(depth * Z, profile)
+        extrusion(profile, depth * Z)
         + flatsurface(profile)
         + flatsurface(profile.transform(depth * Z).flip())
     )
@@ -134,7 +134,7 @@ The last point to extract information could be by selecting edges based on a dir
     hole = Circle((O, Z), 5)
     profile = web([exterior, web(hole).flip()])
     result = (
-        extrusion(depth * Z, profile)
+        extrusion(profile, depth * Z)
         + flatsurface(profile)
         + flatsurface(profile.transform(depth * Z).flip())
     )

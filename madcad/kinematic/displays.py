@@ -595,7 +595,7 @@ def kinematic_toolcenter(toolcenter):
 	sch.add([radius*cos(t)*X + radius*sin(t)*Y  for t in linrange(0, angle, step=0.1)], color=fvec4(color,1))
 	sch.add([radius*cos(t)*X + radius*sin(t)*Y  for t in linrange(angle, 2*pi, step=0.1)], color=fvec4(color,0.2))
 	sch.add(
-		revolution(2*pi, (radius*rend, tend), web([radius*rend, radius*rend-14*tend-3.6*rend]), resolution=('div', 8)), 
+		revolution(web([radius*rend, radius*rend-14*tend-3.6*rend]), Axis(radius*rend, tend), resolution=('div', 8)), 
 		shader='fill',
 		color=fvec4(color,0.8),
 		)

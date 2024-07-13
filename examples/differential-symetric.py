@@ -73,7 +73,7 @@ output = Solid(
 				.transform(out_gear['axis'].origin - 0.5*bearing_height*Z),
 	)
 # add a shouldering to the gear part to support the bearing
-bearing_support = revolution(2*pi, Axis(O,Z), wire([
+bearing_support = revolution(wire([
 		out_gear['part'].group(4).barycenter() - bearing_height*Z + output_radius*1.5*0.9*X,
 		out_gear['part'].group(4).barycenter() - bearing_height*Z + output_radius*1.5*1.2*X,
 		out_gear['part'].group(7).barycenter() + output_radius*1.5*1.2*X - output_radius*0.01*Z,
@@ -117,7 +117,7 @@ transmiters = [deepcopy(transmiter).transform(rotate(i*2*pi/transmiter_amount,Z)
 
 # build the interior shell based on the interior area bounds
 # the top part is bound to the ouput gear
-interior_top = revolution(2*pi, Axis(O,Z), Wire([
+interior_top = revolution(Wire([
 	out_gear['axis'].origin + bearing_radius*X - bearing_radius*0.15*X,
 	out_gear['axis'].origin + bearing_radius*X,
 	out_gear['axis'].origin + bearing_radius*X - bearing_height*Z,
@@ -133,12 +133,12 @@ interior_out = (
 r = length(transmiter['gear']['axis'].origin)
 h = transmiter_rint
 w = r + transmiter_washer_thickness*1.5
-interior_transmision = revolution(2*pi, Axis(O,X), Wire([
+interior_transmision = revolution(Wire([
 	2*r*X + h*Z,
 	w*X + h*Z,
 	w*X + 2.5*h*Z,
 	w*X + 2.5*h*Z + h*(X+Z),
-	]).flip().segmented())
+	]).flip().segmented(), Axis(O,X))
 interior_transmisions = repeat(interior_transmision, transmiter_amount, rotate(2*pi/transmiter_amount, Z))
 
 # the rest is bound to the bevel gearing
@@ -168,7 +168,7 @@ screw_support = web([
 	b + neighscrew*X,
 	project(b, Z) + dscrew*X,
 	]).segmented()
-screw_supports = revolution(2*pi, Axis(O,Z), screw_support)
+screw_supports = revolution(screw_support)
 
 exterior_shape = union(exterior_shell, screw_supports)
 
@@ -179,7 +179,7 @@ exterior = intersection(exterior_shape, holes)
 sep = square(Axis(1.5*transmiter_rint*Z, Z), space_radius*4)
 
 # join the interior and the exterior
-interior = interior + extrusion(shell_thickness*Z, interior.frontiers(5,None)).orient().flip()
+interior = interior + extrusion(interior.frontiers(5,None), shell_thickness*Z).orient().flip()
 interior.mergeclose()
 
 part = intersection(exterior, interior).finish()

@@ -576,8 +576,9 @@ def note_leading(placement, offset=None, text='here'):
 	sch.add([origin, origin+offset], shader='line', space=world)
 	x,y,z = dirbase(normalize(vec3(offset)))
 	sch.add(
-		gt.revolution(2*pi, (vec3(0), z), 
+		gt.revolution( 
 			web([vec3(0), 16*z+4*x]), 
+			Axis(vec3(0), z),
 			resolution=('div',8),
 			), 
 		shader='fill',
@@ -627,15 +628,13 @@ def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None, sid
 				color=fvec4(color,1)))
 	sch.set(shader='fill')
 	sch.add(gt.revolution(
-				2*pi, 
-				(vec3(0),project), 
 				web([vec3(0), 3*x-12*z]), 
+				Axis(vec3(0),project), 
 				resolution=('div',8)), 
 			space=scale_screen(fvec3(ao)))
 	sch.add(gt.revolution(
-				2*pi, 
-				(vec3(0),project), 
 				web([vec3(0), 3*x+12*z]), 
+				Axis(vec3(0),project), 
 				resolution=('div',8)), 
 			space=scale_screen(fvec3(bo)))
 	return sch
@@ -721,15 +720,13 @@ def note_angle(a0, a1, offset=0, d=None, tol=None, text=None, unit='deg', side=F
 				color=fvec4(color,1)))
 	sch.set(shader='fill')
 	sch.add(gt.revolution(
-				2*pi, 
-				(vec3(0),x0), 
 				web([vec3(0), 3*d0+12*x0]), 
+				Axis(vec3(0),x0), 
 				resolution=('div',8)), 
 			space=scale_screen(fvec3(p0)))
 	sch.add(gt.revolution(
-				2*pi, 
-				(vec3(0),x1), 
 				web([vec3(0), 3*d1-12*x1]), 
+				Axis(vec3(0),x1), 
 				resolution=('div',8)), 
 			space=scale_screen(fvec3(p1)))
 	return sch
@@ -1047,9 +1044,8 @@ def note_label(placement, offset=None, text='!', style='rect'):
 	sch = Scheme()
 	sch.set(color=fvec4(color,0.7))
 	sch.add(gt.revolution(
-				2*pi,
-				(vec3(0),z),
 				web([6*x, 10*z]),
+				Axis(vec3(0),z),
 				resolution=('div',8),
 				),
 			space=scale_screen(fvec3(p)), shader='fill')
@@ -1128,6 +1124,7 @@ def note_base(matrix, color=None, labels=('X', 'Y', 'Z'), name=None, size=0.4):
 		directions = mat3(matrix)
 	elif isinstance(matrix, (dmat4,fmat4)):
 		if length2(transpose(matrix)[3] - vec4(0,0,0,1)) > NUMPREC:
+			print(matrix, length2(transpose(matrix)[3] - vec4(0,0,0,1)))
 			raise TypeError('mat4 must be affine in order to be displayed')
 		center = vec3(matrix[3])
 		directions = mat3(mat4(matrix))
@@ -1147,7 +1144,7 @@ def note_base(matrix, color=None, labels=('X', 'Y', 'Z'), name=None, size=0.4):
 			color=fvec4(color,1), 
 			shader='line',
 			)
-		sch.add(gt.revolution(2*pi, (o,z), web([o, -14*z+3.6*x])), 
+		sch.add(gt.revolution(web([o, -14*z+3.6*x]), Axis(o,z)), 
 			space=scale_screen_scale_view(fvec3(center), fvec3(size*direction)) if center else scale_screen_ubiquity(fvec3(size*direction)), 
 			color=fvec4(color,0.8), 
 			shader='fill',
@@ -1176,7 +1173,7 @@ def note_rotation(quaternion, color=None, size=0.4):
 	sch.add([-size*direction, -0.2*size*direction])
 	sch.add([-0.1*size*direction, 0.1*size*direction])
 	sch.add([0.2*size*direction, size*direction])
-	sch.add(gt.revolution(2*pi, (o,z), web([o, -14*z+3.6*x])), 
+	sch.add(gt.revolution(web([o, -14*z+3.6*x]), Axis(o,z)), 
 		space=scale_screen_ubiquity(fvec3(size*direction)), 
 		color=fvec4(color,0.6), 
 		shader='fill',
@@ -1188,7 +1185,7 @@ def note_rotation(quaternion, color=None, size=0.4):
 		)
 	sch.add([size*cos(t)*x + size*sin(t)*y  for t in linrange(0, angle, step=0.1)], color=fvec4(color,1))
 	sch.add([size*cos(t)*x + size*sin(t)*y  for t in linrange(angle, 2*pi, step=0.1)], color=fvec4(color,0.2))
-	sch.add(gt.revolution(2*pi, Axis(o, tend), web([o, -14*tend-3.6*rend]), resolution=('div', 8)), 
+	sch.add(gt.revolution(web([o, -14*tend-3.6*rend]), Axis(o, tend), resolution=('div', 8)), 
 		space=scale_screen_ubiquity(fvec3(size*rend)), 
 		color=fvec4(color,0.8), 
 		shader='fill',

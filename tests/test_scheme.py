@@ -1,7 +1,7 @@
 from madcad import *
 from madcad.scheme import *
 
-part = extrusion(vec3(-1,-3,-5), flatsurface(wire(Circle((vec3(1), vec3(0,0,1)), 1))))
+part = extrusion(flatsurface(wire(Circle((vec3(1), vec3(0,0,1)), 1))), vec3(-1,-3,-5))
 cube = brick(center=vec3(-4,0,0), width=vec3(1))
 part.mergeclose()
 

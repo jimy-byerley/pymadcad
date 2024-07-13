@@ -96,7 +96,7 @@ def bevel_square(b, r) -> Wire:
 def tube(length, b, r) -> Mesh:
 	v = vec3(0, 0, length)
 	profile = bevel_square(b, r)
-	ex = extrusion(v, profile)
+	ex = extrusion(profile, v)
 	print(ex)
 	return ex
 

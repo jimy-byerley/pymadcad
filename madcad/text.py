@@ -463,7 +463,7 @@ def test_text():
 	from .scheme import note_distance
 	settings.display['view_font_size'] = 10
 	part = text('Hello everyone.\nthis is a great font !!', font='NotoSans-Regular', align=('center', 0))
-	part = extrusion(vec3(0,0,-1), part.flip())
+	part = extrusion(part.flip(), vec3(0,0,-1))
 	show([
 			vec3(0),
 			note_distance(vec3(0), vec3(0,1,0), offset=vec3(-0.5,0,0), text='size'),

@@ -3,38 +3,11 @@ from madcad.gear import *
 from madcad.joints import *
 from madcad.text import *
 
-def repeataround(pattern, repetitions=None, axis=Axis(O,Z), angle=2*pi):
-	if repetitions is None:
-		if isinstance(pattern, Mesh):	indices = (i for f in pattern.faces for i in f )
-		elif isinstance(pattern, Web):	indices = (i for e in pattern.edges for i in e)
-		elif isinstance(pattern, Wire): indices = iter(pattern.indices)
-
-		x,y,z = dirbase(axis[1], align=pattern.points[next(indices)] - axis[0])
-		lower, upper = 0, 0
-		for p in indices:
-			t = atan2(dot(pattern.points[p]-axis[0], y), dot(pattern.points[p]-axis[0], x))
-			lower = min(lower, t)
-			upper = max(upper, t)
-		repetitions = round(angle / (upper - lower))
-	return repeat(pattern, repetitions, rotatearound(angle/repetitions, axis))
-
-def revolution(shape, axis=Axis(O,Z), angle=2*pi, alignment=0., resolution=None):
-	return generation.revolution(angle, axis, shape, alignment, resolution)
-
-def extrusion(shape, direction=Z, alignment=0.):
-	return generation.extrusion(direction, shape, alignment)
-
 def vprofile(radius, helix=radians(30)):
 	helix = tan(helix)
 	return [
 		translate(t*height*Z) * rotate(sin(t*pi)/pi/radius*height*helix, Z)  
 		for t in linrange(0, 1, div=10)]
-
-def helix(height, radius, angle=radians(20)):
-	helix = tan(angle)
-	return [
-		translate(t*height*Z) * rotate(t*height*helix/radius, Z)  
-		for t in linrange(0, 1, div=4)]
 
 def bearing(dint, dext=None, h=None, **kwargs):
 	return Solid(
@@ -66,41 +39,6 @@ def hgear(step, teeth, height, angle, **kwargs):
 
 def spurgear(step, teeth, height, **kwargs):
 	return extrusion(repeataround(gearprofile(step, teeth, **kwargs)), height*Z, alignment=0.5)
-
-def circular_screwing(axis, radius, height, dscrew, diameters=1, div=8, hold=False):
-	''' standard holes and screws for screwing a circular perimeter '''
-	holes = Mesh()
-	bolts = []
-	x,y,z = dirbase(axis.direction)
-	a = axis.origin + radius*x
-	b = axis.origin + radius*x + height*z
-	gap = 0.1*dscrew*z
-	enlarge = 1.05
-#	bolts.append(bolt(a, b, dscrew))
-	for i in range(diameters):
-		holes += cylinder(a-gap, b+gap, enlarge*stfloor(0.8**i * dscrew)/2) .transform(rotatearound(i*1.4*dscrew/radius, axis))
-	holes = repeataround(holes, 8, axis).flip()
-	if hold:
-		angle = 1.7*dscrew/radius
-		holes += repeataround(screw_slot(Axis(a+gap,-z), dscrew, 
-					screw=height-hold, 
-					hole=hold, 
-					flat=True), 2) .transform(rotatearound(-angle, axis))
-		bolts.append(screw(dscrew, height, head='flat')
-			.place((Revolute, Axis(O,Z), Axis(a,-z)))
-			.transform(rotatearound(-angle, axis)))
-		bolts.append(screw(dscrew, height, head='flat')
-			.place((Revolute, Axis(O,Z), Axis(a,-z)))
-			.transform(rotatearound(pi-angle, axis)))
-	return holes, bolts
-
-def grooves(r, n=16, align=0.5, angle=radians(40)):
-	''' coupling grooves profile '''
-	h = r/n / tan(angle)
-	def profile(t, min=-1, max=1):
-		return (r+(0.5-align)*h+h*sin(n*t)) * vec3(cos(t), sin(t), 0)
-	return wire([ profile(t, -1, 0.7)
-		for t in linrange(0, 2*pi, div=12*n, end=False) ]).close()
 
 color_gear = vec3(0.2, 0.3, 0.4)
 

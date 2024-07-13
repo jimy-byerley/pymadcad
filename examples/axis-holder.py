@@ -43,10 +43,7 @@ solve([
 	precision=1e-12
 	)
 # generate the cone
-cone = revolution(
-			radians(360), 
-			(O,Z), 
-			web(line))
+cone = revolution(line)
 # merge the start and end sections of the revolution (because its a 360° revolution)
 cone.mergeclose()
 # chamfer the lower edge: this is a chamfer over a circular edge
@@ -83,7 +80,7 @@ solve([
 	precision=1e-12,
 	)
 # extrude that base line and add a bottom face
-place = (	extrusion(vec3(0,0,h), line) 
+place = (	extrusion(line, vec3(0,0,h)) 
 		+	flatsurface(wire(line).flip())
 		)
 # merge outlines of both generated faces
@@ -98,7 +95,7 @@ bevel(
 
 # make the screw holes:
 # a cylinder (not necessarily closed on its ends as we don't care of that surfaces)
-vis = extrusion(vec3(0,0,-2*h), web(Circle((C+vec3(0,0,h),-Z), dvis)))
+vis = extrusion(Circle((C+vec3(0,0,h),-Z), dvis), vec3(0,0,-2*h))
 
 
 # assemble everything

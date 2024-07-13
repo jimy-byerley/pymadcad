@@ -2,7 +2,7 @@
 from madcad import vec3, saddle, tube, ArcThrough, Web, web, bevel, chamfer, show
 from madcad.mesh import suites
 from madcad.cut import multicut
-from nprint import nprint
+from madcad.nprint import nprint
 from copy import deepcopy
 
 m = saddle(
