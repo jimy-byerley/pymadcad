@@ -136,7 +136,7 @@ from . import (
 		# base tools (defines types for the whole library)
 		mathutils, mesh, 
 		# interdependent functionnalities
-		generation, boolean, cut, primitives, constraints, kinematic, #joints,
+		generation, boolean, bevel, primitives, constraints, kinematic, #joints,
 		# near-independant modules
 		io, hashing, triangulation,
 		# parts
@@ -150,7 +150,7 @@ from . import rendering, displays, text, scheme
 from .mathutils import *
 from .mesh import Mesh, Web, Wire, MeshError, web, wire, suites
 from .boolean import pierce, difference, union, intersection
-from .cut import chamfer, bevel, multicut, planeoffsets
+from .bevel import chamfer, filet, multicut, planeoffsets
 from .generation import *
 from .blending import junction, multijunction, blend, blendloop, blendpair, blenditer
 from .primitives import isprimitive, Point, Axis, Segment, ArcThrough, ArcCentered, ArcTangent, TangentEllipsis, Circle, Interpolated, Softened, isaxis

@@ -69,7 +69,7 @@ All boolean operation are documented :doc:`here</reference/boolean>`.
 Bevel
 -----
 
-An other usual rework operation is cut edges with chamfers or roundings. Because `round` is already a math function, we use the term bevel
+An other usual rework operation is cut edges with chamfers or roundings. Because `round` is already a math function, we use the term filet
 
 .. code-block:: python
 
@@ -78,16 +78,16 @@ An other usual rework operation is cut edges with chamfers or roundings. Because
     cube = brick(width=vec3(2))
 
     # Cut some edges
-    # No need to do cube = bevel(...)
-    bevel(
+    # No need to do cube = filet(...)
+    filet(
        cube,
        [(0, 1), (1, 2), (2, 3), (0, 3), (1, 5), (0, 4)],  # Edges to smooth
        ("width", 0.3),  # Cutting description, known as 'cutter'
     )
     show([cube])
 
-.. image:: /screenshots/manipulation/bevel-cube.png
+.. image:: /screenshots/manipulation/filet-cube.png
 
 .. tip::
 
-   `chamfer` and `bevel` work in the same way.
+   `chamfer` and `filet` work in the same way.

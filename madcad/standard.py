@@ -23,7 +23,7 @@ from .mesh import Mesh, Web, Wire, web, wire
 from .generation import *
 from .blending import *
 from .boolean import pierce, union, difference, intersection
-from .cut import *
+from .bevel import *
 from .io import cachefunc
 
 #cachefunc = lambda x:x	# debug purpose
@@ -510,8 +510,8 @@ def section_s(height=1, width=None, flange=None, thickness=None) -> Web:
 	base = base + base.transform(scaledir(X,-1)).flip()
 	base = base + base.transform(scaledir(Y,-1)).flip()
 	section = web(base.close().segmented())
-	bevel(section, section.frontiers(0,5,10,4,6,11), ('radius', thickness*0.4), resolution=('div',2))
-	bevel(section, section.frontiers(1,0,4,3,6,7,10,9), ('radius', flange), resolution=('div',2))
+	filet(section, section.frontiers(0,5,10,4,6,11), ('radius', thickness*0.4), resolution=('div',2))
+	filet(section, section.frontiers(1,0,4,3,6,7,10,9), ('radius', flange), resolution=('div',2))
 	
 	#notes = [
 		#note_distance(base.points[0], base.points[0]*vec3(1,-1,1), offset=2*flange*X),
@@ -539,8 +539,8 @@ def section_w(height=1, width=None, flange=None, thickness=None) -> Web:
 	base = base + base.transform(scaledir(Y,-1)).flip()
 	base.close()
 	section = web(base)
-	bevel(section, section.frontiers(0,5,10,4,6,11), ('radius', thickness*0.4), resolution=('div',2))
-	bevel(section, section.frontiers(1,0,4,3,6,7,10,9), ('radius', flange*0.5), resolution=('div',2))
+	filet(section, section.frontiers(0,5,10,4,6,11), ('radius', thickness*0.4), resolution=('div',2))
+	filet(section, section.frontiers(1,0,4,3,6,7,10,9), ('radius', flange*0.5), resolution=('div',2))
 	return section.finish()
 	
 def section_l(a=1, b=None, thickness=None) -> Wire:
@@ -558,7 +558,7 @@ def section_l(a=1, b=None, thickness=None) -> Wire:
 		vec3(b, 0, 0),
 		]) .close() .segmented() .flip()
 
-	bevel(section, [2,3,4], ('radius', thickness*0.8), resolution=('div',2))
+	filet(section, [2,3,4], ('radius', thickness*0.8), resolution=('div',2))
 	return section.finish()
 	
 def section_c(height=1, width=None, thickness=None) -> Web:
@@ -576,7 +576,7 @@ def section_c(height=1, width=None, thickness=None) -> Web:
 	base = base + base.transform(scaledir(Y,-1)).flip()
 	section = web(base.close().segmented())
 	
-	bevel(section, section.frontiers(0,1,5,7,6), ('radius', 0.8*thickness), resolution=('div',2))
+	filet(section, section.frontiers(0,1,5,7,6), ('radius', 0.8*thickness), resolution=('div',2))
 	return section.finish()
 
 def section_tslot(size=1, slot=None, thickness=None, depth=None) -> Web:
@@ -603,7 +603,7 @@ def section_tslot(size=1, slot=None, thickness=None, depth=None) -> Web:
 		center,
 		base.close().segmented(),
 		])
-	bevel(section, section.frontiers(5,7, 41,43, 31,29, 17,19), ('radius', thickness/2), resolution=('div',2))
+	filet(section, section.frontiers(5,7, 41,43, 31,29, 17,19), ('radius', thickness/2), resolution=('div',2))
 	
 	#notes = [
 		#note_distance(base.points[2], base.points[5], offset=-c/2*Y),
@@ -930,7 +930,7 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False) -> Solid:
 		vec3(rint,	0,	-w),
 		vec3(rint+e, 0,	-w), 
 		]) .segmented() .flip()
-	bevel(interior, [1, 2], ('radius',c), resolution=('div',1))
+	filet(interior, [1, 2], ('radius',c), resolution=('div',1))
 
 	exterior = Wire([
 		vec3(rext-e,	0, -w),
@@ -938,7 +938,7 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False) -> Solid:
 		vec3(rext, 0, w),
 		vec3(rext-e,	0, w),
 		]) .segmented() .flip()
-	bevel(exterior, [1,2], ('radius',c), resolution=('div',1))
+	filet(exterior, [1,2], ('radius',c), resolution=('div',1))
 
 	if detail and not sealing:
 		rb = (dint + dext)/4	# balls path radius
@@ -1054,8 +1054,8 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 		vec3(rext, 0, -w+hext),
 		vec3(rext-e,	0, -w+hext),
 		]) .segmented()
-	bevel(interior, [2,3], ('radius',c), resolution=('div',1))
-	bevel(exterior, [2,3], ('radius',c), resolution=('div',1))
+	filet(interior, [2,3], ('radius',c), resolution=('div',1))
+	filet(exterior, [2,3], ('radius',c), resolution=('div',1))
 	
 	# create interior details
 	if detail:
@@ -1091,7 +1091,7 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 			p6,
 			p6 + (distance(p1,p3)+1.8*e) * angled[1],
 			])
-		bevel(cage_profile, [1], ('radius',c))
+		filet(cage_profile, [1], ('radius',c))
 		cage = revolution(cage_profile, axis)
 		cage = pierce(cage, inflate(rollers, 0.5*c), False)
 		cage = thicken(cage, c) .option(color=bearing_cage_color)
@@ -1126,7 +1126,7 @@ def bearing_thrust(dint, dext, h, detail=False) -> Solid:
 		vec3(rint, 0, w),
 		vec3(rint, 0, w-e), 
 		]) .segmented() .flip()
-	bevel(top, [1, 2], ('radius',c), resolution=('div',1))
+	filet(top, [1, 2], ('radius',c), resolution=('div',1))
 
 	bot = Wire([
 		vec3(rint, 0, -w+e),
@@ -1134,7 +1134,7 @@ def bearing_thrust(dint, dext, h, detail=False) -> Solid:
 		vec3(rext, 0, -w),
 		vec3(rext, 0, -w+e),
 		]) .segmented() .flip()
-	bevel(bot, [1,2], ('radius',c), resolution=('div',1))
+	filet(bot, [1,2], ('radius',c), resolution=('div',1))
 
 	if detail:
 		rb = (dint + dext)/4	# balls guide radius
@@ -1160,7 +1160,7 @@ def bearing_thrust(dint, dext, h, detail=False) -> Solid:
 			vec3(rint+c, 0, w-e-0.1*h),
 			vec3(rint+c, 0, -w+e+0.1*h),
 			])
-		bevel(cage_profile, [1,2], ('radius',c), resolution=('div',1))
+		filet(cage_profile, [1,2], ('radius',c), resolution=('div',1))
 		
 		cage_surf = revolution(cage_profile, axis)
 		cage_surf = pierce(cage_surf, inflate(balls, 0.2*c), False)
@@ -1225,7 +1225,7 @@ def slidebearing(dint, h=None, thickness=None, shoulder=None, opened=False) -> S
 	if shoulder:
 		profile += Wire([ vec3(rint+shoulder, 0, 0) ])
 		profile = profile.segmented()
-		bevel(profile, [1], ('radius', 1.5*thickness), resolution=('div',2))
+		filet(profile, [1], ('radius', 1.5*thickness), resolution=('div',2))
 
 	axis = Axis(O,Z, interval=(-h,0))
 	shape = revolution(profile, axis, 1.98*pi if opened else 2*pi)

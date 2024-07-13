@@ -1,7 +1,7 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
-''' This module provides the chamfer and bevel functions, and the associated tools.
+''' This module provides the chamfer and filet functions, and the associated tools.
 
-	`multicut`, `chamfer`, and `bevel` are built in the same cutting algorithm. It cuts the mesh faces by propagation from the given edges. The cutting planes are determined by an offset vector from the original primitive (point or edge). 
+	`multicut`, `chamfer`, and `filet` are built in the same cutting algorithm. It cuts the mesh faces by propagation from the given edges. The cutting planes are determined by an offset vector from the original primitive (point or edge). 
 	
 	Most of the time you don't need to set the offset yourself. It can be automatically calculated by several methods, depending on the shape you want to get. Those methods are called `cutters` and are executed using `planeoffsets`_.
 '''
@@ -18,7 +18,7 @@ from .blending import blenditer, match_length
 from numbers import Number
 from functools import singledispatch
 
-__all__ = [	'chamfer', 'bevel', 'multicut',
+__all__ = [	'chamfer', 'filet', 'multicut',
 			'mesh_cut', 'web_cut', 'planeoffsets',
 			'tangentend', 'tangentcorner', 'tangentjunction',
 			'cutter_width', 'cutter_distance', 'cutter_depth', 'cutter_radius',
@@ -38,7 +38,7 @@ def chamfer(mesh, indices, cutter):
 	raise TypeError('wrong argument type: {}'.format(type(mesh)))
 	
 @singledispatch
-def bevel(mesh, indices, cutter):
+def filet(mesh, indices, cutter):
 	''' Bevel a Mesh/Web/Wire around the given edges/points, using the given cutter '''
 	raise TypeError('wrong argument type: {}'.format(type(mesh)))
 
@@ -48,7 +48,7 @@ def bevel(mesh, indices, cutter):
 # ---- cut methods -----
 
 def cutter_width(width, fn1, fn2):
-	''' Plane offset for a cut based on the width of the bevel '''
+	''' Plane offset for a cut based on the width of the filet '''
 	n = normalize(fn1+fn2)
 	s = dot(fn1,n)
 	return -width/2 * sqrt(1/s**2 - 1) * n
@@ -583,8 +583,8 @@ def mesh_chamfer(mesh, edges, cutter):
 		mesh.faces.extend(faces)
 		mesh.tracks.extend([group]*len(faces))
 
-@bevel.register(Mesh)
-def mesh_bevel(mesh, edges, cutter, resolution=None):
+@filet.register(Mesh)
+def mesh_filet(mesh, edges, cutter, resolution=None):
 	''' Create a chamfer on the given suite of points, create faces are planes.
 		cutter is described in function planeoffsets()
 	'''
@@ -625,7 +625,7 @@ def mesh_bevel(mesh, edges, cutter, resolution=None):
 			# assemble the intersection segments in a single outline
 			frags = suites(s)
 			
-			# one loop:  bevel extremity
+			# one loop:  filet extremity
 			if len(frags) == 1:
 				lp = frags[0]
 				# find a separation to put a junction between 2 sides
@@ -823,8 +823,8 @@ def web_chamfer(web, points, cutter):
 			web.edges.extend( link((c,pi))  for c in cuts )
 			web.tracks.extend( [g] * len(cuts) )
 	
-@bevel.register(Web)
-def web_bevel(obj, points, cutter, resolution=None):
+@filet.register(Web)
+def web_filet(obj, points, cutter, resolution=None):
 	holes = web_multicut(obj, points, cutter)
 
 	conn = connpe(obj.edges)
@@ -897,7 +897,7 @@ def wire_multicut(wire: Wire, points, cutter):
 		# get point location in the wire
 		if not closed:
 			if origin == wire.indices[0] or origin == wire.indices[-1]:
-				raise MeshError("a chamfer/bevel cannot have only one side")
+				raise MeshError("a chamfer/filet cannot have only one side")
 
 		# compute cut plane
 		ref = wire[index-1] - wire[index]
@@ -955,8 +955,8 @@ def wire_multicut(wire: Wire, points, cutter):
 def wire_chamfer(wire, points, cutter):
 	wire_multicut(wire, points, cutter)
 
-@bevel.register(Wire)
-def wire_bevel(wire, points, cutter, resolution=None):
+@filet.register(Wire)
+def wire_filet(wire, points, cutter, resolution=None):
 	closed = wire.indices[0] == wire.indices[-1]
 
 	cuts = wire_multicut(wire, points, cutter)
