@@ -17,9 +17,9 @@ from copy import copy
 
 
 __all__ = [
-	'extrans', 'extrusion', 'revolution', 'saddle', 'tube', 
-	'repeat', 'thicken', 'inflate', 'inflate_offsets', 'expand',
-	'flatsurface', 'icosurface', 'subdivide',
+	'extrans', 'extrusion', 'revolution', 'helix', 'screw', 'saddle', 'tube', 
+	'repeat', 'repeataround', 'thicken', 'inflate', 'inflate_offsets', 'expand',
+	'flatsurface', 'icosurface',
 	'square', 'brick', 'parallelogram', 'cylinder', 'cone', 'pyramid', 'icosahedron', 'icosphere', 'uvsphere', 'regon', 
 	]
 
@@ -27,62 +27,137 @@ __all__ = [
 # --- extrusion things ---
 
 
-def extrusion(trans, line: Web, alignment:float=0) -> Mesh:
+def extrusion(shape, trans:transform, alignment:float=0) -> Mesh:
 	''' Create a surface by extruding the given outline by a transformation
 		
 		Parameters:
-			line:         a line (Web or Wire) or a surface (Mesh) to extrude
+			shape:         a line (Web or Wire) or a surface (Mesh) to extrude
 			trans:        any transformation object accepted by `mathutils.transform`
-			alignment:	   when > 0 the line is extruded both sides (the transformation is linearly interpoled)
+			alignment:  the relative position of the input shape in the resulting mesh
+				- `0` means at the beginning
+				- `1` means at the end
 	'''
 	trans = transform(trans)
 	neutral = mat4()
-	return extrans(line, [
+	return extrans(shape, [
 				neutral + (trans-neutral)*(-alignment),
 				neutral + (trans-neutral)*(1-alignment),
 				],
 				[(0,1,0)])
 
-def revolution(angle: float, axis: Axis, profile: Web, alignment: float=0, resolution=None) -> Mesh:
+def revolution(shape, axis=Axis(O,Z), angle:float=2*pi, alignment:float=0, resolution=None) -> Mesh:
 	''' Create a revolution surface by extruding the given outline
 		`steps` is the number of steps between the start and the end of the extrusion
 		
 		Parameters:
+			shape:    the shape to extrude (Web, Wire, or Mesh), ideally a section
 			angle:    angle of rotation between the given profile and the final produced profile
 			axis:     the axis to rotate around
-			profile:  the shape to extrude
+			alignment:  the relative position of the input shape in the resulting mesh
+				- `0` means at the beginning
+				- `1` means at the end
 			resolution:   resolution setting for the biggest produced circle, such as for primitives
 	'''
-	if not isinstance(profile, (Mesh,Web,Wire)):	
-		profile = web(profile)
+	if not isinstance(shape, (Mesh,Web,Wire)):	
+		shape = web(shape)
 	# get the maximum radius, to compute the curve resolution
 	radius = 0
-	for pt in profile.points:
-		v = pt-axis[0]
-		v -= project(v,axis[1])
+	for pt in shape.points:
+		radius = max(radius, length(noproject(pt-axis[0], axis[1])))
+	div = settings.curve_resolution(abs(angle*radius), abs(angle), resolution)
+	return extrans(shape, (
+		rotatearound(t*angle, axis)
+		for t in linrange(0-alignment, 1-alignment, div=div)
+		))
+
+def helix(shape, height:float, angle:float, radius:float=1., axis=Axis(O,Z), alignment:float=0., resolution=None) -> Mesh:
+	''' Extrude the given shape by rotating and translating along an axis
+		
+		This variant expects the input shape to be close to orthogonal to the axis direction and is used to produce an screw/helix from its section
+		
+		Parameters:
+			shape:    the shape to extrude (Web, Wire, or Mesh), ideally a section
+			height:   the maximum translation in the `axis` direction
+			radius:   the radius at which the hexlix `angle` is computed
+			angle:    the helix angle at `radius`
+			axis:     the axis to rotate around and translate along
+			alignment:  the relative position of the input shape in the resulting mesh
+				- `0` means at the beginning
+				- `1` means at the end
+			resolution:   resolution setting for subdivisions
+			
+		Example:
+			
+			>>> helix(
+			... 	regon(Axis(O,Z), 1, 4).subdivide(4), 
+			... 	height=1, 
+			... 	angle=radians(45),
+			... 	)
+	'''
+	helix = tan(angle)
+	div = settings.curve_resolution(height*helix, height/radius*helix, resolution)
+	return extrans(shape, (
+		translate(t*height*axis[1]) * rotatearound(t*height*helix/radius, axis)
+		for t in linrange(0-alignment, 1-alignment, div=div)
+		))
+
+def screw(shape, turns:float=1., axis=Axis(O,Z), step:float=None, alignment:float=0., resolution=None):
+	''' Extrude the given shape by rotating and translating along an axis
+	
+		This variant expexts the input shape to be close to coplanar to the axis direction and is used to produce a screw/helix from its profile
+	
+		Parameters:
+			shape:    the shape to extrude (Web, Wire, or Mesh), ideally a profile
+			turns:    number of complete rotations of the profile
+			step:     the translation after a complete rotation, if not provided it is automatically adjusted to the profile's height
+			axis:     the axis to rotate around and translate along
+			alignment:  the relative position of the input shape in the resulting mesh
+				- `0` means at the beginning
+				- `1` means at the end
+			resolution:   resolution setting for subdivisions
+			
+		Example:
+			
+			>>> screw(
+			... 	wire([vec3(0,1,0), vec3(0,2,1), vec3(0,1,1)]).segmented().flip(),
+			... 	turns=2,
+			... 	)
+	'''
+	if not isinstance(shape, (Mesh,Web,Wire)):	
+		shape = web(shape)
+	angle = turns * 2*pi
+	# get the maximum radius, to compute the curve resolution
+	# and the step if not provided
+	radius = 0
+	zmin, zmax = inf, -inf
+	for pt in shape.points:
+		z = dot(pt-axis[0], axis[1])
+		v = noproject(pt-axis[0], axis[1])
+		zmin = min(zmin, z)
+		zmax = max(zmax, z)
 		radius = max(radius, length(v))
-	steps = settings.curve_resolution(abs(angle*radius), abs(angle), resolution)+2
-	# use extrans
-	def trans():
-		for i in range(steps):
-			yield rotatearound((i/(steps-1) - alignment)*angle, axis)
-	def links():
-		for i in range(steps-2):          yield (i,i+1, 0)
-		if abs(angle-2*pi) <= NUMPREC:    yield (steps-2, 0, 0)
-		else:                             yield (steps-2, steps-1, 0)
-	return extrans(profile, trans(), links())
+	if step is None:
+		step = zmax - zmin
+	# produce the mesh
+	div = settings.curve_resolution(abs(angle*radius), abs(angle), resolution)
+	return extrans(shape, (
+		translate(t*step*turns*axis[1]) * rotatearound(t*angle, axis)
+		for t in linrange(0-alignment, 1-alignment, div=div)
+		))
 
-def saddle(web1: Web, web2: Web) -> Mesh:
+def saddle(a, b:Web) -> Mesh:
 	''' Create a surface by extruding outine1 translating each instance to the next point of outline2'''
-	web1, web2 = web(web1), web(web2)
+	if not isinstance(a, (Mesh,Web,Wire)):
+		a = web(a)
+	b = web(b)
 	def trans():
-		s = web2.points[0]
-		for p in web2.points:
+		s = b.points[0]
+		for p in b.points:
 			yield translate(mat4(1), p-s)
-	return extrans(web1, trans(), ((*e,t)  for e,t in zip(web2.edges, web2.tracks)))
+	return extrans(a, trans(), ((*e,t)  for e,t in zip(b.edges, b.tracks)))
 
-def tube(outline: Web, path: Wire, end=True, section=True) -> Mesh:
-	''' Create a tube surface by extruding the outline along the path if `section` is True, there is a correction of the segments to keep the section rigid by the curve
+def tube(shape, path:Wire, end=True, section=True) -> Mesh:
+	''' Create a tube surface by extruding the shape along the path if `section` is True, there is a correction of the segments to keep the section rigid by the curve
 	'''
 	path = wire(path)
 	def trans():
@@ -120,10 +195,9 @@ def tube(outline: Web, path: Wire, end=True, section=True) -> Mesh:
 	if path.tracks:		links = ((i, i+1, path.tracks[i]) for i in range(len(path)-1))
 	else:				links = ((i, i+1, 0) for i in range(len(path)-1))
 	# generate
-	return extrans(outline, trans, links)
+	return extrans(shape, trans, links)
 
-
-def extrans(section, transformations, links=None) -> Mesh:
+def extrans(section, transformations:iter, links=None) -> Mesh:
 	''' Create a surface by extruding and transforming the given outline.
 		
 		Parameters:
@@ -473,40 +547,6 @@ def dividedtriangle(placement, div=1) -> 'Mesh':
 	return mesh
 
 
-def subdivide(mesh, div=1) -> 'Mesh':
-	''' Subdivide all faces by the number of cuts '''
-	n = div+2
-	pts = typedlist(dtype=vec3)
-	faces = typedlist(dtype=uvec3)
-	tracks = typedlist(dtype='I')
-	c = 0
-	for f,t in enumerate(mesh.tracks):
-		# place the points
-		o,p0,p1 = mesh.facepoints(f)
-		x = p0-o
-		y = p1-o
-		for i in range(n):
-			u = i/(n-1)	
-			for j in range(n-i):
-				v = j/(n-1)
-				p = o + u*x + v*y
-				pts.append(p)
-		# create the faces
-		for i in reversed(range(1,n+1)):
-			for j in range(i-1):
-				s = c+j
-				faces.append(uvec3(s, s+i, s+1))
-			for j in range(1,i-1):
-				s = c+j
-				faces.append(uvec3(s, s+i-1, s+i))
-			c += i
-		tracks.extend([t] * (len(faces)-len(tracks)))
-	
-	new = Mesh(pts, faces, tracks)
-	new.mergeclose()
-	return new
-
-
 # --- standard shapes ---
 	
 def brick(*args, **kwargs) -> 'Mesh':
@@ -640,7 +680,7 @@ def cylinder(bottom:vec3, top:vec3, radius:float, fill=True, resolution=None) ->
 	direction = top-bottom
 	base = wire(primitives.Circle(Axis(bottom,normalize(direction)), radius), resolution=resolution)
 	if fill:	base = flatsurface(base).flip()
-	return extrusion(direction, base)
+	return extrusion(base, direction)
 
 def cone(summit:vec3, base:vec3, radius:float, fill=True, resolution=None) -> 'Mesh':
 	''' Create a revolution cone, with a base of the given radius 
@@ -756,22 +796,37 @@ def regon(axis:primitives.Axis, radius, n, alignment=vec3(1,0,0)) -> 'Wire':
 		for i in range(n)
 		)).close().segmented()
 
-def repeat(pattern, n:int, transform):
+def repeat(pattern, repetitions:int, transform):
 	''' Create a mesh duplicating n times the given pattern, each time applying the given transform.
 		
 		Parameters:
 		
 			pattern:   can either be a `Mesh`, `Web` or `Wire`   
 						the return type will depend on the input type
-			n:         the number of repetitions
+			repetitions:   the number of repetitions
 			transform:     is the transformation between each duplicate
 	'''
 	current = pattern
 	pool = type(pattern)(groups=pattern.groups)
-	if n:	pool += current
-	for i in range(1,n):
+	if repetitions:	pool += current
+	for i in range(1, repetitions):
 		current = current.transform(transform)
 		pool += current
 	return pool
 
+def repeataround(pattern, repetitions:int=None, axis=Axis(O,Z), angle=2*pi):
+	''' same as [repeat] using [rotatearound] '''
+	if repetitions is None:
+		if isinstance(pattern, Mesh):	indices = (i for f in pattern.faces for i in f )
+		elif isinstance(pattern, Web):	indices = (i for e in pattern.edges for i in e)
+		elif isinstance(pattern, Wire): indices = iter(pattern.indices)
+
+		x,y,z = dirbase(axis[1], align=pattern.points[next(indices)] - axis[0])
+		lower, upper = 0, 0
+		for p in indices:
+			t = atan2(dot(pattern.points[p]-axis[0], y), dot(pattern.points[p]-axis[0], x))
+			lower = min(lower, t)
+			upper = max(upper, t)
+		repetitions = round(angle / (upper - lower))
+	return repeat(pattern, repetitions, rotatearound(angle/repetitions, axis))
 

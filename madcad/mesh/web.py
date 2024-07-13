@@ -218,6 +218,32 @@ class Web(NMesh):
 					self.options,
 					)
 	
+	def subdivide(self, div=1) -> 'Self':
+		''' Subdivide all edges by the number of cuts '''
+		n = div+2
+		pts = typedlist(dtype=vec3)
+		edges = typedlist(dtype=uvec2)
+		tracks = typedlist(dtype='I')
+		c = 0
+		for e,t in enumerate(self.tracks):
+			# place the points
+			o,p0 = self.edgepoints(e)
+			x = p0-o
+			for i in range(n):
+				u = i/(n-1)	
+				p = o + u*x
+				pts.append(p)
+			# create the edges
+			for i in range(n-1):
+				s = c+i
+				edges.append(uvec2(s, s+1))
+			c += n
+			tracks.extend([t] * (len(indices)-len(tracks)))
+		
+		new = Web(pts, edges, tracks, self.groups)
+		new.mergeclose()
+		return new
+	
 	def extremities(self) -> set:
 		''' return the points that are used once only (so at wire terminations)
 			1D equivalent of Mesh.outlines()
