@@ -12,4 +12,7 @@ show([
     Ball((0,4), -Z-Y),
     PointSlider((5,6), Axis(-2*Y,X)),
     EdgeSlider((7,6), translate(-Z-2*Y)),
+    Gear((0,1), -1, 1, Axis(-0*Z,Z), Axis(-0*Z+X,Z)),
+    Gear((0,1), -0.5, 1, Axis(-1*Z,Z), Axis(-1*Z+X,Z)),
+    Gear((0,1), 0.5, 0.5, Axis(-2*Z,Z), Axis(-2*Z+0.5*X,Z)),
     ])

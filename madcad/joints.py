@@ -786,7 +786,25 @@ class Project(Joint):
 
 	
 class Rack(Joint):
-	pass
+	def __init__(self, solids, radius:float, centerline:mat4, axis, local):
+		self.solids = solids
+		self.ratio = ratio
+		self.relartive = transform(relative)
+		self.axis = axis
+		self.pre = mat4(quat(local[1], Z)) * translate(-local[0])
+		self.post = translate(axis[0]) * mat4(quat(Z, axis[1]))
+		
+	bounds = (-inf, inf)
+	default = 0
+	
+	def direct(self, angle):
+		return self.post * rotate(angle,Z) * self.relative * rotate(self.ratio*angle,Z) * self.pre
+		
+	def inverse(self, matrix, close=None):
+		m = affineInverse(self.post) * matrix * affineInverse(self.pre)
+		return atan(*m[0].xy) / (1+self.ratio)
+	
+		
 	
 
 class Gear(Joint):
@@ -795,52 +813,61 @@ class Gear(Joint):
 		`ratio` is the factor from the rotation of s1 to the rotation of s2
 		The two pinions are considered circular, but no assumption is made on their radius or relative inclination.
 		The interaction is symetric.
+		
+		Attributes:
+			ratio:  the gear rotation transmission ratio
+			centerline: the relative positioning of the gears axis, could be 'float', `vec3`, `mat3`, `quat`, `mat4`
+			
 	'''
-	def __init__(self, solids, ratio, axis, local=None):
+	def __init__(self, solids, ratio:float, centerline:mat4, axis, local):
 		self.solids = solids
 		self.ratio = ratio
+		if isinstance(centerline, float):
+			centerline = centerline*X
+		self.centerline = transform(centerline)
 		self.axis = axis
-		local = local or axis
 		self.pre = mat4(quat(local[1], Z)) * translate(-local[0])
 		self.post = translate(axis[0]) * mat4(quat(Z, axis[1]))
 		
-	def direct(self, parameters):
-		indev
-	
-	def scheme(self, solid, size, junc):
-		if solid is self.solids[0]:		i0,i1,n = 0, 1, self.ratio
-		elif solid is self.solids[1]:	i0,i1,n = 1, 0, 1/self.ratio
-		else:	return
+	bounds = (-inf, inf)
+	default = 0
 		
-		a0, a1 = solidtransform_axis(self.solids[0],self.axis[0]), solidtransform_axis(self.solids[1],self.axis[1])
-		align = junc-self.axis[i0][0]
-		if length2(align) == 0:		align = vec3(1,0,0)
-		x,y,z = dirbase(self.axis[i0][1], align=align)
-		o = self.axis[i0][0] + project(self.position[i0]-self.axis[i0][0], z)
+	def direct(self, angle):
+		return self.post * rotate(angle,Z) * self.centerline * rotate(self.ratio*angle,Z) * self.pre
+		
+	def grad(self, angle):
+		return (
+			+ self.post * drotate(angle,Z) * self.centerline * rotate(self.ratio*angle,Z) * self.pre
+			+ self.post * rotate(angle,Z) * self.centerline * drotate(self.ratio*angle,Z) * self.pre
+			)
+		
+	def inverse(self, matrix, close=None):
+		m = affineInverse(self.post) * matrix * affineInverse(self.pre)
+		return atan(*m[0].xy) / (1+self.ratio)
+	
+	def scheme(self, index, maxsize, attach_start, attach_end):
+		from .generation import revolution
+		from .primitives import Circle, Segment
+		size = settings.display['joint_size']
+		radius = size/3
+		sch = Scheme()
+		resolution = ('div', 16)
 		
 		# radial vector
-		rl = length(noproject(a0[0]-a1[0], a1[1])) / (dot(a0[1],a1[1]) - 1/self.ratio)
-		if solid is self.solids[1]:
-			rl /= abs(self.ratio)
-		r = o + x * rl
+		r0 = length(self.centerline[3].xy) / (self.centerline[2].z - 1/self.ratio)
+		r1 = r0 / abs(self.ratio)
+		h = 0.1*max(r0, r1)
+
+		x,y,z,o = dmat4x3(self.post)
+		sch.set(track=index[self.solids[0]], space=world_solid(self.solids[0]))
+		sch.add(Circle(Axis(o,z), r0).mesh(), shader='line')
+		sch.add(revolution(2*pi, Axis(o,z), Segment(o+r0*x-h*z, o+r0*x+h*z)), shader='ghost')
 		
-		# tooth depth vector
-		angle = min(1, dot(	a0[1] if solid is self.solids[0] else a1[1], 
-						normalize(mix(a0[1], a1[1], abs(self.ratio)/(1+abs(self.ratio))))
-						))
+		x,y,z,o = dmat4x3(self.pre)
+		sch.set(track=index[self.solids[1]], space=world_solid(self.solids[1]))
+		sch.add(Circle(Axis(o,z), r1).mesh(), shader='line')
+		sch.add(revolution(2*pi, Axis(o,z), Segment(o+r1*x-h*z, o+r1*x+h*z)), shader='ghost')
 		
-		d = angle*z + sqrt(max(0, 1-angle**2))*x
-		b = size*0.4 * d
-		w = size*0.08 * cross(d,y)
-		if self.ratio > 0 and (	abs(self.ratio) > 1 and solid is self.solids[0] 
-							or	abs(self.ratio) < 1 and solid is self.solids[1]):
-			b, w = -b, -w
-		
-		profile = Web([r+b+w, r+b, r+b, r, r-b, r-b, r-b+w], [(0,1),(2,3),(3,4),(5,6)])
-		surf = generation.revolution(2*pi, self.axis[i0], profile, resolution=('rad',0.1))
-		l = len(profile.points)
-		sch = Scheme(surf.points, surf.faces, [], [(i,i+l) for i in range(3, len(surf.points)-l, l)])
-		sch.extend(Scheme([junc, mix(o,r,0.8), r], [], [], [(0,1),(1,2)]))
 		return sch
 
 
