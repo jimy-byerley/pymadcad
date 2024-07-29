@@ -13,20 +13,6 @@ Conversions
 .. autofunction:: madcad.mesh.numpy_to_typedlist
 .. autofunction:: madcad.mesh.ensure_typedlist
 
-Connectivity
-------------
-
-.. autofunction:: madcad.mesh.edgekey
-.. autofunction:: madcad.mesh.facekeyo
-.. autofunction:: madcad.mesh.arrangeface
-.. autofunction:: madcad.mesh.arrangeedge
-.. autofunction:: madcad.mesh.connpp
-.. autofunction:: madcad.mesh.connef
-.. autofunction:: madcad.mesh.connpe
-.. autofunction:: madcad.mesh.connexity
-
-.. autofunction:: madcad.mesh.suites
-
 Misc
 ----
 

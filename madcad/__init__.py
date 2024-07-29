@@ -136,7 +136,7 @@ from . import (
 		# base tools (defines types for the whole library)
 		mathutils, mesh, 
 		# interdependent functionnalities
-		generation, boolean, cut, primitives, constraints, kinematic, #joints,
+		generation, boolean, bevel, primitives, constraints, kinematic, #joints,
 		# near-independant modules
 		io, hashing, triangulation,
 		# parts
@@ -148,20 +148,20 @@ from . import rendering, displays, text, scheme
 
 # the most common tools, imported to access it directly from madcad
 from .mathutils import *
-from .mesh import Mesh, Web, Wire, MeshError, web, wire, suites
+from .mesh import Mesh, Web, Wire, MeshError, web, wire
 from .boolean import pierce, difference, union, intersection
-from .cut import chamfer, bevel, multicut, planeoffsets
+from .bevel import chamfer, filet, multicut, planeoffsets
 from .generation import *
 from .blending import junction, multijunction, blend, blendloop, blendpair, blenditer
 from .primitives import isprimitive, Point, Axis, Segment, ArcThrough, ArcCentered, ArcTangent, TangentEllipsis, Circle, Interpolated, Softened, isaxis
 from .constraints import isconstraint, SolveError, Tangent, Distance, Angle, Parallel, Radius, PointOn, OnPlane, solve
 from .kinematic import KinematicError, Solid, Joint, Chain, Kinematic
-#from .joints import Pivot, Planar, Track, Gliding, Ball, Punctiform, Gear, Helicoid
 from .reverse import segmentation
 from .selection import select
 from .io import read, write, cache, cachefunc
 from .triangulation import TriangulationError
 from .hull import convexhull, convexoutline, horizon
+from .hashing import suites
 
 from .scheme import *
 from .rendering import Scene, Display, displayable, show, render

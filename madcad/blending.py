@@ -51,7 +51,8 @@ To come in a next version
 	... )
 '''
 
-from .mesh import Mesh, Wire, Web, wire, connef, edgekey, suites, arrangeface, mkquad, numpy_to_typedlist, typedlist_to_numpy
+from .mesh import Mesh, Wire, Web, wire, mkquad, numpy_to_typedlist, typedlist_to_numpy
+from .hashing import connef, edgekey, suites, arrangeface
 from .mathutils import *
 from . import settings
 from . import generation

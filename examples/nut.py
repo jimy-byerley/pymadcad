@@ -46,7 +46,7 @@ csts = [
 solve(csts, fixed=[O,X,Y,Z,P0,P5], precision=1e-6, method='trf')
 
 # generate a revolution surface from the profile
-base = revolution(radians(360), axis, profile)
+base = revolution(profile)
 base.mergeclose()  # merge revolution ends
 
 # make an haxagon to cut the nut sides
@@ -58,7 +58,7 @@ hexagon = web(Circle(
 # trick to separate edges in different groups
 hexagon.tracks = list(range(len(hexagon.edges)))
 hexagon.groups = [None] * len(hexagon.edges)
-ext = extrusion(2*h*Z, hexagon)
+ext = extrusion(hexagon, 2*h*Z)
 
 # cut the revolution by the hexagon
 nut = intersection(base, ext)

@@ -207,7 +207,7 @@ class Wire(NMesh):
 		
 	def edgepoints(self, e) -> tuple:
 		''' shorthand to the tuple of points forming edge e '''
-		if isinstance(f, Integral):
+		if isinstance(e, Integral):
 			e = self.edge(e)
 		return self.points[e[0]], self.points[e[1]]
 		
@@ -350,6 +350,33 @@ class Wire(NMesh):
 					[group]*len(self.indices),
 					self.options,
 					)
+	
+	def subdivide(self, div=1) -> 'Self':
+		''' Subdivide all faces by the number of cuts '''
+		n = div+2
+		pts = typedlist(dtype=vec3)
+		indices = typedlist(dtype='I')
+		tracks = typedlist(dtype='I') if self.tracks else None
+		c = 0
+		for i in range(len(self.indices)-1):
+			# place the points
+			e = self.indices[i:i+2]
+			o,p0 = self.edgepoints(e)
+			x = p0-o
+			for j in range(n):
+				u = j/(n-1)	
+				p = o + u*x
+				pts.append(p)
+			# create the faces
+			indices.extend(range(c, c+n))
+			c += n
+			if self.tracks:
+				tracks.extend([self.tracks[i]] * (len(indices)-len(tracks)))
+		
+		new = Wire(pts, indices, tracks, self.groups)
+		new.mergeclose()
+		new.check()
+		return new
 	
 	# END BEGIN ----- ouput methods -----
 	

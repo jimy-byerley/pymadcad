@@ -40,7 +40,7 @@ Between `Web` and `Mesh`:
 		    .close()
 		    .segmented()
 		)
-		hole = extrusion(4 * Z, Circle((O, Z), 1.5), alignment=0.5)
+		hole = extrusion(Circle((O, Z), 1.5), 4 * Z, alignment=0.5)
 
 		result = pierce(rect, hole)
 
@@ -60,7 +60,7 @@ Between `Mesh`:
 		    wire([vec3(-w, -h, 0), vec3(w, -h, 0), vec3(w, h, 0), vec3(-w, h, 0)])
 		)
 		rect = rect.transform(Z) + rect.transform(-Z).flip()
-		hole = extrusion(4 * Z, flatsurface(Circle((O, Z), 1.5)).flip(), alignment=0.5)
+		hole = extrusion(flatsurface(Circle((O, Z), 1.5)).flip(), 4 * Z, alignment=0.5)
 
 		result = pierce(rect, hole)
 
@@ -105,7 +105,7 @@ Between `Mesh`:
 		    wire([vec3(-w, -h, 0), vec3(w, -h, 0), vec3(w, h, 0), vec3(-w, h, 0)])
 		)
 		a = rect.transform(Z) + rect.transform(-Z).flip()
-		b = extrusion(4 * Z, flatsurface(Circle((O, Z), 1.5)).flip(), alignment=0.5)
+		b = extrusion(flatsurface(Circle((O, Z), 1.5)).flip(), 4 * Z, alignment=0.5)
 
 		result = boolean(a, b, (False, False))
 

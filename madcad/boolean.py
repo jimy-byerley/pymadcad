@@ -34,9 +34,9 @@ from functools import singledispatch
 from time import time
 from math import inf
 from .mathutils import *
+from .hashing import *
 from . import core
-from .mesh import Mesh, Web, Wire, web, edgekey, connef, connpe, line_simplification
-from . import hashing
+from .mesh import Mesh, Web, Wire, web, line_simplification
 from . import triangulation
 
 __all__ = ['pierce', 'boolean', 'intersection', 'union', 'difference']
@@ -65,8 +65,8 @@ def cut_mesh(m1, m2, prec=None) -> '(Mesh, Web)':
 	frontier = Web(m1.points, groups=m2.faces)	# cut points for each face from m2
 	
 	# topology informations for optimization
-	points = hashing.PointSet(prec, manage=m1.points)
-	prox2 = hashing.PositionMap(max(hashing.meshcellsize(m2), hashing.meshcellsize(m1)))
+	points = PointSet(prec, manage=m1.points)
+	prox2 = PositionMap(max(meshcellsize(m2), meshcellsize(m1)))
 	for f2 in range(len(m2.faces)):
 		prox2.add(m2.facepoints(f2), f2)
 	conn = connef(m1.faces)
@@ -183,10 +183,14 @@ def pierce_mesh(m1, m2, side=False, prec=None, strict=False) -> Mesh:
 						proj = dot(m1.points[f[i]] - m1.points[f[i-1]], m2.facenormal(f2))  * (-1 if side else 1)
 						if proj > prec:
 							used[fi] = 1
+							conn1[(f[i-1], f[i])] = fi
+							conn1[(f[i], f[i-2])] = fi
 							front.append((f[i], f[i-1]))
 							front.append((f[i-2], f[i]))
 						elif proj < -prec:
 							used[fi] = -1
+							conn1[(f[i-1], f[i])] = fi
+							conn1[(f[i], f[i-2])] = fi
 							front.append((f[i], f[i-1]))
 							front.append((f[i-2], f[i]))
 						break
@@ -215,8 +219,8 @@ def pierce_mesh(m1, m2, side=False, prec=None, strict=False) -> Mesh:
 		newfront = []
 		for edge in front:
 			if edge in conn1:
-				source = conn1.get((edge[1], edge[0]), 0)
-				#assert used[source]
+				source = conn1[(edge[1], edge[0])]
+				assert used[source]
 				fi = conn1[edge]
 
 				if not used[fi] or (used[source]*used[fi] < 0 and abs(used[fi]) > abs(used[source])):
@@ -224,7 +228,10 @@ def pierce_mesh(m1, m2, side=False, prec=None, strict=False) -> Mesh:
 					used[fi] = used[source] + (1 if used[source]>0 else -1)
 					f = m1.faces[fi]
 					for i in range(3):
-						if edgekey(f[i-1],f[i]) not in stops:	
+						if edgekey(f[i-1],f[i]) not in stops:
+							# the connectivity might have a different face for this edge in case of empty triangles, so avoid pushing an orphan edge, lets correct the connectivity
+							conn1[(f[i-1], f[i])] = fi
+							assert used[fi]
 							newfront.append((f[i],f[i-1]))
 		front = newfront
 	
@@ -275,8 +282,8 @@ def cut_web(w1: Web, ref: Web, prec=None) -> '(Web, Wire)':
 	frontier = Wire(w1.points, [], [], groups=ref.edges)
 	
 	# topology informations for optimization
-	points = hashing.PointSet(prec, manage=w1.points)
-	prox = hashing.PositionMap(hashing.meshcellsize(ref))
+	points = PointSet(prec, manage=w1.points)
+	prox = PositionMap(meshcellsize(ref))
 	for e in range(len(ref.edges)):
 		prox.add(ref.edgepoints(e), e)
 	conn = connpe(w1.edges)
@@ -446,8 +453,8 @@ def cut_web_mesh(w1: Web, ref: Mesh, prec=None) -> '(Web, Wire)':
 	frontier = Wire(w1.points, [], [], groups=ref.faces)
 	
 	# topology informations for optimization
-	points = hashing.PointSet(prec, manage=w1.points)
-	prox = hashing.PositionMap(hashing.meshcellsize(ref))
+	points = PointSet(prec, manage=w1.points)
+	prox = PositionMap(meshcellsize(ref))
 	for f in range(len(ref.faces)):
 		prox.add(ref.facepoints(f), f)
 	conn = connpe(w1.edges)

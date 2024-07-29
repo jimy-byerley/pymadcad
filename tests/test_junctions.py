@@ -18,15 +18,15 @@ if False:
 			tangents='tangent',
 			)
 	for c in interface:
-		m += extrusion(c.axis[1]*3, web(c))
+		m += extrusion(web(c), c.axis[1]*3)
 
 
 if False:
 	z = vec3(0,0,1)
 	x = normalize(vec3(1,1,0))
 	interfaces = [
-			extrusion(2*z, web(Circle((vec3(0),z), 1))),
-			extrusion(5*z, web(Circle((vec3(2,0,-2),z), 0.6))),
+			extrusion(web(Circle((vec3(0),z), 1)), 2*z),
+			extrusion(web(Circle((vec3(2,0,-2),z), 0.6)), 5*z),
 			]
 	m = junction(
 			interfaces[0],

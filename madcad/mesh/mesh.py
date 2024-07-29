@@ -627,6 +627,39 @@ class Mesh(NMesh):
 		
 		return self
 	
+	def subdivide(self, div=1) -> 'Self':
+		''' Subdivide all edges by the number of cuts '''
+		n = div+2
+		pts = typedlist(dtype=vec3)
+		faces = typedlist(dtype=uvec3)
+		tracks = typedlist(dtype='I')
+		c = 0
+		for f,t in enumerate(self.tracks):
+			# place the points
+			o,p0,p1 = self.facepoints(f)
+			x = p0-o
+			y = p1-o
+			for i in range(n):
+				u = i/(n-1)	
+				for j in range(n-i):
+					v = j/(n-1)
+					p = o + u*x + v*y
+					pts.append(p)
+			# create the faces
+			for i in reversed(range(1,n+1)):
+				for j in range(i-1):
+					s = c+j
+					faces.append(uvec3(s, s+i, s+1))
+				for j in range(1,i-1):
+					s = c+j
+					faces.append(uvec3(s, s+i-1, s+i))
+				c += i
+			tracks.extend([t] * (len(faces)-len(tracks)))
+		
+		new = Mesh(pts, faces, tracks, self.groups)
+		new.mergeclose()
+		return new
+	
 	# END BEGIN ----- output methods ------
 	
 	def display(self, scene):

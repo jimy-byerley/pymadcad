@@ -62,8 +62,10 @@ def font_locations():
 def exploredir(dir):
 	''' list directory elements as string file paths '''
 	if os.path.exists(dir):
-		for sub in os.listdir(dir):
-			yield os.path.join(dir, sub)
+		if os.path.isdir(dir):
+			yield dir
+			for sub in os.listdir(dir):
+				yield from exploredir(os.path.join(dir, sub))
 	
 def font_list():
 	''' yield all font files found '''
@@ -461,7 +463,7 @@ def test_text():
 	from .scheme import note_distance
 	settings.display['view_font_size'] = 10
 	part = text('Hello everyone.\nthis is a great font !!', font='NotoSans-Regular', align=('center', 0))
-	part = extrusion(vec3(0,0,-1), part.flip())
+	part = extrusion(part.flip(), vec3(0,0,-1))
 	show([
 			vec3(0),
 			note_distance(vec3(0), vec3(0,1,0), offset=vec3(-0.5,0,0), text='size'),

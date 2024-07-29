@@ -563,6 +563,7 @@ class Scene:
 			for target, frame, setup in view.targets:
 				view.target = frame
 				frame.use()
+				frame.clear()
 				setup()
 				for key, priority, func in self.stacks.get(target,empty):
 					func(view)

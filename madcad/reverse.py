@@ -1,5 +1,6 @@
 from .mathutils import *
-from .mesh import Mesh, connef, edgekey
+from .mesh import Mesh
+from .hashing import connef, edgekey
 from .constraints import SolveError
 from .nprint import nprint
 

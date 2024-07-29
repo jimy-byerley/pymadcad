@@ -62,7 +62,7 @@ balls.option(color=vec3(0,0.1,0.2))
 #		exterior[0]]) .segmented()
 #	)
 
-part = revolution(4, axis, web([exterior, interior]))
+part = revolution(web([exterior, interior]), axis, 4)
 part.mergeclose()
 
 # cage
@@ -74,8 +74,8 @@ sides = pierce(
 			), 
 		square((c*Z,Z), dext),
 		),
-	( extrusion(2*h*Z, Circle((-h*Z,Z), rb-rr*0.4, resolution=('rad',0.1)))
-	+ extrusion(2*h*Z, Circle((-h*Z,Z), rb+rr*0.4, resolution=('rad',0.1))) .flip()
+	( extrusion(Circle((-h*Z,Z), rb-rr*0.4, resolution=('rad',0.1)), 2*h*Z)
+	+ extrusion(Circle((-h*Z,Z), rb+rr*0.4, resolution=('rad',0.1)), 2*h*Z) .flip()
 		),
 	)
 cage = thicken(

@@ -97,7 +97,7 @@ transmiters = [transmiter.transform(rotate(i*2*pi/transmiter_amount,Z))  for i i
 space_radius = transmiter_z*gear_step/(2*pi) / sin(transmiter_angle) + transmiter_washer_thickness
 
 # interior shell
-interior_top = revolution(2*pi, Axis(O,Z), Wire([
+interior_top = revolution(Wire([
 	out_gear['axis'].origin + bearing_radius*X - bearing_radius*0.15*X,
 	out_gear['axis'].origin + bearing_radius*X,
 	out_gear['axis'].origin + bearing_radius*X - bearing_height*Z,
@@ -112,12 +112,13 @@ interior_out = (
 r = length(transmiter['gear']['axis'].origin)
 h = transmiter_rint
 w = r + transmiter_washer_thickness*1.5
-interior_transmision = revolution(2*pi, Axis(O,X), Wire([
-	2*r*X + h*Z,
-	w*X + h*Z,
-	w*X + 2.5*h*Z,
-	w*X + 2.5*h*Z + h*(X+Z),
-	]).flip().segmented())
+interior_transmision = revolution(Wire([
+		2*r*X + h*Z,
+		w*X + h*Z,
+		w*X + 2.5*h*Z,
+		w*X + 2.5*h*Z + h*(X+Z),
+		]).flip().segmented(),
+	Axis(O,X))
 interior_transmisions = repeat(interior_transmision, transmiter_amount, rotate(2*pi/transmiter_amount, Z))
 
 interior_space = union(
@@ -140,7 +141,7 @@ b = a - mount_thickness*Z
 bolt = bolt(a, b, dscrew, False, False)
 bolts = [bolt.transform(rotate((i+0.5)*2*pi/8, Z))  for i in range(8)]
 
-screw_support = revolution(2*pi, Axis(O,Z), wire(
+screw_support = revolution(wire(
 	Wire([
 		project(a, Z),
 		a + 1.3*dscrew*X,
@@ -173,7 +174,7 @@ interior.mergeclose()
 part = intersection(interior, exterior).finish()
 
 # part decomposition of the shell
-split = revolution(2*pi, Axis(O,Z), Wire([
+split = revolution(Wire([
 	a + 2*neighscrew*X - 2*shell_thickness*Z,
 	project(a, Z) + bearing_radius*X + 2*shell_thickness*X - 2*shell_thickness*Z,
 	project(a, Z) + bearing_radius*X - mount_thickness*Z,

@@ -3,11 +3,13 @@ from madcad.mesh import Web
 from madcad.generation import extrusion
 from madcad.io import *
 
-original = extrusion(vec3(0,0,0.5), Web(
-		[vec3(1,1,0), vec3(-1,1,0), vec3(-1,-1,0), vec3(1,-1,0)],
-		[(0,1), (1,2), (2,3), (3,0)],
-		[0,1,2,3],
-		))
+original = extrusion(
+		Web(
+			[vec3(1,1,0), vec3(-1,1,0), vec3(-1,-1,0), vec3(1,-1,0)],
+			[(0,1), (1,2), (2,3), (3,0)],
+			[0,1,2,3],
+			),
+		vec3(0,0,0.5))
 original.check()
 
 # test ply

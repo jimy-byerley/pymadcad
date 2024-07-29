@@ -1,5 +1,6 @@
 from ..mathutils import typedlist, vec3
-from .container import NMesh, suites
+from ..hashing import suites, connpe
+from .container import NMesh
 from .mesh import Mesh
 from .web import Web
 from .wire import Wire

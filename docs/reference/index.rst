@@ -24,7 +24,7 @@ References
 
     generation.rst
     blending.rst
-    cut.rst
+    bevel.rst
     boolean.rst
     reverse.rst
     hull.rst
