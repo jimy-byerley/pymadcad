@@ -9,6 +9,7 @@ from PyQt5.QtCore import Qt, QEvent
 
 from ..common import resourcedir
 from ..mathutils import *
+from ..primitives import Axis
 from ..mesh import Mesh, Web, Wire, striplist, distance2_pm, typedlist_to_numpy
 from .. import settings
 from .. import rendering
@@ -86,7 +87,7 @@ class ChainManip(Group):
 			solid = joint.solids[-1]
 			index[solid] = i+1
 			if display := self.displays.get(solid):
-				display.word = word * fmat4(self.parts[i])
+				display.world = world * fmat4(self.parts[i+1])
 		
 		for space in self.displays['scheme'].spacegens:
 			if isinstance(space, (world_solid, scale_solid)) and space.solid in index:
@@ -613,15 +614,17 @@ def kinematic_scheme(joints) -> '(Scheme, index)':
 	for solid, center in centers.items():
 		centers[solid] = center.xyz / center.w  if center.w > 1 else None
 	
-	nprint('index', index)
 	scheme = Scheme()
 	for joint in joints:
 		if hasattr(joint, 'position'):
-			size = sum(
+			size = vec2(sum(
 				vec2(distance(position, centers[solid]), 1)
 				for solid, position in zip(joint.solids, joint.position)
-				if centers[solid])
-			size = 1.5*size.x / size.y
+				if centers[solid]))
+			if size.y:
+				size = 1.5*size.x / size.y
+			else:
+				size = inf
 			
 			sch = joint.scheme(index, size, centers[joint.solids[0]], centers[joint.solids[-1]])
 			if sch is not NotImplemented:

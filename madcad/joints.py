@@ -545,12 +545,13 @@ class PointSlider(Joint):
 			self.pre = mat4(quat(local[1], Z)) * translate(-local[0])
 		else:
 			raise TypeError("PointSlider can only be placed on Axis or mat4")
-		
-	bounds = ([-inf]*6, [inf]*6)
+	
+	default = [0]*5
+	bounds = ([-inf]*5, [inf]*5)
 	
 	def direct(self, parameters):
 		translation = vec2(parameters[0:2])
-		rotation = quat(parameters[3:6])
+		rotation = quat(parameters[2:5])
 		return self.post * translate(vec3(translation, 0)) * mat4(rotation) * self.pre
 		
 	def inverse(self, matrix, close=None):
@@ -610,12 +611,13 @@ class EdgeSlider(Joint):
 			self.pre = affineInverse(local)
 		else:
 			raise TypeError("EdgeSlider can only be placed on Axis or mat4")
-		
+	
+	default = [0]*4
 	bounds = ([-inf]*4, [inf]*4)
 	
 	def direct(self, parameters):
 		translation = vec2(parameters[0:2])
-		rotation = quat(vec3(parameters[3:6], 0))
+		rotation = quat(vec3(*parameters[2:4], 0))
 		return self.post * translate(vec3(translation, 0)) * mat4(rotation) * self.pre
 		
 	def inverse(self, matrix, close=None):
@@ -786,24 +788,48 @@ class Project(Joint):
 
 	
 class Rack(Joint):
-	def __init__(self, solids, radius:float, centerline:mat4, axis, local):
+	def __init__(self, solids, radius:float, rack:Axis, axis):
 		self.solids = solids
-		self.ratio = ratio
-		self.relartive = transform(relative)
+		self.radius = radius
 		self.axis = axis
-		self.pre = mat4(quat(local[1], Z)) * translate(-local[0])
-		self.post = translate(axis[0]) * mat4(quat(Z, axis[1]))
+		self.rack = rack
+		self.pre = mat4(quat(axis[1], Z)) * translate(-axis[0])
+		self.post = translate(rack[0]) * mat4(quat(X, rack[1]))
+		self.position = self.rack[0], self.axis[0]
 		
 	bounds = (-inf, inf)
 	default = 0
 	
 	def direct(self, angle):
-		return self.post * rotate(angle,Z) * self.relative * rotate(self.ratio*angle,Z) * self.pre
+		return self.post * translate(-angle*self.radius*X) * rotate(angle,Z) * self.pre
+	
+	def grad(self, angle):
+		return (
+			+ self.post * translate(-self.radius*X) * rotate(angle,Z) * self.pre
+			+ self.post * dtranslate(-angle*self.radius*X) * drotate(angle,Z) * self.pre
+			)
 		
 	def inverse(self, matrix, close=None):
 		m = affineInverse(self.post) * matrix * affineInverse(self.pre)
-		return atan(*m[0].xy) / (1+self.ratio)
+		return atan(*m[0].xy)
 	
+	def scheme(self, index, maxsize, attach_start, attach_end):
+		from .generation import revolution
+		from .primitives import Circle, Segment
+		sch = Scheme()
+
+		x,y,z,o = dmat4x3(self.post)
+		sch.set(track=index[self.solids[0]], space=world_solid(self.solids[0]))
+		sch.add([o-self.radius*y-self.radius*x, o-self.radius*y+self.radius*x], shader='line')
+		
+		x,y,z,o = dmat4x3(affineInverse(self.pre))
+		h = 0.1*self.radius*z
+		sch.set(track=index[self.solids[1]], space=world_solid(self.solids[1]))
+		sch.add(Circle(Axis(o,z), self.radius).mesh(), shader='line')
+		sch.add(revolution(Segment(o+self.radius*x+h, o+self.radius*x-h), Axis(o,z)), shader='ghost')
+		
+		return sch
+
 		
 	
 
@@ -822,18 +848,20 @@ class Gear(Joint):
 	def __init__(self, solids, ratio:float, centerline:mat4, axis, local):
 		self.solids = solids
 		self.ratio = ratio
-		if isinstance(centerline, float):
+		if isinstance(centerline, (int,float)):
 			centerline = centerline*X
 		self.centerline = transform(centerline)
 		self.axis = axis
 		self.pre = mat4(quat(local[1], Z)) * translate(-local[0])
 		self.post = translate(axis[0]) * mat4(quat(Z, axis[1]))
+		self.position = self.axis[0], local[0]
+		print(self.position)
 		
 	bounds = (-inf, inf)
 	default = 0
 		
 	def direct(self, angle):
-		return self.post * rotate(angle,Z) * self.centerline * rotate(self.ratio*angle,Z) * self.pre
+		return self.post * rotate(angle,Z) * self.centerline * rotate(-self.ratio*angle,Z) * self.pre
 		
 	def grad(self, angle):
 		return (
@@ -848,25 +876,23 @@ class Gear(Joint):
 	def scheme(self, index, maxsize, attach_start, attach_end):
 		from .generation import revolution
 		from .primitives import Circle, Segment
-		size = settings.display['joint_size']
-		radius = size/3
 		sch = Scheme()
-		resolution = ('div', 16)
 		
 		# radial vector
-		r0 = length(self.centerline[3].xy) / (self.centerline[2].z - 1/self.ratio)
+		r0 = length(self.centerline[3].xy) / abs(self.centerline[2].z - 1/self.ratio)
 		r1 = r0 / abs(self.ratio)
-		h = 0.1*max(r0, r1)
-
+		
 		x,y,z,o = dmat4x3(self.post)
+		h = 0.1*min(r0, r1) * (z * r0 + self.centerline[2].xyz * r1) / (r0 + r1)
 		sch.set(track=index[self.solids[0]], space=world_solid(self.solids[0]))
 		sch.add(Circle(Axis(o,z), r0).mesh(), shader='line')
-		sch.add(revolution(Segment(o+r0*x-h*z, o+r0*x+h*z), Axis(o,z)), shader='ghost')
+		sch.add(revolution(Segment(o+r0*x+h, o+r0*x-h), Axis(o,z)), shader='ghost')
 		
-		x,y,z,o = dmat4x3(self.pre)
+		x,y,z,o = dmat4x3(affineInverse(self.pre))
+		h = 0.1*min(r0, r1) * (self.centerline[2].xyz * r0 + z * r1) / (r0 + r1)
 		sch.set(track=index[self.solids[1]], space=world_solid(self.solids[1]))
 		sch.add(Circle(Axis(o,z), r1).mesh(), shader='line')
-		sch.add(revolution(2*pi, Axis(o,z), Segment(o+r1*x-h*z, o+r1*x+h*z)), shader='ghost')
+		sch.add(revolution(Segment(o+r1*x+h, o+r1*x-h), Axis(o,z)), shader='ghost')
 		
 		return sch
 

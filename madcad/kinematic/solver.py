@@ -183,7 +183,10 @@ class Joint:
 	
 	def display(self, scene):
 		''' display showing the schematics of this joint, without interaction '''
-		return scene.display(self.scheme(dict(zip(self.solids, range(2))), inf, None, None))
+		display = scene.display(self.scheme(dict(zip(self.solids, range(2))), inf, None, None))
+		display.spacegens[0].pose = fmat4()
+		display.spacegens[1].pose = fmat4(self.direct(self.default))
+		return display
 
 
 def partial_difference(f, x, fx, i, d):

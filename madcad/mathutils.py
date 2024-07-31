@@ -159,15 +159,12 @@ def transform(*args) -> mat4:
 		args = args[0]
 	if len(args) == 1:
 		if isinstance(args[0], mat4):	return args[0]
-		elif isinstance(args[0], mat3):	return mat4(args[0])
-		elif isinstance(args[0], quat):	return mat4_cast(args[0])
-		elif isinstance(args[0], vec3):	return translate(mat4(1), args[0])
-		elif isinstance(args[0], (int,float)):	return mat4(args[0])
+		elif isinstance(args[0], (mat3, quat, int, float)):	return mat4(args[0])
+		elif isinstance(args[0], vec3):	return translate(args[0])
 	elif len(args) == 2:
 		if isinstance(args[0], vec3):
-			if   isinstance(args[1], mat3):		m = mat4(args[1])
-			elif isinstance(args[1], quat):		m = mat4_cast(args[1])
-			elif isinstance(args[1], vec3):		m = mat4_cast(quat(args[1]))
+			if   isinstance(args[1], (mat3, quat, int, float)):		m = mat4(args[1])
+			elif isinstance(args[1], vec3):		m = mat4(quat(args[1]))
 			m[3] = vec4(args[0], 1)
 			return m
 	elif isinstance(args[0], vec3) and len(args) == 3:			
