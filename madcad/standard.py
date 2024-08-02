@@ -1511,12 +1511,11 @@ def grooves_profile(radius, repetitions:int=16, alignment=0.5, angle=radians(40)
 				- interior grooves usually have alignemnt=0
 			angle: pressure angle of the grooves
 	'''
-	r = radius
-	h = r/n / tan(angle)
+	h = radius/repetitions / tan(angle)
 	def profile(t, min=-1, max=1):
-		return (r+(0.5-align)*h+h*sin(n*t)) * vec3(cos(t), sin(t), 0)
+		return (radius+(0.5-alignment)*h+h*sin(repetitions*t)) * vec3(cos(t), sin(t), 0)
 	return wire([ profile(t, -1, 0.7)
-		for t in linrange(0, 2*pi, div=12*n, end=False) ]).close()
+		for t in linrange(0, 2*pi, div=12*repetitions, end=False) ]).close()
 
 def grooves(radius, height, repetitions:int=16, alignment=0.5, angle=radians(40)) -> Mesh:
 	''' Coupling grooves surface
@@ -1534,7 +1533,7 @@ def grooves(radius, height, repetitions:int=16, alignment=0.5, angle=radians(40)
 				- interior grooves usually have alignemnt=0
 			angle: pressure angle of the grooves
 	'''
-	h = r/n / tan(angle)
+	h = radius/repetitions / tan(angle)
 	if alignment > 0.5:    s = 1+h/radius
 	else:                  s = 1-h/radius
 	return extrans(grooves_profile(radius, repetitions, alignment, angle), [

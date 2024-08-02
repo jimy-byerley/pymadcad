@@ -314,7 +314,7 @@ class KinematicManip(Group):
 		
 		for key in self.displays:
 			if key in self.parts:
-				self.displays[key].world = world * self.parts[key]
+				self.displays[key].world = world * fmat4(self.parts[key])
 		
 		for space in self.displays['scheme'].spacegens:
 			if isinstance(space, (world_solid, scale_solid)) and space.solid in self.parts:
@@ -371,7 +371,7 @@ class KinematicManip(Group):
 		'''
 		costmove = -self.kinematic.cost_residuals(self.pose)
 		# priority factor, lowering the optional move while the closed loop error is big
-		priority = self.move_precision / max(self.move_precision, (costmove**2).max())
+		priority = self.move_precision / max(self.move_precision, (costmove**2).max(initial=0))
 		# colinearity factor, lowering the optional move while it doesn't match the mechanism degrees of freedom
 		colinearity = min(1, max(
 			np.dot(optgrad, optmove)**2 / (normsq(optgrad) * normsq(optmove) + self.prec**4)
@@ -404,7 +404,7 @@ class KinematicManip(Group):
 		# identify the solid clicked
 		if sub[0] == 'scheme':  moved = self.index[sub[1]]
 		else:                   moved = sub[0]
-		if moved == 0:
+		if moved == self.kinematic.ground:
 			return
 		# define the kinematic problem in term of that solid, so we can get a gradient
 		kinematic = Kinematic(
@@ -448,7 +448,7 @@ class KinematicManip(Group):
 		# identify the solid clicked
 		if sub[0] == 'scheme':  moved = self.index[sub[1]]
 		else:                   moved = sub[0]
-		if moved == 0:
+		if moved == self.kinematic.ground:
 			return
 		# define the kinematic problem in term of that solid, so we can get a gradient
 		kinematic = Kinematic(
@@ -499,7 +499,7 @@ class KinematicManip(Group):
 		# identify the solid clicked
 		if sub[0] == 'scheme':  moved = self.index[sub[1]]
 		else:                   moved = sub[0]
-		if moved == 0:
+		if moved == self.kinematic.ground:
 			return
 		# define the kinematic problem in term of that solid, so we can get a gradient
 		kinematic = Kinematic(

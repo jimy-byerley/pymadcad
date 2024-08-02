@@ -664,6 +664,7 @@ class EdgeSlider(Joint):
 	
 
 class Ring(Joint):
+	''' ring joint '''
 	def __init__(self, solids, center, local=None):
 		self.solids = solids
 		local = local or center
@@ -716,6 +717,7 @@ class Ring(Joint):
 
 	
 class Universal(Joint):
+	''' universal joint '''
 	def __init__(self, solids, axis, local=None):
 		self.solids = solids
 		local = local or axis
@@ -779,15 +781,26 @@ class Universal(Joint):
 	
 	
 class ConstantVelocity(Joint):
+	''' not implemented yet '''
 	pass
 	
 
 class Project(Joint):
+	''' not implemented yet '''
 	def __init__(self, solids, projection:mat4, target:mat4):
 		indev
 
 	
 class Rack(Joint):
+	''' Rack to gear interaction
+		
+		`radius` is the ratio between the gear rotation and the rack translation
+		
+		Attributes:
+			radius:  ratio between the gear rotation and the rack translation
+			rack:    rack axis tangent to the gear
+			axis:    gear axis
+	'''
 	def __init__(self, solids, radius:float, rack:Axis, axis):
 		self.solids = solids
 		self.radius = radius
@@ -800,13 +813,13 @@ class Rack(Joint):
 	bounds = (-inf, inf)
 	default = 0
 	
-	def direct(self, angle):
-		return self.post * translate(-angle*self.radius*X) * rotate(angle,Z) * self.pre
+	def direct(self, translation):
+		return self.post * translate(translation*X) * rotate(-translation/self.radius,Z) * self.pre
 	
-	def grad(self, angle):
+	def grad(self, translation):
 		return (
-			+ self.post * translate(-self.radius*X) * rotate(angle,Z) * self.pre
-			+ self.post * dtranslate(-angle*self.radius*X) * drotate(angle,Z) * self.pre
+			+ self.post * dtranslate(X) * rotate(-translation/self.radius,Z) * self.pre
+			+ self.post * translate(translation*X) * drotate(-translation/self.radius,Z)/-self.radius * self.pre
 			)
 		
 	def inverse(self, matrix, close=None):
@@ -843,7 +856,8 @@ class Gear(Joint):
 		Attributes:
 			ratio:  the gear rotation transmission ratio
 			centerline: the relative positioning of the gears axis, could be 'float', `vec3`, `mat3`, `quat`, `mat4`
-			
+			axis:  first gear axis
+			local:  second gear axis
 	'''
 	def __init__(self, solids, ratio:float, centerline:mat4, axis, local):
 		self.solids = solids
@@ -865,13 +879,14 @@ class Gear(Joint):
 		
 	def grad(self, angle):
 		return (
-			+ self.post * drotate(angle,Z) * self.centerline * rotate(self.ratio*angle,Z) * self.pre
-			+ self.post * rotate(angle,Z) * self.centerline * drotate(self.ratio*angle,Z) * self.pre
+			+ self.post * drotate(angle,Z) * self.centerline * rotate(-self.ratio*angle,Z) * self.pre
+			+ self.post * rotate(angle,Z) * self.centerline * drotate(-self.ratio*angle,Z)*-self.ratio * self.pre
 			)
 		
 	def inverse(self, matrix, close=None):
 		m = affineInverse(self.post) * matrix * affineInverse(self.pre)
-		return atan(*m[0].xy) / (1+self.ratio)
+		angle = atan(*m[0].xy) / (1+self.ratio)
+		return (angle - close + pi) % (2*pi) - pi
 	
 	def scheme(self, index, maxsize, attach_start, attach_end):
 		from .generation import revolution
@@ -902,6 +917,8 @@ class Helicoid(Joint):
 	
 		`step` is the translation distance needed for that one solid turn by 2*pi around the other
 		The interaction is symetric.
+		
+		not implemented yet
 	'''
 	def __init__(self, s0, s1, step, b0, b1=None, position=None):
 		self.step = step	# m/tr
@@ -910,29 +927,14 @@ class Helicoid(Joint):
 		if b1 and isaxis(b1):	b1 = b1[0], *dirbase(b1[1])[:2]
 		self.bases = b0, b1 or b0
 		self.position = position or (self.bases[0][0], self.bases[1][0])
-		
-	slvvars = 'solids',
-	def fit(self):
+	
+	def direct(self, depth):
 		indev
-
-	def corrections(self):
-		(o0,x0,y0), (o1,x1,y1) = solidtransform_base(self.solids[0], self.bases[0]), solidtransform_base(self.solids[1], self.bases[1])
-		z0, z1 = cross(x0,y0), cross(x1,y1)
-		z = normalize(z0 + z1)
-		delta = o1 - o0
-		pos = dot(-delta,z)
-		angle = atan2(dot(y1,x0), dot(x1,x0))
 		
-		gap_angle = (pos%self.step)/self.step * 2*pi - angle
-		if gap_angle > pi:	gap_angle -= 2*pi
-		if abs(gap_angle) > 0.5:	gap_angle = 0
-		gap_pos = (angle/(2*pi)*self.step - pos) % self.step
-		if gap_pos > self.step/2:	gap_pos -= self.step
-		
-		r = cross(z0, z1) + gap_angle*z
-		t = gap_pos*z
-		return Screw(t+noproject(delta,z0), r, o0), Screw(-t-noproject(delta,z1), -r, o1)	# force torsor
-
+	def inverse(self, matrix, close=None):
+		indev
+	
+	
 	def scheme(self, solid, size, junc):
 		if solid is self.solids[0]:
 			radius = size/4
@@ -987,9 +989,11 @@ class Helicoid(Joint):
 
 
 class Cam(Joint):
+	''' not implemented yet '''
 	pass
 	
 	
 class Contact(Joint):
+	''' not implemented yet '''
 	pass
 

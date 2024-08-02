@@ -945,6 +945,8 @@ def structure_state(flat, structure):
 
 def null_space(m, rcond=None):
 	''' equivalent to `scipy.linalg.null_space` but 10x faster because using the numpy SVD '''
+	if m.size == 0:
+		return m
 	u, s, vh = la.svd(m)
 	M, N = u.shape[0], vh.shape[1]
 	if rcond is None:

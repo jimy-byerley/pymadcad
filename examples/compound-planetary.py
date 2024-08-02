@@ -33,8 +33,8 @@ def hgear(step, teeth, height, angle, **kwargs):
 	print('gearprofile', step, teeth, kwargs)
 	profile = repeataround(gearprofile(step, teeth, **kwargs), teeth)
 	return (
-		extrans(profile, helix(+0.5*height, step*teeth/(2*pi), angle))
-		+ extrans(profile, helix(-0.5*height, step*teeth/(2*pi), angle)).flip()
+		helix(profile, +0.5*height, angle, step*teeth/(2*pi))
+		+ helix(profile, -0.5*height, angle, step*teeth/(2*pi)).flip()
 		).mergegroups().finish()
 
 def spurgear(step, teeth, height, **kwargs):
@@ -42,8 +42,8 @@ def spurgear(step, teeth, height, **kwargs):
 
 color_gear = vec3(0.2, 0.3, 0.4)
 
-settings.primitives['curve_resolution'] = ('sqradm', 0.4)
-#settings.primitives['curve_resolution'] = ('sqradm', 0.8)
+#settings.primitives['curve_resolution'] = ('sqradm', 0.4)
+settings.primitives['curve_resolution'] = ('sqradm', 0.8)
 
 ## determine teeth number targeting the desired ratio
 #target = 1/160
@@ -162,7 +162,7 @@ out_placeholder = [
 
 # generate all gears teeth
 vangle = radians(20)
-hangle = radians(10)
+hangle = radians(20)
 sun_teeth = inflate(hgear(in_step, zsun, height+2*gap, -hangle, offset=-0.1*in_step, asymetry=-0.1) .transform(rotate(pi/zsun-pi*zplanet_in/zsun, Z)) .transform(sun.center), -play)
 crown_in_teeth = inflate(hgear(in_step, zcrown_in, height+4*gap, hangle, offset=0.1*in_step, asymetry=0.1).flip() .transform(crown_in.center), -play)
 crown_out_teeth = inflate(hgear(out_step, zcrown_out, height+2*support_height, hangle, offset=0, asymetry=0.2).transform(crown_out.center).flip(), -play)
@@ -227,11 +227,7 @@ planet_body = revolution(web([
 	]).segmented().flip(), planet_in.axis)
 planet = intersection(planet_body, planet_in_teeth + planet_out_teeth).option(color=color_gear)
 
-in_coupling = extrans(grooves(stfloor(sun.radius*0.9), 24, 1), [
-	translate(-height*0.6*Z),
-	translate(+height*0.4*Z),
-	translate(+height*0.7*Z) * scale(vec3(1.08)),
-	]).flip().transform(in_center)
+in_coupling = grooves(stfloor(sun.radius*0.9), 1.3*height, alignment=1).flip().transform(in_center - height*0.6*Z)
 
 # shape the teeth side
 crown_out_teeth = union(crown_out_teeth, revolution(wire([
@@ -325,10 +321,9 @@ shell = wire([
 	in_ext.center + (in_ext.radius + 1.5*dscrew_in)*X,
 	in_center + (in_ext.radius + 1.5*dscrew_in)*X,
 	]).segmented().flip()
-bevel(shell, [13], ('width', 0.5*dscrew_out))
-bevel(shell, [12, 11], ('width', 0.5*height))
-bevel(shell, [10], ('width', 0.5*dscrew_out))
-bevel(shell, [1], ('width', 0.5*height))
+filet(shell, [12, 11], ('width', 0.5*height))
+filet(shell, [10], ('width', 0.5*dscrew_out))
+filet(shell, [1], ('width', 0.5*height))
 shell = intersection(revolution(shell), crown_in_teeth)
 
 # put screws to hold everything
@@ -394,6 +389,26 @@ for i, phase in enumerate(planets_phases):
 			alignment=0.5)
 	labeled = intersection(planet.transform(t), label.flip()).finish()
 	planets.append(labeled.transform(rotate(phase,Z)).option(color=color_gear))
+
+
+
+joints = []
+content = {
+	'crown_out': [out_receiver, out_int, bolts_out_int],
+	'sun': input,
+	}
+for i, phase in enumerate(planets_phases):
+	p = rotate(phase,Z) * planet_in.center
+	joints.extend([
+		Gear(('sun', 'planet_{}'.format(i)), -zsun/zplanet_in, p, axis, Axis(p,Z)),
+		Gear(('crown_in', 'planet_{}'.format(i)), zcrown_in/zplanet_in, p, axis, Axis(p,Z)),
+		Gear(('crown_out', 'planet_{}'.format(i)), zcrown_out/zplanet_out, p, axis, Axis(p,Z)),
+		])
+	content['planet_{}'.format(i)] = planets[i]
+joints.append(Revolute(('sun', 'crown_in'), axis))
+kin = Kinematic(joints, ground='crown_in', content=content)
+
+
 
 for i, planet in enumerate(planets):
 	io.write(planets[i], '/tmp/compound-planetary/planet-{}.stl'.format(i))
