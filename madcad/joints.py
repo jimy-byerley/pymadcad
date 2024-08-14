@@ -3,7 +3,7 @@
 from .mathutils import *
 from .primitives import isaxis, Axis
 from .kinematic.solver import Joint
-from .kinematic.displays import scale_solid, world_solid
+from .kinematic.displays import scale_solid, world_solid, kinematic_color
 from .mesh import Mesh, Wire, wire, web, Web
 from .scheme import Scheme
 from . import generation as gt
@@ -25,7 +25,6 @@ def drotate(angle, axis):
 	
 def dtranslate(direction):
 	return translate(direction) - mat4()
-
 
 
 class Revolute(Joint):
@@ -79,7 +78,10 @@ class Revolute(Joint):
 		resolution = ('div', 16)
 		
 		x,y,z,o = dmat4x3(self.post)
-		sch.set(track=index[self.solids[0]], space=scale_solid(self.solids[0], fvec3(o), maxsize/size))
+		sch.set(
+			track = index[self.solids[0]], 
+			color = kinematic_color(index[self.solids[0]]),
+			space = scale_solid(self.solids[0], fvec3(o), maxsize/size))
 		cylinder = gt.cylinder(
 						-z*size*0.4, 
 						+z*size*0.4, 
@@ -100,7 +102,10 @@ class Revolute(Joint):
 			sch.add(attach_start, space=world_solid(self.solids[0]))
 		
 		x,y,z,o = dmat4x3(affineInverse(self.pre))
-		sch.set(track=index[self.solids[1]], space=scale_solid(self.solids[1], fvec3(o), maxsize/size))
+		sch.set(
+			track = index[self.solids[1]], 
+			color = kinematic_color(index[self.solids[1]]),
+			space = scale_solid(self.solids[1], fvec3(o), maxsize/size))
 		c1 = primitives.Circle(
 						(-z*size*0.5, -z), 
 						radius, 
@@ -111,7 +116,7 @@ class Revolute(Joint):
 						radius, 
 						resolution=resolution,
 						).mesh()
-		sch.add([z*size*0.5, o+z*size*0.5], shader='line')
+		# sch.add([z*size*0.5, o+z*size*0.5], shader='line')
 		sch.add(c1, shader='line')
 		sch.add(c2, shader='line')
 		sch.add(gt.flatsurface(c1), shader='ghost')
@@ -129,7 +134,7 @@ class Revolute(Joint):
 			else:
 				sch.add(side)
 			sch.add(attach_end, space=world_solid(self.solids[1]))
-			
+		
 		return sch
 
 		
@@ -196,6 +201,7 @@ class Planar(Joint):
 		x,y,z,o = dmat4x3(self.post)
 		sch.set(
 			track = index[self.solids[0]], 
+			color = kinematic_color(index[self.solids[0]]),
 			space = scale_solid(self.solids[0], fvec3(o), maxsize/size),
 			)
 		square = gt.parallelogram(x*size, y*size, origin=o-gap*size*z, align=0.5)
@@ -211,6 +217,7 @@ class Planar(Joint):
 		x,y,z,o = dmat4x3(affineInverse(self.pre))
 		sch.set(
 			track = index[self.solids[1]],
+			color = kinematic_color(index[self.solids[1]]),
 			space = scale_solid(self.solids[1], fvec3(o), maxsize/size),
 			)
 		square = gt.parallelogram(-x*size, y*size, origin=o+gap*size*z, align=0.5)
@@ -284,6 +291,7 @@ class Prismatic(Joint):
 		x,y,z,o = dmat4x3(self.post)
 		sch.set(
 			track = index[self.solids[0]], 
+			color = kinematic_color(index[self.solids[0]]),
 			space = scale_solid(self.solids[0], fvec3(o), maxsize/size),
 			)
 		profile = gt.parallelogram(0.4*size*x, 0.4*size*y, origin=o, align=0.5, fill=False)
@@ -307,6 +315,7 @@ class Prismatic(Joint):
 		x,y,z,o = dmat4x3(affineInverse(self.pre))
 		sch.set(
 			track = index[self.solids[1]], 
+			color = kinematic_color(index[self.solids[1]]),
 			space = scale_solid(self.solids[1], fvec3(o), maxsize/size),
 			)
 		interior = gt.extrusion(Web([
@@ -382,7 +391,10 @@ class Cylindrical(Joint):
 		resolution = ('div', 16)
 		
 		x,y,z,o = dmat4x3(self.post)
-		sch.set(track=index[self.solids[0]], space=scale_solid(self.solids[0], fvec3(o), maxsize/size))
+		sch.set(
+			track = index[self.solids[0]], 
+			color = kinematic_color(index[self.solids[0]]),
+			space = scale_solid(self.solids[0], fvec3(o), maxsize/size))
 		cylinder = gt.cylinder(
 						o-z*size*0.4, 
 						o+z*size*0.4, 
@@ -403,7 +415,10 @@ class Cylindrical(Joint):
 			sch.add(attach_start, space=world_solid(self.solids[0]))
 		
 		x,y,z,o = dmat4x3(affineInverse(self.pre))
-		sch.set(track=index[self.solids[1]], space=scale_solid(self.solids[1], fvec3(o), maxsize/size))
+		sch.set(
+			track = index[self.solids[1]], 
+			color = kinematic_color(index[self.solids[1]]),
+			space = scale_solid(self.solids[1], fvec3(o), maxsize/size))
 		sch.add([o-z*size*0.5, o+z*size*0.5], shader='line')
 		
 		sch.set(shader='fill')
@@ -500,7 +515,10 @@ class Ball(Joint):
 		resolution = ('div', 16)
 		
 		center = self.post[3].xyz
-		sch.set(track=index[self.solids[0]], space=scale_solid(self.solids[0], fvec3(center), maxsize/size))
+		sch.set(
+			track = index[self.solids[0]], 
+			color = kinematic_color(index[self.solids[0]]),
+			space = scale_solid(self.solids[0], fvec3(center), maxsize/size))
 		if attach_start:
 			x,y,z = dirbase(normalize(center - attach_start))
 		else:
@@ -515,7 +533,10 @@ class Ball(Joint):
 			sch.add(attach_start, space=world_solid(self.solids[0]))
 		
 		center = affineInverse(self.pre)[3].xyz
-		sch.set(track=index[self.solids[1]], space=scale_solid(self.solids[1], fvec3(center), maxsize/size))
+		sch.set(
+			track = index[self.solids[1]], 
+			color = kinematic_color(index[self.solids[1]]),
+			space = scale_solid(self.solids[1], fvec3(center), maxsize/size))
 		sch.add(gt.icosphere(O, radius*0.8, resolution=('div', 3)), shader='ghost')
 		if attach_end:
 			sch.set(shader='line')
@@ -570,6 +591,7 @@ class PointSlider(Joint):
 		x,y,z,o = dmat4x3(self.post)
 		sch.set(
 			track = index[self.solids[0]], 
+			color = kinematic_color(index[self.solids[0]]),
 			space = scale_solid(self.solids[0], fvec3(o), maxsize/size),
 			)
 		square = gt.parallelogram(x*size, y*size, origin=o+radius*z, align=0.5)
@@ -582,7 +604,11 @@ class PointSlider(Joint):
 			sch.add([attach+cornersize*size*z, attach_start], shader='line')
 		
 		center = affineInverse(self.pre)[3].xyz
-		sch.set(track=index[self.solids[1]], space=scale_solid(self.solids[1], fvec3(center), maxsize/size))
+		sch.set(
+			track = index[self.solids[1]], 
+			color = kinematic_color(index[self.solids[1]]),
+			space = scale_solid(self.solids[1], fvec3(center), maxsize/size),
+			)
 		sch.add(gt.icosphere(center, radius, resolution), shader='ghost')
 		
 		if attach_end:
@@ -638,6 +664,7 @@ class EdgeSlider(Joint):
 		x,y,z,o = dmat4x3(self.post)
 		sch.set(
 			track = index[self.solids[0]], 
+			color = kinematic_color(index[self.solids[0]]),
 			space = scale_solid(self.solids[0], fvec3(o), maxsize/size),
 			)
 		square = gt.parallelogram(x*size, y*size, origin=o+radius*z, align=0.5)
@@ -650,7 +677,11 @@ class EdgeSlider(Joint):
 			sch.add([o+cornersize*size*z, attach_start], shader='line')
 		
 		x,y,z,o = dmat4x3(affineInverse(self.pre))
-		sch.set(track=index[self.solids[1]], space=scale_solid(self.solids[1], fvec3(o), maxsize/size))
+		sch.set(
+			track = index[self.solids[1]], 
+			color = kinematic_color(index[self.solids[1]]),
+			space = scale_solid(self.solids[1], fvec3(o), maxsize/size),
+			)
 		cylinder = gt.cylinder(o-x*0.5*size, o+x*0.5*size, radius, fill=False, resolution=resolution)
 		sch.add(cylinder, shader='ghost')
 		sch.add(cylinder.outlines(), shader='line')
@@ -699,7 +730,10 @@ class Ring(Joint):
 		resolution = ('div', 16)
 		
 		center = self.post[3].xyz
-		sch.set(track=index[self.solids[0]], space=scale_solid(self.solids[0], fvec3(center), maxsize/size))
+		sch.set(
+			track = index[self.solids[0]], 
+			color = kinematic_color(index[self.solids[0]]),
+			space = scale_solid(self.solids[0], fvec3(center), maxsize/size))
 		if attach_start:
 			x,y,z = dirbase(attach_end - center)
 		else:
@@ -710,7 +744,10 @@ class Ring(Joint):
 		sch.add(emisphere.outlines(), shader='line')
 		
 		center = affineInverse(self.pre)[3].xyz
-		sch.set(track=index[self.solids[1]], space=scale_solid(self.solids[1], fvec3(center), maxsize/size))
+		sch.set(
+			track = index[self.solids[1]], 
+			color = kinematic_color(index[self.solids[1]]),
+			space = scale_solid(self.solids[1], fvec3(center), maxsize/size))
 		sch.add(gt.icosphere(center, radius*0.8, resolution), shader='ghost')
 		
 		return sch
@@ -757,7 +794,10 @@ class Universal(Joint):
 		resolution = ('div', 16)
 		
 		x,y,z,o = dmat4x3(self.post)
-		sch.set(track=index[self.solids[0]], space=scale_solid(self.solids[0], fvec3(o), maxsize/size))
+		sch.set(
+			track = index[self.solids[0]], 
+			color = kinematic_color(index[self.solids[0]]),
+			space = scale_solid(self.solids[0], fvec3(o), maxsize/size))
 		if attach_start:
 			o = self.post[3].xyz
 			x,y,z = dirbase(attach_end - center, x)
@@ -766,7 +806,10 @@ class Universal(Joint):
 		sch.add(ArcCentered(Axis(o,x), y*radius, -y*radius).mesh(resolution), shader='line')
 		sch.add([y, -y])
 		
-		sch.set(track=index[self.solids[1]], space=scale_solid(self.solids[1], fvec3(o), maxsize/size))
+		sch.set(
+			track = index[self.solids[1]], 
+			color = kinematic_color(index[self.solids[1]]),
+			space = scale_solid(self.solids[1], fvec3(o), maxsize/size))
 		x,y,z,o = affineInverse(self.pre)
 		if attach_end:
 			o = affineInverse(self.pre)[3].xyz
@@ -832,12 +875,18 @@ class Rack(Joint):
 		sch = Scheme()
 
 		x,y,z,o = dmat4x3(self.post)
-		sch.set(track=index[self.solids[0]], space=world_solid(self.solids[0]))
+		sch.set(
+			track = index[self.solids[0]], 
+			color = kinematic_color(index[self.solids[0]]),
+			space = world_solid(self.solids[0]))
 		sch.add([o-self.radius*y-self.radius*x, o-self.radius*y+self.radius*x], shader='line')
 		
 		x,y,z,o = dmat4x3(affineInverse(self.pre))
 		h = 0.1*self.radius*z
-		sch.set(track=index[self.solids[1]], space=world_solid(self.solids[1]))
+		sch.set(
+			track = index[self.solids[1]], 
+			color = kinematic_color(index[self.solids[1]]),
+			space = world_solid(self.solids[1]))
 		sch.add(Circle(Axis(o,z), self.radius).mesh(), shader='line')
 		sch.add(revolution(Segment(o+self.radius*x+h, o+self.radius*x-h), Axis(o,z)), shader='ghost')
 		
@@ -869,7 +918,6 @@ class Gear(Joint):
 		self.pre = mat4(quat(local[1], Z)) * translate(-local[0])
 		self.post = translate(axis[0]) * mat4(quat(Z, axis[1]))
 		self.position = self.axis[0], local[0]
-		print(self.position)
 		
 	bounds = (-inf, inf)
 	default = 0
@@ -899,13 +947,19 @@ class Gear(Joint):
 		
 		x,y,z,o = dmat4x3(self.post)
 		h = 0.1*min(r0, r1) * (z * r0 + self.centerline[2].xyz * r1) / (r0 + r1)
-		sch.set(track=index[self.solids[0]], space=world_solid(self.solids[0]))
+		sch.set(
+			track = index[self.solids[0]], 
+			color = kinematic_color(index[self.solids[0]]),
+			space = world_solid(self.solids[0]))
 		sch.add(Circle(Axis(o,z), r0).mesh(), shader='line')
 		sch.add(revolution(Segment(o+r0*x+h, o+r0*x-h), Axis(o,z)), shader='ghost')
 		
 		x,y,z,o = dmat4x3(affineInverse(self.pre))
 		h = 0.1*min(r0, r1) * (self.centerline[2].xyz * r0 + z * r1) / (r0 + r1)
-		sch.set(track=index[self.solids[1]], space=world_solid(self.solids[1]))
+		sch.set(
+			track = index[self.solids[1]], 
+			color = kinematic_color(index[self.solids[1]]),
+			space = world_solid(self.solids[1]))
 		sch.add(Circle(Axis(o,z), r1).mesh(), shader='line')
 		sch.add(revolution(Segment(o+r1*x+h, o+r1*x-h), Axis(o,z)), shader='ghost')
 		

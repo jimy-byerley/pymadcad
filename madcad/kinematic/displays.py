@@ -307,7 +307,10 @@ class KinematicManip(Group):
 	def stack(self, scene):
 		''' rendering stack requested by the madcad rendering system '''
 		yield ((), 'screen', -1, self.place_solids)
-		yield from super().stack(scene)
+		for item in super().stack(scene):
+			if not scene.options['display_annotations'] and not self.selected and len(self.displays) >1 and item[0][0] == 'scheme':
+				continue
+			yield item
 
 	def place_solids(self, view):
 		world = self.world * self.local
@@ -631,7 +634,12 @@ def kinematic_scheme(joints) -> '(Scheme, index)':
 				scheme += sch
 	
 	return scheme, {v: k  for k, v in index.items()}
-		
+
+kinematic_color_names = ['annotation_color', 'schematics_color']
+def kinematic_color(i):
+	''' return the scheme color vector for solid `i` in a kinematic '''
+	return fvec4(settings.display[kinematic_color_names[i%2]], 1)
+
 
 
 def qtpos(qtpos, view):

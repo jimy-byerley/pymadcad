@@ -165,8 +165,8 @@ def use_qt_colors():
 		'line_color': qtc(palette.Text),
 		'point_color': qtc(palette.Text),
 		'solid_color': mix(qtc(palette.Text), qtc(palette.Window), 0.7),
-		'schematics_color': qtc(palette.Link),
-		'annotation_color': mix(qtc(palette.Text)*normalize(qtc(palette.Highlight)+0.01), qtc(palette.Highlight), 0.5),
+		'schematics_color': mix(qtc(palette.Text)*normalize(qtc(palette.LinkVisited)+0.01), qtc(palette.LinkVisited), 0.5),
+		'annotation_color': mix(qtc(palette.Text)*normalize(qtc(palette.Link)+0.01), qtc(palette.Link), 0.5),
 		})
 
 
