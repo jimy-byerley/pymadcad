@@ -810,7 +810,7 @@ class VoxelDisplay(Display):
 		self.shader['view'].write(view.uniforms['view'] * self.world * self.space)
 		self.shader['proj'].write(view.uniforms['proj'])
 		self.voxel.use(0)
-		self.va.render(mgl.vertex_array.TRIANGLES)
+		self.va.render(mgl.TRIANGLES)
 		
 	def stack(self, scene):
 		return ((), 'screen', 10, self.render),
