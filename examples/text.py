@@ -15,8 +15,8 @@ label.points = typedlist(vec3(cos(p.x/r), sin(p.x/r), p.y-0.5)*r
 # extrude the mesh and give it a cylindric filling
 label = intersection(
 		extrusion(
-			scale(vec3(1-e-0.1*r, 1-e-0.1*r, 1)), 
 			label.transform(scale(vec3(1+e*1.1, 1+e*1.1, 1))),
+			scale(vec3(1-e-0.1*r, 1-e-0.1*r, 1)), 
 			), 
 		inflate(shape, e),
 		)

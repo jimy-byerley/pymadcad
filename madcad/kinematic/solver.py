@@ -183,7 +183,10 @@ class Joint:
 	
 	def display(self, scene):
 		''' display showing the schematics of this joint, without interaction '''
-		return scene.display(self.scheme(dict(zip(self.solids, range(2))), inf, None, None))
+		display = scene.display(self.scheme(dict(zip(self.solids, range(2))), inf, None, None))
+		display.spacegens[0].pose = fmat4()
+		display.spacegens[1].pose = fmat4(self.direct(self.default))
+		return display
 
 
 def partial_difference(f, x, fx, i, d):
@@ -942,6 +945,8 @@ def structure_state(flat, structure):
 
 def null_space(m, rcond=None):
 	''' equivalent to `scipy.linalg.null_space` but 10x faster because using the numpy SVD '''
+	if m.size == 0:
+		return m
 	u, s, vh = la.svd(m)
 	M, N = u.shape[0], vh.shape[1]
 	if rcond is None:

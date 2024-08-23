@@ -24,7 +24,7 @@ rscrews = stceil(rsphere+0.8*rball+dscrew, 0.05)
 balls = [icosphere(p, rball).option(color=vec3(0.1, 0.2, 0.4))
 	for p in regon(Axis(O,Z), rsphere, nballs).points]
 guide_profile = web(Circle(Axis(rsphere*X, Z), rball)) .transform(scaledir(Y, 1.02))
-guide = revolution(pi, Axis(O,Y), guide_profile, alignment=0.5).flip()
+guide = revolution(guide_profile, Axis(O,Y), pi, alignment=0.5).flip()
 
 interior = intersection(
 		icosphere(O, rsphere-ecage), 
@@ -43,13 +43,13 @@ exterior = exterior.flip()
 interior = interior.finish()
 
 
-cage = revolution(2*pi, Axis(O,Z), wire([rsphere*vec3(cos(t), 0, sin(t))  for t in linrange(-0.75*amax, 0.75*amax, div=10)]))
+cage = revolution(wire([rsphere*vec3(cos(t), 0, sin(t))  for t in linrange(-0.75*amax, 0.75*amax, div=10)]))
 
 window = parallelogram(2.3*rball*Y, 2*rball*Z, align=vec3(0.5), fill=False) .transform(rsphere*X)
 bevel(window, [0, 1, 2, 3], ('width', rball))
 cage = thicken(
 	pierce(cage, 
-		repeat(extrusion(rball*X, window, alignment=0.5), nballs, rotate(2*pi/nballs, Z))), 
+		repeat(extrusion(window, rball*X, alignment=0.5), nballs, rotate(2*pi/nballs, Z))), 
 	ecage, 
 	alignment=0.5,
 	)
@@ -63,14 +63,14 @@ interior.transform(rotate(-amax, Y))
 
 interior = difference(interior, cylinder(-rsphere*Z, rsphere*Z, min(rsphere-rball*1.2, rin)))
 
-#in_shape = revolution(2*pi, Axis(O,Z), wire([
+#in_shape = revolution(wire([
 #			vec3(rinmax, 0, sqrt((rsphere+rball)**2 - rinmax**2)*1.01),
 #			vec3(rinmax, 0, 0),
 #			]).transform(rotate(amax, Y)).flip())
 #
 #exterior = union(exterior, square(Axis(-rsphere*Z,Z), rsphere))
 ## inside shaft interface
-#out_shape = revolution(2*pi, Axis(O,Z), wire([
+#out_shape = revolution(wire([
 #	vec3(min(rout, routmax), 0, -rsphere*sin(amax/2)),
 ##	vec3(max(routmax, rout), 0, -1.05*sqrt((rsphere+rball)**2 - max(routmax, rout)**2)),
 #	vec3(rout, 0, -rsphere*1.01),
@@ -84,7 +84,7 @@ interior = difference(interior, cylinder(-rsphere*Z, rsphere*Z, min(rsphere-rbal
 #			).finish()
 
 # exterior screws interface
-in_shape = revolution(2*pi, Axis(O,Z), wire([
+in_shape = revolution(wire([
 			vec3(rinmax, 0, sqrt((rsphere+rball)**2 - rinmax**2)*1.1),
 			vec3(rinmax, 0, 0),
 			]).transform(rotate(amax, Y)).flip())
@@ -94,10 +94,10 @@ exterior = intersection(
 	)
 
 hole = bolt_slot(rscrews*Y - rball*0.99*Z, rscrews*Y + rball*0.99*Z, dscrew) .transform(rotate(pi/2+pi/nballs, Z))
-support = extrusion(2*rball*Z, flatsurface(convexoutline(
+support = extrusion(flatsurface(convexoutline(
 	repeat(web(Circle(Axis(rscrews*Y,Z), 1.2*dscrew)).transform(rotate(pi/2 + pi/nballs, Z)), nscrews, rotate(2*pi/nscrews, Z))
 	+ web(Circle(Axis(O,Z), rsphere*1.1 + rball))
-	)), alignment=0.5).orient()
+	)), 2*rball*Z, alignment=0.5).orient()
 
 e = pierce(support, exterior).islands()[0].transform(0.999)
 exterior = union(exterior, e)

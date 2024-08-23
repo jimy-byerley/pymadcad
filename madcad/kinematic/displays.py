@@ -9,6 +9,7 @@ from PyQt5.QtCore import Qt, QEvent
 
 from ..common import resourcedir
 from ..mathutils import *
+from ..primitives import Axis
 from ..mesh import Mesh, Web, Wire, striplist, distance2_pm, typedlist_to_numpy
 from .. import settings
 from .. import rendering
@@ -86,7 +87,7 @@ class ChainManip(Group):
 			solid = joint.solids[-1]
 			index[solid] = i+1
 			if display := self.displays.get(solid):
-				display.word = word * fmat4(self.parts[i])
+				display.world = world * fmat4(self.parts[i+1])
 		
 		for space in self.displays['scheme'].spacegens:
 			if isinstance(space, (world_solid, scale_solid)) and space.solid in index:
@@ -306,14 +307,17 @@ class KinematicManip(Group):
 	def stack(self, scene):
 		''' rendering stack requested by the madcad rendering system '''
 		yield ((), 'screen', -1, self.place_solids)
-		yield from super().stack(scene)
+		for item in super().stack(scene):
+			if not scene.options['display_annotations'] and not self.selected and len(self.displays) >1 and item[0][0] == 'scheme':
+				continue
+			yield item
 
 	def place_solids(self, view):
 		world = self.world * self.local
 		
 		for key in self.displays:
 			if key in self.parts:
-				self.displays[key].world = world * self.parts[key]
+				self.displays[key].world = world * fmat4(self.parts[key])
 		
 		for space in self.displays['scheme'].spacegens:
 			if isinstance(space, (world_solid, scale_solid)) and space.solid in self.parts:
@@ -370,7 +374,7 @@ class KinematicManip(Group):
 		'''
 		costmove = -self.kinematic.cost_residuals(self.pose)
 		# priority factor, lowering the optional move while the closed loop error is big
-		priority = self.move_precision / max(self.move_precision, (costmove**2).max())
+		priority = self.move_precision / max(self.move_precision, (costmove**2).max(initial=0))
 		# colinearity factor, lowering the optional move while it doesn't match the mechanism degrees of freedom
 		colinearity = min(1, max(
 			np.dot(optgrad, optmove)**2 / (normsq(optgrad) * normsq(optmove) + self.prec**4)
@@ -403,7 +407,7 @@ class KinematicManip(Group):
 		# identify the solid clicked
 		if sub[0] == 'scheme':  moved = self.index[sub[1]]
 		else:                   moved = sub[0]
-		if moved == 0:
+		if moved == self.kinematic.ground:
 			return
 		# define the kinematic problem in term of that solid, so we can get a gradient
 		kinematic = Kinematic(
@@ -447,7 +451,7 @@ class KinematicManip(Group):
 		# identify the solid clicked
 		if sub[0] == 'scheme':  moved = self.index[sub[1]]
 		else:                   moved = sub[0]
-		if moved == 0:
+		if moved == self.kinematic.ground:
 			return
 		# define the kinematic problem in term of that solid, so we can get a gradient
 		kinematic = Kinematic(
@@ -498,7 +502,7 @@ class KinematicManip(Group):
 		# identify the solid clicked
 		if sub[0] == 'scheme':  moved = self.index[sub[1]]
 		else:                   moved = sub[0]
-		if moved == 0:
+		if moved == self.kinematic.ground:
 			return
 		# define the kinematic problem in term of that solid, so we can get a gradient
 		kinematic = Kinematic(
@@ -595,7 +599,7 @@ def kinematic_toolcenter(toolcenter):
 	sch.add([radius*cos(t)*X + radius*sin(t)*Y  for t in linrange(0, angle, step=0.1)], color=fvec4(color,1))
 	sch.add([radius*cos(t)*X + radius*sin(t)*Y  for t in linrange(angle, 2*pi, step=0.1)], color=fvec4(color,0.2))
 	sch.add(
-		revolution(2*pi, (radius*rend, tend), web([radius*rend, radius*rend-14*tend-3.6*rend]), resolution=('div', 8)), 
+		revolution(web([radius*rend, radius*rend-14*tend-3.6*rend]), Axis(radius*rend, tend), resolution=('div', 8)), 
 		shader='fill',
 		color=fvec4(color,0.8),
 		)
@@ -613,22 +617,29 @@ def kinematic_scheme(joints) -> '(Scheme, index)':
 	for solid, center in centers.items():
 		centers[solid] = center.xyz / center.w  if center.w > 1 else None
 	
-	nprint('index', index)
 	scheme = Scheme()
 	for joint in joints:
 		if hasattr(joint, 'position'):
-			size = sum(
+			size = vec2(sum(
 				vec2(distance(position, centers[solid]), 1)
 				for solid, position in zip(joint.solids, joint.position)
-				if centers[solid])
-			size = 1.5*size.x / size.y
+				if centers[solid]))
+			if size.y:
+				size = 1.5*size.x / size.y
+			else:
+				size = inf
 			
 			sch = joint.scheme(index, size, centers[joint.solids[0]], centers[joint.solids[-1]])
 			if sch is not NotImplemented:
 				scheme += sch
 	
 	return scheme, {v: k  for k, v in index.items()}
-		
+
+kinematic_color_names = ['annotation_color', 'schematics_color']
+def kinematic_color(i):
+	''' return the scheme color vector for solid `i` in a kinematic '''
+	return fvec4(settings.display[kinematic_color_names[i%2]], 1)
+
 
 
 def qtpos(qtpos, view):

@@ -1,9 +1,9 @@
-.. _cut:
+.. _bevel:
 
-cut    - Functions for cutting meshes at edges or points, like chamfer
-======================================================================
+bevel    - Functions for cutting meshes at edges or points, like chamfer
+========================================================================
 
-.. automodule:: madcad.cut
+.. automodule:: madcad.bevel
 
 End-user functions
 ------------------
@@ -15,11 +15,11 @@ End-user functions
 		.. image:: /screenshots/chamfer.png
 			:width: 300
 
-	.. autofunction:: bevel
+	.. autofunction:: filet
 
-		This is a bevel on edges around a cube corner
+		This is a filet on edges around a cube corner
 		
-		.. image:: /screenshots/bevel.png
+		.. image:: /screenshots/filet.png
 			:width: 300
 
 	.. autofunction:: multicut

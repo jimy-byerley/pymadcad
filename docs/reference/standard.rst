@@ -166,6 +166,10 @@ convenient shapes to integrate standard parts
 
 	.. image:: /screenshots/bearing_slot_interior-evade.png
 	.. image:: /screenshots/bearing_slot_interior-expand.png
+	
+.. autofunction:: circular_screwing
+.. autofunction:: grooves_profile
+.. autofunction:: grooves
 
 kinematics
 ~~~~~~~~~~

@@ -17,6 +17,14 @@ Based on extrusion/transformation of a Web
 
 	.. image:: /screenshots/generation-revolution.png
 	
+.. autofunction:: helix
+
+	.. image:: /screenshots/generation-helix.png
+
+.. autofunction:: screw
+
+	.. image:: /screenshots/generation-screw.png
+	
 .. autofunction:: saddle
 
 	.. image:: /screenshots/generation-saddle.png
@@ -85,7 +93,14 @@ Offsetting
 .. autofunction:: expand
 
 	.. image:: /screenshots/generation-expand.png
+
 	
+Repeating
+---------
+
+.. autofunction:: repeat
+.. autofunction:: repeataround
+
 
 Others
 ------
@@ -95,5 +110,3 @@ Others
 	.. image:: /screenshots/generation-flatsurface.png
 	
 .. autofunction:: icosurface
-.. autofunction:: subdivide
-.. autofunction:: repeat

@@ -1,8 +1,7 @@
 # test intersections
-from madcad import vec3, saddle, tube, ArcThrough, Web, web, bevel, chamfer, show
-from madcad.mesh import suites
-from madcad.cut import multicut
-from nprint import nprint
+from madcad import vec3, saddle, tube, ArcThrough, Web, web, filet, chamfer, show
+from madcad.bevel import multicut
+from madcad.nprint import nprint
 from copy import deepcopy
 
 m = saddle(
@@ -22,7 +21,7 @@ m.check()
 w = m.frontiers((1,2)) + m.frontiers((5,6))
 #multicut(m, w, ('depth', 0.6))
 #chamfer(m, w, ('depth', 0.6))
-bevel(m, w, ('depth', 0.6))
+filet(m, w, ('depth', 0.6))
 #beveltgt(m, w, ('depth', 0.6))
 m.check()
 

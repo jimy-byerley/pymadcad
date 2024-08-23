@@ -109,26 +109,23 @@ out_shape = thicken(revolution(2*pi, Axis(O,Z), wire([
 	])), stceil(0.5*hout))
 
 rbolts = stfloor(rint-0.8*dscrew_ext)
-out_bolts = [bolt(
+out_bolts = []
+out_holes = Mesh()
+for p in regon(Axis(O,Z), rbolts, 8):
+	out_bolts.append(bolt(
 				p+(-height-hout*1.)*Z, 
 				p+(-height)*Z, 
 				dscrew_ext,
 				washera=True,
 				nutb=False,
-				)  for p in regon(Axis(O,Z), rbolts, 4)]
-out_holes = [cylinder(
-				p+(-height-hout)*Z,
+				))
+	out_holes += cylinder(
+				p+(-height-2*hout)*Z,
 				p+(-height+hout)*Z,
 				dscrew_ext*0.55,
-				) for p in regon(Axis(O,Z), rbolts, 4).points]
-out_holes += [cylinder(
-				p+(-height-hout)*Z,
-				p+(-height+hout)*Z,
-				0.55*stfloor(dscrew_ext*0.9, 0.3),
-				) .transform(rotate(pi/4, Z))
-			 for p in regon(Axis(O,Z), stfloor(rint-0.8*dscrew_ext), 4).points]
-out_shape = difference(out_shape, mesh.mesh(out_holes))
-deformable = difference(deformable, mesh.mesh(out_holes))
+				)
+out_shape = difference(out_shape, out_holes)
+deformable = difference(deformable, out_holes)
 
 
 # ellipsis bearing with custom cage
@@ -167,8 +164,7 @@ generator_profile = wire([
 		vec3(rgenerator, 0, -hellipsis*0.5), 
 		[vec3(rballs - rball*cos(t), 0, rball*sin(t))   for t in linrange(-radians(40), radians(40), div=10)],
 		vec3(rgenerator, 0, hellipsis*0.5),
-		vec3(rgenerator - 0.3*generator_thickness, 0, hellipsis*0.5), 
-		vec3(rgenerator - generator_thickness, 0, 0), 
+		vec3(rgenerator - generator_thickness, 0, hellipsis*0.5), 
 		vec3(teeth_height*1.5, 0, 0), 
 		]).flip()
 generator = revolution(2*pi, Axis(O,Z), generator_profile) .transform(deform)
@@ -193,7 +189,11 @@ in_bolts_slots = Mesh()
 for p in regon(Axis((-height+hout+2*dscrew_int)*Z, Z), in_rint + dscrew_int, 4).points:
 	in_bolts.append(bolt(p, p-dscrew_int*Z, dscrew_int, washera=True, nutb=False))
 	in_bolts_slots += cylinder(p+0.1*dscrew_int*Z, p-2*dscrew_int*Z, 0.5*dscrew_int)
+for p in regon(Axis((-height+hout+2*dscrew_int)*Z, Z), in_rint + dscrew_int, 4, alignment=(X+Y)).points:
+	in_bolts_slots += cylinder(p+0.1*dscrew_int*Z, p-2*dscrew_int*Z, 0.5*stfloor(0.9*dscrew_int))
 generator = difference(generator, in_bolts_slots)
+
+
 
 # exterior
 rext_in = stceil(rcircle+0.5*teeth_step + dscrew_int, 0.1)
@@ -219,40 +219,47 @@ bevel(exterior_profile, [7,8], ('width', 0.5*dscrew_ext))
 
 exterior = revolution(2*pi, Axis(O,Z), exterior_profile)
 exterior = intersection(exterior, circle_teeth)
-
 exterior_in = thicken(revolution(2*pi, Axis(O,Z), wire([
 	vec3(rext_in, 0, +0.6*hellipsis),
 	vec3(in_rint, 0, +0.6*hellipsis),
 	])), 0.2*hellipsis)
-exterior_out = difference(exterior, square(Axis(-height*Z, -Z), 2*rext_out)) .finish()
-exterior_mid = difference(exterior, square(Axis(-height*Z, +Z), 2*rext_out)) .finish()
 
-ext_out_bolts = [bolt(
+ext_out_bolts = []
+ext_out_holes = Mesh()
+for p in regon(Axis(O,Z), rext_out - dscrew_ext, 8):
+	ext_out_bolts.append(bolt(
 		p-0.7*hout*Z-height*Z,
 		p+0.8*hellipsis*Z,
 		dscrew_ext,
 		washera=True,
-		washerb=True)
-	for p in regon(Axis(O,Z), rext_out - dscrew_ext, 8).points]
+		washerb=True))
+	ext_out_holes += cylinder(p-2*height*Z, p+2*height*Z, 0.55*dscrew_ext)
+for p in regon(Axis(O,Z), rext_out - dscrew_ext, 8, alignment=rotate(pi/16,Z)*X):
+	ext_out_holes += cylinder(p-2*height*Z, p+2*height*Z, 0.55*stfloor(0.9*dscrew_ext))
+exterior = difference(exterior, ext_out_holes)
+exterior_in = difference(exterior_in, ext_out_holes)
 
 holding_defs = [
-	(Axis(rbolts*rotate(pi/8,    Z)*X + (-height-1*hout)*Z, -Z),  dscrew_ext, 1.3*hout, 0.5*hout),
-	(Axis(rbolts*rotate(pi/8+pi, Z)*X + (-height-1*hout)*Z, -Z),  dscrew_ext, 1.3*hout, 0.5*hout),	
-	(Axis((rext_out-dscrew_ext)*rotate(pi/8,    Z)*X + (-height-0.7*hout)*Z, -Z),  dscrew_ext, 1.3*hout, 0.7*hout),	
-	(Axis((rext_out-dscrew_ext)*rotate(pi/8+pi, Z)*X + (-height-0.7*hout)*Z, -Z),  dscrew_ext, 1.3*hout, 0.7*hout),	
-	(Axis((rext_out-dscrew_ext)*rotate(pi/8,    Z)*X + (0.8*hellipsis)*Z, Z),  dscrew_ext, 1.3*hout, 0),	
-	(Axis((rext_out-dscrew_ext)*rotate(pi/8+pi, Z)*X + (0.8*hellipsis)*Z, Z),  dscrew_ext, 1.3*hout, 0),	
+	(Axis(rbolts*rotate(pi/8,    Z)*X + (-height-1*hout)*Z, -Z),  dscrew_ext, 1.7*hout, 0.5*hout),
+	(Axis(rbolts*rotate(pi/8+pi, Z)*X + (-height-1*hout)*Z, -Z),  dscrew_ext, 1.7*hout, 0.5*hout),	
+	(Axis((rext_out-dscrew_ext)*rotate(pi/8,    Z)*X + (-height-0.7*hout)*Z, -Z),  dscrew_ext, 1.7*hout, 0.7*hout),	
+	(Axis((rext_out-dscrew_ext)*rotate(pi/8+pi, Z)*X + (-height-0.7*hout)*Z, -Z),  dscrew_ext, 1.7*hout, 0.7*hout),	
+	(Axis((rext_out-dscrew_ext)*rotate(pi/8,    Z)*X + (0.8*hellipsis)*Z, Z),  dscrew_ext, 1.7*hout, 0),
+	(Axis((rext_out-dscrew_ext)*rotate(pi/8+pi, Z)*X + (0.8*hellipsis)*Z, Z),  dscrew_ext, 1.7*hout, 0),
 	]
 holding_slots = Mesh()
 holding_screws = []
 for a, d, h, p in holding_defs:
-	holding_screws.append(screw(d, h, head='flat').place((Revolute, Axis(O,Z), a)))
+	holding_screws.append(screw(d, 0.9*h, head='flat').place((Revolute, Axis(O,Z), a)))
 	holding_slots += screw_slot(Axis(a[0]-a[1]*0.1, a[1]), d, hole=p, screw=h-p, flat=True)
 deformable = intersection(deformable, holding_slots)
 out_shape = intersection(out_shape, holding_slots)
-exterior_out = intersection(exterior_out, holding_slots)
+exterior = intersection(exterior, holding_slots)
 exterior_in = intersection(exterior_in, holding_slots)
-exterior_mid = intersection(exterior_mid, holding_slots)
+
+exterior_out = difference(exterior, square(Axis(-height*Z, -Z), 2*rext_out)) .finish()
+exterior_mid = difference(exterior, square(Axis(-height*Z, +Z), 2*rext_out)) .finish()
+
 
 # export parts to print
 #io.write(deformable, '/tmp/deformable.stl')

@@ -57,7 +57,7 @@ solve([
 	], fixed=[O])
 
 # generate surfaces
-part = extrusion(vec3(0,0,1), web(line))
+part = extrusion(line, vec3(0,0,1))
 
 # display in a 3D scene
 show([part])

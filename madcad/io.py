@@ -183,7 +183,7 @@ else:
 	def stl_write(mesh, file, **opts):
 		stlmesh = stl.mesh.Mesh(np.zeros(len(mesh.faces), dtype=stl.mesh.Mesh.dtype), name=mesh.options.get('name'))
 		stlmesh.vectors[:] = typedlist_to_numpy(mesh.points, 'f4')[typedlist_to_numpy(mesh.faces, 'i4')]
-		stlmesh.save(file)
+		stlmesh.save(file, **opts)
 
 '''
 	OBJ is loaded using the pywavefront module	https://github.com/pywavefront/PyWavefront

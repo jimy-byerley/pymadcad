@@ -3,7 +3,7 @@
 from .mathutils import *
 from .primitives import isaxis, Axis
 from .kinematic.solver import Joint
-from .kinematic.displays import scale_solid, world_solid
+from .kinematic.displays import scale_solid, world_solid, kinematic_color
 from .mesh import Mesh, Wire, wire, web, Web
 from .scheme import Scheme
 from . import generation as gt
@@ -25,7 +25,6 @@ def drotate(angle, axis):
 	
 def dtranslate(direction):
 	return translate(direction) - mat4()
-
 
 
 class Revolute(Joint):
@@ -79,7 +78,10 @@ class Revolute(Joint):
 		resolution = ('div', 16)
 		
 		x,y,z,o = dmat4x3(self.post)
-		sch.set(track=index[self.solids[0]], space=scale_solid(self.solids[0], fvec3(o), maxsize/size))
+		sch.set(
+			track = index[self.solids[0]], 
+			color = kinematic_color(index[self.solids[0]]),
+			space = scale_solid(self.solids[0], fvec3(o), maxsize/size))
 		cylinder = gt.cylinder(
 						-z*size*0.4, 
 						+z*size*0.4, 
@@ -100,7 +102,10 @@ class Revolute(Joint):
 			sch.add(attach_start, space=world_solid(self.solids[0]))
 		
 		x,y,z,o = dmat4x3(affineInverse(self.pre))
-		sch.set(track=index[self.solids[1]], space=scale_solid(self.solids[1], fvec3(o), maxsize/size))
+		sch.set(
+			track = index[self.solids[1]], 
+			color = kinematic_color(index[self.solids[1]]),
+			space = scale_solid(self.solids[1], fvec3(o), maxsize/size))
 		c1 = primitives.Circle(
 						(-z*size*0.5, -z), 
 						radius, 
@@ -111,7 +116,7 @@ class Revolute(Joint):
 						radius, 
 						resolution=resolution,
 						).mesh()
-		sch.add([z*size*0.5, o+z*size*0.5], shader='line')
+		# sch.add([z*size*0.5, o+z*size*0.5], shader='line')
 		sch.add(c1, shader='line')
 		sch.add(c2, shader='line')
 		sch.add(gt.flatsurface(c1), shader='ghost')
@@ -129,7 +134,7 @@ class Revolute(Joint):
 			else:
 				sch.add(side)
 			sch.add(attach_end, space=world_solid(self.solids[1]))
-			
+		
 		return sch
 
 		
@@ -196,6 +201,7 @@ class Planar(Joint):
 		x,y,z,o = dmat4x3(self.post)
 		sch.set(
 			track = index[self.solids[0]], 
+			color = kinematic_color(index[self.solids[0]]),
 			space = scale_solid(self.solids[0], fvec3(o), maxsize/size),
 			)
 		square = gt.parallelogram(x*size, y*size, origin=o-gap*size*z, align=0.5)
@@ -211,6 +217,7 @@ class Planar(Joint):
 		x,y,z,o = dmat4x3(affineInverse(self.pre))
 		sch.set(
 			track = index[self.solids[1]],
+			color = kinematic_color(index[self.solids[1]]),
 			space = scale_solid(self.solids[1], fvec3(o), maxsize/size),
 			)
 		square = gt.parallelogram(-x*size, y*size, origin=o+gap*size*z, align=0.5)
@@ -284,11 +291,12 @@ class Prismatic(Joint):
 		x,y,z,o = dmat4x3(self.post)
 		sch.set(
 			track = index[self.solids[0]], 
+			color = kinematic_color(index[self.solids[0]]),
 			space = scale_solid(self.solids[0], fvec3(o), maxsize/size),
 			)
 		profile = gt.parallelogram(0.4*size*x, 0.4*size*y, origin=o, align=0.5, fill=False)
 		profile.tracks = typedlist(range(len(profile.edges)))
-		exterior = gt.extrusion(size*z, profile, alignment=0.5)
+		exterior = gt.extrusion(profile, size*z, alignment=0.5)
 		exterior.splitgroups()
 		sch.add(exterior, shader='ghost')
 		sch.add(exterior.outlines(), shader='line')
@@ -307,16 +315,17 @@ class Prismatic(Joint):
 		x,y,z,o = dmat4x3(affineInverse(self.pre))
 		sch.set(
 			track = index[self.solids[1]], 
+			color = kinematic_color(index[self.solids[1]]),
 			space = scale_solid(self.solids[1], fvec3(o), maxsize/size),
 			)
-		interior = gt.extrusion(size*z, Web([
+		interior = gt.extrusion(Web([
 			o-0.2*size*(x+y),
 			o+0.2*size*(x+y),
 			o-0.2*size*(x-y),
 			o+0.2*size*(x-y),
 			],
 			[(0,1), (2,3)],
-			), alignment=0.5)
+			), size*z, alignment=0.5)
 		sch.add(interior.outlines(), shader='line')
 		if attach_end:
 			v = attach_end - o
@@ -382,7 +391,10 @@ class Cylindrical(Joint):
 		resolution = ('div', 16)
 		
 		x,y,z,o = dmat4x3(self.post)
-		sch.set(track=index[self.solids[0]], space=scale_solid(self.solids[0], fvec3(o), maxsize/size))
+		sch.set(
+			track = index[self.solids[0]], 
+			color = kinematic_color(index[self.solids[0]]),
+			space = scale_solid(self.solids[0], fvec3(o), maxsize/size))
 		cylinder = gt.cylinder(
 						o-z*size*0.4, 
 						o+z*size*0.4, 
@@ -403,7 +415,10 @@ class Cylindrical(Joint):
 			sch.add(attach_start, space=world_solid(self.solids[0]))
 		
 		x,y,z,o = dmat4x3(affineInverse(self.pre))
-		sch.set(track=index[self.solids[1]], space=scale_solid(self.solids[1], fvec3(o), maxsize/size))
+		sch.set(
+			track = index[self.solids[1]], 
+			color = kinematic_color(index[self.solids[1]]),
+			space = scale_solid(self.solids[1], fvec3(o), maxsize/size))
 		sch.add([o-z*size*0.5, o+z*size*0.5], shader='line')
 		
 		sch.set(shader='fill')
@@ -500,13 +515,16 @@ class Ball(Joint):
 		resolution = ('div', 16)
 		
 		center = self.post[3].xyz
-		sch.set(track=index[self.solids[0]], space=scale_solid(self.solids[0], fvec3(center), maxsize/size))
+		sch.set(
+			track = index[self.solids[0]], 
+			color = kinematic_color(index[self.solids[0]]),
+			space = scale_solid(self.solids[0], fvec3(center), maxsize/size))
 		if attach_start:
 			x,y,z = dirbase(normalize(center - attach_start))
 		else:
 			x,y,z = mat3()
 		profile = ArcCentered(Axis(O,y), x*radius, -z*radius).mesh(resolution=resolution)
-		emisphere = gt.revolution(2*pi, Axis(O,z), profile, resolution=resolution)
+		emisphere = gt.revolution(profile, Axis(O,z), resolution=resolution)
 		sch.add(emisphere, shader='ghost')
 		sch.add(emisphere.outlines(), shader='line')
 		if attach_start:
@@ -515,7 +533,10 @@ class Ball(Joint):
 			sch.add(attach_start, space=world_solid(self.solids[0]))
 		
 		center = affineInverse(self.pre)[3].xyz
-		sch.set(track=index[self.solids[1]], space=scale_solid(self.solids[1], fvec3(center), maxsize/size))
+		sch.set(
+			track = index[self.solids[1]], 
+			color = kinematic_color(index[self.solids[1]]),
+			space = scale_solid(self.solids[1], fvec3(center), maxsize/size))
 		sch.add(gt.icosphere(O, radius*0.8, resolution=('div', 3)), shader='ghost')
 		if attach_end:
 			sch.set(shader='line')
@@ -545,12 +566,13 @@ class PointSlider(Joint):
 			self.pre = mat4(quat(local[1], Z)) * translate(-local[0])
 		else:
 			raise TypeError("PointSlider can only be placed on Axis or mat4")
-		
-	bounds = ([-inf]*6, [inf]*6)
+	
+	default = [0]*5
+	bounds = ([-inf]*5, [inf]*5)
 	
 	def direct(self, parameters):
 		translation = vec2(parameters[0:2])
-		rotation = quat(parameters[3:6])
+		rotation = quat(parameters[2:5])
 		return self.post * translate(vec3(translation, 0)) * mat4(rotation) * self.pre
 		
 	def inverse(self, matrix, close=None):
@@ -569,6 +591,7 @@ class PointSlider(Joint):
 		x,y,z,o = dmat4x3(self.post)
 		sch.set(
 			track = index[self.solids[0]], 
+			color = kinematic_color(index[self.solids[0]]),
 			space = scale_solid(self.solids[0], fvec3(o), maxsize/size),
 			)
 		square = gt.parallelogram(x*size, y*size, origin=o+radius*z, align=0.5)
@@ -581,7 +604,11 @@ class PointSlider(Joint):
 			sch.add([attach+cornersize*size*z, attach_start], shader='line')
 		
 		center = affineInverse(self.pre)[3].xyz
-		sch.set(track=index[self.solids[1]], space=scale_solid(self.solids[1], fvec3(center), maxsize/size))
+		sch.set(
+			track = index[self.solids[1]], 
+			color = kinematic_color(index[self.solids[1]]),
+			space = scale_solid(self.solids[1], fvec3(center), maxsize/size),
+			)
 		sch.add(gt.icosphere(center, radius, resolution), shader='ghost')
 		
 		if attach_end:
@@ -610,12 +637,13 @@ class EdgeSlider(Joint):
 			self.pre = affineInverse(local)
 		else:
 			raise TypeError("EdgeSlider can only be placed on Axis or mat4")
-		
+	
+	default = [0]*4
 	bounds = ([-inf]*4, [inf]*4)
 	
 	def direct(self, parameters):
 		translation = vec2(parameters[0:2])
-		rotation = quat(vec3(parameters[3:6], 0))
+		rotation = quat(vec3(*parameters[2:4], 0))
 		return self.post * translate(vec3(translation, 0)) * mat4(rotation) * self.pre
 		
 	def inverse(self, matrix, close=None):
@@ -636,6 +664,7 @@ class EdgeSlider(Joint):
 		x,y,z,o = dmat4x3(self.post)
 		sch.set(
 			track = index[self.solids[0]], 
+			color = kinematic_color(index[self.solids[0]]),
 			space = scale_solid(self.solids[0], fvec3(o), maxsize/size),
 			)
 		square = gt.parallelogram(x*size, y*size, origin=o+radius*z, align=0.5)
@@ -648,7 +677,11 @@ class EdgeSlider(Joint):
 			sch.add([o+cornersize*size*z, attach_start], shader='line')
 		
 		x,y,z,o = dmat4x3(affineInverse(self.pre))
-		sch.set(track=index[self.solids[1]], space=scale_solid(self.solids[1], fvec3(o), maxsize/size))
+		sch.set(
+			track = index[self.solids[1]], 
+			color = kinematic_color(index[self.solids[1]]),
+			space = scale_solid(self.solids[1], fvec3(o), maxsize/size),
+			)
 		cylinder = gt.cylinder(o-x*0.5*size, o+x*0.5*size, radius, fill=False, resolution=resolution)
 		sch.add(cylinder, shader='ghost')
 		sch.add(cylinder.outlines(), shader='line')
@@ -662,6 +695,7 @@ class EdgeSlider(Joint):
 	
 
 class Ring(Joint):
+	''' ring joint '''
 	def __init__(self, solids, center, local=None):
 		self.solids = solids
 		local = local or center
@@ -696,24 +730,31 @@ class Ring(Joint):
 		resolution = ('div', 16)
 		
 		center = self.post[3].xyz
-		sch.set(track=index[self.solids[0]], space=scale_solid(self.solids[0], fvec3(center), maxsize/size))
+		sch.set(
+			track = index[self.solids[0]], 
+			color = kinematic_color(index[self.solids[0]]),
+			space = scale_solid(self.solids[0], fvec3(center), maxsize/size))
 		if attach_start:
 			x,y,z = dirbase(attach_end - center)
 		else:
 			x,y,z = mat3()
 		profile = ArcCentered(Axis(center,y), center+x*radius, center-z*radius).mesh(resolution=resolution)
-		emisphere = gt.revolution(2*pi, Axis(center,z), profile, resolution)
+		emisphere = gt.revolution(profile, Axis(center,z), resolution)
 		sch.add(emisphere, shader='ghost')
 		sch.add(emisphere.outlines(), shader='line')
 		
 		center = affineInverse(self.pre)[3].xyz
-		sch.set(track=index[self.solids[1]], space=scale_solid(self.solids[1], fvec3(center), maxsize/size))
+		sch.set(
+			track = index[self.solids[1]], 
+			color = kinematic_color(index[self.solids[1]]),
+			space = scale_solid(self.solids[1], fvec3(center), maxsize/size))
 		sch.add(gt.icosphere(center, radius*0.8, resolution), shader='ghost')
 		
 		return sch
 
 	
 class Universal(Joint):
+	''' universal joint '''
 	def __init__(self, solids, axis, local=None):
 		self.solids = solids
 		local = local or axis
@@ -753,7 +794,10 @@ class Universal(Joint):
 		resolution = ('div', 16)
 		
 		x,y,z,o = dmat4x3(self.post)
-		sch.set(track=index[self.solids[0]], space=scale_solid(self.solids[0], fvec3(o), maxsize/size))
+		sch.set(
+			track = index[self.solids[0]], 
+			color = kinematic_color(index[self.solids[0]]),
+			space = scale_solid(self.solids[0], fvec3(o), maxsize/size))
 		if attach_start:
 			o = self.post[3].xyz
 			x,y,z = dirbase(attach_end - center, x)
@@ -762,7 +806,10 @@ class Universal(Joint):
 		sch.add(ArcCentered(Axis(o,x), y*radius, -y*radius).mesh(resolution), shader='line')
 		sch.add([y, -y])
 		
-		sch.set(track=index[self.solids[1]], space=scale_solid(self.solids[1], fvec3(o), maxsize/size))
+		sch.set(
+			track = index[self.solids[1]], 
+			color = kinematic_color(index[self.solids[1]]),
+			space = scale_solid(self.solids[1], fvec3(o), maxsize/size))
 		x,y,z,o = affineInverse(self.pre)
 		if attach_end:
 			o = affineInverse(self.pre)[3].xyz
@@ -777,16 +824,75 @@ class Universal(Joint):
 	
 	
 class ConstantVelocity(Joint):
+	''' not implemented yet '''
 	pass
 	
 
 class Project(Joint):
+	''' not implemented yet '''
 	def __init__(self, solids, projection:mat4, target:mat4):
 		indev
 
 	
 class Rack(Joint):
-	pass
+	''' Rack to gear interaction
+		
+		`radius` is the ratio between the gear rotation and the rack translation
+		
+		Attributes:
+			radius:  ratio between the gear rotation and the rack translation
+			rack:    rack axis tangent to the gear
+			axis:    gear axis
+	'''
+	def __init__(self, solids, radius:float, rack:Axis, axis):
+		self.solids = solids
+		self.radius = radius
+		self.axis = axis
+		self.rack = rack
+		self.pre = mat4(quat(axis[1], Z)) * translate(-axis[0])
+		self.post = translate(rack[0]) * mat4(quat(X, rack[1]))
+		self.position = self.rack[0], self.axis[0]
+		
+	bounds = (-inf, inf)
+	default = 0
+	
+	def direct(self, translation):
+		return self.post * translate(translation*X) * rotate(-translation/self.radius,Z) * self.pre
+	
+	def grad(self, translation):
+		return (
+			+ self.post * dtranslate(X) * rotate(-translation/self.radius,Z) * self.pre
+			+ self.post * translate(translation*X) * drotate(-translation/self.radius,Z)/-self.radius * self.pre
+			)
+		
+	def inverse(self, matrix, close=None):
+		m = affineInverse(self.post) * matrix * affineInverse(self.pre)
+		return atan(*m[0].xy)
+	
+	def scheme(self, index, maxsize, attach_start, attach_end):
+		from .generation import revolution
+		from .primitives import Circle, Segment
+		sch = Scheme()
+
+		x,y,z,o = dmat4x3(self.post)
+		sch.set(
+			track = index[self.solids[0]], 
+			color = kinematic_color(index[self.solids[0]]),
+			space = world_solid(self.solids[0]))
+		sch.add([o-self.radius*y-self.radius*x, o-self.radius*y+self.radius*x], shader='line')
+		
+		x,y,z,o = dmat4x3(affineInverse(self.pre))
+		h = 0.1*self.radius*z
+		sch.set(
+			track = index[self.solids[1]], 
+			color = kinematic_color(index[self.solids[1]]),
+			space = world_solid(self.solids[1]))
+		sch.add(Circle(Axis(o,z), self.radius).mesh(), shader='line')
+		sch.add(revolution(Segment(o+self.radius*x+h, o+self.radius*x-h), Axis(o,z)), shader='ghost')
+		
+		return sch
+
+		
 	
 
 class Gear(Joint):
@@ -795,52 +901,68 @@ class Gear(Joint):
 		`ratio` is the factor from the rotation of s1 to the rotation of s2
 		The two pinions are considered circular, but no assumption is made on their radius or relative inclination.
 		The interaction is symetric.
+		
+		Attributes:
+			ratio:  the gear rotation transmission ratio
+			centerline: the relative positioning of the gears axis, could be 'float', `vec3`, `mat3`, `quat`, `mat4`
+			axis:  first gear axis
+			local:  second gear axis
 	'''
-	def __init__(self, solids, ratio, axis, local=None):
+	def __init__(self, solids, ratio:float, centerline:mat4, axis, local):
 		self.solids = solids
 		self.ratio = ratio
+		if isinstance(centerline, (int,float)):
+			centerline = centerline*X
+		self.centerline = transform(centerline)
 		self.axis = axis
-		local = local or axis
 		self.pre = mat4(quat(local[1], Z)) * translate(-local[0])
 		self.post = translate(axis[0]) * mat4(quat(Z, axis[1]))
+		self.position = self.axis[0], local[0]
 		
-	def direct(self, parameters):
-		indev
+	bounds = (-inf, inf)
+	default = 0
+		
+	def direct(self, angle):
+		return self.post * rotate(angle,Z) * self.centerline * rotate(-self.ratio*angle,Z) * self.pre
+		
+	def grad(self, angle):
+		return (
+			+ self.post * drotate(angle,Z) * self.centerline * rotate(-self.ratio*angle,Z) * self.pre
+			+ self.post * rotate(angle,Z) * self.centerline * drotate(-self.ratio*angle,Z)*-self.ratio * self.pre
+			)
+		
+	def inverse(self, matrix, close=None):
+		m = affineInverse(self.post) * matrix * affineInverse(self.pre)
+		angle = atan(*m[0].xy) / (1+self.ratio)
+		return (angle - close + pi) % (2*pi) - pi
 	
-	def scheme(self, solid, size, junc):
-		if solid is self.solids[0]:		i0,i1,n = 0, 1, self.ratio
-		elif solid is self.solids[1]:	i0,i1,n = 1, 0, 1/self.ratio
-		else:	return
-		
-		a0, a1 = solidtransform_axis(self.solids[0],self.axis[0]), solidtransform_axis(self.solids[1],self.axis[1])
-		align = junc-self.axis[i0][0]
-		if length2(align) == 0:		align = vec3(1,0,0)
-		x,y,z = dirbase(self.axis[i0][1], align=align)
-		o = self.axis[i0][0] + project(self.position[i0]-self.axis[i0][0], z)
+	def scheme(self, index, maxsize, attach_start, attach_end):
+		from .generation import revolution
+		from .primitives import Circle, Segment
+		sch = Scheme()
 		
 		# radial vector
-		rl = length(noproject(a0[0]-a1[0], a1[1])) / (dot(a0[1],a1[1]) - 1/self.ratio)
-		if solid is self.solids[1]:
-			rl /= abs(self.ratio)
-		r = o + x * rl
+		r0 = length(self.centerline[3].xy) / abs(self.centerline[2].z - 1/self.ratio)
+		r1 = r0 / abs(self.ratio)
 		
-		# tooth depth vector
-		angle = min(1, dot(	a0[1] if solid is self.solids[0] else a1[1], 
-						normalize(mix(a0[1], a1[1], abs(self.ratio)/(1+abs(self.ratio))))
-						))
+		x,y,z,o = dmat4x3(self.post)
+		h = 0.1*min(r0, r1) * (z * r0 + self.centerline[2].xyz * r1) / (r0 + r1)
+		sch.set(
+			track = index[self.solids[0]], 
+			color = kinematic_color(index[self.solids[0]]),
+			space = world_solid(self.solids[0]))
+		sch.add(Circle(Axis(o,z), r0).mesh(), shader='line')
+		sch.add(revolution(Segment(o+r0*x+h, o+r0*x-h), Axis(o,z)), shader='ghost')
 		
-		d = angle*z + sqrt(max(0, 1-angle**2))*x
-		b = size*0.4 * d
-		w = size*0.08 * cross(d,y)
-		if self.ratio > 0 and (	abs(self.ratio) > 1 and solid is self.solids[0] 
-							or	abs(self.ratio) < 1 and solid is self.solids[1]):
-			b, w = -b, -w
+		x,y,z,o = dmat4x3(affineInverse(self.pre))
+		h = 0.1*min(r0, r1) * (self.centerline[2].xyz * r0 + z * r1) / (r0 + r1)
+		sch.set(
+			track = index[self.solids[1]], 
+			color = kinematic_color(index[self.solids[1]]),
+			space = world_solid(self.solids[1]))
+		sch.add(Circle(Axis(o,z), r1).mesh(), shader='line')
+		sch.add(revolution(Segment(o+r1*x+h, o+r1*x-h), Axis(o,z)), shader='ghost')
 		
-		profile = Web([r+b+w, r+b, r+b, r, r-b, r-b, r-b+w], [(0,1),(2,3),(3,4),(5,6)])
-		surf = generation.revolution(2*pi, self.axis[i0], profile, resolution=('rad',0.1))
-		l = len(profile.points)
-		sch = Scheme(surf.points, surf.faces, [], [(i,i+l) for i in range(3, len(surf.points)-l, l)])
-		sch.extend(Scheme([junc, mix(o,r,0.8), r], [], [], [(0,1),(1,2)]))
 		return sch
 
 
@@ -849,6 +971,8 @@ class Helicoid(Joint):
 	
 		`step` is the translation distance needed for that one solid turn by 2*pi around the other
 		The interaction is symetric.
+		
+		not implemented yet
 	'''
 	def __init__(self, s0, s1, step, b0, b1=None, position=None):
 		self.step = step	# m/tr
@@ -857,29 +981,14 @@ class Helicoid(Joint):
 		if b1 and isaxis(b1):	b1 = b1[0], *dirbase(b1[1])[:2]
 		self.bases = b0, b1 or b0
 		self.position = position or (self.bases[0][0], self.bases[1][0])
-		
-	slvvars = 'solids',
-	def fit(self):
+	
+	def direct(self, depth):
 		indev
-
-	def corrections(self):
-		(o0,x0,y0), (o1,x1,y1) = solidtransform_base(self.solids[0], self.bases[0]), solidtransform_base(self.solids[1], self.bases[1])
-		z0, z1 = cross(x0,y0), cross(x1,y1)
-		z = normalize(z0 + z1)
-		delta = o1 - o0
-		pos = dot(-delta,z)
-		angle = atan2(dot(y1,x0), dot(x1,x0))
 		
-		gap_angle = (pos%self.step)/self.step * 2*pi - angle
-		if gap_angle > pi:	gap_angle -= 2*pi
-		if abs(gap_angle) > 0.5:	gap_angle = 0
-		gap_pos = (angle/(2*pi)*self.step - pos) % self.step
-		if gap_pos > self.step/2:	gap_pos -= self.step
-		
-		r = cross(z0, z1) + gap_angle*z
-		t = gap_pos*z
-		return Screw(t+noproject(delta,z0), r, o0), Screw(-t-noproject(delta,z1), -r, o1)	# force torsor
-
+	def inverse(self, matrix, close=None):
+		indev
+	
+	
 	def scheme(self, solid, size, junc):
 		if solid is self.solids[0]:
 			radius = size/4
@@ -887,12 +996,13 @@ class Helicoid(Joint):
 			z = cross(x,y)
 			center = o + project(self.position[0]-o, z)
 			cyl = generation.extrusion(
-						z*size, 
 						web(primitives.Circle(
-								(center-z*size*0.5, z), 
-								radius, 
-								resolution=('div', 16),
-						)))
+							(center-z*size*0.5, z), 
+							radius, 
+							resolution=('div', 16),
+							)),
+						z*size, 
+						)
 			l = len(cyl.points)
 			v = junc - center
 			v = normalize(noproject(v,z))
@@ -933,9 +1043,11 @@ class Helicoid(Joint):
 
 
 class Cam(Joint):
+	''' not implemented yet '''
 	pass
 	
 	
 class Contact(Joint):
+	''' not implemented yet '''
 	pass
 

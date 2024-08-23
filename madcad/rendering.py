@@ -232,7 +232,6 @@ def navigation_tool(dispatcher, view):
 	hastouched = False
 	while True:
 		evt = yield
-		evt.ignore()	# ignore the keys to pass shortcuts to parents
 		
 		if isinstance(evt, QKeyEvent):
 			k = evt.key()
@@ -240,11 +239,19 @@ def navigation_tool(dispatcher, view):
 			if	 k == Qt.Key_Control:	ctrl = press
 			elif k == Qt.Key_Alt:		alt = press
 			elif k == Qt.Key_Shift:		slow = press
+		elif evt.type() == QEvent.MouseButtonPress:
+			modifiers = QApplication.queryKeyboardModifiers()
+			ctrl = bool(modifiers & Qt.ControlModifier)
+			alt = bool(modifiers & Qt.AltModifier)
+			shift = bool(modifiers & Qt.ShiftModifier)
+		if isinstance(evt, QKeyEvent) or evt.type() == QEvent.MouseButtonPress:
 			if ctrl and alt:		curr = 'zoom'
 			elif ctrl:				curr = 'pan'
 			elif alt:				curr = 'rotate'
 			else:					curr = None
-			# no accept because the shortcuts need to get the keys also
+		
+		if isinstance(evt, QKeyEvent):
+			evt.ignore()	# ignore the keys to pass shortcuts to parents
 		elif evt.type() == QEvent.MouseButtonPress:
 			last = evt.pos()
 			if evt.button() == Qt.MiddleButton:
@@ -563,6 +570,7 @@ class Scene:
 			for target, frame, setup in view.targets:
 				view.target = frame
 				frame.use()
+				frame.clear()
 				setup()
 				for key, priority, func in self.stacks.get(target,empty):
 					func(view)
@@ -1183,8 +1191,6 @@ class GhostWidget(QWidget):
 		
 	def event(self, evt):
 		if isinstance(evt, QInputEvent):
-			# set the opengl current context from Qt (doing it only from moderngl interferes with Qt)
-			#self.makeCurrent()
 			evt.ignore()
 			self.parent().inputEvent(evt)
 			if evt.isAccepted():	return True

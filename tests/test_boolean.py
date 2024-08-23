@@ -68,8 +68,8 @@ def test_edgecrossing():
 
 	def cylinder(axis, radius, height):
 		return extrusion(
-			-height*axis[1],
 			flatsurface(wire(Circle(axis, radius, resolution=('rad', pi/16)))),
+			-height*axis[1],
 			)
 
 	cyl = difference(
@@ -84,8 +84,8 @@ def test_edgecrossing():
 def test_repetition():
 	def cylinder(axis, radius, height):
 		return extrusion(
-			-height*axis[1],
 			flatsurface(wire(Circle(axis, radius))),
+			-height*axis[1],
 			)
 
 	# boolean on normal meshes with some crossing edges
@@ -132,8 +132,7 @@ test_repetition()
 	
 # display
 for i in range(len(results)):
-	results[i] = Solid(content=results[i])
-	results[i].position += 4*i*Y
+	results[i] = Solid(content=results[i]).transform(4*i*Y)
 
 show(results)
 
