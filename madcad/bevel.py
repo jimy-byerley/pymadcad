@@ -1,7 +1,7 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 ''' This module provides the chamfer and filet functions, and the associated tools.
 
-	`multicut`, `chamfer`, and `filet` are built in the same cutting algorithm. It cuts the mesh faces by propagation from the given edges. The cutting planes are determined by an offset vector from the original primitive (point or edge). 
+	`edgecut`, `chamfer`, and `filet` are built using the same cutting algorithm. It cuts the mesh faces by propagation from the given edges. The cutting planes are determined by an offset vector from the original primitive (point or edge). 
 	
 	Most of the time you don't need to set the offset yourself. It can be automatically calculated by several methods, depending on the shape you want to get. Those methods are called `cutters` and are executed using `planeoffsets`_.
 '''
@@ -17,9 +17,9 @@ from .triangulation import triangulation_outline
 from .blending import blenditer, match_length
 
 from numbers import Number
-from functools import singledispatch
+from functools import singledispatch, partial
 
-__all__ = [	'chamfer', 'filet', 'multicut',
+__all__ = [	'chamfer', 'filet', 'edgecut',
 			'mesh_cut', 'web_cut', 'planeoffsets',
 			'tangentend', 'tangentcorner', 'tangentjunction',
 			'cutter_width', 'cutter_distance', 'cutter_depth', 'cutter_radius',
@@ -29,18 +29,30 @@ __all__ = [	'chamfer', 'filet', 'multicut',
 # ---- common cut methods ----
 
 @singledispatch
-def multicut(mesh, indices, cutter):
+def edgecut(mesh, indices, cutter):
 	''' Cut a Mesh/Web/Wire around the given edges/points, using the given cutter '''
 	raise TypeError('wrong argument type: {}'.format(type(mesh)))
 
 @singledispatch
 def chamfer(mesh, indices, cutter):
-	''' Chamfer a Mesh/Web/Wire around the given edges/points, using the given cutter '''
+	''' Cut the given edges or points on the mesh and replace them by a chamfer: a flat surface filling the hole
+	
+	Example
+	
+		>>> cube = brick(width=5)
+		>>> chamfer(cube, cube.frontiers(), width=1)
+	'''
 	raise TypeError('wrong argument type: {}'.format(type(mesh)))
 	
 @singledispatch
 def filet(mesh, indices, cutter):
-	''' Bevel a Mesh/Web/Wire around the given edges/points, using the given cutter '''
+	''' Cut the given edges or points on the mesh and replace them by a filet: a round surface tangenting and filling the hole
+	
+	Example
+	
+		>>> cube = brick(width=5)
+		>>> filet(cube, cube.frontiers(), width=1)
+	'''
 	raise TypeError('wrong argument type: {}'.format(type(mesh)))
 
 
@@ -55,14 +67,14 @@ def cutter_width(width, fn1, fn2):
 	return -width/2 * sqrt(1/s**2 - 1) * n
 
 def cutter_distance(depth, fn1, fn2):
-	"""Plane offset for a cut based on the distance along the side faces"""
+	''' Plane offset for a cut based on the distance to the cutted edge '''
 	n = normalize(fn1 +fn2)
 	cos_b = dot(fn1, n)
 	cos_a = sqrt(1-cos_b**2)
 	return -depth * n * cos_a
 
 def cutter_depth(dist, fn1, fn2):
-	''' Plane offset for a cut based on the distance to the cutted edge '''
+	"""Plane offset for a cut based on the distance along the side faces"""
 	return -dist * cross(normalize(cross(fn1,fn2)), fn1-fn2)
 
 def cutter_radius(depth, fn1, fn2):
@@ -76,7 +88,7 @@ def cutter_radius(depth, fn1, fn2):
 
 # ----- mesh operations ------
 
-def planeoffsets(mesh, edges, cutter):
+def planeoffsets(mesh, edges, **cutter):
 	''' Compute the offsets for cutting planes using the given method 
 		cutter is a tuple or a function
 		
@@ -88,35 +100,34 @@ def planeoffsets(mesh, edges, cutter):
 				the method is the string name of the method (a function named 'cutter_'+method existing in this module)
 				distance depends on the method and is the numeric parameter of the method
 	'''
-	if isinstance(cutter, dict):
-		return cutter
-	else:
-		cutter = interpretcutter(cutter)
-		# get adjacent faces' normals to lines
-		offsets = {e: [None,None]  for e in edges}
-		for f in mesh.faces:
-			for e in ((f[0],f[1]), (f[1],f[2]), (f[2],f[0])):
-				if e in offsets:					offsets[e][0] = mesh.facenormal(f)
-				elif (e[1],e[0]) in offsets:		offsets[(e[1],e[0])][1] = mesh.facenormal(f)
-		
-		# compute offsets (displacement on depth)
-		for e, adjacents in offsets.items():
-			offset = cutter(*adjacents)
-			if dot(cross(*adjacents), mesh.points[e[0]]-mesh.points[e[1]]) > 0:
-				offset = -offset
-			offsets[e] = offset
-		
-		return offsets
+	cutter = interpretcutter(**cutter)
+	# get adjacent faces' normals to lines
+	offsets = {e: [None,None]  for e in edges}
+	for f in mesh.faces:
+		for e in ((f[0],f[1]), (f[1],f[2]), (f[2],f[0])):
+			if e in offsets:					offsets[e][0] = mesh.facenormal(f)
+			elif (e[1],e[0]) in offsets:		offsets[(e[1],e[0])][1] = mesh.facenormal(f)
+	
+	# compute offsets (displacement on depth)
+	for e, adjacents in offsets.items():
+		offset = cutter(*adjacents)
+		if dot(cross(*adjacents), mesh.points[e[0]]-mesh.points[e[1]]) > 0:
+			offset = -offset
+		offsets[e] = offset
+	
+	return offsets
 
-def interpretcutter(cutter):
-	if isinstance(cutter, tuple):
-		func = globals()['cutter_'+cutter[0]]
-		arg = cutter[1]
-		return lambda fn1,fn2: func(arg, fn1, fn2)
-	elif callable(cutter):
-		return cutter
+def interpretcutter(**cutter):
+	if len(cutter) != 1:
+		raise TypeError("cutting method must be exactly one keyword argument")
+	if callable(func := cutter.get('cutter')):
+		return func
 	else:
-		raise TypeError("cutter must be a callable or a tuple (name, param)")
+		name, dim = next(iter(cutter.items()))
+		func = globals().get('cutter_'+name)
+		if not callable(func):
+			raise TypeError("no cutting method named {}".format(repr(name)))
+		return partial(func, dim)
 
 		
 def mesh_cut(mesh, start, cutplane, stops, conn, prec, removal, cutghost=True):
@@ -220,7 +231,7 @@ def mesh_cut(mesh, start, cutplane, stops, conn, prec, removal, cutghost=True):
 		if all(goodside) and any(goodx):
 			removal.add(fi)
 		
-		if fi not in removal or cutghost:	# NOTE: this is a ugly trick to make the current multicut implementation work with the same function for corners and edges
+		if fi not in removal or cutghost:	# NOTE: this is a ugly trick to make the current edgecut implementation work with the same function for corners and edges
 			# cut the face
 			for j in range(3):
 				if cut[j] and cut[j-1]:
@@ -282,8 +293,8 @@ def propagate(mesh, edges, conn, prec):
 	return seen
 
 	
-@multicut.register(Mesh)
-def mesh_multicut(mesh, edges, cutter, conn=None, prec=None, removal=None):
+@edgecut.register(Mesh)
+def mesh_edgecut(mesh, edges, conn=None, prec=None, removal=None, **cutter):
 	''' General purpose edge cutting function.
 		cut the given edges and the crossing corners, resolving the interference issues.
 		
@@ -300,7 +311,7 @@ def mesh_multicut(mesh, edges, cutter, conn=None, prec=None, removal=None):
 		final = False
 	if isinstance(edges, Web):	edges = edges.edges
 	edges = [edgekey(*e)  for e in edges]
-	offsets = planeoffsets(mesh, edges, cutter)
+	offsets = planeoffsets(mesh, edges, **cutter)
 	
 	normals = mesh.vertexnormals()
 	juncconn = connpp(edges)
@@ -394,7 +405,7 @@ def mesh_multicut(mesh, edges, cutter, conn=None, prec=None, removal=None):
 	return outlines
 
 def finalize(mesh, outlines, removal, prec):
-	''' Function finalizing the mesh for multicut
+	''' Function finalizing the mesh for edgecut
 		removing faces and simplifying outlines
 	'''
 	# simplify cuts
@@ -533,12 +544,13 @@ def faceheight(mesh, fi):
 
 
 @chamfer.register(Mesh)
-def mesh_chamfer(mesh, edges, cutter):
-	''' Create a chamfer on the given suite of points, create faces are planes.
+def mesh_chamfer(mesh, edges, **cutter):
+	''' 
+		Create a chamfer on the given suite of points, create faces are planes.
 		cutter is described in function planeoffsets()
 	'''
 	# cut faces
-	segments = mesh_multicut(mesh, edges, cutter)
+	segments = mesh_edgecut(mesh, edges, **cutter)
 	
 	# create junctions
 	group = len(mesh.groups)
@@ -585,7 +597,7 @@ def mesh_chamfer(mesh, edges, cutter):
 		mesh.tracks.extend([group]*len(faces))
 
 @filet.register(Mesh)
-def mesh_filet(mesh, edges, cutter, resolution=None):
+def mesh_filet(mesh, edges, resolution=None, **cutter):
 	''' Create a chamfer on the given suite of points, create faces are planes.
 		cutter is described in function planeoffsets()
 	'''
@@ -600,7 +612,7 @@ def mesh_filet(mesh, edges, cutter, resolution=None):
 			mesh.facenormal(conn[(e[1],e[0])]),
 			)
 	# cut faces
-	segments = mesh_multicut(mesh, edges, cutter, conn)
+	segments = mesh_edgecut(mesh, edges, conn, **cutter)
 	mesh.check()
 	conn = connef(mesh.faces)
 	pts = mesh.points
@@ -771,14 +783,14 @@ def web_cut(web, start, cutplane, conn, prec, removal):
 	removal.update(seen)
 	return intersections
 
-@multicut.register(Web)
-def web_multicut(web, points, cutter, conn=None, prec=None, removal=None):
+@edgecut.register(Web)
+def web_edgecut(web, points, conn=None, prec=None, removal=None, **cutter):
 	if conn is None:	conn = connpe(web.edges)
 	if prec is None:	prec = web.precision()
 	if isinstance(points, Wire):	points = points.indices
 	
 	removal = set()
-	cutter = interpretcutter(cutter)
+	cutter = interpretcutter(**cutter)
 	pts = web.points
 	intersections = {}
 	
@@ -803,8 +815,8 @@ def web_multicut(web, points, cutter, conn=None, prec=None, removal=None):
 	return intersections
 	
 @chamfer.register(Web)
-def web_chamfer(web, points, cutter):
-	holes = web_multicut(web, points, cutter)
+def web_chamfer(web, points, **cutter):
+	holes = web_edgecut(web, points, **cutter)
 
 	g = len(web.groups)
 	web.groups.append(None)
@@ -825,8 +837,8 @@ def web_chamfer(web, points, cutter):
 			web.tracks.extend( [g] * len(cuts) )
 	
 @filet.register(Web)
-def web_filet(obj, points, cutter, resolution=None):
-	holes = web_multicut(obj, points, cutter)
+def web_filet(obj, points, resolution=None, **cutter):
+	holes = web_edgecut(obj, points, **cutter)
 
 	conn = connpe(obj.edges)
 	pts = obj.points
@@ -875,15 +887,15 @@ def web_filet(obj, points, cutter, resolution=None):
 				
 # ---- wire operations -----
 
-@multicut.register(Wire)
-def wire_multicut(wire: Wire, points, cutter):
+@edgecut.register(Wire)
+def wire_edgecut(wire: Wire, points, **cutter):
 	if isinstance(points, Wire):
 		points = points.indices
 	if not isinstance(points, set):
 		points = set(points)
 	prec = wire.precision()
 
-	cutter = interpretcutter(cutter)
+	cutter = interpretcutter(**cutter)
 	if not wire.tracks:
 		wire.tracks = typedlist.full(0, len(wire.indices), "I")
 	g = len(wire.groups)
@@ -953,14 +965,14 @@ def wire_multicut(wire: Wire, points, cutter):
 	return cuts
 		
 @chamfer.register(Wire)
-def wire_chamfer(wire, points, cutter):
-	wire_multicut(wire, points, cutter)
+def wire_chamfer(wire, points, **cutter):
+	wire_edgecut(wire, points, **cutter)
 
 @filet.register(Wire)
-def wire_filet(wire, points, cutter, resolution=None):
+def wire_filet(wire, points, resolution=None, **cutter):
 	closed = wire.indices[0] == wire.indices[-1]
 
-	cuts = wire_multicut(wire, points, cutter)
+	cuts = wire_edgecut(wire, points, **cutter)
 	g = len(wire.groups) - 1
 	wire.groups[g] = None
 

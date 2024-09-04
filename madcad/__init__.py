@@ -150,7 +150,7 @@ from . import rendering, displays, text, scheme
 from .mathutils import *
 from .mesh import Mesh, Web, Wire, MeshError, web, wire
 from .boolean import pierce, difference, union, intersection
-from .bevel import chamfer, filet, multicut, planeoffsets
+from .bevel import chamfer, filet, edgecut, planeoffsets
 from .generation import *
 from .blending import junction, multijunction, blend, blendloop, blendpair, blenditer
 from .primitives import isprimitive, Point, Axis, Segment, ArcThrough, ArcCentered, ArcTangent, TangentEllipsis, Circle, Interpolated, Softened, isaxis

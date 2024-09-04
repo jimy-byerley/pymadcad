@@ -1,10 +1,10 @@
 # test intersections
 from madcad import vec3, saddle, tube, ArcThrough, Web, web, filet, chamfer, show
-from madcad.bevel import multicut
+from madcad.bevel import edgecut
 from madcad.nprint import nprint
 from copy import deepcopy
 
-m = saddle(
+mesh = saddle(
 		Web(
 			[vec3(-2,1.5,0),vec3(-1,1,0),vec3(0,0,0),vec3(1,1,0),vec3(1.5,2,0)], 
 			[(0,1), (1,2), (2,3), (3,4)],
@@ -15,19 +15,25 @@ m = saddle(
 			ArcThrough(vec3(0,1,-1),vec3(0,1.3,-0.5),vec3(0,1,0)), 
 			ArcThrough(vec3(0,1,0),vec3(0,0.7,0.5),vec3(0,1,1))),
 		)
-m.check()
+box = mesh.box()
+edge = mesh.frontiers((1,2)) + mesh.frontiers((5,6))
 
-#cut.cut_corner(m, 87, 0.6*vec3(0,0.2,0.05))
-w = m.frontiers((1,2)) + m.frontiers((5,6))
-#multicut(m, w, ('depth', 0.6))
-#chamfer(m, w, ('depth', 0.6))
-filet(m, w, ('depth', 0.6))
-#beveltgt(m, w, ('depth', 0.6))
-m.check()
+results = {}
+for i, operation in enumerate([edgecut, chamfer, filet]):
+	for j, dim in enumerate(['width', 'depth', 'radius', 'distance']):
+		print('testing  {} {}  ... '.format(operation.__name__, dim), end='')
+		try:
+			operated = deepcopy(mesh)
+			operated.check()
+			operation(operated, edge, **{dim: 0.6})
+			operated.check()
+			# assert operated.issurface()
+		except Exception as err:
+			print('failed', err)
+			raise
+		else:
+			results[(operation, dim)] = operated.transform(box.width * 1.2 * vec3(i,0,j))
+			print('ok')
 
-#m.check()	# TODO fix the face using the same point multiple times
-#assert m.issurface()
-
-#m.options.update({'debug_display': True, 'debug_points': True })
-show([m], display_wire=True)
+show(results, display_wire=True)
 

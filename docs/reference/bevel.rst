@@ -5,28 +5,42 @@ bevel    - Functions for cutting meshes at edges or points, like chamfer
 
 .. automodule:: madcad.bevel
 
+	.. image:: /schemes/bevel-cutter.svg
+
 End-user functions
 ------------------
 
-	.. autofunction:: chamfer
-		
-		This is a chamfer on edges around a cube corner 
-		
-		.. image:: /screenshots/chamfer.png
+.. autofunction:: chamfer
+	
+	.. subfigure:: AB
+		:layout-sm: AB
+		:gap: 0px
+	
+		.. image:: /schemes/bevel-chamfer.svg
+
+		.. image:: /screenshots/bevel-chamfer.png
 			:width: 300
 
-	.. autofunction:: filet
+.. autofunction:: filet
 
-		This is a filet on edges around a cube corner
-		
-		.. image:: /screenshots/filet.png
+	.. subfigure:: AB
+		:layout-sm: AB
+		:gap: 0px
+	
+		.. image:: /schemes/bevel-filet.svg
+
+		.. image:: /screenshots/bevel-filet.png
 			:width: 300
 
-	.. autofunction:: multicut
+.. autofunction:: edgecut
 
-		This is the result on edges around a cube corner
-		
-		.. image:: /screenshots/multicut.png
+	.. subfigure:: AB
+		:layout-sm: AB
+		:gap: 0px
+	
+		.. image:: /schemes/bevel-edgecut.svg
+
+		.. image:: /screenshots/bevel-edgecut.png
 			:width: 300
 
 
@@ -36,26 +50,10 @@ End-user functions
 Cutters (cut methods)
 ---------------------
 
-	.. image:: /schemes/cutter.svg
+.. autofunction:: cutter_width
 
-	.. autofunction:: cutter_width
+.. autofunction:: cutter_distance
 
-	.. autofunction:: cutter_distance
-
-		.. warning::
-			this cut method can be unstable at the moment
-
-	.. autofunction:: cutter_depth
-		
-	.. autofunction:: cutter_radius
-
-Helpers
--------
-
-	.. autofunction:: mesh_cut
-	.. autofunction:: web_cut
-	.. _planeoffsets:
-	.. autofunction:: planeoffsets
-	.. autofunction:: tangentjunction
-	.. autofunction:: tangentcorner
-	.. autofunction:: tangentend
+.. autofunction:: cutter_depth
+	
+.. autofunction:: cutter_radius
