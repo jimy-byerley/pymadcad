@@ -40,7 +40,7 @@ def extrusion(shape, trans:transform, alignment:float=0) -> Mesh:
 				
 		Example:
 		
-			>>> extrusion(ArcThrough(-Y, Z, Y), 2*X)
+			>>> extrusion(ArcThrough(+Y, Z, -Y), 2*X)
 	'''
 	trans = transform(trans)
 	neutral = mat4()
@@ -66,7 +66,7 @@ def revolution(shape, axis=Axis(O,Z), angle:float=2*pi, alignment:float=0, resol
 		Example:
 			
 			>>> revolution(
-			... 	ArcThrough(4*Z-Y, 6*Z, 4*Z+Y), 
+			... 	ArcThrough(4*Z+Y, 6*Z, 4*Z-Y), 
 			... 	Axis(O,Y), 
 			... 	1.5*pi,
 			... 	)
