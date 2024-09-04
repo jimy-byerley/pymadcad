@@ -348,7 +348,7 @@ def mesh_edgecut(mesh, edges, conn=None, prec=None, removal=None, **cutter):
 		i,j = e
 		while not sep:
 			prox = juncconn[i]
-			if len(prox) != 2:	raise Exception('unable to compute all separators')
+			if len(prox) != 2:	raise MeshError('unable to compute all separators')
 			j,i = i, prox[0] if prox[0] != j else prox[1]
 			separators[e] = sep = separators[(i,j)]
 	
@@ -584,7 +584,7 @@ def mesh_chamfer(mesh, edges, **cutter):
 				cornerreg(e[0], (l[0], r[-1]))
 				cornerreg(e[1], (r[0], l[-1]))
 			else:
-				raise Exception('a cutted edge has more than 2 cutted sides')
+				raise MeshError('a cutted edge has more than 2 cutted sides')
 			# triangulate cutted edge
 			faces = triangulation_outline(Wire(mesh.points, lp)).faces
 			mesh.faces.extend(faces)
@@ -658,7 +658,7 @@ def mesh_filet(mesh, edges, resolution=None, **cutter):
 				cornerreg(e[0], (l[0], r[-1]))
 				cornerreg(e[1], (r[0], l[-1]))
 			else:
-				raise Exception('a cutted edge has more than 2 cutted sides')
+				raise MeshError('a cutted edge has more than 2 cutted sides')
 			
 			# match the curves
 			r.reverse()
