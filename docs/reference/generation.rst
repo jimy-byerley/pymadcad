@@ -9,6 +9,9 @@ Based on extrusion/transformation of a Web
 ------------------------------------------
 
 .. autofunction:: extrans
+
+	.. image:: /screenshots/generation-extrans.png
+	
 .. autofunction:: extrusion
 
 	.. image:: /screenshots/generation-extrusion.png

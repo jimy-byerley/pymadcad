@@ -37,6 +37,10 @@ def extrusion(shape, trans:transform, alignment:float=0) -> Mesh:
 			alignment:  the relative position of the input shape in the resulting mesh
 				- `0` means at the beginning
 				- `1` means at the end
+				
+		Example:
+		
+			>>> extrusion(ArcThrough(-Y, Z, Y), 2*X)
 	'''
 	trans = transform(trans)
 	neutral = mat4()
@@ -58,6 +62,14 @@ def revolution(shape, axis=Axis(O,Z), angle:float=2*pi, alignment:float=0, resol
 				- `0` means at the beginning
 				- `1` means at the end
 			resolution:   resolution setting for the biggest produced circle, such as for primitives
+			
+		Example:
+			
+			>>> revolution(
+			... 	ArcThrough(4*Z-Y, 6*Z, 4*Z+Y), 
+			... 	Axis(O,Y), 
+			... 	1.5*pi,
+			... 	)
 	'''
 	if not isinstance(shape, (Mesh,Web,Wire)):	
 		shape = web(shape)
@@ -95,7 +107,7 @@ def helix(shape, height:float, angle:float, radius:float=1., axis=Axis(O,Z), ali
 			
 			>>> helix(
 			... 	regon(Axis(O,Z), 1, 4).subdivide(4), 
-			... 	height=1, 
+			... 	height=2, 
 			... 	angle=radians(45),
 			... 	)
 	'''
@@ -124,7 +136,7 @@ def screw(shape, turns:float=1., axis=Axis(O,Z), step:float=None, alignment:floa
 		Example:
 			
 			>>> screw(
-			... 	wire([vec3(0,1,0), vec3(0,2,1), vec3(0,1,1)]).segmented().flip(),
+			... 	wire([vec3(0,1,1), vec3(0,2,1), vec3(0,1,0)]).segmented(),
 			... 	turns=2,
 			... 	)
 	'''
@@ -151,7 +163,15 @@ def screw(shape, turns:float=1., axis=Axis(O,Z), step:float=None, alignment:floa
 		))
 
 def saddle(a, b:Web) -> Mesh:
-	''' Create a surface by extruding outine1 translating each instance to the next point of outline2'''
+	''' Create a surface by extruding outine1 translating each instance to the next point of outline2
+		
+		Example:
+		
+		>>> saddle(
+		... 	ArcThrough(+Y,X,-Y),
+		... 	Softened([0*X, 0*X-2*Z, 4*X-2*Z, 4*X]),
+		... 	)
+	'''
 	if not isinstance(a, (Mesh,Web,Wire)):
 		a = web(a)
 	b = web(b)
@@ -163,6 +183,13 @@ def saddle(a, b:Web) -> Mesh:
 
 def tube(shape, path:Wire, end=True, section=True) -> Mesh:
 	''' Create a tube surface by extruding the shape along the path if `section` is True, there is a correction of the segments to keep the section rigid by the curve
+	
+		Example:
+			
+		>>> tube(
+		... 	ArcThrough(+Y,X,-Y),
+		... 	Softened([0*X, 0*X-2*Z, 4*X-2*Z, 4*X]),
+		... 	)
 	'''
 	path = wire(path)
 	def trans():
@@ -214,6 +241,13 @@ def extrans(section, transformations:iter, links=None) -> Mesh:
 									
 									if `links` is not specified, it will link each transformed section to the previous one.
 									This is equivalent to giving links `(i, i+1, 0)`
+	
+		Example:
+			
+			>>> extrans(
+			... 	regon(Axis(O,Z), 1, 4), 
+			... 	[translate(t*Z) * scale(vec3(0.5+t**2))  for t in linrange(-1, 1, div=10)],
+			... 	)
 	'''
 	# prepare
 	if isinstance(section, Mesh):
