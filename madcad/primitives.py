@@ -326,7 +326,7 @@ class TangentEllipsis(object):
 class Circle(object):
 	''' Circle centered around the axis origin, with the given radius, in an orthogonal plane to the axis direction '''
 	__slots__ = ('axis', 'radius', 'alignment', 'resolution')
-	def __init__(self, axis, radius, alignment=vec3(1,0,0), resolution=None):
+	def __init__(self, axis: Axis, radius: float, alignment=vec3(1,0,0), resolution=None):
 		self.axis, self.radius = axis, radius
 		self.alignment = alignment
 		self.resolution = resolution
@@ -346,25 +346,50 @@ class Circle(object):
 	slv_tangent = tangent
 	
 	def mesh(self, resolution=None):
-		center = self.axis[0]
 		x,y,z = dirbase(self.axis[1], self.alignment)
 		angle = 2*pi
-		r = self.radius
-		div = settings.curve_resolution(angle*r, angle, self.resolution or resolution)
-		pts = []
-		for i in range(div):
-			a = angle * i/div
-			pts.append(x*r*cos(a) + y*r*sin(a) + center)
-		indices = list(range(div))
-		indices.append(0)
-		return mesh.Wire(pts, indices, groups=[None])
+		div = settings.curve_resolution(angle*self.radius, angle, self.resolution or resolution)
+		return mesh.Wire(typedlist(
+			self.center + self.radius * (x*cos(t) + y*sin(t))
+			for t in linrange(0, angle, div=div, end=False)
+			))
 		
 	def __repr__(self):
 		return 'Circle({}, {})'.format(self.axis, self.radius)
 	
 	def display(self, scene):	
 		return self.mesh().display(scene)
+
+class Ellipsis(object):
+	''' Ellipsis centered around the given point, with the given major and minor semi axis '''
+	__slots__ = ('center', 'minor', 'major', 'resolution')
+	def __init__(self, center: vec3, minor: vec3, major: vec3, resolution=None):
+		self.center = center
+		self.minor = minor
+		self.major = major
+		self.resolution = resolution
 		
+	@property
+	def axis(self):
+		''' the ellipsis axis, deduces from its major and minor semi axis '''
+		return Axis(self.center, normalize(cross(self.minor, self.major)))
+		
+	slvvars = ('center', 'minor', 'major')
+		
+	def mesh(self, resolution=None):
+		angle = 2*pi
+		radius = sqrt(max(length2(self.minor), length2(self.major)))
+		div = settings.curve_resolution(angle*radius, angle, self.resolution or resolution)
+		return mesh.Wire(typedlist(
+			self.center + self.minor * cos(t) + self.major * sin(t)
+			for t in linrange(0, angle, div=div, end=False)
+			)).close()
+			
+	def __repr__(self):
+		return 'Ellipsis({}, {}, {})'.format(self.center, self.minor, self.major)
+		
+	def display(self, scene):
+		return self.mesh().display(scene)
 		
 import numpy.core as np
 def glmarray(array, dtype='f4'):
