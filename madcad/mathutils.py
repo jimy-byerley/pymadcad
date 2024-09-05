@@ -353,6 +353,11 @@ def imax(iterable, default=None):
 	if best is None:	raise IndexError('iterable is empty')
 	return best
 
+def linstep(start, stop, x):
+	''' like smoothstep but with a linear ramp between `start` and `stop` '''
+	if x <= start:	return 0
+	if x >= stop:	return 1
+	return (x-start)/(stop-start)
 
 def linrange(start, stop=None, step=None, div=0, end=True):
 	''' Yield successive intermediate values between start and stop 

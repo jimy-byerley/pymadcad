@@ -80,24 +80,6 @@ Generation of common meshes
 
 	.. image:: /screenshots/generation-uvsphere.png
 	
-
-Offsetting
-----------
-
-.. autofunction:: inflate_offsets
-.. autofunction:: inflate
-
-	.. image:: /screenshots/generation-inflate.png
-	
-.. autofunction:: thicken
-
-	.. image:: /screenshots/generation-thicken.png
-	
-.. autofunction:: expand
-
-	.. image:: /screenshots/generation-expand.png
-
-	
 Repeating
 ---------
 
