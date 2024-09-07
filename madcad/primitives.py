@@ -44,6 +44,11 @@ from . import settings
 from . import displays
 from . import mesh
 
+__all__ = [
+	'Axis', 'Vector', 'Point', 'isaxis',
+	'Segment', 'ArcThrough', 'ArcCentered', 'ArcTangent', 'TangentEllipsis', 'Circle', 'Ellipsis', 
+	'Interpolated', 'Softened',
+	] 
 
 
 def isprimitive(obj):
@@ -352,7 +357,7 @@ class Circle(object):
 		return mesh.Wire(typedlist(
 			self.center + self.radius * (x*cos(t) + y*sin(t))
 			for t in linrange(0, angle, div=div, end=False)
-			))
+			)).close()
 		
 	def __repr__(self):
 		return 'Circle({}, {})'.format(self.axis, self.radius)

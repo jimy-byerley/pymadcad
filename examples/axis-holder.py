@@ -47,7 +47,7 @@ cone = revolution(line)
 # merge the start and end sections of the revolution (because its a 360° revolution)
 cone.mergeclose()
 # chamfer the lower edge: this is a chamfer over a circular edge
-chamfer(cone, cone.frontiers((0,4)), ('depth', 3))
+chamfer(cone, cone.frontiers((0,4)), depth=3)
 
 
 
@@ -86,12 +86,12 @@ place = (	extrusion(line, vec3(0,0,h))
 # merge outlines of both generated faces
 place.mergeclose()
 # round the cutting edge to have smooth transition
-bevel(
+filet(
 	place, 	
 	(   place.frontiers(0,3) 	# this is the frontier line between group 0 and group 3
 	  + place.frontiers(1,3) 	# this is the frontier line between group 1 and group 3
 	  + place.frontiers(2,3) ), 
-	('depth', 2))
+	depth=2)
 
 # make the screw holes:
 # a cylinder (not necessarily closed on its ends as we don't care of that surfaces)

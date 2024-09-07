@@ -3,7 +3,7 @@
 
 	`edgecut`, `chamfer`, and `filet` are built using the same cutting algorithm. It cuts the mesh faces by propagation from the given edges. The cutting planes are determined by an offset vector from the original primitive (point or edge). 
 	
-	Most of the time you don't need to set the offset yourself. It can be automatically calculated by several methods, depending on the shape you want to get. Those methods are called `cutters` and are executed using `planeoffsets`_.
+	Most of the time you don't need to set the offset yourself. It can be automatically calculated by several methods, depending on the shape you want to get. Those methods are called `cutters` and are executed using `planeoffsets`.
 '''
 
 from .mathutils import *
@@ -29,12 +29,12 @@ __all__ = [	'chamfer', 'filet', 'edgecut',
 # ---- common cut methods ----
 
 @singledispatch
-def edgecut(mesh, indices, cutter):
+def edgecut(mesh, indices, **cutter):
 	''' Cut a Mesh/Web/Wire around the given edges/points, using the given cutter '''
 	raise TypeError('wrong argument type: {}'.format(type(mesh)))
 
 @singledispatch
-def chamfer(mesh, indices, cutter):
+def chamfer(mesh, indices, **cutter):
 	''' Cut the given edges or points on the mesh and replace them by a chamfer: a flat surface filling the hole
 	
 	Example
@@ -45,7 +45,7 @@ def chamfer(mesh, indices, cutter):
 	raise TypeError('wrong argument type: {}'.format(type(mesh)))
 	
 @singledispatch
-def filet(mesh, indices, cutter):
+def filet(mesh, indices, **cutter):
 	''' Cut the given edges or points on the mesh and replace them by a filet: a round surface tangenting and filling the hole
 	
 	Example

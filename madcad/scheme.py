@@ -17,7 +17,6 @@
 '''
 
 import moderngl as mgl
-import numpy.core as np
 import glm
 from operator import itemgetter
 from collections import deque

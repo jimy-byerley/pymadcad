@@ -108,8 +108,8 @@ transmiter['bearing']['annotations'] = [
 	note_distance_planes(*transmiter['bearing']['part'].group(2).islands()),
 	]
 transmiter['washer']['annotations'] = [
-	note_distance_planes(transmiter['washer']['part'].group(1), transmiter['washer']['part'].group(2)),
-	note_radius(transmiter['washer']['part'].group(0).islands()[1]),
+	note_distance_planes(transmiter['washer']['part'].group(1), transmiter['washer']['part'].group(0)),
+	note_radius(transmiter['washer']['part'].group(2).islands()[1]),
 	]
 # generate the maximum possible number of transmiters, so that the total force that can be hold is high
 transmiter_amount = ceil(axis_z / (1.5*transmiter_z/pi))

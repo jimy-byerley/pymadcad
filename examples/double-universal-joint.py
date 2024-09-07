@@ -1,4 +1,5 @@
 from madcad import *
+from madcad.joints import *
 from itertools import accumulate
 settings.primitives['curve_resolution'] = ('rad', 0.1)
 
@@ -106,10 +107,10 @@ def bolt(a, b, radius, washera=False, washerb=False):
 	rscrew = screw(radius*2, distance(a,b) + 3*radius)
 	rnut = nut(radius*2)
 	return Solid(
-			screw = rscrew.place((Pivot, rscrew['axis'], Axis(a-thickness*dir, -dir))), 
-			nut = rnut.place((Pivot, rnut['bottom'], Axis(b+thickness*dir, -dir))),
-			w1 = rwasher.place((Pivot, rwasher['top'], Axis(b-0.5*thickness*dir, -dir))),
-			w2 = rwasher.place((Pivot, rwasher['top'], Axis(a+0.5*thickness*dir, dir))),
+			screw = rscrew.place((Revolute, rscrew['axis'], Axis(a-thickness*dir, -dir))), 
+			nut = rnut.place((Revolute, rnut['top'], Axis(b+thickness*dir, -dir))),
+			w1 = rwasher.place((Revolute, rwasher['top'], Axis(b, -dir))),
+			w2 = rwasher.place((Revolute, rwasher['top'], Axis(a, dir))),
 			)
 
 # central part of the universal joint
@@ -126,7 +127,7 @@ def moyeu(brext, rext, thickness, brint=None, slot=False):
 		xint*X - 0.3*brext*X + 1.1*brext*Z
 		]) .segmented()
 	profile.qualify('axis', select=1)
-	chamfer(profile, [1], ('radius', 0.1*brext))
+	chamfer(profile, [1], radius=0.1*brext)
 	tip = revolution(profile, Axis(O,X))
 	tip.finish()
 

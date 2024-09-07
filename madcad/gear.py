@@ -1304,13 +1304,13 @@ def straight_bevel_gear(
 			G = vec3(1.5 * bore_radius, 0, rho1 * cos(gamma_r) + bore_height) # top of the bore
 			H = vec3(bore_radius, 0, rho1 * cos(gamma_r) + bore_height) # top of the bore
 			wire = Wire([D, C, F, H, G, E, A, B]).segmented()
-			chamfer(wire, [2, 3, 4], ("distance", bore_radius * 0.05))
-			filet(wire, [5], ("distance", bore_height * 0.1))
+			chamfer(wire, [2, 3, 4], distance=bore_radius * 0.05)
+			filet(wire, [5], distance=bore_height * 0.1)
 		else:
 			E = vec3(bore_radius, 0, rho1 * cos(gamma_r))
 			F = vec3(bore_radius, 0, rho0 * cos(gamma_r))
 			wire = Wire([D, C, F, E, A, B]).segmented()
-			chamfer(wire, [2, 3], ("distance", bore_radius * 0.05))
+			chamfer(wire, [2, 3], distance=bore_radius * 0.05)
 	else:
 		E = vec3(0, 0, rho1 * cos(gamma_r))
 		F = vec3(0, 0, rho0 * cos(gamma_r))
@@ -1466,13 +1466,13 @@ def helical_bevel_gear(
 			G = vec3(1.5 * bore_radius, 0, rho1 * cos(gamma_r) + bore_height) # top of the bore
 			H = vec3(bore_radius, 0, rho1 * cos(gamma_r) + bore_height) # top of the bore
 			wire = Wire([D, C, F, H, G, E, A, B]).segmented()
-			chamfer(wire, [2, 3, 4], ("distance", bore_radius * 0.05))
-			filet(wire, [5], ("distance", bore_height * 0.1))
+			chamfer(wire, [2, 3, 4], distance=bore_radius * 0.05)
+			filet(wire, [5], distance=bore_height * 0.1)
 		else:
 			E = vec3(bore_radius, 0, rho1 * cos(gamma_r))
 			F = vec3(bore_radius, 0, rho0 * cos(gamma_r))
 			wire = Wire([D, C, F, E, A, B]).segmented()
-			chamfer(wire, [2, 3], ("distance", bore_radius * 0.05))
+			chamfer(wire, [2, 3], distance=bore_radius * 0.05)
 	else:
 		E = vec3(0, 0, rho1 * cos(gamma_r))
 		F = vec3(0, 0, rho0 * cos(gamma_r))
