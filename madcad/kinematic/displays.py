@@ -9,7 +9,6 @@ from PyQt5.QtCore import Qt, QEvent
 
 from ..common import resourcedir
 from ..mathutils import *
-from ..primitives import Axis
 from ..mesh import Mesh, Web, Wire, striplist, distance2_pm, typedlist_to_numpy
 from .. import settings
 from .. import rendering
@@ -583,7 +582,7 @@ index_toolcenter = 10000
 	
 def kinematic_toolcenter(toolcenter):
 	''' create a scheme for drawing the toolcenter in kinematic manipulation '''
-	color = settings.display['annotation_color']
+	color = settings.colors['annotation']
 	angle = 2
 	radius = 60
 	size = 3
@@ -635,10 +634,10 @@ def kinematic_scheme(joints) -> '(Scheme, index)':
 	
 	return scheme, {v: k  for k, v in index.items()}
 
-kinematic_color_names = ['annotation_color', 'schematics_color']
+kinematic_color_names = ['annotation', 'schematic']
 def kinematic_color(i):
 	''' return the scheme color vector for solid `i` in a kinematic '''
-	return fvec4(settings.display[kinematic_color_names[i%2]], 1)
+	return fvec4(settings.colors[kinematic_color_names[i%2]], 1)
 
 
 

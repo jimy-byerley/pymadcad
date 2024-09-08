@@ -21,6 +21,7 @@ from .kinematic import Solid
 from .joints import Revolute
 from .mesh import Mesh, Web, Wire, web, wire
 from .generation import *
+from .offseting import *
 from .blending import *
 from .boolean import pierce, union, difference, intersection
 from .bevel import *
@@ -98,8 +99,6 @@ def stceil(x, precision=0.1):
 
 # --------- screw stuff -----------------------
 	
-bolt_color = vec3(0.2)
-	
 @cachefunc
 def screw(d, length, filet_length=None, head='SH', drive=None, detail=False):
 	''' Create a standard screw using the given drive and head shapes
@@ -154,7 +153,7 @@ def screw(d, length, filet_length=None, head='SH', drive=None, detail=False):
 					vec3(r*0.8, 0, -length),
 					vec3(0, 0, -length),
 					]) .segmented())
-	screw = (body + head).finish().option(color=bolt_color)
+	screw = (body + head).finish().option(color=settings.colors['bolt'])
 	return Solid(part=screw, axis=axis)
 
 def screwdrive_torx(d):
@@ -373,9 +372,9 @@ def hexnut(d, w, h):
 	
 	# intersect everything
 	nut = intersection(base, ext)
-	chamfer(nut, nut.frontiers(4,5) + nut.frontiers(0,5), ('width', d*0.1))
+	chamfer(nut, nut.frontiers(4,5) + nut.frontiers(0,5), width=d*0.1)
 
-	nut.finish().option(color=bolt_color)
+	nut.finish().option(color=settings.colors['bolt'])
 	return Solid(
 				part=nut, 
 				bottom=Axis(-0.5*h*Z, -Z, interval=(0,h)), 
@@ -448,7 +447,7 @@ def washer(d, e=None, h=None) -> Mesh:
 		if h is None:	h = d*0.1
 	
 	return Solid(
-				part=thicken(revolution(web([e/2*X, d/2*X])), h).option(color=bolt_color), 
+				part=thicken(revolution(web([e/2*X, d/2*X])), h).option(color=settings.colors['bolt']), 
 				top=Axis(h*Z, Z, interval=(0,h)), 
 				bottom=Axis(O, -Z, interval=(0,h)),
 				)
@@ -510,8 +509,8 @@ def section_s(height=1, width=None, flange=None, thickness=None) -> Web:
 	base = base + base.transform(scaledir(X,-1)).flip()
 	base = base + base.transform(scaledir(Y,-1)).flip()
 	section = web(base.close().segmented())
-	filet(section, section.frontiers(0,5,10,4,6,11), ('radius', thickness*0.4), resolution=('div',2))
-	filet(section, section.frontiers(1,0,4,3,6,7,10,9), ('radius', flange), resolution=('div',2))
+	filet(section, section.frontiers(0,5,10,4,6,11), radius=thickness*0.4, resolution=('div',2))
+	filet(section, section.frontiers(1,0,4,3,6,7,10,9), radius=flange, resolution=('div',2))
 	
 	#notes = [
 		#note_distance(base.points[0], base.points[0]*vec3(1,-1,1), offset=2*flange*X),
@@ -539,8 +538,8 @@ def section_w(height=1, width=None, flange=None, thickness=None) -> Web:
 	base = base + base.transform(scaledir(Y,-1)).flip()
 	base.close()
 	section = web(base)
-	filet(section, section.frontiers(0,5,10,4,6,11), ('radius', thickness*0.4), resolution=('div',2))
-	filet(section, section.frontiers(1,0,4,3,6,7,10,9), ('radius', flange*0.5), resolution=('div',2))
+	filet(section, section.frontiers(0,5,10,4,6,11), radius=thickness*0.4, resolution=('div',2))
+	filet(section, section.frontiers(1,0,4,3,6,7,10,9), radius=flange*0.5, resolution=('div',2))
 	return section.finish()
 	
 def section_l(a=1, b=None, thickness=None) -> Wire:
@@ -558,7 +557,7 @@ def section_l(a=1, b=None, thickness=None) -> Wire:
 		vec3(b, 0, 0),
 		]) .close() .segmented() .flip()
 
-	filet(section, [2,3,4], ('radius', thickness*0.8), resolution=('div',2))
+	filet(section, [2,3,4], radius=thickness*0.8, resolution=('div',2))
 	return section.finish()
 	
 def section_c(height=1, width=None, thickness=None) -> Web:
@@ -576,7 +575,7 @@ def section_c(height=1, width=None, thickness=None) -> Web:
 	base = base + base.transform(scaledir(Y,-1)).flip()
 	section = web(base.close().segmented())
 	
-	filet(section, section.frontiers(0,1,5,7,6), ('radius', 0.8*thickness), resolution=('div',2))
+	filet(section, section.frontiers(0,1,5,7,6), radius=0.8*thickness, resolution=('div',2))
 	return section.finish()
 
 def section_tslot(size=1, slot=None, thickness=None, depth=None) -> Web:
@@ -603,7 +602,7 @@ def section_tslot(size=1, slot=None, thickness=None, depth=None) -> Web:
 		center,
 		base.close().segmented(),
 		])
-	filet(section, section.frontiers(5,7, 41,43, 31,29, 17,19), ('radius', thickness/2), resolution=('div',2))
+	filet(section, section.frontiers(5,7, 41,43, 31,29, 17,19), radius=thickness/2, resolution=('div',2))
 	
 	#notes = [
 		#note_distance(base.points[2], base.points[5], offset=-c/2*Y),
@@ -909,10 +908,6 @@ def bearing_spec(code):
 	elif re.match(r'[\d\.]+x[\d\.]+x[\d\.]+', code):
 		return tuple(float(d) for d in re.split('x'))
 		
-bearing_color = vec3(0.5,0.4,0.35)
-bearing_cage_color = vec3(0.3,0.2,0)
-bearing_circulating_color = vec3(0,0.1,0.2)
-		
 		
 def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False) -> Solid:
 	# convenient variables
@@ -930,7 +925,7 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False) -> Solid:
 		vec3(rint,	0,	-w),
 		vec3(rint+e, 0,	-w), 
 		]) .segmented() .flip()
-	filet(interior, [1, 2], ('radius',c), resolution=('div',1))
+	filet(interior, [1, 2], radius=c, resolution=('div',1))
 
 	exterior = Wire([
 		vec3(rext-e,	0, -w),
@@ -938,7 +933,7 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False) -> Solid:
 		vec3(rext, 0, w),
 		vec3(rext-e,	0, w),
 		]) .segmented() .flip()
-	filet(exterior, [1,2], ('radius',c), resolution=('div',1))
+	filet(exterior, [1,2], radius=c, resolution=('div',1))
 
 	if detail and not sealing:
 		rb = (dint + dext)/4	# balls path radius
@@ -949,7 +944,7 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False) -> Solid:
 		exterior += wire(ArcCentered((rb*X,-Y), vec3(rext-e, 0, -hr), vec3(rext-e, 0, hr)))
 		interior.close()
 		exterior.close()
-		part = revolution(web([exterior, interior]), axis) .option(color=bearing_color)
+		part = revolution(web([exterior, interior]), axis) .option(color=settings.colors['bearing'])
 
 		nb = int(0.7 * pi*rb/rr)	# number of balls that can fit in
 		balls = repeat(icosphere(rb*X, rr), nb, angleAxis(radians(360)/nb, Z)) .option(color=vec3(0,0.1,0.2))
@@ -972,7 +967,7 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False) -> Solid:
 
 		cage = thicken(
 				surf + surf.transform(mat3(1,1,-1)) .flip(), 
-				c) .option(color=bearing_cage_color)
+				c) .option(color=settings.colors['bearing_cage'])
 				
 		# asemble
 		return Solid(part=part, cage=cage, balls=balls, axis=axis)
@@ -994,7 +989,7 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False) -> Solid:
 			)
 		return Solid(
 				part=revolution(web([exterior, interior]), axis)
-						.option(color=bearing_color), 
+						.option(color=settings.colors['bearing']), 
 				axis=axis)
 
 
@@ -1054,8 +1049,8 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 		vec3(rext, 0, -w+hext),
 		vec3(rext-e,	0, -w+hext),
 		]) .segmented()
-	filet(interior, [2,3], ('radius',c), resolution=('div',1))
-	filet(exterior, [2,3], ('radius',c), resolution=('div',1))
+	filet(interior, [2,3], radius=c, resolution=('div',1))
+	filet(exterior, [2,3], radius=c, resolution=('div',1))
 	
 	# create interior details
 	if detail:
@@ -1070,7 +1065,7 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 		part = revolution(web([
 					exterior, 
 					interior,
-					]).flip(), axis) .option(color=bearing_color)
+					]).flip(), axis) .option(color=settings.colors['bearing'])
 	
 		# create conic rollers
 		roller = revolution(Segment(mix(p1,p3,0.05), mix(p3,p1,0.05)), angled)
@@ -1082,7 +1077,7 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 		# number of rollers that can fit in
 		nb = int(pi*(rint+rext) / (2.5*distance_pa(p1,angled)))
 		rollers = repeat(roller, nb, rotatearound(2*pi/nb, axis)) 
-		rollers.option(color=bearing_circulating_color)
+		rollers.option(color=settings.colors['circulating'])
 
 		# roller cage
 		p6 = mix(p4,p3,0.6) - e*angled[1]
@@ -1091,10 +1086,10 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 			p6,
 			p6 + (distance(p1,p3)+1.8*e) * angled[1],
 			])
-		filet(cage_profile, [1], ('radius',c))
+		filet(cage_profile, [1], radius=c)
 		cage = revolution(cage_profile, axis)
 		cage = pierce(cage, inflate(rollers, 0.5*c), False)
-		cage = thicken(cage, c) .option(color=bearing_cage_color)
+		cage = thicken(cage, c) .option(color=settings.colors['bearing_cage'])
 		
 		# assemble
 		return Solid(part=part, cage=cage, rollers=rollers, axis=axis)
@@ -1106,7 +1101,7 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 				part=revolution(
 					(exterior + interior) .close() .flip(),
 					axis,
-					) .option(color=bearing_color), 
+					) .option(color=settings.colors['bearing']), 
 				axis=axis)
 		
 
@@ -1126,7 +1121,7 @@ def bearing_thrust(dint, dext, h, detail=False) -> Solid:
 		vec3(rint, 0, w),
 		vec3(rint, 0, w-e), 
 		]) .segmented() .flip()
-	filet(top, [1, 2], ('radius',c), resolution=('div',1))
+	filet(top, [1, 2], radius=c, resolution=('div',1))
 
 	bot = Wire([
 		vec3(rint, 0, -w+e),
@@ -1134,7 +1129,7 @@ def bearing_thrust(dint, dext, h, detail=False) -> Solid:
 		vec3(rext, 0, -w),
 		vec3(rext, 0, -w+e),
 		]) .segmented() .flip()
-	filet(bot, [1,2], ('radius',c), resolution=('div',1))
+	filet(bot, [1,2], radius=c, resolution=('div',1))
 
 	if detail:
 		rb = (dint + dext)/4	# balls guide radius
@@ -1146,12 +1141,12 @@ def bearing_thrust(dint, dext, h, detail=False) -> Solid:
 		bot += wire(ArcCentered((rb*X,-Y), vec3(rb-hr, 0, -w+e), vec3(rb+hr, 0, -w+e)))
 		top.close()
 		bot.close()
-		part = revolution(web([top, bot]), axis) .option(color=bearing_color)
+		part = revolution(web([top, bot]), axis) .option(color=settings.colors['bearing'])
 		
 		# number of balls to place
 		nb = int(0.8 * pi*rb/rr)
 		balls = repeat(icosphere(rb*X, rr), nb, angleAxis(radians(360)/nb, Z))
-		balls.option(color=bearing_circulating_color)
+		balls.option(color=settings.colors['circulating'])
 		
 		# cage
 		cage_profile = Wire([ 
@@ -1160,11 +1155,11 @@ def bearing_thrust(dint, dext, h, detail=False) -> Solid:
 			vec3(rint+c, 0, w-e-0.1*h),
 			vec3(rint+c, 0, -w+e+0.1*h),
 			])
-		filet(cage_profile, [1,2], ('radius',c), resolution=('div',1))
+		filet(cage_profile, [1,2], radius=c, resolution=('div',1))
 		
 		cage_surf = revolution(cage_profile, axis)
 		cage_surf = pierce(cage_surf, inflate(balls, 0.2*c), False)
-		cage = thicken(cage_surf, c) .option(color=bearing_cage_color)
+		cage = thicken(cage_surf, c) .option(color=settings.colors['bearing_cage'])
 		
 		# assemble
 		return Solid(part=part, cage=cage, balls=balls, axis=axis)
@@ -1186,7 +1181,7 @@ def bearing_thrust(dint, dext, h, detail=False) -> Solid:
 			)
 
 		return Solid(
-				part=revolution(web([top, bot]), axis) .option(color=bearing_color), 
+				part=revolution(web([top, bot]), axis) .option(color=settings.colors['bearing']), 
 				axis=axis)
 
 	
@@ -1225,12 +1220,12 @@ def slidebearing(dint, h=None, thickness=None, shoulder=None, opened=False) -> S
 	if shoulder:
 		profile += Wire([ vec3(rint+shoulder, 0, 0) ])
 		profile = profile.segmented()
-		filet(profile, [1], ('radius', 1.5*thickness), resolution=('div',2))
+		filet(profile, [1], radius=1.5*thickness, resolution=('div',2))
 
 	axis = Axis(O,Z, interval=(-h,0))
 	shape = revolution(profile, axis, 1.98*pi if opened else 2*pi)
 	
-	part = thicken(shape, thickness) .option(color=bearing_color)
+	part = thicken(shape, thickness) .option(color=settings.colors['bearing'])
 	line = (  select(part, vec3(-rint,0,-h), stopangle(pi/2))
 			+ select(part, vec3(dint,dint,-h), stopangle(pi/2))
 			)
@@ -1239,7 +1234,7 @@ def slidebearing(dint, h=None, thickness=None, shoulder=None, opened=False) -> S
 				 + select(part, vec3(dint,dint,0), stopangle(pi/2))
 				)
 	
-	chamfer(part, line, ('width',0.5*thickness))
+	chamfer(part, line, width=0.5*thickness)
 	return Solid(part=part, axis=axis)
 
 	

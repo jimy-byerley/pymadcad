@@ -42,8 +42,8 @@ def spurgear(step, teeth, height, **kwargs):
 
 color_gear = vec3(0.2, 0.3, 0.4)
 
-#settings.primitives['curve_resolution'] = ('sqradm', 0.4)
-settings.primitives['curve_resolution'] = ('sqradm', 0.8)
+#settings.resolution = ('sqradm', 0.4)
+settings.resolution = ('sqradm', 0.8)
 
 ## determine teeth number targeting the desired ratio
 #target = 1/160
@@ -321,9 +321,9 @@ shell = wire([
 	in_ext.center + (in_ext.radius + 1.5*dscrew_in)*X,
 	in_center + (in_ext.radius + 1.5*dscrew_in)*X,
 	]).segmented().flip()
-filet(shell, [12, 11], ('width', 0.5*height))
-filet(shell, [10], ('width', 0.5*dscrew_out))
-filet(shell, [1], ('width', 0.5*height))
+filet(shell, [12, 11], width=0.5*height)
+filet(shell, [10], width=0.5*dscrew_out)
+filet(shell, [1], width=0.5*height)
 shell = intersection(revolution(shell), crown_in_teeth)
 
 # put screws to hold everything

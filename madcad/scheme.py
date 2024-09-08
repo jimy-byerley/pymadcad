@@ -17,7 +17,6 @@
 '''
 
 import moderngl as mgl
-import numpy.core as np
 import glm
 from operator import itemgetter
 from collections import deque
@@ -87,7 +86,7 @@ class Scheme:
 		self.primitives = primitives or {} # list of indices for each shader
 		self.components = []	# displayables associated to spaces
 		# for creation: last vertex inserted
-		self.current = {'color':fvec4(settings.display['annotation_color'],1), 'flags':0, 'layer':0, 'space':world, 'shader':'line', 'track':0, 'normal':fvec3(0)}
+		self.current = {'color':fvec4(settings.colors['annotation'],1), 'flags':0, 'layer':0, 'space':world, 'shader':'line', 'track':0, 'normal':fvec3(0)}
 		self.continuous = False
 		self.set(**kwargs)
 		
@@ -559,7 +558,7 @@ def mesh_placement(mesh) -> '(pos,normal)':
 
 def note_floating(position, text, align=(0,0)):
 	''' place a floating note at given position '''
-	return Displayable(TextDisplay, position, text, align=align, color=settings.display['annotation_color'], size=settings.display['view_font_size'])
+	return Displayable(TextDisplay, position, text, align=align, color=settings.colors['annotation'], size=settings.display['view_font_size'])
 
 
 def note_leading(placement, offset=None, text='here'):
@@ -575,7 +574,7 @@ def note_leading(placement, offset=None, text='here'):
 	elif not isinstance(offset, vec3):
 		raise TypeError('offset must be scalar or vector')
 	
-	color = settings.display['annotation_color']
+	color = settings.colors['annotation']
 	sch = Scheme(color=fvec4(color,0.7))
 	sch.add([origin, origin+offset], shader='line', space=world)
 	x,y,z = dirbase(normalize(vec3(offset)))
@@ -608,7 +607,7 @@ def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None, sid
 		elif tol:               text = '{d:.4g}  ± {tol}'
 		else:                   text = '{d:.4g}'
 	text = text.format(d=d, tol=tol)
-	color = settings.display['annotation_color']
+	color = settings.colors['annotation']
 	# convert input vectors
 	x = dirbase(project, b-a)[0]
 	z = project if side else -project
@@ -700,7 +699,7 @@ def note_angle(a0, a1, offset=0, d=None, tol=None, text=None, unit='deg', side=F
 		elif tol:               text = '{d:.4g}{unit}  ± {tol}'
 		else:                   text = '{d:.4g}{unit}'
 	text = text.format(d=d, tol=tol, unit=unit)
-	color = settings.display['annotation_color']
+	color = settings.colors['annotation']
 	# arc center
 	if o1 == o0:	center = o0
 	else:			center = o0 + unproject(project(o1-o0, x1), d0)
@@ -767,7 +766,7 @@ def note_radius(mesh, offset=None, d=None, tol=None, text=None, propagate=2):
 	
 	arrowplace = place + noproject(offset, normal)
 	note = note_leading((arrowplace,normal), offset=project(offset, normal), text=text or 'R {:.4g}'.format(radius))
-	color = settings.display['annotation_color']
+	color = settings.colors['annotation']
 	note.set(shader='line', layer=1e-4, color=fvec4(color,0.3), space=world)
 	note.add([place, arrowplace])
 	return note
@@ -1040,7 +1039,7 @@ def note_label(placement, offset=None, text='!', style='rect'):
 	elif not isinstance(offset, vec3):
 		raise TypeError('offset must be scalar or vector')
 	
-	color = settings.display['annotation_color']
+	color = settings.colors['annotation']
 	x,_,z = dirbase(normalize(offset))
 	sch = Scheme()
 	sch.set(color=fvec4(color,0.7))
@@ -1082,7 +1081,7 @@ def note_iso(p, offset, type, text, refs=(), label=None):
 	#scheme = None
 	
 	#def __init__(self, scene, matrix, color=None):
-		#if not color:	color = settings.display['annotation_color']
+		#if not color:	color = settings.colors['annotation']
 		
 		#if not self.scheme:
 			#type(self).scheme = sch = Scheme(layer=1e-4)
@@ -1116,7 +1115,7 @@ def note_iso(p, offset, type, text, refs=(), label=None):
 		#yield from self.disp.stack(scene)
 		
 def note_base(matrix, color=None, labels=('X', 'Y', 'Z'), name=None, size=0.4):
-	if not color:	color = settings.display['annotation_color']
+	if not color:	color = settings.colors['annotation']
 	if not name:	name = ''
 	if not labels:	labels = [None]*3
 	
@@ -1156,7 +1155,7 @@ def note_base(matrix, color=None, labels=('X', 'Y', 'Z'), name=None, size=0.4):
 	return sch
 	
 def note_rotation(quaternion, color=None, size=0.4):
-	if not color:	color = settings.display['annotation_color']
+	if not color:	color = settings.colors['annotation']
 	
 	direction = vec3(glm.axis(quaternion))
 	angle = glm.angle(quaternion)

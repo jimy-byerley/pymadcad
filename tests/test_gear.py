@@ -1,9 +1,8 @@
 from madcad.gear import *
-from madcad.mesh import edgekey, facekeyo
 from madcad.kinematic import Solid
 
 import madcad
-madcad.settings.primitives['curve_resolution'] = ('rad', 0.1)
+madcad.settings.resolution = ('rad', 0.1)
 
 # Colors
 class bcolors:

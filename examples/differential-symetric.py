@@ -31,9 +31,9 @@ def bolt(a, b, dscrew, washera=False, washerb=False):
 			)
 
 # the discretisation paremeter can be set high for exportation, or small for quick computations
-#settings.primitives['curve_resolution'] = ('rad', 0.105)
-#settings.primitives['curve_resolution'] = ('rad', 0.19456)
-settings.primitives['curve_resolution'] = ('sqradm', 0.5)
+#settings.resolution = ('rad', 0.105)
+#settings.resolution = ('rad', 0.19456)
+settings.resolution = ('sqradm', 0.5)
 
 # parameters of the mechanism to design
 transmiter_angle = pi/6
@@ -108,8 +108,8 @@ transmiter['bearing']['annotations'] = [
 	note_distance_planes(*transmiter['bearing']['part'].group(2).islands()),
 	]
 transmiter['washer']['annotations'] = [
-	note_distance_planes(transmiter['washer']['part'].group(1), transmiter['washer']['part'].group(2)),
-	note_radius(transmiter['washer']['part'].group(0).islands()[1]),
+	note_distance_planes(transmiter['washer']['part'].group(1), transmiter['washer']['part'].group(0)),
+	note_radius(transmiter['washer']['part'].group(2).islands()[1]),
 	]
 # generate the maximum possible number of transmiters, so that the total force that can be hold is high
 transmiter_amount = ceil(axis_z / (1.5*transmiter_z/pi))

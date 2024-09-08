@@ -9,6 +9,9 @@ Based on extrusion/transformation of a Web
 ------------------------------------------
 
 .. autofunction:: extrans
+
+	.. image:: /screenshots/generation-extrans.png
+	
 .. autofunction:: extrusion
 
 	.. image:: /screenshots/generation-extrusion.png
@@ -76,24 +79,6 @@ Generation of common meshes
 .. autofunction:: uvsphere
 
 	.. image:: /screenshots/generation-uvsphere.png
-	
-
-Offsetting
-----------
-
-.. autofunction:: inflate_offsets
-.. autofunction:: inflate
-
-	.. image:: /screenshots/generation-inflate.png
-	
-.. autofunction:: thicken
-
-	.. image:: /screenshots/generation-thicken.png
-	
-.. autofunction:: expand
-
-	.. image:: /screenshots/generation-expand.png
-
 	
 Repeating
 ---------

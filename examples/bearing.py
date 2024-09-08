@@ -22,7 +22,7 @@ interior = Wire([
 	vec3(rint,	0,	-w),
 	vec3(rint+e, 0,	-w), 
 	]) .segmented() .flip()
-bevel(interior, [1, 2], ('radius',c), resolution=('div',1))
+filet(interior, [1, 2], radius=c, resolution=('div',1))
 
 exterior = Wire([
 	vec3(rext-e,	0, -w),
@@ -30,7 +30,7 @@ exterior = Wire([
 	vec3(rext, 0, w),
 	vec3(rext-e,	0, w),
 	]) .segmented() .flip()
-bevel(exterior, [1,2], ('radius',c), resolution=('div',1))
+filet(exterior, [1,2], radius=c, resolution=('div',1))
 
 
 # detailed interior

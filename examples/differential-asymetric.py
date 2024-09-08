@@ -1,5 +1,6 @@
 from madcad import *
 from madcad.gear import *
+from madcad.joints import *
 
 # bevelgear with annotations
 def sbevelgear(step, z, pitch_cone_angle, **kwargs):
@@ -29,16 +30,15 @@ def bolt(a, b, dscrew, washera=False, washerb=False):
 				note_radius(rscrew['part'].group(0)),
 				]
 	return Solid(
-			screw = rscrew.place((Pivot, rscrew['axis'], Axis(a-thickness*dir, -dir))), 
-			nut = rnut.place((Pivot, rnut['top'], Axis(b+thickness*dir, -dir))),
-			w1 = rwasher.place((Pivot, rwasher['top'], Axis(b, -dir))),
-			w2 = rwasher.place((Pivot, rwasher['top'], Axis(a, dir))),
+			screw = rscrew.place((Revolute, rscrew['axis'], Axis(a-thickness*dir*int(washera), -dir))), 
+			nut = rnut.place((Revolute, rnut['top'], Axis(b+thickness*dir*int(washerb), -dir))),
+			w1 = rwasher.place((Revolute, rwasher['top'], Axis(b, -dir))),
+			w2 = rwasher.place((Revolute, rwasher['top'], Axis(a, dir))),
 			)
 
 		
 
-#settings.primitives['curve_resolution'] = ('rad', 0.105)
-settings.primitives['curve_resolution'] = ('rad', 0.19456)
+settings.resolution = ('sqradm', 0.5)
 
 transmiter_angle = pi/6
 transmiter_z = 8
@@ -123,7 +123,11 @@ interior_transmisions = repeat(interior_transmision, transmiter_amount, rotate(2
 
 interior_space = union(
 				icosphere(O, space_radius),
-				cylinder(out_gear['axis'].origin, out_gear['axis'].origin*vec3(1,1,-1), bearing_radius*1.05, fill=False),
+				cylinder(
+					out_gear['axis'].origin, 
+					out_gear['axis'].origin*vec3(1,1,-1), 
+					bearing_radius*1.05, 
+					fill=False),
 				).flip()
 
 interior_shell = union(interior_space, interior_out)
@@ -157,7 +161,7 @@ slots = mesh.mesh([slot.transform(b.pose)  for b in bolts])
 head = intersection(screw_support, slots)
 
 l = length(transmiter['gear']['axis'].origin) + 2*transmiter_rint
-transmiter_back = revolution(2*pi, Axis(O,Z), Wire([
+transmiter_back = revolution(Wire([
 	l*Z,
 	l*Z + transmiter_rint*1.5*X,
 	rotate(pi/6, Y) * space_radius*Z,

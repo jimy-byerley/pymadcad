@@ -50,21 +50,19 @@ base = revolution(profile)
 base.mergeclose()  # merge revolution ends
 
 # make an haxagon to cut the nut sides
-hexagon = web(Circle(
-				(-h*Z,Z), 
-				w/cos(radians(30)),
-				resolution=('div',6),
-			))
+hexagon = regon(
+			Axis(-h*Z,Z), 
+			w/cos(radians(30)),
+			6,
+			)
 # trick to separate edges in different groups
-hexagon.tracks = list(range(len(hexagon.edges)))
-hexagon.groups = [None] * len(hexagon.edges)
 ext = extrusion(hexagon, 2*h*Z)
 
 # cut the revolution by the hexagon
 nut = intersection(base, ext)
 # put chamfers and roundings at top and bottom
-bevel(nut, nut.frontiers(5,4), ('width',0.7))
-chamfer(nut, nut.frontiers(0,5), ('width',0.6))
+filet(nut, nut.frontiers(5,4), width=0.7)
+chamfer(nut, nut.frontiers(0,5), width=0.6)
 
 # place some dimensinal notes (also to check that our model is good)
 notes = [
@@ -74,4 +72,4 @@ notes = [
 	]
 
 # display what we want
-#show([nut, notes])
+show([nut, notes])

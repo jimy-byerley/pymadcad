@@ -1,5 +1,5 @@
 from madcad import *
-settings.primitives['curve_resolution'] = ('rad', 0.2)
+settings.resolution = ('rad', 0.2)
 
 nballs = 6
 rball = 6/2
@@ -46,7 +46,7 @@ interior = interior.finish()
 cage = revolution(wire([rsphere*vec3(cos(t), 0, sin(t))  for t in linrange(-0.75*amax, 0.75*amax, div=10)]))
 
 window = parallelogram(2.3*rball*Y, 2*rball*Z, align=vec3(0.5), fill=False) .transform(rsphere*X)
-bevel(window, [0, 1, 2, 3], ('width', rball))
+filet(window, [0, 1, 2, 3], width=rball)
 cage = thicken(
 	pierce(cage, 
 		repeat(extrusion(window, rball*X, alignment=0.5), nballs, rotate(2*pi/nballs, Z))), 

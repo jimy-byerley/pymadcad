@@ -12,8 +12,8 @@ from madcad import (
 	ArcThrough,
 	wire,
 	)
-from madcad.cut import (
-	bevel,
+from madcad.bevel import (
+	filet,
 	chamfer,
 	)
 
@@ -36,7 +36,7 @@ def arc_wire() -> Wire:
 
 def test_cut_curve(plot=False):
 	w = arc_wire()
-	bevel(w, [4], ("width", 0.15))
+	filet(w, [4], width=0.15)
 	w.check()
 	if plot:
 		show([w])
@@ -89,7 +89,7 @@ def bevel_square(b, r) -> Wire:
 	"""
 	res = ("div", 100)
 	wire = square_wire(b)
-	bevel(wire, [0, 1, 2, 3], ("distance", r), resolution=res)
+	bevel(wire, [0, 1, 2, 3], distance=r, resolution=res)
 	return wire
 
 

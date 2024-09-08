@@ -32,7 +32,7 @@ class PointDisplay(Display):
 		self.position = fvec3(position)
 		self.size = size
 		self.selected = False
-		self.color = fvec3(color or settings.display['line_color'])
+		self.color = fvec3(color or settings.colors['line'])
 		
 		def load(scene):
 			img = Image.open(resourcedir+'/textures/point.png')
@@ -98,7 +98,7 @@ class AxisDisplay(Display):
 		self.origin = fvec3(axis[0])
 		self.direction = fvec3(axis[1])
 		self.interval = interval
-		self.color = fvec3(color or settings.display['line_color'])
+		self.color = fvec3(color or settings.colors['line'])
 		self.selected = False
 		self.box = Box(center=self.origin, width=fvec3(0))
 		
@@ -162,7 +162,7 @@ def npboundingbox(points):
 
 class AnnotationDisplay(Display):
 	def __init__(self, scene, points, color):
-		self.color = fvec3(color or settings.display['annotation_color'])
+		self.color = fvec3(color or settings.color['annotation'])
 		self.selected = False
 		self.box = npboundingbox(points)
 		# load shader
@@ -248,12 +248,11 @@ class SolidDisplay(Display):
 		self.box = npboundingbox(positions)
 		self.options = scene.options
 		
-		s = settings.display
-		color = fvec3(color or s['solid_color'])
-		line = (	(length(s['line_color']) + dot(color-s['solid_color'], s['line_color']-s['solid_color']))
+		color = fvec3(color or settings.colors['surface'])
+		line = (	(length(settings.colors['line']) + dot(color-settings.colors['surface'], settings.colors['line']-settings.colors['surface']))
 					* normalize(color + 1e-6)  )
 		#if length(s['line_color']) > length(color)
-		reflect = normalize(color + 1e-6) * s['solid_reflectivity']
+		reflect = normalize(color + 1e-6) * settings.display['solid_reflectivity']
 		
 		self.vertices = Vertices(scene.ctx, positions, idents)
 		self.disp_faces = FacesDisplay(scene, self.vertices, normals, faces, color=color, reflect=reflect, layer=0)
@@ -300,7 +299,7 @@ class WebDisplay(Display):
 	def __init__(self, scene, positions, lines, points, idents, color=None):
 		self.box = npboundingbox(positions)
 		self.options = scene.options
-		color = color or settings.display['line_color']
+		color = color or settings.colors['line']
 		self.vertices = Vertices(scene.ctx, positions, idents)
 		self.disp_edges = LinesDisplay(scene, self.vertices, lines, color=color, alpha=1, layer=-2e-6)
 		self.disp_groups = PointsDisplay(scene, self.vertices, points, layer=-3e-6)
@@ -556,7 +555,7 @@ class LinesDisplay:
 		
 class PointsDisplay:
 	def __init__(self, scene, vertices, indices=None, color=None, ptsize=3, layer=0):
-		self.color = fvec4(color or settings.display['point_color'], 1)
+		self.color = fvec4(color or settings.colors['point'], 1)
 		self.select_color = fvec4(settings.display['select_color_line'], 1)
 		self.ptsize = ptsize
 		self.layer = layer
@@ -643,7 +642,7 @@ class GridDisplay(Display):
 		self.shader, self.va = scene.resource('viewgrid', load)
 		self.unit = unit
 		self.center = fvec3(center or 0)
-		self.color = fvec4(color) if color else fvec4(settings.display['point_color'],1)
+		self.color = fvec4(color) if color else fvec4(settings.colors['point'],1)
 		self.contrast = contrast
 	
 	def render(self, view):
@@ -670,8 +669,8 @@ class GridDisplay(Display):
 class SplineDisplay(Display):
 	''' display for spline curve, with handles around'''
 	def __init__(self, scene, handles, curve, color=None):
-		self.color = color or fvec4(settings.display['line_color'], 1)
-		self.color_handles = fvec4(settings.display['annotation_color'], 0.6)
+		self.color = color or fvec4(settings.colors['line'], 1)
+		self.color_handles = fvec4(settings.color['annotation'], 0.6)
 		self.box = npboundingbox(handles)
 		ctx = scene.ctx
 		self.vb_handles = ctx.buffer(handles)

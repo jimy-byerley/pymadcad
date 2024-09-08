@@ -1,5 +1,5 @@
 from madcad import *
-from madcad.generation import *
+from madcad.offseting import thicken, inflate
 
 results = []
 

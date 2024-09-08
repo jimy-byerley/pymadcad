@@ -353,6 +353,11 @@ def imax(iterable, default=None):
 	if best is None:	raise IndexError('iterable is empty')
 	return best
 
+def linstep(start, stop, x):
+	''' like smoothstep but with a linear ramp between `start` and `stop` '''
+	if x <= start:	return 0
+	if x >= stop:	return 1
+	return (x-start)/(stop-start)
 
 def linrange(start, stop=None, step=None, div=0, end=True):
 	''' Yield successive intermediate values between start and stop 
@@ -388,6 +393,67 @@ def linrange(start, stop=None, step=None, div=0, end=True):
 	while (stop-t)*step >= 0:
 		yield t
 		t += step
+
+
+# aliases, for those who like them
+Vector = Point = vec3
+
+
+class Axis(object):
+	''' A 3D (zeroed) axis with an origin and a direction
+	
+		Mathematically speaking, a 3D axis doesn't necessarily have an origin, since any point on it can be its start, but for implementation and convenience reasons this axis has
+		
+		.. note::
+		
+			in previous madcad versions, axis were often tuples and not instances of this class. This is why this class has a `__getitem__` allowing to be used like a tuple. But this class should be used instead now.
+	'''
+	__slots__ = ('origin', 'direction', 'interval')
+	def __init__(self, origin, direction=None, interval=None):
+		if direction is None:
+			origin, direction = vec3(0), origin
+		self.origin, self.direction = origin, direction
+		self.interval = interval
+	
+	def __getitem__(self, i):
+		''' behave like the axis was a tuple (origin, direction) '''
+		if i==0:	return self.origin
+		elif i==1:	return self.direction
+		else:		raise IndexError('an axis has only 2 components')
+		
+	def flip(self) -> 'Axis':
+		''' switch the axis direction '''
+		return Axis(self.origin, -self.direction, self.interval)
+	
+	def offset(self, increment) -> 'Axis':
+		''' move the axis origin along its direction '''
+		return Axis(self.origin + self.direction*increment, self.direction, self.interval)
+		
+	def transform(self, transform) -> 'Axis':
+		''' move the axis by the given transformation '''
+		if isinstance(transform, (float,int)):		return Axis(transform*self.origin, self.direction, self.interval)
+		elif isinstance(transform, vec3):			return Axis(transform+self.origin, self.direction, self.interval)
+		elif isinstance(transform, (mat3, quat)):	return Axis(transform*self.origin, normalize(transform*self.direction), self.interval)
+		elif isinstance(transform, (mat4)):			return Axis(transform*self.origin, normalize(mat3(transform)*self.direction), self.interval)
+		raise TypeError('transform must be one of float, vec3, mat3, quat, mat4')
+	
+	slvvars = ('origin', 'direction')
+	def slv_tangent(self, pt):
+		return self.direction
+		
+	def __repr__(self):
+		return 'Axis({}, {})'.format(self.origin, self.direction)
+	
+	def display(self, scene):
+		from .displays import AxisDisplay
+		return AxisDisplay(scene, (self.origin, self.direction), self.interval)
+			
+def isaxis(obj):
+	''' Return True if the given object is considered to be an axis.
+		An axis can be an instance of `Axis` or a tuple `(vec3, vec3)`
+	'''
+	return isinstance(obj, Axis) or isinstance(obj, tuple) and len(obj)==2 and isinstance(obj[0],vec3) and isinstance(obj[1],vec3)
+
 
 class Box:
 	''' This class describes a box always orthogonal to the base axis, used as convex for area delimitations 

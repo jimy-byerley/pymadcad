@@ -23,6 +23,7 @@ References
     constraints.rst
 
     generation.rst
+    offseting.rst
     blending.rst
     bevel.rst
     boolean.rst

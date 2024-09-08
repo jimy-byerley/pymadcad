@@ -1,5 +1,5 @@
 from madcad import *
-from madcad.generation import expand
+from madcad.offseting import expand
 
 results = []
 

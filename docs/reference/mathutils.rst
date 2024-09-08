@@ -176,13 +176,9 @@ Transformations
 
 .. autofunction:: angleAxis
 
-.. autofunction:: lerp
 
-.. autofunction:: slerp
-
-
-Scalar functions
-~~~~~~~~~~~~~~~~
+Interpolation functions
+~~~~~~~~~~~~~~~~~~~~~~~
 
 .. autofunction:: mix
 
@@ -198,6 +194,11 @@ Scalar functions
 
 	.. image:: /schemes/mathutils-step.svg
            :width: 360
+
+.. autofunction:: linstep
+
+	.. image:: /schemes/mathutils-step.svg
+           :width: 360
 	
 .. autofunction:: smoothstep
 
@@ -208,6 +209,12 @@ Scalar functions
 
 	.. image:: /schemes/mathutils-clamp.svg
            :width: 360
+
+.. autofunction:: lerp
+
+.. autofunction:: slerp
+
+.. autofunction:: linrange
 
 .. autofunction:: intri_smooth
 .. autofunction:: intri_sphere
@@ -236,7 +243,24 @@ Constants
 Localy defined data types
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. autofunction:: linrange
+.. py:class:: Vector
+
+	Alias to ``vec3``
+	
+.. py:class:: Point
+
+	Alias to ``vec3``
+	
+.. autoclass:: Axis
+
+	.. automethod:: __getitem__
+	.. automethod:: flip
+	.. automethod:: offset
+	.. automethod:: transform
+	
+	.. image:: /screenshots/primitives-axis.png
+	
+.. autofunction:: isaxis
 
 .. autoclass:: Box
 
@@ -265,3 +289,5 @@ Localy defined data types
 	Of course, as any vector variables, ``Screw`` implements ``+ -`` with other ``Torsor``, and ``* /`` with ``float``
 
 .. autofunction:: comomentum
+
+
