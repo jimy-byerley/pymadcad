@@ -12,9 +12,9 @@ from glm import fvec3, fvec4, normalize
 import sys, os, yaml
 from os.path import dirname, exists
 
-
+# settings for all Display objects and for the scene rendering
 display = {
-	'field_of_view': pi/6,
+	'field_of_view': pi/6,  # camera field of view for scene views
 	'view_font_size': 8,  # font size for annotations
 	'joint_size': 50, # maximum pixel size of joints
 	'sharp_angle': pi/6, # above this threshold angles between mesh triangles are considered sharp, below they are rendered softened
@@ -24,20 +24,47 @@ display = {
 	'select_color_line': fvec3(0.5, 1, 0.6), # color for selected lines
 	'highlight_color': fvec3(0.1, 0.2, 0.2),
 	
-	'solid_color': fvec3(0.2, 0.2, 0.2),  # surface color of meshes
 	'solid_color_front': 1., # surface intensity for portions of surface parallel to the view direction
 	'solid_color_side': 0.2, # surface intensity for portions of surface orthogonal to the view direction
 	'solid_reflectivity': 4, # intensity of surface reflections
 	'solid_reflect': 'skybox-white.png', # skybox texture for reflects
-	'line_color': fvec3(0.9, 0.9, 0.9),  # wire color
-	'point_color': fvec3(0.9, 0.9, 0.9),  # points color
-	'schematics_color': fvec3(0.3, 0.8, 1),
 	'line_width': 1.0, # pixel width of edges, may work or not depending on openGL implementation
-	'annotation_color': fvec3(0.2, 0.7, 1),
 	
 	'system_theme': True, # adapt madcad colors to the current desktop theme
 	}
 
+# theme colors for objects in the scene
+colors = {
+	# display elements
+	
+	# mesh surface
+	'surface': fvec3(0.2, 0.2, 0.2),
+	# mesh and primitives lines
+	'line': fvec3(0.9, 0.9, 0.9),
+	# mesh and primitives points
+	'point': fvec3(0.9, 0.9, 0.9),
+	# annotations like dimensions and constraints
+	'annotation': fvec3(0.2, 0.7, 1),
+	# schematics like kinematic schemes
+	'schematic': fvec3(0.3, 0.8, 1),
+	
+	# color for standard parts
+	
+	# screws and nults
+	'bolt': fvec3(0.2),
+	# gears and transmission parts
+	'gear': fvec3(0.2, 0.3, 0.4),
+	# bearing and guiding parts
+	'bearing': fvec3(0.5,0.4,0.35),
+	'bearing_cage': fvec3(0.3,0.2,0),
+	# deformable parts like springs
+	'spring': fvec3(0.2),
+	# circulating elements like balls in bearings
+	'circulating': fvec3(0,0.1,0.2),
+	}
+
+# initial settings for a scene, each scene will duplicate this and will be able to modify them at runtime
+# this dictionnary represent the initial settings of the user
 scene = {
 	'projection': 'Perspective',
 	
@@ -62,9 +89,8 @@ controls = {
 	'snap_dist': 10,	# pixel distance to click items
 	}
 
-primitives = {
-	'curve_resolution': ['rad', pi/16],	# angle maximal pour discretisation des courbes
-	}
+resolution = ['rad', pi/16]  # maximum angle for discretizing curves, see `curve_resolution()`
+
 
 # get configuration directory depending on OS
 if sys.platform == 'win32':
@@ -75,7 +101,7 @@ else:
 	configdir = home+'/.config'
 
 config = configdir+'/madcad/pymadcad.yaml'
-settings = {'display':display, 'scene':scene, 'controls':controls, 'primitives':primitives}
+settings = {'display':display, 'scene':scene, 'controls':controls, 'resolution':resolution}
 
 
 def install():
@@ -121,7 +147,7 @@ def curve_resolution(length, angle, param=None):
 		:length:  is the curvilign length of the curve
 		:angle:   is the integral of the absolute curvature (total rotation angle)
 	'''
-	kind, prec = param or primitives['curve_resolution']
+	kind, prec = param or resolution
 	if kind == 'div':
 		res = prec
 	elif kind == 'm':
@@ -162,11 +188,13 @@ def use_qt_colors():
 		'background_color': qtc(palette.Base),
 		'select_color_face': selection * 0.05,
 		'select_color_line': selection * 1.1,
-		'line_color': qtc(palette.Text),
-		'point_color': qtc(palette.Text),
-		'solid_color': mix(qtc(palette.Text), qtc(palette.Window), 0.7),
-		'schematics_color': mix(qtc(palette.Text)*normalize(qtc(palette.LinkVisited)+0.01), qtc(palette.LinkVisited), 0.5),
-		'annotation_color': mix(qtc(palette.Text)*normalize(qtc(palette.Link)+0.01), qtc(palette.Link), 0.5),
+		})
+	colors.update({
+		'line': qtc(palette.Text),
+		'point': qtc(palette.Text),
+		'surface': mix(qtc(palette.Text), qtc(palette.Window), 0.7),
+		'schematic': mix(qtc(palette.Text)*normalize(qtc(palette.LinkVisited)+0.01), qtc(palette.LinkVisited), 0.5),
+		'annotation': mix(qtc(palette.Text)*normalize(qtc(palette.Link)+0.01), qtc(palette.Link), 0.5),
 		})
 
 

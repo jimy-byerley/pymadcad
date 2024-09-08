@@ -36,7 +36,7 @@ Specification priority order:
 	
 	1. Optional argument ``resolution`` passed to ``primitive.mesh()`` or to ``web()`` or ``wire()``
 	2. Optional attribute ``resolution`` of the primitive object
-	3. Value of ``settings.primitives['curve_resolution']`` at bake time.
+	3. Value of ``settings.resolution`` at bake time.
 
 Specification format:
 
@@ -75,6 +75,18 @@ Primitives types
 	.. autoproperty:: direction
 	
 	.. image:: /screenshots/primitives-segment.png
+	
+.. autoclass:: Circle
+
+	.. autoproperty:: center
+	
+	.. autoproperty:: radius
+	
+	.. autoproperty:: axis
+	
+	.. automethod:: tangent
+	
+	.. image:: /screenshots/primitives-circle.png
 
 .. autoclass:: ArcCentered
 
@@ -99,18 +111,6 @@ Primitives types
 	.. automethod:: tangent
 	
 	.. image:: /screenshots/primitives-arcthrough.png
-	
-.. autoclass:: Circle
-
-	.. autoproperty:: center
-	
-	.. autoproperty:: radius
-	
-	.. autoproperty:: axis
-	
-	.. automethod:: tangent
-	
-	.. image:: /screenshots/primitives-circle.png
 
 .. autoclass:: ArcTangent
 
@@ -123,6 +123,12 @@ Primitives types
 	.. automethod:: tangent
 	
 	.. image:: /screenshots/primitives-arctangent.png
+	
+.. autoclass:: Ellipsis
+
+	.. autoproperty:: axis
+	
+	.. image:: /screenshots/primitives-ellipsis.png
 	
 .. autoclass:: TangentEllipsis
 

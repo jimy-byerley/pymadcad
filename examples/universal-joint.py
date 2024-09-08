@@ -1,7 +1,7 @@
 from madcad import *
 from madcad.joints import *
 from itertools import accumulate
-settings.primitives['curve_resolution'] = ('rad', 0.1)
+settings.resolution = ('rad', 0.1)
 
 # profile separating the bottom and top part allowing them to move around each other and using the maximum volume for the part robustness
 def cardan_sphereprofile(maxangle=0.5):

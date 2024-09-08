@@ -1,5 +1,5 @@
 from madcad import *
-settings.primitives['curve_resolution'] = ('rad', 0.2)
+settings.resolution = ('rad', 0.2)
 
 nballs = 6
 rball = 6/2

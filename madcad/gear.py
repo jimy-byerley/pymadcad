@@ -53,8 +53,6 @@ from madcad.mathutils import COMPREC
 
 
 
-color_gear = vec3(0.2, 0.3, 0.4)
-
 
 def rackprofile(step, height=None, offset=0, asymetry=None, alpha=radians(20), resolution=None) -> Wire:
 	''' Generate a 1-period tooth profile for a rack
@@ -848,7 +846,7 @@ def geargather(exterior, structure, hub) -> Mesh:
 		mesh = exterior + top + bottom + hub
 	else:
 		mesh = exterior + top + structure + bottom + hub
-	return mesh.finish()
+	return mesh.finish() .option(color=settings.colors['gear'])
 
 @cachefunc
 def gear(
@@ -1328,7 +1326,7 @@ def straight_bevel_gear(
 	t_max = acos(cos(gamma_f) / cos_b) / sin_b
 	middle_tooth = 0.5 * (involute(t_max, 0) + involute(-t_max, phase_diff))
 	phase = anglebt(X, middle_tooth * v)
-	return all_teeth.transform(angleAxis(-phase, Z))
+	return all_teeth.transform(angleAxis(-phase, Z)) .option(color=settings.colors['gear'])
 
 def helical_bevel_gear(
 	step:float,
@@ -1487,7 +1485,7 @@ def helical_bevel_gear(
 	involute = lambda t, t0: spherical_involute(gamma_b, t0, t)
 	t_max = acos(cos(gamma_f) / cos_b) / sin_b
 	middle_tooth = 0.5 * (involute(t_max, 0) + involute(-t_max, phase_diff))
-	return all_teeth.transform(quat(X, middle_tooth * v))
+	return all_teeth.transform(quat(X, middle_tooth * v)) .option(color=settings.colors['gear'])
 
 def _get_intersection(A: vec3, B: vec3, C: vec3, D: vec3) -> float:
 	"""
@@ -1530,7 +1528,7 @@ def _get_intersection(A: vec3, B: vec3, C: vec3, D: vec3) -> float:
 def matrix4placement(z:int, shaft_angle:float) -> mat4x4:
 	"""
 	Return a matrix of transformation given initial state (Z is the initial axis of revolution).
-	This matrix is helpful when you want to place filet gears.
+	This matrix is helpful when you want to place bevel gears.
 
 	Parameters:
 

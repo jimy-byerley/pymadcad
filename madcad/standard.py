@@ -99,8 +99,6 @@ def stceil(x, precision=0.1):
 
 # --------- screw stuff -----------------------
 	
-bolt_color = vec3(0.2)
-	
 @cachefunc
 def screw(d, length, filet_length=None, head='SH', drive=None, detail=False):
 	''' Create a standard screw using the given drive and head shapes
@@ -155,7 +153,7 @@ def screw(d, length, filet_length=None, head='SH', drive=None, detail=False):
 					vec3(r*0.8, 0, -length),
 					vec3(0, 0, -length),
 					]) .segmented())
-	screw = (body + head).finish().option(color=bolt_color)
+	screw = (body + head).finish().option(color=settings.colors['bolt'])
 	return Solid(part=screw, axis=axis)
 
 def screwdrive_torx(d):
@@ -376,7 +374,7 @@ def hexnut(d, w, h):
 	nut = intersection(base, ext)
 	chamfer(nut, nut.frontiers(4,5) + nut.frontiers(0,5), width=d*0.1)
 
-	nut.finish().option(color=bolt_color)
+	nut.finish().option(color=settings.colors['bolt'])
 	return Solid(
 				part=nut, 
 				bottom=Axis(-0.5*h*Z, -Z, interval=(0,h)), 
@@ -449,7 +447,7 @@ def washer(d, e=None, h=None) -> Mesh:
 		if h is None:	h = d*0.1
 	
 	return Solid(
-				part=thicken(revolution(web([e/2*X, d/2*X])), h).option(color=bolt_color), 
+				part=thicken(revolution(web([e/2*X, d/2*X])), h).option(color=settings.colors['bolt']), 
 				top=Axis(h*Z, Z, interval=(0,h)), 
 				bottom=Axis(O, -Z, interval=(0,h)),
 				)
@@ -910,10 +908,6 @@ def bearing_spec(code):
 	elif re.match(r'[\d\.]+x[\d\.]+x[\d\.]+', code):
 		return tuple(float(d) for d in re.split('x'))
 		
-bearing_color = vec3(0.5,0.4,0.35)
-bearing_cage_color = vec3(0.3,0.2,0)
-bearing_circulating_color = vec3(0,0.1,0.2)
-		
 		
 def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False) -> Solid:
 	# convenient variables
@@ -950,7 +944,7 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False) -> Solid:
 		exterior += wire(ArcCentered((rb*X,-Y), vec3(rext-e, 0, -hr), vec3(rext-e, 0, hr)))
 		interior.close()
 		exterior.close()
-		part = revolution(web([exterior, interior]), axis) .option(color=bearing_color)
+		part = revolution(web([exterior, interior]), axis) .option(color=settings.colors['bearing'])
 
 		nb = int(0.7 * pi*rb/rr)	# number of balls that can fit in
 		balls = repeat(icosphere(rb*X, rr), nb, angleAxis(radians(360)/nb, Z)) .option(color=vec3(0,0.1,0.2))
@@ -973,7 +967,7 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False) -> Solid:
 
 		cage = thicken(
 				surf + surf.transform(mat3(1,1,-1)) .flip(), 
-				c) .option(color=bearing_cage_color)
+				c) .option(color=settings.colors['bearing_cage'])
 				
 		# asemble
 		return Solid(part=part, cage=cage, balls=balls, axis=axis)
@@ -995,7 +989,7 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False) -> Solid:
 			)
 		return Solid(
 				part=revolution(web([exterior, interior]), axis)
-						.option(color=bearing_color), 
+						.option(color=settings.colors['bearing']), 
 				axis=axis)
 
 
@@ -1071,7 +1065,7 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 		part = revolution(web([
 					exterior, 
 					interior,
-					]).flip(), axis) .option(color=bearing_color)
+					]).flip(), axis) .option(color=settings.colors['bearing'])
 	
 		# create conic rollers
 		roller = revolution(Segment(mix(p1,p3,0.05), mix(p3,p1,0.05)), angled)
@@ -1083,7 +1077,7 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 		# number of rollers that can fit in
 		nb = int(pi*(rint+rext) / (2.5*distance_pa(p1,angled)))
 		rollers = repeat(roller, nb, rotatearound(2*pi/nb, axis)) 
-		rollers.option(color=bearing_circulating_color)
+		rollers.option(color=settings.colors['circulating'])
 
 		# roller cage
 		p6 = mix(p4,p3,0.6) - e*angled[1]
@@ -1095,7 +1089,7 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 		filet(cage_profile, [1], radius=c)
 		cage = revolution(cage_profile, axis)
 		cage = pierce(cage, inflate(rollers, 0.5*c), False)
-		cage = thicken(cage, c) .option(color=bearing_cage_color)
+		cage = thicken(cage, c) .option(color=settings.colors['bearing_cage'])
 		
 		# assemble
 		return Solid(part=part, cage=cage, rollers=rollers, axis=axis)
@@ -1107,7 +1101,7 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 				part=revolution(
 					(exterior + interior) .close() .flip(),
 					axis,
-					) .option(color=bearing_color), 
+					) .option(color=settings.colors['bearing']), 
 				axis=axis)
 		
 
@@ -1147,12 +1141,12 @@ def bearing_thrust(dint, dext, h, detail=False) -> Solid:
 		bot += wire(ArcCentered((rb*X,-Y), vec3(rb-hr, 0, -w+e), vec3(rb+hr, 0, -w+e)))
 		top.close()
 		bot.close()
-		part = revolution(web([top, bot]), axis) .option(color=bearing_color)
+		part = revolution(web([top, bot]), axis) .option(color=settings.colors['bearing'])
 		
 		# number of balls to place
 		nb = int(0.8 * pi*rb/rr)
 		balls = repeat(icosphere(rb*X, rr), nb, angleAxis(radians(360)/nb, Z))
-		balls.option(color=bearing_circulating_color)
+		balls.option(color=settings.colors['circulating'])
 		
 		# cage
 		cage_profile = Wire([ 
@@ -1165,7 +1159,7 @@ def bearing_thrust(dint, dext, h, detail=False) -> Solid:
 		
 		cage_surf = revolution(cage_profile, axis)
 		cage_surf = pierce(cage_surf, inflate(balls, 0.2*c), False)
-		cage = thicken(cage_surf, c) .option(color=bearing_cage_color)
+		cage = thicken(cage_surf, c) .option(color=settings.colors['bearing_cage'])
 		
 		# assemble
 		return Solid(part=part, cage=cage, balls=balls, axis=axis)
@@ -1187,7 +1181,7 @@ def bearing_thrust(dint, dext, h, detail=False) -> Solid:
 			)
 
 		return Solid(
-				part=revolution(web([top, bot]), axis) .option(color=bearing_color), 
+				part=revolution(web([top, bot]), axis) .option(color=settings.colors['bearing']), 
 				axis=axis)
 
 	
@@ -1231,7 +1225,7 @@ def slidebearing(dint, h=None, thickness=None, shoulder=None, opened=False) -> S
 	axis = Axis(O,Z, interval=(-h,0))
 	shape = revolution(profile, axis, 1.98*pi if opened else 2*pi)
 	
-	part = thicken(shape, thickness) .option(color=bearing_color)
+	part = thicken(shape, thickness) .option(color=settings.colors['bearing'])
 	line = (  select(part, vec3(-rint,0,-h), stopangle(pi/2))
 			+ select(part, vec3(dint,dint,-h), stopangle(pi/2))
 			)

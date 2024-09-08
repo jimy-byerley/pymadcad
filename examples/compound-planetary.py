@@ -42,8 +42,8 @@ def spurgear(step, teeth, height, **kwargs):
 
 color_gear = vec3(0.2, 0.3, 0.4)
 
-#settings.primitives['curve_resolution'] = ('sqradm', 0.4)
-settings.primitives['curve_resolution'] = ('sqradm', 0.8)
+#settings.resolution = ('sqradm', 0.4)
+settings.resolution = ('sqradm', 0.8)
 
 ## determine teeth number targeting the desired ratio
 #target = 1/160

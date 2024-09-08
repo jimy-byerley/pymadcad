@@ -1,7 +1,7 @@
 from madcad import *
 from madcad import gear
 
-settings.primitives['curve_resolution'] = ('rad', 0.05)
+settings.resolution = ('rad', 0.05)
 
 axis = (vec3(0),vec3(0,0,1))
 

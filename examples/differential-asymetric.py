@@ -38,7 +38,7 @@ def bolt(a, b, dscrew, washera=False, washerb=False):
 
 		
 
-settings.primitives['curve_resolution'] = ('sqradm', 0.5)
+settings.resolution = ('sqradm', 0.5)
 
 transmiter_angle = pi/6
 transmiter_z = 8

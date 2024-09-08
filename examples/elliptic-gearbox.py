@@ -3,9 +3,9 @@ from madcad.gear import gearprofile
 from madcad.joints import *
 from functools import reduce
 import operator
-#settings.primitives['curve_resolution'] = ('rad', 0.2)
-#settings.primitives['curve_resolution'] = ('sqradm', 0.2)
-settings.primitives['curve_resolution'] = ('sqradm', 0.8)
+#settings.resolution = ('rad', 0.2)
+#settings.resolution = ('sqradm', 0.2)
+settings.resolution = ('sqradm', 0.8)
 
 def ellipsis_perimeter(a, b):
 	return Circle(Axis(O,Z), a).mesh(resolution=('div', 128)).transform(scaledir(X, b/a)).length()

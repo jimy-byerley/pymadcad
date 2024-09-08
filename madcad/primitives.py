@@ -27,7 +27,7 @@
 		
 		1. Optional argument `resolution` passed to `primitive.mesh()` or to `web()` or `wire()`
 		2. Optional attribute `resolution` of the primitive object
-		3. Value of `settings.primitives['curve_resolution']` at bake time.
+		3. Value of `settings.resolution` at bake time.
 
 	Specification format:
 		
@@ -55,13 +55,16 @@ def isprimitive(obj):
 	''' Return True if obj match the signature for primitives '''
 	return hasattr(obj, 'mesh') and hasattr(obj, 'slvvars')
 
+# aliases, for those who like them
 Vector = Point = vec3
 
 
 class Axis(object):
 	''' Mimic the behavior of a tuple, but with the primitive signature. '''
 	__slots__ = ('origin', 'direction', 'interval')
-	def __init__(self, origin, direction, interval=None):
+	def __init__(self, origin, direction=None, interval=None):
+		if direction is None:
+			origin, direction = vec3(0), origin
 		self.origin, self.direction = origin, direction
 		self.interval = interval
 	
