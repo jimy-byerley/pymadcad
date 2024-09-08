@@ -28,7 +28,7 @@ kinematic   - Kinematic solver/constraint system
 	.. automethod:: inverse
 	.. automethod:: grad
 	
-	.. automethod:: transmit
+.. 	.. automethod:: transmit
 	.. automethod:: scheme
 	.. automethod:: display
 	
