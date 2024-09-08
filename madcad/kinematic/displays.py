@@ -9,7 +9,6 @@ from PyQt5.QtCore import Qt, QEvent
 
 from ..common import resourcedir
 from ..mathutils import *
-from ..primitives import Axis
 from ..mesh import Mesh, Web, Wire, striplist, distance2_pm, typedlist_to_numpy
 from .. import settings
 from .. import rendering

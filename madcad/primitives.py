@@ -55,57 +55,6 @@ def isprimitive(obj):
 	''' Return True if obj match the signature for primitives '''
 	return hasattr(obj, 'mesh') and hasattr(obj, 'slvvars')
 
-# aliases, for those who like them
-Vector = Point = vec3
-
-
-class Axis(object):
-	''' Mimic the behavior of a tuple, but with the primitive signature. '''
-	__slots__ = ('origin', 'direction', 'interval')
-	def __init__(self, origin, direction=None, interval=None):
-		if direction is None:
-			origin, direction = vec3(0), origin
-		self.origin, self.direction = origin, direction
-		self.interval = interval
-	
-	def __getitem__(self, i):
-		''' behave like the axis was a tuple (origin, direction) '''
-		if i==0:	return self.origin
-		elif i==1:	return self.direction
-		else:		raise IndexError('an axis has only 2 components')
-		
-	def flip(self) -> 'Axis':
-		''' switch the axis direction '''
-		return Axis(self.origin, -self.direction, self.interval)
-	
-	def offset(self, increment) -> 'Axis':
-		''' move the axis origin along its direction '''
-		return Axis(self.origin + self.direction*increment, self.direction, self.interval)
-		
-	def transform(self, transform) -> 'Axis':
-		''' move the axis by the given transformation '''
-		if isinstance(transform, (float,int)):		return Axis(transform*self.origin, self.direction, self.interval)
-		elif isinstance(transform, vec3):			return Axis(transform+self.origin, self.direction, self.interval)
-		elif isinstance(transform, (mat3, quat)):	return Axis(transform*self.origin, normalize(transform*self.direction), self.interval)
-		elif isinstance(transform, (mat4)):			return Axis(transform*self.origin, normalize(mat3(transform)*self.direction), self.interval)
-		raise TypeError('transform must be one of float, vec3, mat3, quat, mat4')
-	
-	slvvars = ('origin', 'direction')
-	def slv_tangent(self, pt):
-		return self.direction
-		
-	def __repr__(self):
-		return 'Axis({}, {})'.format(self.origin, self.direction)
-	
-	def display(self, scene):
-		return displays.AxisDisplay(scene, (self.origin, self.direction), self.interval)
-			
-def isaxis(obj):
-	''' Return True if the given object is considered to be an axis.
-		An axis can be an instance of `Axis` or a tuple `(vec3, vec3)`
-	'''
-	return isinstance(obj, Axis) or isinstance(obj, tuple) and len(obj)==2 and isinstance(obj[0],vec3) and isinstance(obj[1],vec3)
-
 
 class Segment(object):
 	''' Segment from a to b '''

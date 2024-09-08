@@ -51,24 +51,6 @@ Specification format:
 Primitives types
 ----------------
 
-.. py:class:: Vector
-
-	Alias to ``vec3``
-	
-.. py:class:: Point
-
-	Alias to ``vec3``
-	
-.. autoclass:: Axis
-
-	.. automethod:: __getitem__
-	.. automethod:: flip
-	.. automethod:: offset
-	.. automethod:: transform
-	
-	.. image:: /screenshots/primitives-axis.png
-	
-.. autofunction:: isaxis
 
 .. autoclass:: Segment
 

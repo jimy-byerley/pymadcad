@@ -7,7 +7,6 @@
 '''
 
 from .mathutils import *
-from .primitives import Axis
 from .mesh import Mesh, Web, Wire, MeshError, web, wire, mkquad, mktri
 from .hashing import edgekey, facekeyo, suites
 

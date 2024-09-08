@@ -36,7 +36,7 @@ from .mathutils import *
 from .mesh import Web, Wire, Mesh, web, wire
 from .blending import junction, blendpair
 from .generation import extrusion, revolution, repeat, extrans
-from .primitives import Circle, ArcCentered, Segment, Axis
+from .primitives import Circle, ArcCentered, Segment
 from .triangulation import triangulation
 from .selection import *
 from .rendering import show

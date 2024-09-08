@@ -1,7 +1,6 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
 from .mathutils import *
-from .primitives import isaxis, Axis
 from .kinematic.solver import Joint
 from .kinematic.displays import scale_solid, world_solid, kinematic_color
 from .mesh import Mesh, Wire, wire, web, Web
