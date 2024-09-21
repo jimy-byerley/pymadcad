@@ -60,7 +60,7 @@ from .mathutils import *
 from .nprint import nprint
 
 # minimum opengl version required by the rendering pipeline
-opengl_version = (3,3)
+opengl_version = (4,3)
 # shared open gl context, None if not yet initialized
 global_context = None
 
