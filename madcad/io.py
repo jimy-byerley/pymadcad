@@ -61,6 +61,53 @@ def write(obj: object, name: str, type=None, **opts):
 		raise FileFormatError('no write function available for format {}, did you installed is dependencies ?'.format(type))
 
 
+def module(file:str=None, name:str=None, code='') -> ModuleType:
+	''' 
+		execute the given file or code as a module and return it.
+		
+		The only difference wih `import` is that it will not be registered in `sys.modules` and therefore each time this function is called on the same file a duplicate is created.
+		
+		This function is useful if you want to import a python file which is not on the path or that you want being able to execute it multiple times
+		
+		Parameters:
+			file: if provided, the content of the file at this path will be loaded as a new module
+			name: the resulting module name, picked from the file name if not given
+			code: a optional code snippet to execute in the module before interpreting the file
+			
+		Example:
+		
+			>>> foo1 = module('folder/foo.py')
+			>>> foo2 = module('folder/foo.py')
+			>>> foo1
+			<module '<myfile/foo.py'>
+			>>> foo2
+			<module '<myfile/foo.py'>
+			>>> foo1 is foo2
+			False
+			>>> 
+			>>> foo.myfunc()
+	'''
+	if file:
+		# load body and pick name from the file
+		file = os.path.realpath(file)
+		body = open(file, 'r').read()
+		if not name:
+			name = '<{}>'.format(file)
+	else:
+		# pick a default name juste like `exec` would have done
+		if not name:
+			name = '<string>'
+
+	# create a regular python module, but not registered in sys.modules
+	module = ModuleType(name)
+	module.__name__ = name
+	if file:
+		module.__file__ = file
+
+	if code:	exec(code, module.__dict__)	# first run provided code
+	if file:	exec(body, module.__dict__) # then run loaded file
+	return module
+
 
 
 def cached(obj:callable=None, name:str=None, file=True, recursive=True) -> callable:
@@ -69,6 +116,9 @@ def cached(obj:callable=None, name:str=None, file=True, recursive=True) -> calla
 		
 		- no previous RAM or file cache exists for the given set of arguments
 		- the existing cache is older than the source code of the generating function
+			
+		Note:
+			Since a cache dump will be created each different arguments set used, we advice using this decorator only on functions that have simple arguments like integers and floats and when you know they will be used with not that many values
 		
 		Two cache storages are used: 
 		
@@ -88,7 +138,29 @@ def cached(obj:callable=None, name:str=None, file=True, recursive=True) -> calla
 			a function you can call with your desired set of arguments as the wrapped function, but with the caching checks added
 			
 		Warning:
-			the returned functions results are references to the RAM cached object, DO NOT MODIFY IT
+			the returned functions results are references to the RAM cached objects, DO NOT MODIFY THEM
+			
+		Example:
+		
+			>>> @cached
+			... def foo(a, b=0):
+			... 	print('generate for', a, b)
+			... 	return brick(width=vec3(1))
+			>>> 
+			>>> a = foo(1)   # first time, the code is executed
+			generate for 1 0
+			<Mesh ...>
+			>>> b = foo(1)   # second time, cache is used
+			<Mesh ...>
+			>>> a is b
+			True
+			>>> c = foo(2, 3)  # first time for these arguments
+			generate for 2 3
+			<Mesh ...>
+			
+			>>> @cached('/tmp/mypart')
+			... def foo(a, b=1):
+			... 	return brick(width=vec3(1))
 	'''
 	if isinstance(obj, str): 
 		name, obj = obj, None
@@ -153,40 +225,6 @@ def cached(obj:callable=None, name:str=None, file=True, recursive=True) -> calla
 	# badly used
 	else:
 		raise TypeError("argument must be a filename or a function")
-
-def module(file:str=None, name:str=None, code='') -> ModuleType:
-	''' 
-		execute the given file or code as a module and return it.
-		
-		The only difference wih `import` is that it will not be registered in `sys.modules` and therefore each time this function is called on the same file a duplicate is created.
-		
-		This function is useful if you want to import a python file which is not on the path or that you want being able to execute it multiple times
-		
-		Parameters:
-			file: if provided, the content of the file at this path will be loaded as a new module
-			name: the resulting module name, picked from the file name if not given
-			code: a optional code snippet to execute in the module before interpreting the file
-	'''
-	if file:
-		# load body and pick name from the file
-		file = os.path.realpath(file)
-		body = open(file, 'r').read()
-		if not name:
-			name = '<{}>'.format(file)
-	else:
-		# pick a default name juste like `exec` would have done
-		if not name:
-			name = '<string>'
-
-	# create a regular python module, but not registered in sys.modules
-	module = ModuleType(name)
-	module.__name__ = name
-	if file:
-		module.__file__ = file
-
-	if code:	exec(code, module.__dict__)	# first run provided code
-	if file:	exec(body, module.__dict__) # then run loaded file
-	return module
 		
 def cachedmodule(file:str, name:str=None, recursive=True) -> ModuleType:
 	'''
@@ -199,6 +237,13 @@ def cachedmodule(file:str, name:str=None, recursive=True) -> ModuleType:
 		
 		Warning:
 			This will not take into account eventual new dependencies added to to this module, but only look up at the dependencies of the formerly loaded and cached module
+			
+		Example:
+			
+			>>> foo1 = cachedmodule('folder/foo.py')
+			>>> foo2 = cachedmodule('folder/foo.py')
+			>>> foo1 is foo2
+			True
 	'''
 	if not name:
 		name = '<{}>'.format(file)
