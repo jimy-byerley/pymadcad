@@ -2,7 +2,8 @@
 
 import numpy as np
 import numpy.lib.recfunctions as rfn
-import os, tempfile
+import os
+import tempfile
 from functools import wraps
 from hashlib import md5
 from types import ModuleType, FunctionType
@@ -16,7 +17,9 @@ from .mathutils import vec3, glm, inf, typedlist
 from .mesh import Mesh, Wire
 
 
-class FileFormatError(Exception):	pass
+class FileFormatError(Exception):	
+	''' report an error about the support of a file format '''
+	pass
 
 
 def filetype(name, type=None):
@@ -27,8 +30,14 @@ def filetype(name, type=None):
 		raise FileFormatError('unable to guess the file type')
 	return type
 	
-def read(name: str, type=None, **opts) -> Mesh:
-	''' Load a mesh from a file, guessing its file type '''
+def read(name: str, type=None, **opts) -> object:
+	''' Load an arbitrary object (usually a mesh) from a file, guessing its file type 
+	
+		Parameters:
+			name:  the path to the file to read
+			type:  specify the file type to expect, it is deduced from file extension if not provided
+			opts:  format specific settings for file loading
+	'''
 	type = filetype(name, type)
 	reader = globals().get(type+'_read')
 	if reader:
@@ -36,19 +45,51 @@ def read(name: str, type=None, **opts) -> Mesh:
 	else:
 		raise FileFormatError('no read function available for format {}, did you installed its dependencies ?'.format(type))
 
-def write(mesh: Mesh, name: str, type=None, **opts):
-	''' Write a mesh to a file, guessing its file type '''
+def write(obj: object, name: str, type=None, **opts):
+	''' Write an arbitrary object (usually a mesh) to a file, guessing its file type 
+	
+		Parameters:
+			name:  the path to the file to write
+			type:  specify the file type to produce, it is deduced from file extension if not provided
+			opts:  format specific settings for object dumping
+	'''
 	type = filetype(name, type)
 	writer = globals().get(type+'_write')
 	if writer:
-		return writer(mesh, name, **opts)
+		return writer(obj, name, **opts)
 	else:
 		raise FileFormatError('no write function available for format {}, did you installed is dependencies ?'.format(type))
 
 
 
 
-def cached(obj=None, name=None, file=True, recursive=True):
+def cached(obj:callable=None, name:str=None, file=True, recursive=True) -> callable:
+	'''
+		Wrap a function and cache its results per set of arguments. The wrapped function is only called when either
+		
+		- no previous RAM or file cache exists for the given set of arguments
+		- the existing cache is older than the source code of the generating function
+		
+		Two cache storages are used: 
+		
+		- one on the hard disk
+			in folder `cachedir`, it survives the program execution
+		
+		- one in RAM
+			using a weak reference counting, which mean when all references to the cached object are dropped by the user code, the object is removed from RAM cache
+		
+		Parameters:
+			obj:  the function to call to generate the data
+			name:  the cache folder name, and cache RAM key, defaults to a dedicated subdirectory of directory set in `cachedir`
+			file:  if True, a file will be used for caching, else only RAM cache will be done
+			recursive:  if True, modifications of the dependencies of functions in modules coming from `cachedmodule` will also trigger calling the generating function
+			
+		Return:
+			a function you can call with your desired set of arguments as the wrapped function, but with the caching checks added
+			
+		Warning:
+			the returned functions results are references to the RAM cached object, DO NOT MODIFY IT
+	'''
 	if isinstance(obj, str): 
 		name, obj = obj, None
 	
@@ -116,11 +157,15 @@ def cached(obj=None, name=None, file=True, recursive=True):
 def module(file:str=None, name:str=None, code='') -> ModuleType:
 	''' 
 		execute the given file or code as a module and return it.
+		
 		The only difference wih `import` is that it will not be registered in `sys.modules` and therefore each time this function is called on the same file a duplicate is created.
 		
 		This function is useful if you want to import a python file which is not on the path or that you want being able to execute it multiple times
 		
-		If `name` is not specified, a default name will be deduced from the file name or from the code
+		Parameters:
+			file: if provided, the content of the file at this path will be loaded as a new module
+			name: the resulting module name, picked from the file name if not given
+			code: a optional code snippet to execute in the module before interpreting the file
 	'''
 	if file:
 		# load body and pick name from the file
@@ -146,6 +191,11 @@ def module(file:str=None, name:str=None, code='') -> ModuleType:
 def cachedmodule(file:str, name:str=None, recursive=True) -> ModuleType:
 	'''
 		This function will call `module`, then all following calls with the same file name will return the same module object until the file or one of its former dependencies has been modified.
+		
+		Parameters:
+			file:  the path to the file to load as a module
+			name:  the resulting module name, picked from the file name if not given
+			recursive:  if True, modifications of the dependencies of functions in modules coming from `cachedmodule` will also trigger reloading the module. Else only modifications to the given file will
 		
 		Warning:
 			This will not take into account eventual new dependencies added to to this module, but only look up at the dependencies of the formerly loaded and cached module

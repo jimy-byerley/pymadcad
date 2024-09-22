@@ -4,18 +4,14 @@
 io    - Read/write mesh or data files
 =====================================
 
+.. autoclass:: FileFormatError
+
 .. autofunction:: madcad.io.read
 
 .. autofunction:: madcad.io.write
 
-.. autofunction:: madcad.io.cache
+.. autofunction:: madcad.io.cached
 
-.. py:data:: caches
+.. autofunction:: madcad.io.cachedmodule
 
-	dict containing the data objects, associated to their filename.
-	
-	.. code-block:: python
-		
-		{'filename': (read_time, data_loaded)}
-
-.. autoclass:: FileFormatError
+.. autofunction:: madcad.io.module

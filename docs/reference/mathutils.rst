@@ -227,6 +227,7 @@ Distances
 .. autofunction:: distance_pe
 .. autofunction:: distance_aa
 .. autofunction:: distance_ae
+.. autofunction:: distance_pt
 
 Constants
 ~~~~~~~~~
