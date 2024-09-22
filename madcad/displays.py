@@ -162,7 +162,7 @@ def npboundingbox(points):
 
 class AnnotationDisplay(Display):
 	def __init__(self, scene, points, color):
-		self.color = fvec3(color or settings.color['annotation'])
+		self.color = fvec3(color or settings.colors['annotation'])
 		self.selected = False
 		self.box = npboundingbox(points)
 		# load shader
@@ -670,7 +670,7 @@ class SplineDisplay(Display):
 	''' display for spline curve, with handles around'''
 	def __init__(self, scene, handles, curve, color=None):
 		self.color = color or fvec4(settings.colors['line'], 1)
-		self.color_handles = fvec4(settings.color['annotation'], 0.6)
+		self.color_handles = fvec4(settings.colors['annotation'], 0.6)
 		self.box = npboundingbox(handles)
 		ctx = scene.ctx
 		self.vb_handles = ctx.buffer(handles)
