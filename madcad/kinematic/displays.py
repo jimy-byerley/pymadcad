@@ -1,6 +1,7 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 __all__ = ['ChainManip', 'KinematicManip', 'scale_solid', 'world_solid']
 
+import warnings
 from dataclasses import dataclass
 import numpy as np
 import numpy.linalg as la
@@ -291,7 +292,17 @@ class KinematicManip(Group):
 		super().__init__(scene)
 		self.kinematic = kinematic
 		self.toolcenter = toolcenter or vec3(0)
-		self.pose = self.kinematic.solve(close=pose or self.kinematic.default, maxiter=self.stay_maxiter, precision=self.move_precision, strict=self.tolerated_precision)
+		try:
+			self.pose = self.kinematic.solve(
+				close=pose or self.kinematic.default, 
+				maxiter=self.stay_maxiter, 
+				precision=self.move_precision, 
+				strict=self.tolerated_precision,
+				)
+		except KinematicError:
+			warnings.warn("could not solve kinematic {} for displaying, falling back to infinite tolerance".format(self))
+			self.pose = self.kinematic.default
+			self.tolerated_precision = inf
 		self.parts = self.kinematic.parts(self.pose, precision=self.tolerated_precision)
 		
 		if self.kinematic.content:
