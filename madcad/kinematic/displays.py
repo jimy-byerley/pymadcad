@@ -320,7 +320,7 @@ class KinematicManip(Group):
 		
 		for space in self.displays['scheme'].spacegens:
 			if isinstance(space, (world_solid, scale_solid)) and space.solid in self.parts:
-				space.pose = world * fmat4(self.parts[space.solid])
+				space.pose = fmat4(self.parts[space.solid])
 			elif isinstance(space, scheme.halo_screen):
 				if view.scene.options['kinematic_manipulation'] == 'rotate':
 					space.position = fvec3(self.toolcenter)
@@ -329,14 +329,18 @@ class KinematicManip(Group):
 
 	def control(self, view, key, sub, evt):
 		''' user event manager, optional part of the madcad rendering system '''
+		# give priority to sub elements
+		disp = self.displays
+		stack = list(key)
+		for i in range(1,len(sub)):
+			disp = disp[sub[i-1]]
+			disp.control(view, sub[:i], sub[i:], evt)
+			if evt.isAccepted(): return
+			stack.append(disp)
+		
 		if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
+			# accept mouse pressing to tell we are interested in mouse movements
 			evt.accept()
-			
-		if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.RightButton:
-			evt.accept()
-			self.panel.setParent(view)
-			self.panel.move(evt.pos())
-			self.panel.show()
 		
 		if evt.type() == QEvent.MouseMove and evt.buttons() & Qt.LeftButton:
 			evt.accept()
