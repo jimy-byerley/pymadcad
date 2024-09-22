@@ -42,7 +42,7 @@ from .selection import *
 from .rendering import show
 from .bevel import filet, chamfer
 from .boolean import intersection
-from .io import cachefunc
+from .io import cached
 from . import settings
 
 from math import *
@@ -848,7 +848,7 @@ def geargather(exterior, structure, hub) -> Mesh:
 		mesh = exterior + top + structure + bottom + hub
 	return mesh.finish() .option(color=settings.colors['gear'])
 
-@cachefunc
+@cached
 def gear(
 	step,
 	z: int,
@@ -1186,7 +1186,7 @@ def cone_projection(profile: Wire, pitch_cone_angle:float) -> Wire:
 	new_points = [1 / dot(ref(atan2(point.y, point.x)), point) * point for point in profile.points]
 	return Wire(new_points, indices=profile.indices)
 
-# @cachefunc
+# @cached
 def bevelgear(
 	step:float,
 	z:int,

@@ -25,9 +25,9 @@ from .offseting import *
 from .blending import *
 from .boolean import pierce, union, difference, intersection
 from .bevel import *
-from .io import cachefunc
+from .io import cached
 
-#cachefunc = lambda x:x	# debug purpose
+#cached = lambda x:x	# debug purpose
 
 
 __all__ = [	'nut', 'screw', 'washer', 'bolt',
@@ -99,7 +99,7 @@ def stceil(x, precision=0.1):
 
 # --------- screw stuff -----------------------
 	
-@cachefunc
+@cached
 def screw(d, length, filet_length=None, head='SH', drive=None, detail=False):
 	''' Create a standard screw using the given drive and head shapes
 	
@@ -332,7 +332,7 @@ def screw_spec(head, drive=None):
 
 # ------------------- nut stuff ----------------------
 
-@cachefunc
+@cached
 def nut(d, type='hex', detail=False) -> Mesh:
 	''' Create a standard nut model using the given shape type 
 	
@@ -422,7 +422,7 @@ standard_hexnuts = [
 	
 # -------------- washer stuff ----------------------
 	
-@cachefunc
+@cached
 def washer(d, e=None, h=None) -> Mesh:
 	''' Create a standard washer.
 		Washers are useful to offset screws and avoid them to scratch the mount part
@@ -647,7 +647,7 @@ standard_ipn = [
 	
 # --------------------- coilspring stuff ------------------------
 
-@cachefunc
+@cached
 def coilspring_compression(length, d=None, thickness=None, solid=True):
 	''' Return a Mesh model of a croilspring meant for use in compression
 	
@@ -700,7 +700,7 @@ def coilspring_compression(length, d=None, thickness=None, solid=True):
 			bottom=-0.5*length*Z,
 			)
 	
-@cachefunc
+@cached
 def coilspring_tension(length, d=None, thickness=None, solid=True):
 	''' Return a Mesh model of a croilspring meant for use in tension 
 	
@@ -751,7 +751,7 @@ def coilspring_tension(length, d=None, thickness=None, solid=True):
 			bottom=-0.5*length*Z,
 			)
 	
-@cachefunc
+@cached
 def coilspring_torsion(arm, 
 			angle=radians(45), 
 			d=None, 
@@ -828,7 +828,7 @@ def coilspring_torsion(arm,
 		
 # ----------------------- bearing stuff --------------------------
 
-@cachefunc
+@cached
 def bearing(dint, dext=None, h=None, 
 			circulating='ball', 
 			contact=0, 
@@ -1196,7 +1196,7 @@ standard_bearing_ball_straight = [
 
 from .selection import *
 
-@cachefunc
+@cached
 def slidebearing(dint, h=None, thickness=None, shoulder=None, opened=False) -> Solid:
 	'''
 		Slide bearings rely on gliding parts to ensure a good pivot. It's much cheaper than circulating bearings and much more compact. But needs lubricant and has a shorter life than circulating bearings.

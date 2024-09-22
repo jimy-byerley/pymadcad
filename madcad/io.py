@@ -5,9 +5,16 @@ import numpy.lib.recfunctions as rfn
 import os, tempfile
 from functools import wraps
 from hashlib import md5
+from types import ModuleType, FunctionType
+from dataclasses import dataclass
+from time import time
+import sys
+import weakref
+import inspect
 
 from .mathutils import vec3, glm, inf, typedlist
 from .mesh import Mesh, Wire
+
 
 class FileFormatError(Exception):	pass
 
@@ -27,7 +34,7 @@ def read(name: str, type=None, **opts) -> Mesh:
 	if reader:
 		return reader(name, **opts)
 	else:
-		raise FileFormatError('no read function available for format '+type)
+		raise FileFormatError('no read function available for format {}, did you installed its dependencies ?'.format(type))
 
 def write(mesh: Mesh, name: str, type=None, **opts):
 	''' Write a mesh to a file, guessing its file type '''
@@ -36,70 +43,10 @@ def write(mesh: Mesh, name: str, type=None, **opts):
 	if writer:
 		return writer(mesh, name, **opts)
 	else:
-		raise FileFormatError('no write function available for format '+type)
+		raise FileFormatError('no write function available for format {}, did you installed is dependencies ?'.format(type))
 
-cachedir = tempfile.gettempdir() + '/madcad-cache'
-caches = {}
-def cache(filename: str, create: callable=None, name=None, storage=None, **opts) -> Mesh:
-	''' Small cachefile system, it allows to dump objects to files and to get them when needed.
-		
-		It's particularly useful when working with other processes. The cached files are reloaded only when the cache files are newer than the memory cache data.
-		
-		If specified, create() is called to provide the data, in case it doesn't exist in memory neither as file.
-		If specified, name is the cache name used to index the file it defaults to the `filename`.
-		If specified, storage is the dictionary used to storage cache data, defaults to io.caches.
-	'''
-	if not storage:	storage = caches
-	if not name:	name = filename
-	
-	# create the cache file if it doesn't exist
-	if os.path.exists(filename):
-		cachedate = storage[name][0] if name in storage else -inf
-		filedate = os.path.getmtime(filename)
-		if cachedate < filedate:
-			storage[name] = (filedate, read(filename, **opts))
-	# load reload the file content if it's newer that the data in memory
-	else:
-		if name in storage:	obj = storage[name][1]
-		elif create:		obj = create()
-		else:
-			raise IOError("the cache file doesn't exist")
-		write(obj, filename, **opts)
-		storage[name] = (os.path.getmtime(filename), obj)
-	return storage[name][1]
-	
-	
 
-def cachefunc(f):
-	''' Decorator to cache a function results.
-		
-		Use it if you want to cache their result associated with the argument set used 
-	'''
-	@wraps(f)
-	def repl(*args, **kwargs):
-		if not os.path.exists(cachedir):
-			os.makedirs(cachedir)
-		key = '{}/{}{}-{}.pickle'.format(
-			cachedir,
-			f.__module__ + '.' if f.__module__ else '',
-			f.__name__,
-			hex(int.from_bytes(
-				md5(repr((
-					*args, 
-					sorted(list(kwargs.items()))
-					)).encode())
-					.digest(),
-				'little')),
-			)
-		return cache(key, lambda: f(*args, **kwargs))
-	return repl
 
-from types import ModuleType, FunctionType
-from dataclasses import dataclass
-from time import time
-import sys
-import weakref
-import inspect
 
 def cached(obj=None, name=None, file=True, recursive=True):
 	if isinstance(obj, str): 
@@ -109,7 +56,7 @@ def cached(obj=None, name=None, file=True, recursive=True):
 	if callable(obj):
 		if name is None:
 			name = '{}{}{}.{}'.format(cachedir, os.path.sep, 
-				obj.__module__.replace('/', '_').replace('<', '').replace('>', ''), 
+				obj.__module__.replace('<', '').replace('>', '').replace('/', '_'), 
 				obj.__qualname__.replace('<', '').replace('>', ''),
 				)
 		
@@ -126,7 +73,6 @@ def cached(obj=None, name=None, file=True, recursive=True):
 			filename = '{}{}{}.pickle'.format(name, os.path.sep, unique)
 			
 			func_date = code_date(obj, recursive)
-			print('date', obj, func_date)
 			
 			# retreive from RAM cache
 			ram = caches.get(filename)
@@ -166,15 +112,72 @@ def cached(obj=None, name=None, file=True, recursive=True):
 	# badly used
 	else:
 		raise TypeError("argument must be a filename or a function")
+
+def module(file:str=None, name:str=None, code='') -> ModuleType:
+	''' 
+		execute the given file or code as a module and return it.
+		The only difference wih `import` is that it will not be registered in `sys.modules` and therefore each time this function is called on the same file a duplicate is created.
 		
+		This function is useful if you want to import a python file which is not on the path or that you want being able to execute it multiple times
+		
+		If `name` is not specified, a default name will be deduced from the file name or from the code
+	'''
+	if file:
+		# load body and pick name from the file
+		file = os.path.realpath(file)
+		body = open(file, 'r').read()
+		if not name:
+			name = '<{}>'.format(file)
+	else:
+		# pick a default name juste like `exec` would have done
+		if not name:
+			name = '<string>'
+
+	# create a regular python module, but not registered in sys.modules
+	module = ModuleType(name)
+	module.__name__ = name
+	if file:
+		module.__file__ = file
+
+	if code:	exec(code, module.__dict__)	# first run provided code
+	if file:	exec(body, module.__dict__) # then run loaded file
+	return module
+		
+def cachedmodule(file:str, name:str=None, recursive=True) -> ModuleType:
+	'''
+		This function will call `module`, then all following calls with the same file name will return the same module object until the file or one of its former dependencies has been modified.
+		
+		Warning:
+			This will not take into account eventual new dependencies added to to this module, but only look up at the dependencies of the formerly loaded and cached module
+	'''
+	if not name:
+		name = '<{}>'.format(file)
+	
+	ram = caches.get(file)
+	if ram:
+		ram_data = ram.finalizer.peek()[0]
+		file_date = code_date(ram_data, recursive)
+		if ram.date >= file_date:
+			return ram_data
+	
+	date = time()
+	data = module(file, name)
+	record(file, date, data)
+	return data
+
 @dataclass
 class CacheRecord:
+	''' convenient struct for logging caches '''
 	date: float
 	finalizer: weakref.finalize
-	
+
+# dictionnary of all caches, containing only instances of CacheRecord
 caches = {}
-	
+# folder for default cache files
+cachedir = tempfile.gettempdir() + '/madcad-cache'
+
 def record(key, date, data):
+	''' record a cache data in the caches dictionnary '''
 	if previous := caches.pop(key, None):
 		previous.finalizer.detach()
 	caches[key] = CacheRecord(
@@ -234,57 +237,6 @@ def module_date(obj: dict, recursive: bool, memo: dict) -> float:
 	
 	return date
 		
-def module(file:str=None, name:str=None, code='') -> ModuleType:
-	''' 
-		execute the given file or code as a module and return it.
-		The only difference wih `import` is that it will not be registered in `sys.modules` and therefore each time this function is called on the same file a duplicate is created.
-		
-		This function is useful if you want to import a python file which is not on the path or that you want being able to execute it multiple times
-		
-		If `name` is not specified, a default name will be deduced from the file name or from the code
-	'''
-	if file:
-		# load body and pick name from the file
-		file = os.path.realpath(file)
-		body = open(file, 'r').read()
-		if not name:
-			name = '<{}>'.format(file)
-	else:
-		# pick a default name juste like `exec` would have done
-		if not name:
-			name = '<string>'
-
-	# create a regular python module, but not registered in sys.modules
-	module = ModuleType(name)
-	module.__name__ = name
-	if file:
-		module.__file__ = file
-
-	if code:	exec(code, module.__dict__)	# first load provided code
-	if file:	exec(body, module.__dict__) # then loaded file
-	return module
-		
-def cachedmodule(file:str, name:str=None, recursive=True) -> ModuleType:
-	'''
-		This function will call `module`, then all following calls with the same file name will return the same module object until the file or one of its former dependencies has been modified.
-		
-		Warning:
-			This will not take into account eventual new dependencies added to to this module, but only look up at the dependencies of the formerly loaded and cached module
-	'''
-	if not name:
-		name = '<{}>'.format(file)
-	
-	ram = caches.get(file)
-	if ram:
-		ram_data = ram.finalizer.peek()[0]
-		file_date = code_date(ram_data, recursive)
-		if ram.date >= file_date:
-			return ram_data
-	
-	date = time()
-	data = module(file, name)
-	record(file, date, data)
-	return data
 
 
 

@@ -159,7 +159,7 @@ from .constraints import isconstraint, SolveError, Tangent, Distance, Angle, Par
 from .kinematic import KinematicError, Solid, Joint, Chain, Kinematic
 from .reverse import segmentation
 from .selection import select
-from .io import read, write, cache, cachefunc
+from .io import read, write, cached, cachedmodule, module
 from .triangulation import TriangulationError
 from .hull import convexhull, convexoutline, horizon
 from .hashing import suites
