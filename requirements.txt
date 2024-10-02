@@ -1,0 +1,10 @@
+PyQt5~=5.15.11
+numpy~=2.1.1
+PyWavefront~=1.3.3
+plyfile~=1.1
+scipy~=1.14.1
+moderngl~=5.11.1
+pillow~=10.4.0
+PyYAML~=6.0.2
+arrex~=0.5.2
+setuptools~=75.1.0
