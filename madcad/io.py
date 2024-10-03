@@ -151,7 +151,7 @@ else:
 		return mesh
 
 	def ply_write(mesh, file, **opts):
-		vertices = np.array(mesh.points, copy=False).astype(np.dtype([('x', 'f4'), ('y', 'f4'), ('z', 'f4')]))
+		vertices = np.asarray(mesh.points).astype(np.dtype([('x', 'f4'), ('y', 'f4'), ('z', 'f4')]))
 		faces = np.empty(len(mesh.faces), dtype=[('vertex_indices', 'u4', (3,)), ('group', 'u2')])
 		faces['vertex_indices'] = typedlist_to_numpy(mesh.faces, 'u4')
 		faces['group'] = typedlist_to_numpy(mesh.tracks, 'u4')
