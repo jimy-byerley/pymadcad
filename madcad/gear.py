@@ -112,6 +112,7 @@ def gearprofile(step, teeth, height=None, offset=0, asymetry=None, alpha=radians
 	e = offset  # change name for convenience
 	#e = offset + 0.05*h  # the real offset is 5% (the 1*m, 1.25*m) when the standard says it is 0
 	x = 0.5 + 2*e/step*tan(alpha)  # fraction of the tooth above the primitive circle
+	n = 2 + settings.curve_resolution(h, step/p, resolution)	# number of points to place
 
 	o0 = angle(involute(c, 0, tan(alpha)))	# offset of contact curve
 	oi = atan((h-e-a)/p * tan(alpha))		# offset of interference curve
@@ -123,7 +124,7 @@ def gearprofile(step, teeth, height=None, offset=0, asymetry=None, alpha=radians
 	t = t0+l0
 	if involute(c, t0, t)[1] > 0:
 		# Newton solver method
-		for i in range(5):
+		for i in range(2*n+5):
 			f = sin(t) + cos(t)*(t0-t)
 			J = - sin(t)*(t0-t)
 			t -= f/J
@@ -138,7 +139,7 @@ def gearprofile(step, teeth, height=None, offset=0, asymetry=None, alpha=radians
 		# initial state
 		t1 = t0 - tan(alpha)	# put contact line on primitive
 		t2 = ti + sqrt(c**2 - (p-h+e+a)**2) /p	# put interference point on base circle
-		for i in range(8):
+		for i in range(2*n+5):
 			ct1, ct2 = cos(t1), cos(t2)
 			st1, st2 = sin(t1), sin(t2)
 			# function value
@@ -152,6 +153,9 @@ def gearprofile(step, teeth, height=None, offset=0, asymetry=None, alpha=radians
 				)
 			# iteration
 			t1, t2 = vec2(t1,t2) - inverse(J)*f
+			# prevent divergence out of the interesting range
+			t1 = min(0, t1)
+			t2 = max(0, t2)
 		li = t2 - ti	# interval size of interference curve
 		s0 = t0 - t1	# generation start of contact curve
 	else:
@@ -159,7 +163,6 @@ def gearprofile(step, teeth, height=None, offset=0, asymetry=None, alpha=radians
 
 	points = []
 	tracks = []
-	n = 2 + settings.curve_resolution(h, step/p, resolution)	# number of points to place
 
 	# parameter for first side
 	place = step/(2*p)*x	# place of intersection with the primitive circle
@@ -171,9 +174,10 @@ def gearprofile(step, teeth, height=None, offset=0, asymetry=None, alpha=radians
 		v = involute(c, t0, t)
 		points.append(vec3(v,0))
 		tracks.append(0)
+	tracks[-1] = 1
 	# interference line
 	if interference:
-		for i in range(n+1):
+		for i in range(1, n+1):
 			t = interpol1(ti+li, ti, i/n)
 			v = involuteof(p, ti, -h+e+a, t)
 			points.append(vec3(v,0))
@@ -187,7 +191,7 @@ def gearprofile(step, teeth, height=None, offset=0, asymetry=None, alpha=radians
 	ti = place - oi
 	# interference line
 	if interference:
-		for i in range(n+1):
+		for i in range(n):
 			t = interpol1(ti, ti-li, i/n)
 			v = involuteof(p, ti, -h+e+a, t)
 			points.append(vec3(v,0))
