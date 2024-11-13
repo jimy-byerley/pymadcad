@@ -125,7 +125,7 @@ That's it ! The primitive list can now be converted to Wire or Web with the good
 	(vec3(...), vec3(...), vec3(...))
 
 '''
-version = '0.18.0'
+version = '0.18.1'
 
 import os
 from .nprint import nprint
