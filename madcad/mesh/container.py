@@ -268,7 +268,7 @@ def numpy_to_typedlist(array: 'ndarray', dtype) -> 'typedlist':
 	
 def typedlist_to_numpy(array: 'typedlist', dtype) -> 'ndarray':
 	''' Convert a typedlist to a numpy.ndarray with the given dtype, if the conversion is possible term to term '''
-	tmp = np.array(array, copy=False)
+	tmp = np.asarray(array)
 	if tmp.dtype.fields:
 		return rfn.structured_to_unstructured(tmp, dtype)
 	else:
