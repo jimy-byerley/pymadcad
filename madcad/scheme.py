@@ -362,7 +362,7 @@ class Scheme:
 				va = self.vas[name]
 				ctx.enable_only(shader.enable)
 				ctx.blend_func = shader.blend_func
-				self.b_spaces.bind_to_uniform_block(0)
+				self.b_spaces.bind_to_storage_buffer(0)
 				shader.program['b_spaces'].binding = 0
 				shader.program['proj'].write(view.uniforms['proj'])
 				shader.program['highlight'].write( fvec4(fvec3(settings.display['select_color_line']), 0.5) if self.selected else fvec4(0) )
@@ -371,7 +371,7 @@ class Scheme:
 		
 		def identify(self, view):
 			''' Render all the triangles and lines for identification '''
-			self.b_spaces.bind_to_uniform_block(0)
+			self.b_spaces.bind_to_storage_buffer(0)
 			self.shader_ident['b_spaces'].binding = 0
 			self.shader_ident['startident'] = view.identstep(self.nidents)
 			self.shader_ident['proj'].write(view.uniforms['proj'])

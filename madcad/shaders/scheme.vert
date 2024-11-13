@@ -1,4 +1,4 @@
-#version 330
+#version 430
 
 in uint space;
 in vec3 v_position;
@@ -9,9 +9,9 @@ in uint v_ident;
 in uint v_flags;
 
 uniform mat4 proj;
-uniform b_spaces {
-	mat4[4096] spaces;  // the GPU and CPU allocated buffers can be smaller, but we need to define a max size
-} spaces;
+buffer b_spaces {
+	mat4 spaces[];  // the GPU and CPU allocated buffers can be smaller, but we need to define a max size
+};
 uniform uint startident;
 
 out vec3 normal;
@@ -29,8 +29,8 @@ void main()
 	color = v_color;
 	uint ident = startident + v_ident;
 	identcolor = vec3(float(ident % uint(256)), float(ident/uint(256)), 0)/255.;
-	vec4 position = spaces.spaces[space] * vec4(v_position,1);
-	normal = mat3(spaces.spaces[space]) * v_normal;
+	vec4 position = spaces[space] * vec4(v_position,1);
+	normal = mat3(spaces[space]) * v_normal;
 	sight = sight_direction(position);
 	gl_Position = proj * position;
 	gl_Position[2] += v_layer * gl_Position[3];
