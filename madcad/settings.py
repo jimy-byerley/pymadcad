@@ -175,26 +175,26 @@ def getparam(levels: list, key):
 def use_qt_colors():
 	''' Set the color settings to fit the current system colors '''
 	from .mathutils import fvec3, mix, distance
-	from PyQt5.QtWidgets import QApplication
+	from .qt import QApplication, QPalette
 	palette = QApplication.instance().palette()
 	def qtc(role):
 		''' Convert a QColor or QPalette role to fvec3'''
 		c = palette.color(role)
 		return fvec3(c.red(), c.green(), c.blue()) / 255
 	
-	selection = mix(fvec3(0.4, 1, 0), qtc(palette.Highlight), 0.6)
-	selection *= mix(1/max(selection), max(qtc(palette.Text)), 0.3)
+	selection = mix(fvec3(0.4, 1, 0), qtc(QPalette.Highlight), 0.6)
+	selection *= mix(1/max(selection), max(qtc(QPalette.Text)), 0.3)
 	display.update({
-		'background_color': qtc(palette.Base),
+		'background_color': qtc(QPalette.Base),
 		'select_color_face': selection * 0.05,
 		'select_color_line': selection * 1.1,
 		})
 	colors.update({
-		'line': qtc(palette.Text),
-		'point': qtc(palette.Text),
-		'surface': mix(qtc(palette.Text), qtc(palette.Window), 0.7),
-		'schematic': mix(qtc(palette.Text)*normalize(qtc(palette.LinkVisited)+0.01), qtc(palette.LinkVisited), 0.5),
-		'annotation': mix(qtc(palette.Text)*normalize(qtc(palette.Link)+0.01), qtc(palette.Link), 0.5),
+		'line': qtc(QPalette.Text),
+		'point': qtc(QPalette.Text),
+		'surface': mix(qtc(QPalette.Text), qtc(QPalette.Window), 0.7),
+		'schematic': mix(qtc(QPalette.Text)*normalize(qtc(QPalette.LinkVisited)+0.01), qtc(QPalette.LinkVisited), 0.5),
+		'annotation': mix(qtc(QPalette.Text)*normalize(qtc(QPalette.Link)+0.01), qtc(QPalette.Link), 0.5),
 		})
 
 

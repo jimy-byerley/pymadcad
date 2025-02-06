@@ -1,17 +1,19 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
 from math import log, exp, floor
+
 from .mathutils import *
 from .mesh import typedlist_to_numpy
 from .rendering import Display, overrides, writeproperty
 from .common import resourcedir
 from . import settings
 from . import primitives
+from .qt import Qt, QEvent
+
 from PIL import Image
 import numpy.core as np
 import moderngl as mgl
 
-from PyQt5.QtCore import Qt, QEvent
 
 
 def shader_wire(scene):

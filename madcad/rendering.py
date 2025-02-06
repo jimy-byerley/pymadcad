@@ -49,11 +49,13 @@ from operator import itemgetter
 import moderngl as mgl
 import numpy.core as np
 from PIL import Image
-from PyQt5.QtCore import QEvent, QPoint, Qt
-from PyQt5.QtGui import (QFocusEvent, QInputEvent, QKeyEvent, QMouseEvent,
-                         QSurfaceFormat, QTouchEvent)
-from PyQt5.QtWidgets import QApplication, QOpenGLWidget, QWidget
 
+from .qt import (
+	QEvent, QPoint, Qt,
+	QFocusEvent, QInputEvent, QKeyEvent, QMouseEvent,
+	QSurfaceFormat, QTouchEvent,
+	QApplication, QOpenGLWidget, QWidget,
+	)
 from . import settings
 from .common import resourcedir
 from .mathutils import *
@@ -105,7 +107,7 @@ def show(scene:dict, interest:Box=None, size=uvec2(400,400), projection=None, na
 		created = True
 
 	# use the Qt color scheme if specified
-	if settings.display['system_theme']: 
+	if settings.display['system_theme']:
 		settings.use_qt_colors()
 
 	# create the scene as a window
@@ -784,6 +786,7 @@ class ViewCommon:
 
 		# call the render stack
 		self.scene.render(self)
+		print('      render', self.scene, self.scene.ctx, len(self.scene.stacks['screen']))
 
 	def identstep(self, nidents):
 		''' Updates the amount of rendered idents and return the start ident for the calling rendering pass?
@@ -1157,11 +1160,14 @@ class View(ViewCommon, QOpenGLWidget):
 		# retrieve global shared context if available
 		global global_context
 		
-		if QApplication.testAttribute(Qt.AA_ShareOpenGLContexts):
-			if not global_context:
-				# global_context = mgl.create_context()
-				global_context = mgl.get_context()
-			self.scene.ctx = global_context
+		if self.scene.ctx:
+			self.init()
+			return
+		elif QApplication.testAttribute(Qt.AA_ShareOpenGLContexts):
+			if global_context:
+				self.scene.ctx = global_context
+			else:
+				self.scene.ctx = global_context = mgl.get_context()
 		# or create a context
 		else:
 			# self.scene.ctx = mgl.create_context()

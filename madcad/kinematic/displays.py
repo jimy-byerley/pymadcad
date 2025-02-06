@@ -6,8 +6,8 @@ from dataclasses import dataclass
 import numpy as np
 import numpy.linalg as la
 import moderngl as mgl
-from PyQt5.QtCore import Qt, QEvent	
 
+from ..qt import Qt, QEvent	
 from ..common import resourcedir
 from ..mathutils import *
 from ..mesh import Mesh, Web, Wire, striplist, distance2_pm, typedlist_to_numpy
