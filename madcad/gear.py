@@ -13,7 +13,7 @@
 	If you do not specify optional arguments, the function will provide good defaults for it.
 
 		>>> # fully featured gear
-		>>> gear(step=3, z=12, depth=4, bore_radius=1.5)
+		>>> gear(step=3, teeth=12, depth=4, bore_radius=1.5)
 
 	You may want to generate a more bizarre gear, with a a different hub for instance. You will then need to assemble a gear from its 3 components:  exterior (tooths), structure (between hub and exterior), and hub (what holds the gear on an axis)
 
@@ -29,13 +29,13 @@
 	For reuse in your custom functions, the functions used to generate the gears are exposed:
 
 		>>> # this is the raw profile of a tooth
-		>>> gearprofile(step=3, z=12)
+		>>> gearprofile(step=3, teeth=12)
 '''
 
 from .mathutils import *
 from .mesh import Web, Wire, Mesh, web, wire
 from .blending import junction, blendpair
-from .generation import extrusion, revolution, repeat, extrans
+from .generation import extrusion, revolution, repeat, repeataround, extrans
 from .primitives import Circle, ArcCentered, Segment
 from .triangulation import triangulation
 from .selection import *
@@ -54,7 +54,7 @@ from madcad.mathutils import COMPREC
 
 
 
-def rackprofile(step, height=None, offset=0, asymetry=None, alpha=radians(20), resolution=None) -> Wire:
+def rackprofile(step, height=None, offset=0, asymetry=None, pressure_angle=radians(20), resolution=None) -> Wire:
 	''' Generate a 1-period tooth profile for a rack
 
 		Parameters:
@@ -64,17 +64,17 @@ def rackprofile(step, height=None, offset=0, asymetry=None, alpha=radians(20), r
 			offset:	 	rack reference line offset with the primitive line (as a distance)
 						  - the primitive line is the adherence line with gears
 						  - the reference line is the line half the tooth is above and half below
-			alpha:		angle of the tooth sides, a.k.a  pressure angle of the contact
+			pressure_angle:		angle of the tooth sides, a.k.a  pressure angle of the contact
 	'''
 	# change name for convenience
 	h = height
 	a = asymetry
 	e = offset 
 	if h is None:
-		h = default_height(step, alpha)
+		h = default_height(step, pressure_angle)
 	if a is None:
 		a = -0.1*h
-	ta = tan(alpha)
+	ta = tan(pressure_angle)
 	x = 0.5 - 2*e/step*ta  # fraction of the tooth above the primitive circle
 	
 	return Wire([
@@ -86,7 +86,7 @@ def rackprofile(step, height=None, offset=0, asymetry=None, alpha=radians(20), r
 		], groups=['rack'])
 
 
-def gearprofile(step, teeth, height=None, offset=0, asymetry=None, alpha=radians(20), resolution=None, **kwargs) -> Wire:
+def gearprofile(step, teeth, height=None, offset=0, asymetry=None, pressure_angle=radians(20), resolution=None, **kwargs) -> Wire:
 	''' Generate a 1-period tooth profile for a straight gear
 
 
@@ -96,26 +96,26 @@ def gearprofile(step, teeth, height=None, offset=0, asymetry=None, alpha=radians
 			tooth:			number of tooth on the gear this profile is meant for
 			height:			tooth half height
 			offset:		offset distance of the matching rack profile (see above)
-			alpha:		pressure angle in the contact
+			pressure_angle:		pressure angle in the contact
 	'''
 	# change name for convenience
 	z = teeth
 	h = height
 	a = asymetry
 	if h is None:
-		h = default_height(step, alpha)
+		h = default_height(step, pressure_angle)
 	if a is None:
 		a = -0.1*h
 	p = step*z / (2*pi)	# primitive circle
-	c = p * cos(alpha)	# tangent circle to gliding axis
+	c = p * cos(pressure_angle)	# tangent circle to gliding axis
 
 	e = offset  # change name for convenience
 	#e = offset + 0.05*h  # the real offset is 5% (the 1*m, 1.25*m) when the standard says it is 0
-	x = 0.5 + 2*e/step*tan(alpha)  # fraction of the tooth above the primitive circle
+	x = 0.5 + 2*e/step*tan(pressure_angle)  # fraction of the tooth above the primitive circle
 	n = 2 + settings.curve_resolution(h, step/p, resolution)	# number of points to place
 
-	o0 = angle(involute(c, 0, tan(alpha)))	# offset of contact curve
-	oi = atan((h-e-a)/p * tan(alpha))		# offset of interference curve
+	o0 = angle(involute(c, 0, tan(pressure_angle)))	# offset of contact curve
+	oi = atan((h-e-a)/p * tan(pressure_angle))		# offset of interference curve
 
 	l0 = involuteat(c, p+h+e+a)	# interval size of contact curve
 
@@ -137,7 +137,7 @@ def gearprofile(step, teeth, height=None, offset=0, asymetry=None, alpha=radians
 		# to compute the parameters (t1, t2) of the intersection between contact line and interference line
 		t0, ti = o0, oi
 		# initial state
-		t1 = t0 - tan(alpha)	# put contact line on primitive
+		t1 = t0 - tan(pressure_angle)	# put contact line on primitive
 		t2 = ti + sqrt(c**2 - (p-h+e+a)**2) /p	# put interference point on base circle
 		for i in range(2*n+5):
 			ct1, ct2 = cos(t1), cos(t2)
@@ -163,30 +163,9 @@ def gearprofile(step, teeth, height=None, offset=0, asymetry=None, alpha=radians
 
 	points = []
 	tracks = []
-
-	# parameter for first side
-	place = step/(2*p)*x	# place of intersection with the primitive circle
-	t0 = place + o0	# start of contact curve
-	ti = place + oi	# start of interference curve
-	# contact line
-	for i in range(n+1):
-		t = interpol1(t0-l0, t0-s0, i/n)
-		v = involute(c, t0, t)
-		points.append(vec3(v,0))
-		tracks.append(0)
-	tracks[-1] = 1
-	# interference line
-	if interference:
-		for i in range(1, n+1):
-			t = interpol1(ti+li, ti, i/n)
-			v = involuteof(p, ti, -h+e+a, t)
-			points.append(vec3(v,0))
-			tracks.append(1)
 	
-	tracks[-1] = 2
-	
-	# parameters for second side
-	place = step/(2*p)*(2-x)
+	# parameters for first side
+	place = step/(2*p)*-x
 	t0 = place - o0
 	ti = place - oi
 	# interference line
@@ -195,34 +174,55 @@ def gearprofile(step, teeth, height=None, offset=0, asymetry=None, alpha=radians
 			t = interpol1(ti, ti-li, i/n)
 			v = involuteof(p, ti, -h+e+a, t)
 			points.append(vec3(v,0))
-			tracks.append(3)
+			tracks.append(0)
+		tracks[-1] = 1
 	# contact line
 	for i in range(n+1):
 		t = interpol1(t0+s0, t0+l0, i/n)
 		v = involute(c, t0, t)
 		points.append(vec3(v,0))
-		tracks.append(4)
-		
-	tracks[-1] = 5
+		tracks.append(1)
+	tracks[-1] = 2
+
+	# parameter for second side
+	place = step/(2*p)*x	# place of intersection with the primitive circle
+	t0 = place + o0	# start of contact curve
+	ti = place + oi	# start of interference curve
+	# contact line
+	for i in range(n+1):
+		t = interpol1(t0-l0, t0-s0, i/n)
+		v = involute(c, t0, t)
+		points.append(vec3(v,0))
+		tracks.append(3)
+	tracks[-1] = 4
+	# interference line
+	if interference:
+		for i in range(1, n+1):
+			t = interpol1(ti+li, ti, i/n)
+			v = involuteof(p, ti, -h+e+a, t)
+			points.append(vec3(v,0))
+			tracks.append(4)
+		tracks[-1] = 5
 
 	points.append(angleAxis(step/p, vec3(0,0,1)) * points[0])
 	tracks.append(5)
 
-	return Wire(points, tracks=tracks, groups=['contact', 'interference', 'bottom', 'interference', 'contact', 'top'])
+	return Wire(points, tracks=tracks, groups=['interference', 'contact', 'top', 'contact', 'interference', 'bottom'])
 
-def gearcircles(step, z, h=None, offset=0, alpha=radians(30)):
+
+def gearcircles(step, teeth, height=None, offset=0, pressure_angle=radians(20)):
 	''' return the convenient circles radius for a gear with the given parameters
 		  return is `(primitive, base, bottom, top)`
 	'''
-	if h is None:
-		h = default_height(step, alpha)
-	e = h*e
-	p = step*z / (2*pi)	# primitive circle
-	c = p * cos(alpha)	# tangent circle to gliding axis
-	return p, c, p-h-e, p+h-e
+	if height is None:
+		height = default_height(step, pressure_angle)
+	offset = height*offset
+	p = step*teeth / (2*pi)	# primitive circle
+	c = p * cos(pressure_angle)	# tangent circle to gliding axis
+	return p, c, p-height-offset, p+height-offset
 
-def default_height(step, alpha):
-	return 0.5 * 2.25 * step/pi * cos(alpha)/cos(radians(20))
+def default_height(step, pressure_angle):
+	return 0.5 * 2.25 * step/pi * cos(pressure_angle)/cos(radians(20))
 
 def involute(c, t0, t):
 	''' give a point of parameter `t` on involute from circle or radius `c`, starting from `t0` on the circle
@@ -436,11 +436,11 @@ def create_pattern_rect(
 	if rounded:  # rounded case
 		filet(	pattern_ref,
 				pattern_ref.frontiers(0,1,2),
-				('radius', min(0.3*(r_ext - r_int), r_int*(angle_step/2-theta_1))),
+				radius = min(0.3*(r_ext - r_int), r_int*(angle_step/2-theta_1)),
 				)
 		filet(	pattern_ref,
 				pattern_ref.frontiers(2,3,0),
-				('radius', min(0.3*(r_ext - r_int), r_ext*(angle_step/2-theta_2))),
+				radius = min(0.3*(r_ext - r_int), r_ext*(angle_step/2-theta_2)),
 				)
 		pattern_ref.mergeclose()
 	pattern_profile = repeat(web(pattern_ref), patterns, rotatearound(angle_step, axis))
@@ -547,7 +547,7 @@ def minmax_radius(points):
 
 def gearexterior(
 	profile: Wire,
-	z,
+	teeth,
 	depth,
 	step=None,
 	helix_angle=0,
@@ -571,122 +571,60 @@ def gearexterior(
 	"""
 
 	# Parameters
-	half_depth = depth / 2
-	footer, header = minmax_radius(profile.points)
-	R = header  # the largest radius of profile
+	rmin, rmax = minmax_radius(profile.points)
+	margin = 0.1*(rmax - rmin)
+	radial = normalize(profile[0])
+	
+	if chamfer:
+		if isinstance(chamfer, (tuple, list)):
+			chamfer_angle, ratio = chamfer
+		elif isinstance(chamfer, float):
+			chamfer_angle, ratio = chamfer, 0.5
+		elif isinstance(chamfer, bool):
+			chamfer_angle, ratio = pi / 8, 0.5
+		else:
+			raise TypeError('chamfer value must be a tuple, float or bool, not {}'.format(type(chamfer)))
+		if chamfer_angle < 0:
+			raise ValueError("chamfer angle must be positive.")
 
-	# The code generates a tooth and a body, applies
-	# a boolean operation and then repeat it to 
-	# get a complete gear surface
+		top = wire([
+			radial * (rmin - margin),
+			radial * mix(rmin, rmax, ratio),
+			radial * (rmax + margin) - Z * tan(chamfer_angle) * (ratio*(rmax-rmin) + margin)
+			]).segmented()
+	else:
+		top = wire([
+			radial * (rmin - margin),
+			radial * (rmax + margin),
+			]).segmented()
 
-	# Body
-	refpoint = profile[0] - half_depth * Z
-	# Offsets needed for boolean operation
-	more_offset = (header + 0.3 * (header - footer)) / header
-	less_offset = (footer - 0.3 * (header - footer)) / header
-	A = (more_offset * (X + Y) + Z) * refpoint # external radius offset
-	B = (less_offset * (X + Y) + Z) * refpoint # internal radius offset
-	bottom = web(Segment(A, B))
+	top = revolution(top, angle=2*pi/teeth)
+	bottom = top.transform(scaledir(Z, -1)) .flip()
 
+	if abs(helix_angle) > pi/2:
+		raise ValueError("helix angle absolute value must be below pi/2")
 	if helix_angle:  # helical tooth case
 		# Step to generate a helical transformation
+		angle = depth/rmax * tan(helix_angle)
 		step = settings.curve_resolution(
-			depth / cos(helix_angle), abs(depth * tan(helix_angle) / R), resolution
-		)
-		angle = depth * tan(helix_angle) / R / (step + 1)
-		h = depth / (step + 1)
-		bottom_gear_edge = profile.transform(translate(-half_depth * Z))
-		transformations = (
-			translate(i * h * Z) * rotate(angle * i, Z) for i in range(step + 2)
-		)
-		links = ((i, i + 1, 0) for i in range(step + 1))
-
+			depth / cos(helix_angle), 
+			abs(angle), 
+			resolution)
 		# Generation of helical gear surface
-		bottom_gear_edge = profile.transform(translate(-half_depth * Z))
-		gear_surface = extrans(bottom_gear_edge, transformations, links)
-		gear_surface.mergeclose()
-
-		# Transformation from step 0 to step -1
-		tra = translate(depth * Z) * rotate(depth * tan(helix_angle) / R, Z)
-		# Generation of the body
-		if chamfer:
-			if isinstance(chamfer, (tuple, list)):
-				chamfer_angle, ratio = chamfer
-			elif isinstance(chamfer, float):
-				chamfer_angle, ratio = chamfer, 0.5
-			else:
-				chamfer_angle, ratio = pi / 8, 0.5
-			assert chamfer_angle > 0, "chamfer angle must be positive."
-			# Transformation for one step from step 0 to step 1
-			trs = translate(h * Z) * rotate(angle, Z)
-
-			# Axis for rotation to generate the chamfer
-			axis = normalize(cross(Z, A))
-
-			coeff = (footer + (1 - ratio) * (header - footer)) / header
-			M = (coeff * (X + Y) + Z) * refpoint 
-			# Compute closed points
-			C = rotatearound(-chamfer_angle, (M, axis)) * A # top
-			D = rotatearound(chamfer_angle, (M, axis)) * A # bottom
-
-			# Adjust points
-			t = _get_intersection(refpoint, trs * refpoint, M, D)
-			I = refpoint + t * (trs * refpoint - refpoint)
-			D = M + normalize(I - M) * length(M - D)
-
-			I = refpoint - t * (trs * refpoint - refpoint)
-			C = M + normalize(I - M) * length(M - C)
-
-			bottom = web([C,M,B])
-			top = web([D,M,B]).transform(depth*Z)
-		else:
-			top = bottom.transform(depth*Z)
-
-		body = revolution(top + bottom.flip(), angle=2*pi/z)
-		body.mergeclose()
-
-	else:  # straight tooth case
-		# Generation of body
-		if chamfer:
-			if isinstance(chamfer, (tuple, list)):
-				chamfer_angle, ratio = chamfer
-			elif isinstance(chamfer, float):
-				chamfer_angle, ratio = chamfer, 0.5
-			else:
-				chamfer_angle, ratio = pi / 8, 0.5
-			assert chamfer_angle > 0, "chamfer angle must be positive."
-			# Axis for rotation to generate the chamfer
-			axis = normalize(cross(Z, A))
-
-			coeff = (footer + (1 - ratio) * (header - footer)) / header
-			M = (coeff * (X + Y) + Z) * refpoint 
-			# Compute closed points
-			C = rotatearound(-chamfer_angle, (M, axis)) * A # top
-			D = rotatearound(chamfer_angle, (M, axis)) * A # bottom
-
-			bottom = web([C,M,B])
-			top = web([D,M,B]).transform(depth*Z)
-		else:
-			top = bottom.transform(depth*Z)
-
-		body = revolution(top + bottom.flip(), angle=2*pi/z)
-		body.mergeclose()
-
-		# Surfaces
-		gear_surface = extrusion(
-			profile,
-			depth * 1.05 * Z,
-			alignment=0.5,
-		)
-	
+		transform = lambda x: translate(x*depth*Z) * rotate(x*angle, Z)
+		tooth = extrans(profile, map(transform, linrange(0-NUMPREC, 1+NUMPREC, div=step)))
+		top = top.transform(transform(1))
+	else:  
+		# straight tooth case
+		transform = depth*Z
+		tooth = extrusion(profile, transform)
+		top = top.transform(transform)
 
 	# Boolean operation
-	result = intersection(body.flip(), gear_surface)
-
+	flanges = top + bottom
+	result = intersection(flanges, tooth).transform(-0.5*depth*Z)
 	# Repetition for a complete exterior surface
-	mesh = repeat(result, z, rotatearound(2 * pi / z, (O, Z)))
-	mesh.mergeclose()
-	return mesh
+	return repeataround(result, teeth).finish()
 
 
 def gearstructure(
@@ -855,7 +793,7 @@ def geargather(exterior, structure, hub) -> Mesh:
 @cachefunc
 def gear(
 	step,
-	z: int,
+	teeth: int,
 	depth,
 	bore_radius = 0,
 	int_height = 0,
@@ -872,9 +810,9 @@ def gear(
 		step (float):
 
 			tooth step over the primitive curve, same as the matching rack step
-			the primitive perimeter is `step * z` and radius is `step * z / 2*pi`
+			the primitive perimeter is `step * teeth` and radius is `step * teeth / 2*pi`
 
-		z (int):				number of teeth
+		teeth (int):				number of teeth
 		depth (float):			extrusion eight - width of the gear along its axis
 		bore_radius (float):	radius of the main bore
 		int_height (float):		if you want a pinion with a structure thinner than the value of `depth`,
@@ -886,7 +824,7 @@ def gear(
 	* Extra parameters for `gearprofile`
 
 		offset (float):		offset of tooth (as a distance)
-		alpha (float): 		pressure angle in radian
+		pressure_angle (float): 		pressure angle in radian
 
 	* Extra parameters for `gearexterior`
 
@@ -911,11 +849,11 @@ def gear(
 		- `int_height` impacts the height of the hub unless specified.
 		- if `hub_height` is null, there will be no hub.
 	"""
-	# profile = repeat_circular(gearprofile(step, z, **kwargs), z)
-	profile = gearprofile(step, z, **kwargs)
+	# profile = repeat_circular(gearprofile(step, teeth, **kwargs), teeth)
+	profile = gearprofile(step, teeth, **kwargs)
 
 	# Parts
-	exterior = gearexterior(profile, z, depth, step, **kwargs)
+	exterior = gearexterior(profile, teeth, depth, step, **kwargs)
 	ext_int = minmax_radius(exterior.points)[0]
 	hub = gearhub(bore_radius, depth, int_height, hub_radius=min(2 * bore_radius, 0.9 * ext_int), **kwargs)
 	hub_ext = minmax_radius(hub.points)[1]
@@ -965,7 +903,7 @@ def spherical_involute(cone_angle:float, t0:float, t:float) -> vec3:
 	)
 
 
-def spherical_involuteof(pitch_cone_angle:float, t0:float, alpha:float, t:float) -> vec3:
+def spherical_involuteof(pitch_cone_angle:float, t0:float, pressure_angle:float, t:float) -> vec3:
 	"""
 	Return the spherical interference function
 
@@ -974,7 +912,7 @@ def spherical_involuteof(pitch_cone_angle:float, t0:float, alpha:float, t:float)
 		t (float): 					the angular position
 		t0 (float): 				the difference phase
 		pitch_cone_angle (float):	the pitch cone angle
-		alpha(float): 				the height angle offset of the rack
+		pressure_angle(float): 				the height angle offset of the rack
 
 	Return:
 
@@ -982,8 +920,8 @@ def spherical_involuteof(pitch_cone_angle:float, t0:float, alpha:float, t:float)
 	"""
 	cos_p, sin_p = cos(pitch_cone_angle), sin(pitch_cone_angle)
 	return (
-		+ cos(alpha) * spherical_involute(pitch_cone_angle, t0, t) 
-		+ sin(alpha) * vec3(-cos_p * cos(t+t0), -cos_p * sin(t+t0), sin_p)
+		+ cos(pressure_angle) * spherical_involute(pitch_cone_angle, t0, t) 
+		+ sin(pressure_angle) * vec3(-cos_p * cos(t+t0), -cos_p * sin(t+t0), sin_p)
 		)
 
 
@@ -1004,7 +942,7 @@ def derived_spherical_involute(cone_angle:float, t0:float):
 	)
 
 
-def jacobian_spherical_involute(base_cona_angle:float, pitch_cone_angle:float, t01:float, t02:float, alpha:float) -> callable:
+def jacobian_spherical_involute(base_cona_angle:float, pitch_cone_angle:float, t01:float, t02:float, pressure_angle:float) -> callable:
 	"""
 	Return the function of the jacobian used for the newton method in `spherical_gearprofile`
 
@@ -1014,17 +952,17 @@ def jacobian_spherical_involute(base_cona_angle:float, pitch_cone_angle:float, t
 		pitch_cone_angle (float): 	the pitch cone angle
 		t01 (float): 				the phase of the spherical involute function
 		t02 (float): 				the phase of the spherical interference function
-		alpha (float): 				the height angle offset of the rack
+		pressure_angle (float): 				the height angle offset of the rack
 	"""
 	dsi = derived_spherical_involute # for convenience
 	derived_involute = dsi(base_cona_angle, t01)
 	cos_p = cos(pitch_cone_angle)
 	vec = lambda t: vec3(cos_p * sin(t), -cos_p * cos(t), 0)
-	derived_interference = lambda t: dsi(pitch_cone_angle, t02)(t) * cos(alpha) + sin(alpha) * vec(t + t02)
+	derived_interference = lambda t: dsi(pitch_cone_angle, t02)(t) * cos(pressure_angle) + sin(pressure_angle) * vec(t + t02)
 	return lambda t1, t2: mat3(derived_involute(t1), -derived_interference(t2), vec3(0, 0, 1))
 
 
-def spherical_rack_tools(z:float, pressure_angle:float=pi / 9, ka:float=1, kd:float=1.25):
+def spherical_rack_tools(teeth:float, pressure_angle:float=pi / 9, ka:float=1, kd:float=1.25):
 	"""
 	Return a list of all information useful to generate a spherical rack.
 	Five elements :
@@ -1037,7 +975,7 @@ def spherical_rack_tools(z:float, pressure_angle:float=pi / 9, ka:float=1, kd:fl
 
 	Parameters :
 
-		z (float):
+		teeth (float):
 
 			number of tooth of the rack equal to `z_pinion / sin(pitch_cone_angle)`
 			or `z_wheel / sin(shaft_angle - pitch_cone_angle)`
@@ -1046,7 +984,7 @@ def spherical_rack_tools(z:float, pressure_angle:float=pi / 9, ka:float=1, kd:fl
 		ka (float): 			the addendum coefficient
 		kd (float): 			the dedendum coefficient
 	"""
-	k = 1 / z
+	k = 1 / teeth
 	gamma_p = 0.5 * pi
 	gamma_b = asin(cos(pressure_angle))
 	cos_b, sin_b = cos(gamma_b), sin(gamma_b)
@@ -1067,13 +1005,13 @@ def spherical_rack_tools(z:float, pressure_angle:float=pi / 9, ka:float=1, kd:fl
 	return [t_min, t_max, phase_diff, phase_empty, involute]
 
 
-def spherical_rackprofile(z:float, pressure_angle:float=pi / 9, ka:float=1, kd:float=1.25, resolution=None):
+def spherical_rackprofile(teeth:float, pressure_angle:float=pi / 9, ka:float=1, kd:float=1.25, resolution=None):
 	"""
 	Return a `Wire` which is a tooth of the rack.
 
 	Parameters:
 
-		z (float):
+		teeth (float):
 
 			number of tooth of the rack equal to `z_pinion / sin(pitch_cone_angle)`
 			or `z_wheel / sin(shaft_angle - pitch_cone_angle)`
@@ -1082,8 +1020,8 @@ def spherical_rackprofile(z:float, pressure_angle:float=pi / 9, ka:float=1, kd:f
 		ka (float): 				the addendum coefficient
 		kd (float): 				the dedendum coefficient
 	"""
-	div = settings.curve_resolution(1, pi/z, resolution)
-	t_min, t_max, phase1, phase2, involute = spherical_rack_tools(z, pressure_angle, ka, kd)
+	div = settings.curve_resolution(1, pi/teeth, resolution)
+	t_min, t_max, phase1, phase2, involute = spherical_rack_tools(teeth, pressure_angle, ka, kd)
 	
 	side1 = [involute(t, 0)		 for t in linrange(t_min, t_max, div=div)]
 	side2 = [involute(-t, phase1)   for t in linrange(t_min, t_max, div=div)]
@@ -1094,7 +1032,7 @@ def spherical_rackprofile(z:float, pressure_angle:float=pi / 9, ka:float=1, kd:f
 
 
 def spherical_gearprofile(
-		z:int, 
+		teeth:int, 
 		pitch_cone_angle:float, 
 		pressure_angle:float=pi / 9, 
 		ka:float=1, 
@@ -1106,7 +1044,7 @@ def spherical_gearprofile(
 
 	Parameters:
 
-		z (int):						number of tooth on the gear this profile is meant for
+		teeth (int):						number of tooth on the gear this profile is meant for
 		pitch_cone_angle (float): 		the pitch cone angle
 		pressure_angle (float):			pressure angle of the tooth
 		ka (float):						addendum coefficient
@@ -1116,15 +1054,15 @@ def spherical_gearprofile(
 	gamma_p = pitch_cone_angle # for convenience
 	gamma_b = asin(cos(pressure_angle) * sin(gamma_p))
 	cos_b, sin_b = cos(gamma_b), sin(gamma_b)
-	tooth_size = pi / z
+	tooth_size = pi / teeth
 	involute = lambda t, t0 : spherical_involute(gamma_b, t0, t)
 	epsilon_p = acos(cos(gamma_p) / cos_b) / sin_b
 	theta_p = anglebt(involute(0, 0) * vec3(1, 1, 0), involute(epsilon_p, 0) * vec3(1, 1, 0))
 	phase_diff = tooth_size + 2 * theta_p
-	phase_empty = phase_interference = 2 * pi / z - phase_diff
+	phase_empty = phase_interference = 2 * pi / teeth - phase_diff
 	# The following number `k` is useful to simplify some calculations
 	# It's broadly speaking `1/z_rack` and `z_rack` is not an integer !
-	k = sin(gamma_p) / z
+	k = sin(gamma_p) / teeth
 
 	# Spherical involute part
 	gamma_f = gamma_p + 2 * ka * k # addendum cone angle
@@ -1134,24 +1072,24 @@ def spherical_gearprofile(
 	if gamma_r > gamma_b:
 		v = vec3(1, 1, 0)
 		t_min = acos(cos(gamma_r) / cos_b) / sin_b
-		phase_empty = 2 * pi / z - anglebt(
+		phase_empty = 2 * pi / teeth - anglebt(
 			involute(t_min, 0) * v, involute(-t_min, phase_diff) * v
 		)
 
 	# Calculation of offsets due to geometry of spherical rack
 	_, t_rack_max, phase1, _, rinvolute = spherical_rack_tools(1 / k, pressure_angle, ka, kd)
-	interference = lambda t, t0 : spherical_involuteof(gamma_p, t0, alpha, t)
-	alpha = 2 * ka * k
+	interference = lambda t, t0 : spherical_involuteof(gamma_p, t0, pressure_angle, t)
+	pressure_angle = 2 * ka * k
 	n1, n2 = rinvolute(t_rack_max, 0) * vec3(1, 1, 0), rinvolute(-t_rack_max, phase1) * vec3(1, 1, 0)
 	beta = 0.5 * anglebt(n1, n2) * length(n1) / sin_b
 
 	# Newton method to calculate the intersection between
 	# the spherical involute and the spherical interference.
 	# Objective function
-	involuteat = lambda t2, t0 : spherical_involuteof(gamma_p, t0, alpha, t2)
+	involuteat = lambda t2, t0 : spherical_involuteof(gamma_p, t0, pressure_angle, t2)
 	f = lambda t1, t2: involute(t1, 0) - involuteat(t2, -0.5 * phase_interference + beta)
 	# Jacobian matrix
-	J = jacobian_spherical_involute(gamma_b, gamma_p, 0, -0.5 * phase_interference + beta, alpha)
+	J = jacobian_spherical_involute(gamma_b, gamma_p, 0, -0.5 * phase_interference + beta, pressure_angle)
 
 	# Compute the intersection values
 	t1, t2, t3 = 0.5 * t_max, -0.5 * t_max, 0
@@ -1159,7 +1097,7 @@ def spherical_gearprofile(
 		t1, t2, t3 = vec3(t1, t2, t3) - inverse(J(t1, t2)) * f(t1, t2)
 
 	# Build sides of a tooth
-	div = settings.curve_resolution(1, 2*pi/z, resolution)
+	div = settings.curve_resolution(1, 2*pi/teeth, resolution)
 	interference1 = [interference(t, -0.5 * phase_interference + beta) for t in linrange(0, t2, div=div)]
 	interference2 = [interference(-t, phase_diff + 0.5 * phase_interference - beta) for t in linrange(0, t2, div=div)]
 	side1 = Wire(interference1[:-1]) + Wire([involute(t, 0) for t in linrange(t1, t_max, div=div)])
@@ -1169,7 +1107,7 @@ def spherical_gearprofile(
 	# Extreme points of sides to compute angle between them
 	a = interference(0, -0.5 * phase_interference + beta)
 	b = interference(0, phase_diff + 0.5 * phase_interference - beta)
-	final_phase_empty = 2 * pi / z - anglebt(a * vec3(1, 1, 0), b * vec3(1, 1, 0))
+	final_phase_empty = 2 * pi / teeth - anglebt(a * vec3(1, 1, 0), b * vec3(1, 1, 0))
 	top = Segment(involute(t_max, 0), involute(-t_max, phase_diff)).mesh()
 	bottom = Segment(angleAxis(-final_phase_empty, vec3(0, 0, 1)) * a, a).mesh()
 	top.groups = ['top']
@@ -1193,7 +1131,7 @@ def cone_projection(profile: Wire, pitch_cone_angle:float) -> Wire:
 # @cachefunc
 def bevelgear(
 	step:float,
-	z:int,
+	teeth:int,
 	pitch_cone_angle:float,
 	pressure_angle:float=pi/9,
 	ka:float=1,
@@ -1211,9 +1149,9 @@ def bevelgear(
 		step (float):
 
 			tooth step over the primitive curve, same as the matching rack step
-			the primitive perimeter is `step * z` and radius is `step * z / (2 * pi)`
+			the primitive perimeter is `step * teeth` and radius is `step * teeth / (2 * pi)`
 
-		z (int):		 			number of teeth
+		teeth (int):		 			number of teeth
 		pitch_cone_angle (float):	pitch cone angle
 		pressure_angle (float):		the pressure angle of the tooth
 		ka (float) :				addendum coefficient
@@ -1223,16 +1161,16 @@ def bevelgear(
 		bore_height (float):   		height of the main bore
 	"""
 	if helix_angle:
-		return helical_bevel_gear(step, z, pitch_cone_angle, pressure_angle, ka, kd, helix_angle, 
+		return helical_bevel_gear(step, teeth, pitch_cone_angle, pressure_angle, ka, kd, helix_angle, 
 						bore_radius, bore_height, resolution)
 	else:
-		return straight_bevel_gear(step, z, pitch_cone_angle, pressure_angle, ka, kd, 
+		return straight_bevel_gear(step, teeth, pitch_cone_angle, pressure_angle, ka, kd, 
 						bore_radius, bore_height, resolution)
 
 
 def straight_bevel_gear(
 	step:float,
-	z:int,
+	teeth:int,
 	pitch_cone_angle:float,
 	pressure_angle:float=pi/9,
 	ka:float=1,
@@ -1249,9 +1187,9 @@ def straight_bevel_gear(
 		step (float):
 
 			tooth step over the primitive curve, same as the matching rack step
-			the primitive perimeter is `step * z` and radius is `step * z / (2 * pi)`
+			the primitive perimeter is `step * teeth` and radius is `step * teeth / (2 * pi)`
 
-		z (int):		 			number of teeth
+		teeth (int):		 			number of teeth
 		pitch_cone_angle (float):	pitch cone angle
 		pressure_angle (flaot):		the pressure angle of the tooth
 		ka (float) :				addendum coefficient
@@ -1264,18 +1202,18 @@ def straight_bevel_gear(
 	gamma_p = pitch_cone_angle # for convenience
 	gamma_b = asin(cos(pressure_angle) * sin(gamma_p))
 	cos_b, sin_b = cos(gamma_b), sin(gamma_b)
-	rp = z * step / (2 * pi)
+	rp = teeth * step / (2 * pi)
 	rho1 = rp / sin(gamma_p)
 	rho0 = 2 * rho1 / 3
-	k = sin(gamma_p) / z
+	k = sin(gamma_p) / teeth
 	gamma_r = gamma_p - 2 * kd * k
 	gamma_f = gamma_p + 2 * ka * k
 	phi_p = acos(tan(gamma_b) / tan(gamma_p))
 	theta_p = atan2(sin_b * tan(phi_p), 1) / sin_b - phi_p
-	phase_diff = pi / z + 2 * theta_p
+	phase_diff = pi / teeth + 2 * theta_p
 
 	# Generate spherical profiles
-	spherical_profile = spherical_gearprofile(z, gamma_p, pressure_angle, ka, kd, resolution=resolution) # one tooth
+	spherical_profile = spherical_gearprofile(teeth, gamma_p, pressure_angle, ka, kd, resolution=resolution) # one tooth
 	
 	# Generate teeth border
 	teeth_border = extrusion(spherical_profile.transform(rho0*0.9), (rho1*1.1)/(rho0*0.9))
@@ -1283,7 +1221,7 @@ def straight_bevel_gear(
 	# Common values
 	v = vec3(1, 1, 0)
 	# angle1tooth = anglebt(spherical_profile[0] * v, spherical_profile[-1] * v)
-	angle1tooth = 2 * pi / z
+	angle1tooth = 2 * pi / teeth
 	gamma_l = gamma_p + 2 * (ka + 0.25) * k # offset : 0.25 for boolean operation
 	A = vec3(rho1 * sin(gamma_r), 0, rho1 * cos(gamma_r))
 	B = vec3(rho1 * sin(gamma_l), 0, rho1 * cos(gamma_l))
@@ -1321,7 +1259,7 @@ def straight_bevel_gear(
 	axis = (O, Z)
 	body = revolution(wire, axis, angle1tooth, resolution=resolution)
 	one_tooth = intersection(body.transform(phase_tooth_body), teeth_border)
-	all_teeth = repeat(one_tooth, z, rotatearound(angle1tooth, axis))
+	all_teeth = repeat(one_tooth, teeth, rotatearound(angle1tooth, axis))
 	all_teeth.finish()
 
 	# For better orientation : the first tooth is placed centered in the plane (O, Y)
@@ -1334,7 +1272,7 @@ def straight_bevel_gear(
 
 def helical_bevel_gear(
 	step:float,
-	z:int,
+	teeth:int,
 	pitch_cone_angle:float,
 	pressure_angle:float = radians(20),
 	ka:float=1,
@@ -1352,9 +1290,9 @@ def helical_bevel_gear(
 		step (float):
 
 			tooth step over the primitive curve, same as the matching rack step
-			the primitive perimeter is `step * z` and radius is `step * z / (2 * pi)`
+			the primitive perimeter is `step * teeth` and radius is `step * teeth / (2 * pi)`
 
-		z (int):		 			number of teeth
+		teeth (int):		 			number of teeth
 		pitch_cone_angle (float):	pitch cone angle
 		pressure_angle (float):		the pressure angle of the tooth
 		ka (float) :				addendum coefficient
@@ -1367,22 +1305,22 @@ def helical_bevel_gear(
 	gamma_p = pitch_cone_angle	# for convenience
 	gamma_b = asin(cos(pressure_angle) * sin(gamma_p))
 	cos_b, sin_b = cos(gamma_b), sin(gamma_b)
-	rp = z * step / (2 * pi)
+	rp = teeth * step / (2 * pi)
 	rho1 = rp / sin(gamma_p)
 	rho0 = 2 * rho1 / 3
-	k = sin(gamma_p) / z
+	k = sin(gamma_p) / teeth
 	gamma_r = gamma_p - 2 * kd * k # dedendum angle
 	gamma_f = gamma_p + 2 * ka * k # addendum angle
 	gamma_l = gamma_p + 2 * (ka + 0.25) * k # offset : 0.25 for boolean operation
 	phi_p = acos(tan(gamma_b) / tan(gamma_p))
 	theta_p = atan2(sin_b * tan(phi_p), 1) / sin_b - phi_p
-	phase_diff = pi / z + 2 * theta_p
-	angle1tooth = 2 * pi / z
+	phase_diff = pi / teeth + 2 * theta_p
+	angle1tooth = 2 * pi / teeth
 
 	v = vec3(1, 1, 0) # useful for computation
 
 	# Generate spherical profiles
-	tooth = spherical_gearprofile(z, gamma_p, pressure_angle, ka, kd, resolution=resolution)	# one tooth
+	tooth = spherical_gearprofile(teeth, gamma_p, pressure_angle, ka, kd, resolution=resolution)	# one tooth
 
 	# One helical tooth
 	# General parameters
@@ -1390,7 +1328,7 @@ def helical_bevel_gear(
 	z0 = rho0 * cosp
 	z1 = rho1 * cosp
 	delta = sin(gamma_p) / tan(helix_angle)	# parameter of the conical helix
-	angle_step = lambda z: (log(z) - log(z0)) / delta
+	angle_step = lambda teeth: (log(teeth) - log(z0)) / delta
 
 	# Compute the number of steps for discretization
 	topbot_angle = (log(z1) - log(z0)) / delta
@@ -1435,14 +1373,14 @@ def helical_bevel_gear(
 
 	quat_t2b = angleAxis(-phase_tooth_body, Z)
 
-	def get_body_points(rho, z, angle):
+	def get_body_points(rho, teeth, angle):
 		"""
 		Return two points of body according to the radius of sphere
 		and the height. They are useful to build the body correctly
 		for the boolean operation
 		"""
-		mat4_scale_rot = mat4(quat_t2b) * helix_scale(rho) * helix_rotate(z)
-		gear_surface_point_A = helix_scale(rho - scale_step) * helix_rotate(z - z_step) * tooth_point
+		mat4_scale_rot = mat4(quat_t2b) * helix_scale(rho) * helix_rotate(teeth)
+		gear_surface_point_A = helix_scale(rho - scale_step) * helix_rotate(teeth - z_step) * tooth_point
 		gear_surface_point_B = helix_scale(rho) * transform(angleAxis(angle, Z)) * tooth_point
 		body_C = mat4_scale_rot * vec3(sin(gamma_r), 0, cos(gamma_r))
 		body_D = mat4_scale_rot * vec3(sin(gamma_l), 0, cos(gamma_l))
@@ -1483,7 +1421,7 @@ def helical_bevel_gear(
 	body = revolution(wire, Axis(O, Z), angle1tooth)
 	# show([gear_surface, body])
 	onetooth = intersection(gear_surface, body)
-	all_teeth = repeat(onetooth, z, rotatearound(angle1tooth, (O, Z))).finish()
+	all_teeth = repeat(onetooth, teeth, rotatearound(angle1tooth, (O, Z))).finish()
 
 	# align the mesh on the middle of a tooth
 	involute = lambda t, t0: spherical_involute(gamma_b, t0, t)
@@ -1529,14 +1467,14 @@ def _get_intersection(A: vec3, B: vec3, C: vec3, D: vec3) -> float:
 	delta = b * b - 4 * a * c
 	return (-b + sqrt(delta)) / (2 * a)
 
-def matrix4placement(z:int, shaft_angle:float) -> mat4x4:
+def matrix4placement(teeth:int, shaft_angle:float) -> mat4x4:
 	"""
 	Return a matrix of transformation given initial state (Z is the initial axis of revolution).
 	This matrix is helpful when you want to place bevel gears.
 
 	Parameters:
 
-		z (int):				number of tooth on the gear
+		teeth (int):				number of tooth on the gear
 		shaft_angle (float): 	the shaft angle
 
 	Example:
@@ -1549,4 +1487,4 @@ def matrix4placement(z:int, shaft_angle:float) -> mat4x4:
 		show([wheel, myparts.transform(matrix)])
 		```
 	"""
-	return mat4(angleAxis(shaft_angle, Y)) * mat4(angleAxis(pi + pi / z, Z))
+	return mat4(angleAxis(shaft_angle, Y)) * mat4(angleAxis(pi + pi / teeth, Z))
