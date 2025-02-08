@@ -21,7 +21,7 @@
 		>>> ext_radius = (3 * 12) / (2 * pi) - 3
 		>>> int_radius = 4
 		>>> geargather(
-		...	 gearexterior(repeat_circular(gearprofile(3, 30), 30), depth=4),
+		...	 gearexterior(repeataround(gearprofile(3, 30), 30), depth=4),
 		...	 gearstructure("rounded", ext_radius, int_radius, 2, patterns=6),
 		...	 my_hub_mesh,
 		... )
@@ -250,15 +250,6 @@ def involuteof(c, t0, d, t):
 def angle(p):
 	return atan2(p[1], p[0])
 
-
-def repeat_circular(profile, n: int) -> Wire:
-	''' Repeat n times the given Wire by rotation around (O,Z) '''
-	result = repeat(profile, n, rotatearound(
-		anglebt(noproject(profile[0],Z), noproject(profile[-1],Z)),
-		(O,Z),
-		))
-	result.mergeclose()
-	return result
 
 
 def pattern_full(ext_radius, int_radius, depth, int_height=0, **kwargs) -> Mesh:
@@ -643,7 +634,7 @@ def gearstructure(
 
 		ext_radius (float):
 
-				given by the attribut `_radius` of the result of `repeat_circular` -
+				given by the attribut `_radius` of the result of `repeataround` -
 				to avoid interference, it must be smaller than `_radius` (for instance 0.95 * `_radius`))
 
 		int_radius (float):	it is the same radius of the largest radius of the hub part
@@ -849,7 +840,7 @@ def gear(
 		- `int_height` impacts the height of the hub unless specified.
 		- if `hub_height` is null, there will be no hub.
 	"""
-	# profile = repeat_circular(gearprofile(step, teeth, **kwargs), teeth)
+	# profile = repeataround(gearprofile(step, teeth, **kwargs), teeth)
 	profile = gearprofile(step, teeth, **kwargs)
 
 	# Parts
