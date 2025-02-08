@@ -777,6 +777,8 @@ class ViewCommon:
 			#Image.fromarray(self.map_ident*16, 'I;16').show()
 
 	def render(self):
+		self.preload()
+		
 		# prepare the view uniforms
 		w, h = self.fb_screen.size
 		self.uniforms['view'] = view = self.navigation.matrix()
@@ -830,16 +832,15 @@ class ViewCommon:
 
 	def preload(self):
 		''' Internal method to load common resources '''
-		ctx, resources = self.scene.ctx, self.scene.resources
-		resources['shader_ident'] = ctx.program(
+		self.scene.resource('shader_ident', lambda scene: scene.ctx.program(
 					vertex_shader=open(resourcedir+'/shaders/object-ident.vert').read(),
 					fragment_shader=open(resourcedir+'/shaders/ident.frag').read(),
-					)
+					))
 
-		resources['shader_subident'] = ctx.program(
+		self.scene.resource('shader_subident', lambda scene: scene.ctx.program(
 					vertex_shader=open(resourcedir+'/shaders/object-item-ident.vert').read(),
 					fragment_shader=open(resourcedir+'/shaders/ident.frag').read(),
-					)
+					))
 
 	# -- methods to deal with the view --
 
@@ -1161,8 +1162,7 @@ class View(ViewCommon, QOpenGLWidget):
 		global global_context
 		
 		if self.scene.ctx:
-			self.init()
-			return
+			pass
 		elif QApplication.testAttribute(Qt.AA_ShareOpenGLContexts):
 			if global_context:
 				self.scene.ctx = global_context
@@ -1173,7 +1173,6 @@ class View(ViewCommon, QOpenGLWidget):
 			# self.scene.ctx = mgl.create_context()
 			self.scene.ctx = mgl.get_context()
 		self.init()
-		self.preload()
 
 	def paintGL(self):
 		self.makeCurrent()
