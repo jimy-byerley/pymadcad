@@ -767,7 +767,6 @@ class ViewCommon:
 			- When it is dumped to the RAM we call it 'map' in this library
 		'''
 		if 'fb_ident' not in self.fresh:
-			self.makeCurrent()	# set the scene context as current opengl context
 			with self.scene.ctx as ctx:
 				#ctx.finish()
 				self.fb_ident.read_into(self.map_ident, viewport=self.fb_ident.viewport, components=2)
@@ -788,7 +787,6 @@ class ViewCommon:
 
 		# call the render stack
 		self.scene.render(self)
-		print('      render', self.scene, self.scene.ctx, len(self.scene.stacks['screen']))
 
 	def identstep(self, nidents):
 		''' Updates the amount of rendered idents and return the start ident for the calling rendering pass?
@@ -1020,8 +1018,9 @@ class Offscreen(ViewCommon):
 		super().render()
 		return Image.frombytes('RGBA', tuple(self.size), self.fb_screen.read(components=4), 'raw', 'RGBA', 0, -1)
 
+from .qt import QWidget, QLabel, QPixmap, QPainter, QImage
 
-class View(ViewCommon, QOpenGLWidget):
+class View(ViewCommon, QWidget):
 	''' Qt widget to render and interact with displayable objects.
 		It holds a scene as renderpipeline.
 
@@ -1036,9 +1035,7 @@ class View(ViewCommon, QOpenGLWidget):
 			uniforms:    parameters for rendering, used in shaders
 	'''
 	def __init__(self, scene, projection=None, navigation=None, parent=None):
-		# super init
-		QOpenGLWidget.__init__(self, parent)
-		self.setFormat(qt_surface_format())
+		QWidget.__init__(self, parent)
 		
 		# ugly trick to receive interaction events in a different function than QOpenGLWidget.event (that one is locking the GIL during the whole rendering, killing any possibility of having a computing thread aside)
 		# that event reception should be in the current widget ...
@@ -1049,25 +1046,30 @@ class View(ViewCommon, QOpenGLWidget):
 
 		ViewCommon.__init__(self, scene, projection=projection, navigation=navigation)
 		self.tool = [Tool(self.navigation.tool, self)] # tool stack, the last tool is used for input events, until it is removed 
+		
+		global global_context
+		if global_context:
+			self.scene.ctx = global_context
+		else:
+			self.scene.ctx = global_context = mgl.create_standalone_context(requires=opengl_version)
+		self.scene.ctx.line_width = settings.display["line_width"]
 
+		self.init()
+		
 	def init(self):
 		w, h = self.width(), self.height()
 
 		ctx = self.scene.ctx
 		assert ctx, 'context is not initialized'
 
-		# self.fb_screen is already created and sized by Qt
-		self.fb_screen = ctx.detect_framebuffer(self.defaultFramebufferObject())
+		# self.fb_frame is already created and sized by Qt
+		self.fb_final = ctx.simple_framebuffer((w, h))
+		self.fb_screen = ctx.simple_framebuffer((w, h), samples=4)
 		self.fb_ident = ctx.simple_framebuffer((w, h), components=3, dtype='f1')
 		self.targets = [ ('screen', self.fb_screen, self.setup_screen),
 						 ('ident', self.fb_ident, self.setup_ident)]
 		self.map_ident = np.empty((h,w), dtype='u2')
 		self.map_depth = np.empty((h,w), dtype='f4')
-
-	def render(self):
-		# set the opengl current context from Qt (doing it only from moderngl interferes with Qt)
-		self.makeCurrent()
-		ViewCommon.render(self)
 
 	
 	# -- view stuff --
@@ -1156,30 +1158,29 @@ class View(ViewCommon, QOpenGLWidget):
 			self.update()
 
 	# -- Qt things --
-
-	def initializeGL(self):
-		# retrieve global shared context if available
-		global global_context
-		
-		if self.scene.ctx:
-			pass
-		elif QApplication.testAttribute(Qt.AA_ShareOpenGLContexts):
-			if global_context:
-				self.scene.ctx = global_context
-			else:
-				self.scene.ctx = global_context = mgl.get_context()
-		# or create a context
-		else:
-			# self.scene.ctx = mgl.create_context()
-			self.scene.ctx = mgl.get_context()
-		self.init()
-
-	def paintGL(self):
-		self.makeCurrent()
+	
+	def paintEvent(self, evt):
 		self.render()
+		self.scene.ctx.copy_framebuffer(self.fb_final, self.fb_screen)
+		# retreive buffer
+		image = self.fb_final.read()
+		# flip image from openGL convention to Qt convention
+		image = (np.frombuffer(image, np.uint8)
+				.reshape((self.fb_final.height, self.fb_final.width, 3))
+				[::-1].copy())
+		# copy to Qt
+		image = QImage(
+			image, 
+			self.fb_final.width, 
+			self.fb_final.height,
+			QImage.Format_RGB888)
+		painter = QPainter(self)
+		painter.drawPixmap(0, 0, QPixmap.fromImage(image))
+		# self.setPixmap(QPixmap.fromImage(image))
+		# super().paintEvent(evt)
 
 	def resizeEvent(self, evt):
-		QOpenGLWidget.resizeEvent(self, evt)
+		QWidget.resizeEvent(self, evt)
 		self.handler.resize(self.size())
 		self.init()
 		self.update()
@@ -1188,7 +1189,7 @@ class View(ViewCommon, QOpenGLWidget):
 		# detect theme change
 		if evt.type() == QEvent.PaletteChange and settings.display['system_theme']:
 			settings.use_qt_colors()
-		return QOpenGLWidget.changeEvent(self, evt)
+		return QWidget.changeEvent(self, evt)
 
 class GhostWidget(QWidget):
 	def __init__(self, parent):
