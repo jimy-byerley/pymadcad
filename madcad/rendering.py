@@ -772,8 +772,6 @@ class ViewCommon:
 				self.fb_ident.read_into(self.map_ident, viewport=self.fb_ident.viewport, components=2)
 				self.fb_ident.read_into(self.map_depth, viewport=self.fb_ident.viewport, components=1, attachment=-1, dtype='f4')
 			self.fresh.add('fb_ident')
-			#from PIL import Image
-			#Image.fromarray(self.map_ident*16, 'I;16').show()
 
 	def render(self):
 		self.preload()
@@ -1018,8 +1016,6 @@ class Offscreen(ViewCommon):
 		super().render()
 		return Image.frombytes('RGBA', tuple(self.size), self.fb_screen.read(components=4), 'raw', 'RGBA', 0, -1)
 
-from .qt import QWidget, QLabel, QPixmap, QPainter, QImage
-
 class View(ViewCommon, QWidget):
 	''' Qt widget to render and interact with displayable objects.
 		It holds a scene as renderpipeline.
@@ -1052,25 +1048,60 @@ class View(ViewCommon, QWidget):
 			self.scene.ctx = global_context
 		else:
 			self.scene.ctx = global_context = mgl.create_standalone_context(requires=opengl_version)
+		# setup contexts assumptions made by madcad
+		self.scene.ctx.gc_mode = 'auto'
 		self.scene.ctx.line_width = settings.display["line_width"]
 
-		self.init()
+		self.fb_final = None
 		
 	def init(self):
-		w, h = self.width(), self.height()
-
 		ctx = self.scene.ctx
 		assert ctx, 'context is not initialized'
+		
+		size = ivec2(self.width(), self.height())
+		# if the size is not a multiple of 4, it seems that openGL or Qt doesn't understand its strides well
+		m = 4
+		size += (-size%m)
+		
+		# release framebuffers before reinitializing them
+		if self.fb_final:
+			if size == self.fb_final.size:
+				return
+			self.fb_final.release()
+			self.fb_screen.release()
+			self.fb_ident.release()
+			self.map_ident = None
+			self.map_depth = None
+			self.map_color = None
 
 		# self.fb_frame is already created and sized by Qt
-		self.fb_final = ctx.simple_framebuffer((w, h))
-		self.fb_screen = ctx.simple_framebuffer((w, h), samples=4)
-		self.fb_ident = ctx.simple_framebuffer((w, h), components=3, dtype='f1')
+		self.fb_final = ctx.simple_framebuffer(size)
+		self.fb_screen = ctx.simple_framebuffer(size, samples=4)
+		self.fb_ident = ctx.simple_framebuffer(size, components=3, dtype='f1')
 		self.targets = [ ('screen', self.fb_screen, self.setup_screen),
 						 ('ident', self.fb_ident, self.setup_ident)]
+		w, h = size
 		self.map_ident = np.empty((h,w), dtype='u2')
 		self.map_depth = np.empty((h,w), dtype='f4')
+		self.map_color = np.empty((h,w,3), dtype='u1')
 
+	def render(self):
+		self.init()
+		# render the scene
+		super().render()
+		# downsample the buffer to 1 sample per pixel
+		self.scene.ctx.copy_framebuffer(self.fb_final, self.fb_screen)
+		# retreive buffer
+		image = self.fb_final.read_into(self.map_color, components=3)
+		# switch vertical axis to convert from opengl image convention to usual (and Qt) image convention
+		self.map_color[:] = self.map_color[::-1]
+		# copy to Qt
+		image = QImage(
+			self.map_color,
+			self.map_color.shape[1], 
+			self.map_color.shape[0],
+			QImage.Format_RGB888)
+		painter = QPainter(self).drawImage(0, 0, image)
 	
 	# -- view stuff --
 
@@ -1161,28 +1192,10 @@ class View(ViewCommon, QWidget):
 	
 	def paintEvent(self, evt):
 		self.render()
-		self.scene.ctx.copy_framebuffer(self.fb_final, self.fb_screen)
-		# retreive buffer
-		image = self.fb_final.read()
-		# flip image from openGL convention to Qt convention
-		image = (np.frombuffer(image, np.uint8)
-				.reshape((self.fb_final.height, self.fb_final.width, 3))
-				[::-1].copy())
-		# copy to Qt
-		image = QImage(
-			image, 
-			self.fb_final.width, 
-			self.fb_final.height,
-			QImage.Format_RGB888)
-		painter = QPainter(self)
-		painter.drawPixmap(0, 0, QPixmap.fromImage(image))
-		# self.setPixmap(QPixmap.fromImage(image))
-		# super().paintEvent(evt)
 
 	def resizeEvent(self, evt):
 		QWidget.resizeEvent(self, evt)
 		self.handler.resize(self.size())
-		self.init()
 		self.update()
 
 	def changeEvent(self, evt):
