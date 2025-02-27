@@ -522,12 +522,14 @@ class LinesDisplay:
 						[	(vertices.vb_positions, '3f', 'v_position'),
 							(vertices.vb_flags, 'u1', 'v_flags')],
 						self.vb_lines,
+						mode = mgl.LINES,
 						)
 			self.va_ident = scene.ctx.vertex_array(
 					self.ident_shader, 
 					[	(vertices.vb_positions, '3f', 'v_position'),
 						(vertices.vb_idents, 'u2', 'item_ident')], 
 					self.vb_lines,
+					mode = mgl.LINES,
 					)
 		else:
 			self.va = None
@@ -545,7 +547,7 @@ class LinesDisplay:
 			self.shader['view'].write(view.uniforms['view'] * self.vertices.world)
 			self.shader['proj'].write(view.uniforms['proj'])
 			self.shader['layer'] = self.layer
-			self.va.render(mgl.LINES)
+			self.va.render()
 		
 	def identify(self, view):
 		if self.va:
@@ -553,7 +555,7 @@ class LinesDisplay:
 			self.ident_shader['view'].write(view.uniforms['view'] * self.vertices.world)
 			self.ident_shader['proj'].write(view.uniforms['proj'])
 			self.ident_shader['layer'] = self.layer
-			self.va_ident.render(mgl.LINES)
+			self.va_ident.render()
 		
 class PointsDisplay:
 	def __init__(self, scene, vertices, indices=None, color=None, ptsize=3, layer=0):
@@ -639,7 +641,7 @@ class GridDisplay(Display):
 						fragment_shader=open(resourcedir+'/shaders/viewgrid.frag').read(),
 						)
 			vb = scene.ctx.buffer(pts)
-			va = scene.ctx.vertex_array(shader, [(vb, '2f4 f2', 'v_position', 'v_opacity')])
+			va = scene.ctx.vertex_array(shader, [(vb, '2f4 f2', 'v_position', 'v_opacity')], mode=mgl.POINTS)
 			return shader, va
 		self.shader, self.va = scene.resource('viewgrid', load)
 		self.unit = unit
@@ -662,7 +664,7 @@ class GridDisplay(Display):
 		self.shader['centerdist'] = -center.z
 		self.shader['proj'].write(view.uniforms['proj'])
 		self.shader['contrast'] = self.contrast
-		self.va.render(mgl.POINTS)
+		self.va.render()
 	
 	def stack(self, scene):
 		return ((), 'screen', 3, self.render),

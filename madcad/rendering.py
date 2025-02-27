@@ -54,7 +54,7 @@ from .qt import (
 	QEvent, QPoint, Qt,
 	QFocusEvent, QInputEvent, QKeyEvent, QMouseEvent,
 	QSurfaceFormat, QTouchEvent,
-	QApplication, QOpenGLWidget, QWidget,
+	QApplication, QOpenGLWidget, QWidget, QImage, QPainter,
 	)
 from . import settings
 from .common import resourcedir
@@ -402,7 +402,7 @@ class Perspective:
 	def __init__(self, fov=None):
 		self.fov = fov or settings.display['field_of_view']
 	def matrix(self, ratio, distance) -> fmat4:
-		return perspective(self.fov, ratio, distance*1e-2, distance*1e4)
+		return perspective(self.fov/min(1, ratio), ratio, distance*1e-2, distance*1e4)
 
 class Orthographic:
 	''' Object used as `View.projection` 
@@ -417,10 +417,12 @@ class Orthographic:
 		self.size = size or tan(settings.display['field_of_view']/2)
 
 	def matrix(self, ratio, distance) -> fmat4:
-		return fmat4(1/(ratio*distance*self.size), 0, 0, 0,
-		            0,       1/(distance*self.size), 0, 0,
-		            0,       0,          -2/(distance*(1e3-1e-2)), 0,
-		            0,       0,          -(1e3+1e-2)/(1e3-1e-2), 1)
+		rf = 1e3 # relative far
+		rn = 1e-2 # relative near
+		return fmat4(min(1, 1/ratio)/(distance*self.size), 0, 0, 0,
+		            0,       min(1, ratio)/(distance*self.size), 0, 0,
+		            0,       0,          -2/(distance*(rf-rn)), 0,
+		            0,       0,          -(rf+rn)/(rf-rn), 1)
 
 
 class Scene:
@@ -945,7 +947,8 @@ class ViewCommon:
 		# get the most distant point to the focal axis
 		invview = affineInverse(self.navigation.matrix())
 		camera, look = fvec3(invview[3]), fvec3(invview[2])
-		dist = length(noproject(box.center-camera, look)) + max(glm.abs(box.width))/2 * 1.1
+		margin = 0.3  # margins around the zomed box, to make sure the displays fits in the view, sqrt(2)-1 should be necessary, but lower is generally better
+		dist = length(noproject(box.center-camera, look)) + max(glm.abs(box.width))/2 * (1+margin)
 		if not dist > 1e-6:	return
 
 		# adjust navigation distance
