@@ -650,7 +650,11 @@ class Displayable:
 		self.args, self.kwargs = args, kwargs
 		self.build = build
 	def __repr__(self):
-		return '{}({}, {}, {})'.format(type(self).__name__, repr(self.args[1:-1]), repr(self.kwargs)[1:-1])
+		return '{}({}, {})'.format(
+			type(self).__name__, 
+			','.join(repr(arg) for arg in self.args), 
+			','.join(key+'='+repr(arg)  for key, arg in self.kwargs.items())
+			)
 	def display(self, scene):
 		return self.build(scene, *self.args, **self.kwargs)
 
