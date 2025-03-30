@@ -11,5 +11,4 @@ out vec4 outcolor;
 void main() {
 	if ((flags & 1) != 0)		outcolor = select_color;
 	else						outcolor = color;
-	
 }

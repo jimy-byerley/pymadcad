@@ -220,6 +220,10 @@ class Display:
 		'''
 		if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
 			self.selected = not self.selected
+			if self.selected:
+				view.scene.deselect(key)
+			else:
+				view.scene.select(key, ())
 			evt.accept()
 
 def qt_2_glm(v):
@@ -807,7 +811,6 @@ class ViewCommon:
 		ctx.enable_only(mgl.DEPTH_TEST)
 		ctx.blend_func = mgl.ONE, mgl.ZERO
 		ctx.blend_equation = mgl.FUNC_ADD
-		self.target.clear(0)
 
 	def setup_screen(self):
 		# screen rendering setup
@@ -1073,7 +1076,6 @@ class View(ViewCommon, QWidget):
 			self.map_depth = None
 			self.map_color = None
 
-		# self.fb_frame is already created and sized by Qt
 		self.fb_final = ctx.simple_framebuffer(size)
 		self.fb_screen = ctx.simple_framebuffer(size, samples=4)
 		self.fb_ident = ctx.simple_framebuffer(size, components=1, dtype='u2')
