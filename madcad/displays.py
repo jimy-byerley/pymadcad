@@ -123,8 +123,8 @@ class AxisDisplay(Display):
 				else:						alpha = 1
 				pts.append(((pt+i)/self.repetitions, alpha))
 		vb = scene.ctx.buffer(np.array(pts, 'f4'))
-		va = scene.ctx.vertex_array(shader, [(vb, 'f f', 'v_absciss', 'v_alpha')])
-		va_ident = scene.ctx.vertex_array(ident_shader, [(vb, 'f 12x', 'v_absciss')])
+		va = scene.ctx.vertex_array(shader, [(vb, 'f f', 'v_absciss', 'v_alpha')], mode=mgl.LINES)
+		va_ident = scene.ctx.vertex_array(ident_shader, [(vb, 'f 4x', 'v_absciss')], mode=mgl.LINES)
 		return shader, va, ident_shader, va_ident
 	
 	def _disp_interval(self, view):
@@ -140,7 +140,7 @@ class AxisDisplay(Display):
 		self.shader['direction'].write(self.direction)
 		self.shader['interval'] = self._disp_interval(view)
 		self.shader['color'].write(fvec3(settings.display['select_color_line']) if self.selected else self.color)
-		self.va.render(mgl.LINES)
+		self.va.render()
 	
 	def identify(self, view):
 		self.ident_shader['projview'].write(view.uniforms['projview'])
@@ -149,7 +149,7 @@ class AxisDisplay(Display):
 		self.ident_shader['direction'].write(self.direction)
 		self.ident_shader['interval'] = self._disp_interval(view)
 		self.ident_shader['ident'] = view.identstep(1)
-		self.va_ident.render(mgl.LINES)
+		self.va_ident.render()
 	
 	def stack(self, scene):
 		return ( ((), 'ident', 2, self.identify),
@@ -249,6 +249,7 @@ class SolidDisplay(Display):
 	def __init__(self, scene, positions, normals, faces, lines, idents, color=None):
 		self.box = npboundingbox(positions)
 		self.options = scene.options
+		self._selected = False
 		
 		color = fvec3(color or settings.colors['surface'])
 		line = (	(length(settings.colors['line']) + dot(color-settings.colors['surface'], settings.colors['line']-settings.colors['surface']))
@@ -284,16 +285,17 @@ class SolidDisplay(Display):
 	def world(self):	return self.vertices.world
 	@world.setter
 	def world(self, value):	self.vertices.world = value
+	@writeproperty
+	def selected(self, value):
+		if not value:
+			self.vertices.flags[:] = 0
+			self.vertices.flags_updated = True
 
-	#def control(self, view, key, sub, evt):
-		#if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
-			#sub = sub[0]
-			#flags, idents = self.vertices.flags, self.vertices.idents
-			#for i in range(len(idents)):
-				#flags[i] ^= idents[i] == sub
-			#self.vertices.flags_updated = True
-			#view.update()
-			#evt.accept()
+	def control(self, view, key, sub, evt):
+		if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
+			self.vertices.selectsub(sub[0])
+			self.selected = any(self.vertices.flags & 0x1)
+			evt.accept()
 	
 
 class WebDisplay(Display):

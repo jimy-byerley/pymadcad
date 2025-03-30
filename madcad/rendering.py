@@ -218,7 +218,9 @@ class Display:
 				sub:    the key path for the subdisplay
 				evt:    the Qt event (see Qt doc)
 		'''
-		pass
+		if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton:
+			self.selected = not self.selected
+			evt.accept()
 
 def qt_2_glm(v):
 	if isinstance(v, (QPoint, QPointF)):	return vec2(v.x(), v.y())
@@ -263,7 +265,7 @@ def navigation_tool(dispatcher, view):
 			# prevent any scene interaction
 			if nav:
 				evt.accept()
-		elif evt.type() == QEvent.MouseMove:
+		elif evt.type() == QEvent.MouseMove and evt.buttons() != Qt.NoButton:
 			if nav:
 				moving = True
 				gap = evt.pos() - last
@@ -499,8 +501,8 @@ class Scene:
 			The parents must all make their children accessible via `__getitem__`
 		'''
 		disp = self.displays
-		for i in range(1,len(key)):
-			disp = disp[key[i-1]]
+		for i in range(len(key)):
+			disp = disp[key[i]]
 		return disp
 	
 	def update(self, objs:dict):
@@ -711,6 +713,9 @@ class Group(Display):
 			for sub,target,priority,func in display.stack(scene):
 				yield ((key, *sub), target, priority, func)
 	
+	def control(self, view, key, sub, evt: 'QEvent'):
+		pass
+	
 	@writeproperty
 	def local(self, pose):
 		''' Pose of the group relatively to its parents '''
@@ -766,19 +771,6 @@ class ViewCommon:
 
 	# -- internal frame system --
 
-	def refreshmaps(self):
-		''' Load the rendered frames from the GPU to the CPU
-
-			- When a picture is used to GPU rendering it's called 'frame'
-			- When it is dumped to the RAM we call it 'map' in this library
-		'''
-		if 'fb_ident' not in self.fresh:
-			with self.scene.ctx as ctx:
-				#ctx.finish()
-				self.fb_ident.read_into(self.map_ident, viewport=self.fb_ident.viewport, components=2)
-				self.fb_ident.read_into(self.map_depth, viewport=self.fb_ident.viewport, components=1, attachment=-1, dtype='f4')
-			self.fresh.add('fb_ident')
-
 	def render(self):
 		self.preload()
 		
@@ -787,7 +779,8 @@ class ViewCommon:
 		self.uniforms['view'] = view = self.navigation.matrix()
 		self.uniforms['proj'] = proj = self.projection.matrix(w/h if h > 0 else 0, self.navigation.distance)
 		self.uniforms['projview'] = proj * view
-		self.fresh.clear()
+		self.map_ident.clear()
+		self.map_depth.clear()
 
 		# call the render stack
 		self.scene.render(self)
@@ -852,17 +845,17 @@ class ViewCommon:
 		'''
 		if radius is None:
 			radius = settings.controls['snap_dist']
-		self.refreshmaps()
-		for x,y in snailaround(point, (self.map_ident.shape[1], self.map_ident.shape[0]), radius):
-			ident = int(self.map_ident[-y, x])
+		region = self.map_ident.region((*(point-radius), *(point+radius+1)))
+		for x,y in snailaround(uvec2(radius), region.shape, radius):
+			ident = int(region[y, x])
 			if ident:
-				return uvec2(x,y)
+				return point-radius + ivec2(x,y)
 
 	def ptat(self, point: ivec2) -> fvec3:
 		''' Return the point of the rendered surfaces that match the given window coordinates '''
-		self.refreshmaps()
+		region = self.map_depth.region((*point, *(point+1)))
 		viewport = self.fb_ident.viewport
-		depthred = float(self.map_depth[-point.y,point.x])
+		depthred = float(region[0,0])
 		x =  (point.x/viewport[2] *2 -1)
 		y = -(point.y/viewport[3] *2 -1)
 
@@ -900,24 +893,23 @@ class ViewCommon:
 		''' Return the key path of the object at the given screen position (widget relative).
 			If no object is at this exact location, None is returned
 		'''
-		self.refreshmaps()
-		point = uvec2(point)
-		ident = int(self.map_ident[-point.y, point.x])
+		ident = self.map_ident.region((*point, *(point+1)))[0,0]
 		if ident and 'ident' in self.scene.stacks:
 			rdri = bisect(self.steps, ident)
 			if rdri == len(self.steps):
 				print('internal error: object ident points out of idents list')
+				nprint(self.steps)
 			while rdri > 0 and self.steps[rdri-1] == ident:	rdri -= 1
 			if rdri > 0:	subi = ident - self.steps[rdri-1] - 1
 			else:			subi = ident - 1
 			
 			if rdri >= len(self.scene.stacks['ident']):
 				print('wrong identification index', ident, self.scene.stacks['ident'][-1])
-				nprint(self.scene.stacks['ident'])
+				nprint(self.steps)
 				return
 			
 			return (*self.scene.stacks['ident'][rdri][0], subi)
-
+		
 	# -- view stuff --
 
 	def look(self, position: fvec3=None):
@@ -1084,12 +1076,12 @@ class View(ViewCommon, QWidget):
 		# self.fb_frame is already created and sized by Qt
 		self.fb_final = ctx.simple_framebuffer(size)
 		self.fb_screen = ctx.simple_framebuffer(size, samples=4)
-		self.fb_ident = ctx.simple_framebuffer(size, components=3, dtype='f1')
+		self.fb_ident = ctx.simple_framebuffer(size, components=1, dtype='u2')
 		self.targets = [ ('screen', self.fb_screen, self.setup_screen),
 						 ('ident', self.fb_ident, self.setup_ident)]
 		w, h = size
-		self.map_ident = np.empty((h,w), dtype='u2')
-		self.map_depth = np.empty((h,w), dtype='f4')
+		self.map_ident = CheapMap(self.fb_ident, attachment=0)
+		self.map_depth = CheapMap(self.fb_ident, attachment=-1)
 		self.map_color = np.empty((h,w,3), dtype='u1')
 
 	def render(self):
@@ -1173,27 +1165,14 @@ class View(ViewCommon, QWidget):
 
 			This function can be overwritten to change the interaction with the scene objects.
 		'''
+		self.update()
 		disp = self.scene.displays
 		stack = []
 		for i in range(1,len(key)):
 			disp = disp[key[i-1]]
 			disp.control(self, key[:i], key[i:], evt)
-			if evt.isAccepted(): return
+			if evt.isAccepted(): break
 			stack.append(disp)
-
-		if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
-			disp = stack[-1]
-			# select what is under cursor
-			if type(disp).__name__ in ('SolidDisplay', 'WebDisplay'):
-				disp.vertices.selectsub(key[-1])
-				disp.selected = any(disp.vertices.flags & 0x1)
-			else:
-				disp.selected = not disp.selected
-			# make sure that a display is selected if one of its sub displays is
-			for disp in reversed(stack):
-				if hasattr(disp, '__iter__'):
-					disp.selected = any(sub.selected	for sub in disp)
-			self.update()
 
 	# -- Qt things --
 	
@@ -1210,6 +1189,42 @@ class View(ViewCommon, QWidget):
 		if evt.type() == QEvent.PaletteChange and settings.display['system_theme']:
 			settings.use_qt_colors()
 		return QWidget.changeEvent(self, evt)
+
+from numpy import ndarray
+class CheapMap:
+	''' object retreiving portions of a framebuffer, on demand and avoiding redundant memory copies '''
+	def __init__(self, framebuffer: mgl.Framebuffer, attachment:int):
+		self.framebuffer = framebuffer
+		self.attachment = attachment
+		if attachment < 0:
+			renderbuffer = framebuffer.depth_attachment
+		else:
+			renderbuffer = framebuffer.color_attachments[attachment]
+		self.dtype = renderbuffer.dtype
+		self.components = renderbuffer.components
+		size = renderbuffer.size
+		self.buffer = np.zeros(size[1]*size[0], self.dtype)
+		
+		self.clear()
+	
+	def clear(self):
+		self.viewport = (1, 1, -1, -1)
+		
+	def region(self, viewport: tuple) -> ndarray:
+		if (viewport[0] < self.viewport[0] or viewport[2] > self.viewport[2] 
+		or  viewport[1] < self.viewport[1] or viewport[3] > self.viewport[3]):
+			self.viewport = viewport
+			self.framebuffer.read_into(self.buffer, 
+				(viewport[0], self.framebuffer.height-viewport[3], viewport[2]-viewport[0], viewport[3]-viewport[1]), 
+				attachment=self.attachment, components=self.components, dtype=self.dtype)
+		
+		view = self.buffer[:(self.viewport[3]-self.viewport[1]) * (self.viewport[2]-self.viewport[0])]
+		view = view.reshape((self.viewport[3]-self.viewport[1], self.viewport[2]-self.viewport[0]))
+		view = view[::-1]
+		return view[
+			viewport[1]-self.viewport[1]:viewport[3]-self.viewport[1],
+			viewport[0]-self.viewport[0]:viewport[2]-self.viewport[0],
+			]
 
 class GhostWidget(QWidget):
 	def __init__(self, parent):

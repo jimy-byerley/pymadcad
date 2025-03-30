@@ -11,11 +11,11 @@ uniform float layer;
 
 in uint item_ident;	// face ident in the object
 uniform uint start_ident;	// offset ident
-flat out vec3 identcolor;
+flat out uint identcolor;
 
 
 void main() {
 	uint ident = (start_ident + item_ident);
-	identcolor = vec3(float(ident % uint(256)), float(ident/uint(256)), 0)/255.;
+	identcolor = ident;
 	gl_Position = proj * view * vec4(v_position,1)  + vec4(0,0,layer,0);	// set vertex position for render
 }
