@@ -3,7 +3,6 @@ import traceback
 from weakref import WeakValueDictionary
 from dataclasses import dataclass
 from copy import deepcopy
-from typing import Self, Callable, Iterable
 from operator import attrgetter
 
 import moderngl as mgl
@@ -181,11 +180,11 @@ class Scene:
 		display.selected = True
 		self.selection.add(display)
 	
-	def selection_discard(self, display:Display):
+	def selection_remove(self, display:Display):
 		''' deselect the given display '''
 		display.selected = False
 		self.selection.discard(display)
-		
+	
 	def selection_clear(self):
 		''' deselect all previously selected displays '''
 		for display in self.selection:
@@ -194,13 +193,13 @@ class Scene:
 	def _get_hover(self):
 		return self._hover
 	def _set_hover(self, hover):
-		if hover is self.hover:
+		if hover is self._hover:
 			return
-		if self.hover:
-			self.hover.hovered = False
-		self.hover = hover
-		if self.hover:
-			self.hover.hovered = True
+		if self._hover:
+			self._hover.hovered = False
+		self._hover = hover
+		if self._hover:
+			self._hover.hovered = True
 	hover = property(_get_hover, _set_hover)
 
 @dataclass
@@ -338,6 +337,10 @@ class Group(Display):
 	def __getitem__(self, key):
 		return self.displays[key]
 
+	def __setitem__(self, key, value):
+		if self.pending is None:
+			self.pending = copy(self.displays)
+		self.pending[key] = value
 
 Scene.overrides[dict] = Group
 Scene.overrides[list] = Group

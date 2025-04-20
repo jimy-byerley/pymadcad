@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import Self
 
 import numpy as np
 import moderngl as mgl
@@ -8,7 +7,7 @@ from .. import settings
 from ..mathutils import *
 from ..qt import QWidget, QImage, QPainter, QEvent
 from .base import Scene
-from .utils import CheapMap, forwardproperty
+from .utils import *
 
 
 
@@ -28,6 +27,8 @@ class GLView3D:
 	''' current view matrix, this will be the default for next rendering '''
 	proj: fmat4
 	''' current projection matrix, this will be the default for next rendering '''
+	enable_ident: bool
+	''' enable `self.ident` '''
 	
 	def __init__(self, scene, size:uvec2=None, view:fmat4=None, proj:fmat4=None, 
 			enable_ident=True, 
@@ -55,6 +56,7 @@ class GLView3D:
 			- the `view` and `proj` instance attributes can be changed on the fly without extra cost.
 			- a `size` change will trigger reallocation of the buffers
 		'''
+		size = glsize(size)
 		self._reallocate(size)
 		# setup uniforms
 		if view:    self.view = view
@@ -66,6 +68,10 @@ class GLView3D:
 		self.scene.render(self)
 		# downsample the screen buffer to 1 sample per pixel
 		self.scene.context.copy_framebuffer(self.screen, self._screen_multisample)
+		
+		# self.screen.use()
+		# self.screen.clear(1,0,0)
+		self.scene.context.finish()
 		return self
 		
 	def _reallocate(self, size):
@@ -74,9 +80,9 @@ class GLView3D:
 			return
 		ctx = self.scene.context
 		self.targets.clear()
-		self.screen = ctx.simple_framebuffer(size, components=3, dtype='u1')
-		self._screen_multisample = ctx.simple_framebuffer(size, components=3, samples=4, dtype='u1')
-		self.targets.append(('screen', self.screen, self._setup_screen))
+		self.screen = ctx.simple_framebuffer(size, components=3, dtype='f1')
+		self._screen_multisample = ctx.simple_framebuffer(size, components=3, samples=4, dtype='f1')
+		self.targets.append(('screen', self._screen_multisample, self._setup_screen))
 		if self.enable_ident:
 			self.ident = ctx.simple_framebuffer(size, components=1, dtype='u2')
 			self.targets.append(('ident', self.ident, self._setup_ident))
@@ -134,6 +140,12 @@ class Offscreen3D:
 	''' result image from the previous rendering '''
 	ident: ndarray[np.uint16]|None
 	''' result image from the previous rendering '''
+	enable_alpha: bool
+	''' if enabled, `self.color` is RGBA else it is 'RGB' '''
+	enable_depth: bool
+	''' enable `self.depth` '''
+	enable_ident: bool
+	''' enable `self.ident` '''
 		
 	scene = forwardproperty('gl', 'scene')
 	view = forwardproperty('gl', 'view')
@@ -145,12 +157,6 @@ class Offscreen3D:
 			enable_ident=False, 
 			enable_alpha=False,
 			**uniforms):
-		'''
-		Args:
-			enable_alpha:  if enabled, `self.color` is RGBA else it is 'RGB'
-			enable_depth:  enable `self.depth`
-			enable_ident:  enable `self.ident`
-		'''
 		self.gl = GLView3D(size, view, proj, enable_ident, **uniforms)
 		self.color = self.depth = self.ident = None
 		self.enable_depth = enable_depth
@@ -165,8 +171,9 @@ class Offscreen3D:
 			- the `view` and `proj` instance attributes can be changed on the fly without extra cost.
 			- a `size` change will trigger reallocation of the buffers
 		'''
-		self._reallocate(size)
+		size = glsize(size)
 		self.gl.render(size, view, proj)
+		self._reallocate(size)
 		# retreive everything from the GPU to the CPU
 		if self.enable_alpha:
 			self.gl.screen.read_into(self.color, attachments=4)
@@ -192,7 +199,7 @@ class Offscreen3D:
 
 
 try:
-	from ..qt import Qt, QWidget
+	from ..qt import Qt, QApplication, QWidget, QInputEvent, QMouseEvent, QKeyEvent, QTouchEvent
 except ImportError:
 	pass
 else:
@@ -216,14 +223,22 @@ else:
 		proj = forwardproperty('gl', 'proj')
 		uniforms = forwardproperty('gl', 'uniforms')
 		
-		def __init__(self, scene, projection=None, navigation=None, parent=None):
+		def __init__(self, scene, projection=None, navigation=True, parent=None):
 			QWidget.__init__(self, parent)
 			self.setFocusPolicy(Qt.StrongFocus)
 			self.setAttribute(Qt.WA_AcceptTouchEvents, True)
+			self.setMouseTracking(True)
 			self.gl = GLView3D(scene)
-			self.navigation = navigation or globals()[settings.controls['navigation']]()
+			if navigation is True:
+				navigation = globals()[settings.controls['navigation']]()
+			self.navigation = navigation
 			self.projection = projection or globals()[settings.scene['projection']]()
 			self.color = self.depth = self.ident = None
+			
+			self._move_mode = receiver(self._move_mode())
+			self._keyboard_move = receiver(self._keyboard_move())
+			self._mouse_move = receiver(self._mouse_move())
+			self._touch_move = receiver(self._touch_move())
 			
 		def _reallocate(self, size):
 			w, h = size
@@ -236,15 +251,16 @@ else:
 		def paintEvent(self, painter):
 			w = self.width()
 			h = self.height()
+			size = glsize(uvec2(w, h))
 			
 			self.gl.render(
-				uvec2(w, h),
+				size,
 				view = self.navigation.matrix(),
 				proj = self.projection.matrix(w/h if h > 0 else 0, self.navigation.distance),
 			)
-			self._reallocate(uvec2(w, h))
+			self._reallocate(size)
 			# retreive buffer
-			image = self.gl.screen.read_into(self.color, components=3)
+			self.gl.screen.read_into(self.color, components=3)
 			# switch vertical axis to convert from opengl image convention to usual (and Qt) image convention
 			self.color[:] = self.color[::-1]
 			# copy to Qt
@@ -254,7 +270,15 @@ else:
 				self.color.shape[0],
 				QImage.Format_RGB888)
 			painter = QPainter(self).drawImage(0, 0, image)
-			
+		
+		def event(self, evt):
+			if isinstance(evt, QInputEvent):
+				evt.ignore()
+				self.inputEvent(evt)
+				if evt.isAccepted():	
+					return True
+			return super().event(evt)
+		
 		def resizeEvent(self, evt):
 			QWidget.resizeEvent(self, evt)
 			self.update()
@@ -271,25 +295,56 @@ else:
 
 				This function can be overwritten to change the view widget behavior.
 			'''
-			# send the event to the current tools using the view
-			if self.tool:
-				for tool in reversed(self.tool):
-					tool(evt)
-					if evt.isAccepted():	return
-
+			evt.ignore()
+					
+			self._move_mode(evt)
+			self._keyboard_move(evt)
+			self._mouse_move(evt)
+			self._touch_move(evt)
+			if evt.isAccepted():
+				return
+			
 			# send the event to the scene objects, descending the item tree
-			if isinstance(evt, QMouseEvent) and evt.type() in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease, QEvent.MouseButtonDblClick, QEvent.MouseMove):
+			pos = None
+			if isinstance(evt, QMouseEvent):
 				pos = self.somenear(evt.pos())
 				if pos:
-					key = self.itemat(pos)
+					key = self.displayat(pos)
 					if key:
+						print(key)
+						disp, sub = key
+						key = (*disp.key, sub)
+						
 						self.control(key, evt)
-						if evt.isAccepted():	return
-
-				# if clicks are not accepted, then some following keyboard events may not come to the widget
-				# NOTE this also discarding the ability to move the window from empty areas
-				if evt.type() == QEvent.MouseButtonPress:
-					evt.accept()
+						if evt.isAccepted():
+							return
+						
+						if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton and hasattr(disp, 'selected'):
+							shift = bool(QApplication.queryKeyboardModifiers() & Qt.ShiftModifier)
+							if self.scene.options['selection_exclusive'] ^ shift:
+								self.scene.selection_clear()
+							if disp.selected:
+								self.scene.selection_remove(disp)
+							else:
+								self.scene.selection_add(disp)
+							self.update()
+							evt.accept()
+							return
+						
+						if evt.type() == QEvent.MouseMove and hasattr(disp, 'hovered'):
+							if disp is not self.scene.hover:
+								self.scene.hover = disp
+								self.update()
+			if not pos:
+				if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
+					self.scene.selection_clear()
+				elif evt.type() == QEvent.MouseMove:
+					self.scene.hover = None
+			
+			# if clicks are not accepted, then some following keyboard events may not come to the widget
+			# NOTE this also discarding the ability to move the window from empty areas
+			if evt.type() == QEvent.MouseButtonPress:
+				evt.accept()
 		
 		def control(self, key, evt):
 			''' Transmit a control event successively to all the displays matching the key path stages.
@@ -297,18 +352,28 @@ else:
 
 				This function can be overwritten to change the interaction with the scene objects.
 			'''
-			self.update()
-			disp = self.scene.displays
+			disp = self.scene.root.displays
 			stack = []
 			for i in range(1,len(key)):
 				disp = disp[key[i-1]]
 				disp.control(self, key[:i], key[i:], evt)
-				if evt.isAccepted(): break
+				if evt.isAccepted(): 
+					self.update()
+					break
 				stack.append(disp)
 				
+		# forward access to items
+				
+		def __getitem__(self, key):
+			self.root[key]
+		def __setitem__(self, key, value):
+			self.root[key] = value
+		def __iter__(self):
+			return iter(self.root)
+		
 		# extract informations from the ident map
 		
-		def somenear(self, point: QPoint, radius=None) -> QPoint:
+		def somenear(self, point: QPoint, radius=None) -> QPoint|None:
 			''' Return the closest coordinate to coords, (within the given radius) for which there is an object at
 				So if objnear is returning something, objat and ptat will return something at the returned point
 			'''
@@ -321,7 +386,7 @@ else:
 				if ident:
 					return vec_to_qpoint(point-radius + ivec2(x,y))
 
-		def ptat(self, point: QPoint) -> fvec3:
+		def ptat(self, point: QPoint) -> fvec3|None:
 			''' Return the point of the rendered surfaces that match the given window coordinates '''
 			point = qpoint_to_vec(point)
 			region = self.depth.region((*point, *(point+1)))
@@ -361,27 +426,30 @@ else:
 						depth,
 						1)))
 
-		def itemat(self, point: QPoint) -> 'key':
-			''' Return the key path of the object at the given screen position (widget relative).
-				If no object is at this exact location, None is returned
+		def displayat(self, point: QPoint) -> (Display, int)|None:
+			''' Return the display at the given screen position (widget relative).
+			
+				Every display can have a range of ident values in the ident map, they may correspond to subelements whose meaning only depends on the display. the subindex is returned with the display.
+				
+				If no object is at this exact location, None is returned.
 			'''
 			point = qpoint_to_vec(point)
 			ident = self.ident.region((*point, *(point+1)))[0,0]
 			if ident and 'ident' in self.scene.stacks:
-				rdri = bisect(self.steps, ident)
-				if rdri == len(self.steps):
+				rdri = bisect(self.gl._steps, ident)
+				if rdri == len(self.gl._steps):
 					print('internal error: object ident points out of idents list')
-					nprint(self.steps)
-				while rdri > 0 and self.steps[rdri-1] == ident:	rdri -= 1
-				if rdri > 0:	subi = ident - self.steps[rdri-1] - 1
+					nprint(self.gl._steps)
+				while rdri > 0 and self.gl._steps[rdri-1] == ident:	rdri -= 1
+				if rdri > 0:	subi = ident - self.gl._steps[rdri-1] - 1
 				else:			subi = ident - 1
 				
 				if rdri >= len(self.scene.stacks['ident']):
 					print('wrong identification index', ident, self.scene.stacks['ident'][-1])
-					nprint(self.steps)
+					nprint(self.gl._steps)
 					return
 				
-				return (*self.scene.stacks['ident'][rdri][0], subi)
+				return (self.scene.stacks['ident'][rdri].display, subi)
 				
 		# move the view (in addition to what already exists in navigation)
 		
@@ -418,7 +486,149 @@ else:
 
 			self.navigation.center(center)
 
-
+		# move the view following events
+		
+		_ZOOM = 1
+		_PAN = 2
+		_ROTATE = 3
+		
+		def _move_mode(self):
+			ctrl = alt = False
+			self._slow = False
+			self._mode = None
+			while True:
+				evt = yield
+				
+				if isinstance(evt, QKeyEvent):
+					k = evt.key()
+					press = evt.type() == QEvent.KeyPress
+					if	 k == Qt.Key_Control:	ctrl = press
+					elif k == Qt.Key_Alt:		alt = press
+					elif k == Qt.Key_Shift:		self._slow = press
+				elif evt.type() == QEvent.MouseButtonPress:
+					modifiers = QApplication.queryKeyboardModifiers()
+					ctrl = bool(modifiers & Qt.ControlModifier)
+					alt = bool(modifiers & Qt.AltModifier)
+					shift = bool(modifiers & Qt.ShiftModifier)
+				else:
+					continue
+				
+				if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.MiddleButton:
+					self._mode = self._ROTATE
+				else:
+					if ctrl and alt:		self._mode = self._ZOOM
+					elif ctrl:				self._mode = self._PAN
+					elif alt:				self._mode = self._ROTATE
+					else:					self._mode = None
+					
+		def _keyboard_move(self):
+			while True:
+				evt = yield
+				
+				if self._mode and evt.type() == QEvent.KeyPress:
+					dx = dy = 0
+					speed = pi/72 if self._slow else pi/24
+					if evt.key() == Qt.Key_Left:     dx = -speed
+					elif evt.key() == Qt.Key_Right:  dx = +speed
+					elif evt.key() == Qt.Key_Down:   dy = -speed
+					elif evt.key() == Qt.Key_Up:     dy = +speed
+					else:
+						continue
+					
+					if self._mode == self._PAN:
+						self.navigation.pan(fvec2(dx, dy))
+					elif self._mode == self._ROTATE:
+						self.navigation.rotate(fvec3(dx, dy, 0))
+					elif self._mode == self._ZOOM:
+						self.navigation.rotate(dy)
+						
+					evt.accept()
+					self.update()
+				
+		def _mouse_move(self):
+			while True:
+				evt = yield
+				
+				if evt.type() == QEvent.Wheel:
+					self.navigation.zoom(exp(-evt.angleDelta().y()/(8*90)))	# the 8 factor is there because of the Qt documentation
+					evt.accept()
+					self.update()
+				
+				if self._mode and evt.type() == QEvent.MouseButtonPress:
+					last = evt.pos()
+					evt.accept()
+					while True:
+						evt = yield
+						
+						if not self._mode or evt.buttons() == Qt.NoButton or evt.type() == QEvent.MouseButtonRelease:
+							break
+						if evt.type() != QEvent.MouseMove:
+							continue
+						
+						gap = evt.pos() - last
+						dx = gap.x()/self.height()
+						dy = gap.y()/self.height()
+						if self._mode == self._PAN:		
+							self.navigation.pan(fvec2(dx, dy))
+						elif self._mode == self._ROTATE:
+							self.navigation.rotate(fvec3(dx, dy, 0))
+						elif self._mode == self._ZOOM:
+							middle = QPoint(self.width(), self.height())/2
+							f = (	(last-middle).manhattanLength()
+								/	(evt.pos()-middle).manhattanLength()	)
+							self.navigation.zoom(f)
+						last = evt.pos()
+						
+						evt.accept()
+						self.update()
+		
+		def _touch_move(self):
+			while True:
+				evt = yield
+				if isinstance(evt, QTouchEvent):
+					self._mode = None
+					pts = evt.touchPoints()
+					# view rotation
+					if len(pts) == 2:
+						startlength = (pts[0].lastPos()-pts[1].lastPos()).manhattanLength()
+						zoom = startlength / (pts[0].pos()-pts[1].pos()).manhattanLength()
+						displt = (	(pts[0].pos()+pts[1].pos()) /2 
+								-	(pts[0].lastPos()+pts[1].lastPos()) /2 ) /self.height()
+						dc = pts[0].pos() - pts[1].pos()
+						dl = pts[0].lastPos() - pts[1].lastPos()
+						rot = atan2(dc.y(), dc.x()) - atan2(dl.y(), dl.x())
+						self.navigation.zoom(zoom)
+						self.navigation.rotate(fvec3(displt.x(), displt.y(), rot))
+						self.update()
+						evt.accept()
+					# view translation
+					elif len(pts) == 3:
+						lc = (	pts[0].lastPos() 
+							+	pts[1].lastPos() 
+							+	pts[2].lastPos() 
+							)/3
+						lr = (	(pts[0].lastPos() - lc) .manhattanLength()
+							+	(pts[1].lastPos() - lc) .manhattanLength()
+							+	(pts[2].lastPos() - lc) .manhattanLength()
+							)/3
+						cc = (	pts[0].pos() 
+							+	pts[1].pos() 
+							+	pts[2].pos() 
+							)/3
+						cr = (	(pts[0].pos() - cc) .manhattanLength()
+							+	(pts[1].pos() - cc) .manhattanLength()
+							+	(pts[2].pos() - cc) .manhattanLength()
+							)/3
+						zoom = lr / cr
+						displt = (cc - lc)  /self.height()
+						self.navigation.zoom(zoom)
+						self.navigation.pan(fvec2(displt.x(), displt.y()))
+						self.update()
+						evt.accept()
+					# finish a gesture
+					elif evt.type() in (QEvent.TouchEnd, QEvent.TouchUpdate):
+						evt.accept()
+	
 
 class Orbit:
 	''' Navigation rotating on the 3 axis around a center.
@@ -468,6 +678,10 @@ class Orbit:
 
 	
 class Turntable:
+	''' Navigation rotating on yaw and pitch around a center 
+	
+		Object used as `View.navigation`
+	'''
 	position: fvec3
 	distance: float
 	pitch: float
@@ -480,6 +694,7 @@ class Turntable:
 		self.distance = distance
 	
 	def matrix(self) -> fmat4:
+		print(self.position, self.distance, self.pitch, self.yaw)
 		# build rotation from view euler angles
 		rot = inverse(fquat(fvec3(pi/2-self.pitch, 0, -self.yaw)))
 		mat = translate(fmat4(rot), -self.position)

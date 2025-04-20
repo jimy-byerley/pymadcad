@@ -1,6 +1,11 @@
+from __future__ import annotations
+
 import moderngl as mgl
 from numpy import ndarray
 import numpy as np
+
+from ..mathutils import ivec2, uvec2
+
 
 def writeproperty(func):
 	''' Decorator to create a property that has only an action on variable write '''
@@ -13,6 +18,7 @@ def writeproperty(func):
 	return property(getter, setter, doc=func.__doc__)
 	
 def forwardproperty(attribute, sub):
+	''' read/write property to a attribute's attribute '''
 	def getter(self):
 		return getattr(getattr(self, attribute), sub)
 	def setter(self, value):
@@ -20,6 +26,7 @@ def forwardproperty(attribute, sub):
 	return property(getter, setter)
 
 def sceneshare(generator, immortal=False):
+	''' decorator for shared ressources with the scene '''
 	name = generator.__name__
 	def share(self, scene):
 		if not scene.shared.get(name):
@@ -34,17 +41,26 @@ def sceneshare(generator, immortal=False):
 	share.__doc__ = generator.__doc__
 	return share
 
+def receiver(generator) -> Callable:
+	''' simple helper running the generator until the first yield, and returning its send method '''
+	next(generator)
+	return generator.send
+	
 class Weak:
-	__slots__ = 'data', 'refcount'
-	def __init__(self, data):
-		self.data = data
+	''' weak reference to an object '''
+	__slots__ = 'object', 'refcount'
+	def __init__(self, object):
+		self.object = object
 		self.refcount = 0
 	def __bool__(self):
+		''' return True if the object is still alive and has not been dropped '''
 		return self.refcount > 0
 	def __call__(self):
-		return self.data
-		
+		''' retreive the underlying object or None if deallocated '''
+		return self.object
+
 class Rc:
+	''' strong counted reference to an object '''
 	__slots__ = 'weak'
 	def __init__(self, other):
 		if isinstance(other, Weak):
@@ -58,10 +74,11 @@ class Rc:
 		if self.weak is not None:
 			self.weak.refcount -= 1
 			if self.weak.refcount <= 0:
-				self.weak.data = None
+				self.weak.object = None
 		self.weak = None
 	def __call__(self):
-		return self.weak.data
+		''' retreive the underlying object '''
+		return self.weak.object
 
 class CheapMap:
 	''' object retreiving portions of a framebuffer, on demand and avoiding redundant memory copies '''
@@ -80,9 +97,17 @@ class CheapMap:
 		self.clear()
 	
 	def clear(self):
+		''' clear the last retreived region
+			
+			next call to `region` will trigger a transfer from the GPU 
+		'''
 		self.viewport = (1, 1, -1, -1)
 		
 	def region(self, viewport: tuple) -> ndarray:
+		''' retreive a given region of the framebuffer from the GPU
+		
+			any next extracted region that is inside this one will no need a new transfer
+		'''
 		if (viewport[0] < self.viewport[0] or viewport[2] > self.viewport[2] 
 		or  viewport[1] < self.viewport[1] or viewport[3] > self.viewport[3]):
 			self.viewport = viewport
@@ -118,5 +143,19 @@ def snailaround(pt, box, radius):
 		if 0 <= x and x < mx and 0 <= y and y < my:
 			yield ivec2(x,y)
 
-def glm_to_qt(p): 	return QPoint(p.x, p.y)
-def qt_2_glm(p):	return ivec2(p.x(), p.y())
+def glsize(size: uvec2) -> uvec2:
+	# if the size is not a multiple of 4, it seems that openGL or Qt doesn't understand its strides well
+	m = 4
+	return size + uvec2(-ivec2(size)%m)
+			
+# qt conversion functions
+
+try:
+	from ..qt import QPoint, QSize
+except ImportError:
+	pass
+else:
+	def vec_to_qpoint(p: ivec2) -> QPoint: 	return QPoint(p.x, p.y)
+	def qpoint_to_vec(p: QPoint) -> ivec2:	return ivec2(p.x(), p.y())
+	def vec_to_qsize(p: uvec2) -> QSize: 	return QSize(p.x, p.y)
+	def qsize_to_vec(p: QSize) -> uvec2:	return uvec2(p.width(), p.height())

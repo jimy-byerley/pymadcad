@@ -76,7 +76,13 @@ class PointDisplay(Display):
 				 (self, 'screen', 2, self._render))
 
 	def _render(self, view):
-		self._va_screen.program['color'].write(fvec3(settings.display['select_color_line']) if self.selected else self.color)
+		if self.selected:
+			color = fvec3(settings.display['select_color_line'])
+		elif self.hovered:
+			color = fvec3(settings.display['hover_color_line'])
+		else:
+			color = self.color
+		self._va_screen.program['color'].write(color)
 		self._va_screen.program['position'].write(fvec3(self.world * fvec4(self.position,1)))
 		self._va_screen.program['view'].write(view.uniforms['view'])
 		self._va_screen.program['proj'].write(view.uniforms['proj'])

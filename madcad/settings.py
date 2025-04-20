@@ -22,7 +22,8 @@ display = {
 	'background_color': fvec3(0,0,0),  # color of the view background
 	'select_color_face': fvec3(0.01, 0.05, 0.03), # color for selected surfaces
 	'select_color_line': fvec3(0.5, 1, 0.6), # color for selected lines
-	'highlight_color': fvec3(0.1, 0.2, 0.2),
+	'hover_color_face': fvec3(0.01, 0.04, 0.05), # color for selected surfaces
+	'hover_color_line': fvec3(0.5, 0.8, 1), # color for selected lines
 	
 	'solid_color_front': 1., # surface intensity for portions of surface parallel to the view direction
 	'solid_color_side': 0.2, # surface intensity for portions of surface orthogonal to the view direction
@@ -78,6 +79,7 @@ scene = {
 	'kinematic_manipulation': 'joint',
 	
 	'lock_solids': True,
+	'selection_exclusive': True,
 	
 	'debug_points': False,
 	'debug_faces': False,

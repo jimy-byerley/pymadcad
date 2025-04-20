@@ -12,7 +12,7 @@ except ImportError:
 	pass
 else:
 
-	def show(scene:Scene|dict|list, interest: Box = None, size=uvec2(400, 400), projection=None, navigation=None, **options):
+	def show(scene:Scene|dict|list, interest: Box = None, size=uvec2(400, 400), projection=None, navigation=True, **options):
 		'''
 		Easy and convenient way to create a window containing a `View3D` on a `Scene`
 
