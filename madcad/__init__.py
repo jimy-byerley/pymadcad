@@ -165,7 +165,7 @@ from .hull import convexhull, convexoutline, horizon
 from .hashing import suites
 
 from .scheme import *
-from .rendering import Scene, Display, displayable, show, render
+from .rendering import Scene, Display, show, render
 
 from .standard import *
 

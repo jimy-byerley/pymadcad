@@ -16,21 +16,36 @@ from .. import rendering
 from .. import scheme
 from .. import nprint
 from ..displays import BoxDisplay
-from ..rendering import Group, displayable
+from ..rendering import Group, writeproperty
 from ..scheme import Scheme, halo_screen
 from ..generation import revolution
 from ..mesh import web
 from .solver import Chain, Kinematic, KinematicError, regularize_grad, structure_state, flatten_state
+from .assembly import Solid
 
 
 class SolidDisplay(Group):
 	''' Movable `Group` for the rendering pipeline '''
-	def __init__(self, scene, solid):
-		super().__init__(scene, solid.content, local=solid.pose)
+	def __init__(self, scene, solid:Solid):
+		self._local = fmat4(solid.pose)
+		self._world = fmat4()
+		super().__init__(scene, solid.content)
+
+	@writeproperty
+	def local(self):
+		sub = self._world * self._local
+		for display in self.displays.values():
+			display.world = sub
+			
+	@writeproperty
+	def world(self):
+		sub = self._world * self._local
+		for display in self.displays.values():
+			display.world = sub
 	
-	def update(self, scene, solid):
-		from .assembly import Solid
-		if not isinstance(solid, Solid):	return
+	def update(self, scene, solid:Solid):
+		if not isinstance(solid, Solid):
+			return False
 		super().update(scene, solid.content)
 		self.local = fmat4(solid.pose)
 		return True
@@ -41,7 +56,6 @@ class SolidDisplay(Group):
 				continue
 			for sub,target,priority,func in display.stack(scene):
 				yield ((key, *sub), target, priority, func)
-
 
 class ChainManip(Group):
 	''' object to display and interact with a robot in the 3d view
@@ -65,7 +79,7 @@ class ChainManip(Group):
 		
 		if chain.content:
 			for key, solid in enumerate(chain.content):
-				if displayable(solid):
+				if scene.displayable(solid):
 					self.displays[key] = scene.display(solid)
 		
 		scheme, index = kinematic_scheme(chain.joints)
@@ -307,7 +321,7 @@ class KinematicManip(Group):
 		
 		if self.kinematic.content:
 			for key, solid in self.kinematic.content.items():
-				if displayable(solid):
+				if Scene.displayable(solid):
 					self.displays[key] = scene.display(solid)
 		
 		scheme, self.index = kinematic_scheme(kinematic.joints)

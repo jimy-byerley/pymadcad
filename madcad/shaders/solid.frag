@@ -40,7 +40,7 @@ void main() {
 	vec3 refl = texture(reflectmap, skybox(tosky)).rgb;
 	
 	color = vec4(refl * refl_color + mix(min_color, max_color, diffuse), 1);
-	if ((flags & 1) != 0)		color += vec4(select_color, 0) * min(1/max(0,(diffuse-0.1)), 10);
+	if (((flags) & 1) != 0)		color += vec4(select_color, 0) * min(1/max(0,(diffuse-0.1)), 10);
 }
 
 

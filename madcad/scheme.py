@@ -29,7 +29,7 @@ from .rendering import Display
 from .common import resourcedir
 from .mesh import Mesh, Web, Wire, web, wire, mesh_distance
 from .hashing import connef, connpe, connpp, edgekey, arrangeface, arrangeedge
-from .rendering import Displayable, writeproperty, overrides
+from .rendering import Scene, writeproperty
 from .text import TextDisplay, textsize
 from .primitives import *
 from . import mathutils
@@ -1237,7 +1237,7 @@ def quat_display(scene, quat):
 	try:	return scene.display(note_rotation(quat))
 	except TypeError:	return Display()
 		
-overrides.update({
+Scene.overrides.update({
 	dmat4: base_display,
 	fmat4: base_display,
 	dmat3: base_display,

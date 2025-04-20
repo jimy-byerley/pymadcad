@@ -1,0 +1,122 @@
+import moderngl as mgl
+from numpy import ndarray
+import numpy as np
+
+def writeproperty(func):
+	''' Decorator to create a property that has only an action on variable write '''
+	fieldname = '_'+func.__name__
+	def getter(self):	
+		return getattr(self, fieldname)
+	def setter(self, value):
+		setattr(self, fieldname, value)
+		func(self)
+	return property(getter, setter, doc=func.__doc__)
+	
+def forwardproperty(attribute, sub):
+	def getter(self):
+		return getattr(getattr(self, attribute), sub)
+	def setter(self, value):
+		setattr(getattr(self, attribute), sub, value)
+	return property(getter, setter)
+
+def sceneshare(generator, immortal=False):
+	name = generator.__name__
+	def share(self, scene):
+		if not scene.shared.get(name):
+			data = generator(self, scene)
+			if immortal:
+				data = Rc(data)
+			else:
+				data = Weak(data)
+			scene.shared[name] = data
+		setattr(self, name, Rc(scene.shared[name]))
+		vars(self).update(scene.shared[name]())
+	share.__doc__ = generator.__doc__
+	return share
+
+class Weak:
+	__slots__ = 'data', 'refcount'
+	def __init__(self, data):
+		self.data = data
+		self.refcount = 0
+	def __bool__(self):
+		return self.refcount > 0
+	def __call__(self):
+		return self.data
+		
+class Rc:
+	__slots__ = 'weak'
+	def __init__(self, other):
+		if isinstance(other, Weak):
+			self.weak = other
+		elif isisntance(other, Rc):
+			self.weak = other.weak
+		else:
+			self.weak = Weak(other)
+		self.weak.refcount += 1
+	def __del__(self):
+		if self.weak is not None:
+			self.weak.refcount -= 1
+			if self.weak.refcount <= 0:
+				self.weak.data = None
+		self.weak = None
+	def __call__(self):
+		return self.weak.data
+
+class CheapMap:
+	''' object retreiving portions of a framebuffer, on demand and avoiding redundant memory copies '''
+	def __init__(self, framebuffer: mgl.Framebuffer, attachment:int):
+		self.framebuffer = framebuffer
+		self.attachment = attachment
+		if attachment < 0:
+			renderbuffer = framebuffer.depth_attachment
+		else:
+			renderbuffer = framebuffer.color_attachments[attachment]
+		self.dtype = renderbuffer.dtype
+		self.components = renderbuffer.components
+		size = renderbuffer.size
+		self.buffer = np.zeros(size[1]*size[0], self.dtype)
+		
+		self.clear()
+	
+	def clear(self):
+		self.viewport = (1, 1, -1, -1)
+		
+	def region(self, viewport: tuple) -> ndarray:
+		if (viewport[0] < self.viewport[0] or viewport[2] > self.viewport[2] 
+		or  viewport[1] < self.viewport[1] or viewport[3] > self.viewport[3]):
+			self.viewport = viewport
+			self.framebuffer.read_into(self.buffer, 
+				(viewport[0], self.framebuffer.height-viewport[3], viewport[2]-viewport[0], viewport[3]-viewport[1]), 
+				attachment=self.attachment, components=self.components, dtype=self.dtype)
+		
+		view = self.buffer[:(self.viewport[3]-self.viewport[1]) * (self.viewport[2]-self.viewport[0])]
+		view = view.reshape((self.viewport[3]-self.viewport[1], self.viewport[2]-self.viewport[0]))
+		view = view[::-1]
+		return view[
+			viewport[1]-self.viewport[1]:viewport[3]-self.viewport[1],
+			viewport[0]-self.viewport[0]:viewport[2]-self.viewport[0],
+			]
+
+
+def snail(radius):
+	''' Generator of coordinates snailing around 0,0 '''
+	x = 0
+	y = 0
+	for r in range(radius):
+		for x in range(-r,r):		yield ivec2(x,-r)
+		for y in range(-r,r):		yield ivec2(r, y)
+		for x in reversed(range(-r,r)):	yield ivec2(x, r)
+		for y in reversed(range(-r,r)):	yield ivec2(-r,y)
+
+def snailaround(pt, box, radius):
+	''' Generator of coordinates snailing around pt, coordinates that goes out of the box are skipped '''
+	cx,cy = pt
+	mx,my = box
+	for rx,ry in snail(radius):
+		x,y = cx+rx, cy+ry
+		if 0 <= x and x < mx and 0 <= y and y < my:
+			yield ivec2(x,y)
+
+def glm_to_qt(p): 	return QPoint(p.x, p.y)
+def qt_2_glm(p):	return ivec2(p.x(), p.y())
