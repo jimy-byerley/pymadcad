@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import moderngl as mgl
+from pnprint import nprint
 
 from ... import settings
 from ...mathutils import *
@@ -62,6 +63,7 @@ class GLView3D:
 		# setup uniforms
 		if view:    self.view = view
 		if proj:    self.proj = proj
+		self.uniforms['size'] = uvec2(self.screen.size)
 		self.uniforms['view'] = self.view
 		self.uniforms['proj'] = self.proj
 		self.uniforms['projview'] = self.proj * self.view
@@ -94,7 +96,7 @@ class GLView3D:
 		''' ident rendering setup '''
 		self._stepi = 0
 		self._step = 1
-		if len(self.scene.stacks['ident']) != len(self._steps):
+		if self.scene.stacks and len(self.scene.stacks['ident']) != len(self._steps):
 			self._steps = [0] * len(self.scene.stacks['ident'])
 		# ident rendering setup
 		ctx = self.scene.context
@@ -218,6 +220,11 @@ else:
 		''' access to the depthmap from last rendering '''
 		ident: CheapMap[np.uint16]
 		''' access to the identification map from last rendering '''
+		receivers: list
+		''' list of callbacks subscribing to input events
+		
+			they will be called in revered order, and as any Qt event handler, this first accepting prevents the other to be called
+		'''
 		
 		scene = forwardproperty('gl', 'scene')
 		view = forwardproperty('gl', 'view')
@@ -235,6 +242,7 @@ else:
 			self.navigation = navigation
 			self.projection = projection or globals()[settings.scene['projection']]()
 			self.color = self.depth = self.ident = None
+			self.receivers = []
 			
 			self._move_mode = receiver(self._move_mode())
 			self._keyboard_move = receiver(self._keyboard_move())
@@ -297,13 +305,20 @@ else:
 				This function can be overwritten to change the view widget behavior.
 			'''
 			evt.ignore()
-					
-			self._move_mode(evt)
-			self._keyboard_move(evt)
-			self._mouse_move(evt)
-			self._touch_move(evt)
-			if evt.isAccepted():
-				return
+			
+			for i in reversed(range(len(self.receivers))):
+				if not self.receivers[i](evt):
+					self.receivers.pop(i)
+				if evt.isAccepted():
+					return
+			
+			if self.navigation:
+				self._move_mode(evt)
+				self._keyboard_move(evt)
+				self._mouse_move(evt)
+				self._touch_move(evt)
+				if evt.isAccepted():
+					return
 			
 			# send the event to the scene objects, descending the item tree
 			pos = None
@@ -547,10 +562,10 @@ else:
 			''' Return the point of the rendered surfaces that match the given window coordinates '''
 			point = qpoint_to_vec(point)
 			region = self.depth.region((*point, *(point+1)))
-			viewport = self.fb_ident.viewport
+			size = self.uniforms['size']
 			depthred = float(region[0,0])
-			x =  (point.x/viewport[2] *2 -1)
-			y = -(point.y/viewport[3] *2 -1)
+			x =  (point.x/size.x *2 -1)
+			y = -(point.y/size.y *2 -1)
 
 			if depthred == 1.0:
 				return None
@@ -573,9 +588,9 @@ else:
 			point = qpoint_to_vec(point)
 			view = self.uniforms['view']
 			proj = self.uniforms['proj']
-			viewport = self.fb_ident.viewport
-			x =  (point.x/viewport[2] *2 -1)
-			y = -(point.y/viewport[3] *2 -1)
+			size = self.uniforms['size']
+			x =  (point.x/size.x *2 -1)
+			y = -(point.y/size.y *2 -1)
 			depth = (view * fvec4(fvec3(center),1))[2]
 			return vec3(fvec3(affineInverse(view) * fvec4(
 						-depth * x /proj[0][0],
@@ -621,7 +636,7 @@ else:
 			''' Make the navigation camera large enough to get the given box in .
 				This is changing the zoom level
 			'''
-			if not box:	box = self.scene.box()
+			if not box:	box = self.scene.root.box
 			if box.isempty():	return
 
 			# get the most distant point to the focal axis

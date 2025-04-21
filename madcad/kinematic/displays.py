@@ -14,7 +14,7 @@ from .. import settings
 from .. import rendering
 from .. import scheme
 from .. import nprint
-from ..rendering import Group, writeproperty
+from ..rendering import Group, writeproperty, receiver
 from ..scheme import Scheme, halo_screen
 from ..generation import revolution
 from ..mesh import web
@@ -93,22 +93,20 @@ class ChainManip(Group):
 	
 	def stack(self, scene):
 		''' rendering stack requested by the madcad rendering system '''
-		yield ((), 'screen', -1, self.place_solids)
+		yield (self, 'screen', -1, self.place_solids)
 		yield from super().stack(scene)
 
 	def place_solids(self, view):
-		world = self.world * self.local
-		
 		index = {}
 		for i, joint in enumerate(self.chain.joints):
 			solid = joint.solids[-1]
 			index[solid] = i+1
 			if display := self.displays.get(solid):
-				display.world = world * fmat4(self.parts[i+1])
+				display.world = self.world * fmat4(self.parts[i+1])
 		
 		for space in self.displays['scheme'].spacegens:
 			if isinstance(space, (world_solid, scale_solid)) and space.solid in index:
-				space.pose = world * fmat4(self.parts[index[space.solid]])
+				space.pose = self.world * fmat4(self.parts[index[space.solid]])
 			elif isinstance(space, scheme.halo_screen):
 				if view.scene.options['kinematic_manipulation'] == 'rotate':
 					space.position = fvec3(self.parts[-1] * self.toolcenter)
@@ -131,11 +129,12 @@ class ChainManip(Group):
 			# put the tool into the view, to handle events
 			# TODO: allow changing mode during move
 			if sub == ('scheme', index_toolcenter):
-				view.tool.append(rendering.Tool(self.move_tool, view, sub, evt))
+				generator = self.move_tool(view, sub, evt)
 			else:
-				view.tool.append(rendering.Tool(getattr(self, 'move_'+view.scene.options['kinematic_manipulation']), view, sub, evt))
+				generator = getattr(self, 'move_'+view.scene.options['kinematic_manipulation'])(view, sub, evt)
+			view.receivers.append(receiver(generator))
 				
-	def move_tool(self, dispatcher, view, sub, evt):
+	def move_tool(self, view, sub, evt):
 		place = mat4(self.world) * self.parts[-1]
 		init = place * vec3(self.toolcenter)
 		offset = init - view.ptfrom(evt.pos(), init)
@@ -151,7 +150,7 @@ class ChainManip(Group):
 			
 			self.toolcenter = affineInverse(place) * (view.ptfrom(evt.pos(), init) + offset)
 	
-	def move_joint(self, dispatcher, view, sub, evt):
+	def move_joint(self, view, sub, evt):
 		
 		# find the clicked solid, and joint controled
 		if sub[0] == 'scheme':	solid = sub[1]
@@ -160,7 +159,7 @@ class ChainManip(Group):
 		# get 3d location of mouse
 		click = view.ptat(view.somenear(evt.pos()))
 		joint = max(0, solid-1)
-		anchor = affineInverse(mat4(self.world * self.local) * self.parts[joint+1]) * vec4(click,1)
+		anchor = affineInverse(mat4(self.world) * self.parts[joint+1]) * vec4(click,1)
 		
 		while True:
 			evt = yield
@@ -171,7 +170,7 @@ class ChainManip(Group):
 				if not (evt.buttons() & Qt.LeftButton):
 					break
 
-				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world * self.local) * self.parts[joint]
+				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world) * self.parts[joint]
 				direct = affineInverse(self.parts[joint]) * self.parts[joint+1]
 				target = qtpos(evt.pos(), view)
 				current = model * (direct * anchor)
@@ -211,11 +210,11 @@ class ChainManip(Group):
 						self.pose))
 		self.parts = self.chain.parts(self.pose)
 
-	def move_translate(self, dispatcher, view, sub, evt):
+	def move_translate(self, view, sub, evt):
 		# translate the tool
 		clicked = view.ptat(view.somenear(evt.pos()))
 		solid = self.parts[-1]
-		anchor = affineInverse(mat4(self.world * self.local) * solid) * vec4(clicked,1)
+		anchor = affineInverse(mat4(self.world) * solid) * vec4(clicked,1)
 		init_solid = solid
 		
 		while True:
@@ -229,7 +228,7 @@ class ChainManip(Group):
 
 				solid = self.parts[-1]
 				jac = self.chain.grad(self.pose)
-				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world * self.local)
+				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world)
 				current_anchor = model * solid * anchor
 				target_anchor = qtpos(evt.pos(), view)
 				
@@ -246,11 +245,11 @@ class ChainManip(Group):
 						for grad in jac]),
 					)
 
-	def move_rotate(self, dispatcher, view, sub, evt):
+	def move_rotate(self, view, sub, evt):
 		# translate the tool
 		clicked = view.ptat(view.somenear(evt.pos()))
 		solid = self.parts[-1]
-		anchor = affineInverse(mat4(self.world * self.local) * solid) * vec4(clicked,1)
+		anchor = affineInverse(mat4(self.world) * solid) * vec4(clicked,1)
 		tool = vec4(self.toolcenter,1)
 		init_tool = solid * tool
 		
@@ -265,7 +264,7 @@ class ChainManip(Group):
 
 				solid = self.parts[-1]
 				jac = self.chain.grad(self.pose)
-				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world * self.local)
+				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world)
 				current_tool = model * solid * tool
 				target_anchor = qtpos(evt.pos(), view)
 				target_tool = model * init_tool
@@ -333,18 +332,16 @@ class KinematicManip(Group):
 		
 	def stack(self, scene):
 		''' rendering stack requested by the madcad rendering system '''
-		yield ((), 'screen', -1, self.place_solids)
+		yield (self, 'screen', -1, self.place_solids)
 		for item in super().stack(scene):
 			if not scene.options['display_annotations'] and not self.selected and len(self.displays) >1 and item[0][0] == 'scheme':
 				continue
 			yield item
 
 	def place_solids(self, view):
-		world = self.world * self.local
-		
 		for key in self.displays:
 			if key in self.parts:
-				self.displays[key].world = world * fmat4(self.parts[key])
+				self.displays[key].world = self.world * fmat4(self.parts[key])
 		
 		for space in self.displays['scheme'].spacegens:
 			if isinstance(space, (world_solid, scale_solid)) and space.solid in self.parts:
@@ -449,7 +446,7 @@ class KinematicManip(Group):
 		# constants during translation
 		clicked = view.ptat(view.somenear(evt.pos()))
 		solid = self.parts[moved]
-		anchor = affineInverse(mat4(self.world * self.local) * solid) * vec4(clicked,1)
+		anchor = affineInverse(mat4(self.world) * solid) * vec4(clicked,1)
 		
 		while True:
 			evt = yield
@@ -460,7 +457,7 @@ class KinematicManip(Group):
 				if not (evt.buttons() & Qt.LeftButton):
 					break
 
-				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world * self.local)
+				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world)
 				target_anchor = qtpos(evt.pos(), view)
 				freejac = kinematic.grad((
 					*self.pose, 
@@ -493,7 +490,7 @@ class KinematicManip(Group):
 		# constants during translation
 		clicked = view.ptat(view.somenear(evt.pos()))
 		solid = self.parts[moved]
-		anchor = affineInverse(mat4(self.world * self.local) * solid) * vec4(clicked,1)
+		anchor = affineInverse(mat4(self.world) * solid) * vec4(clicked,1)
 		init_solid = solid
 		
 		while True:
@@ -505,7 +502,7 @@ class KinematicManip(Group):
 				if not (evt.buttons() & Qt.LeftButton):
 					break
 
-				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world * self.local)
+				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world)
 				target_anchor = qtpos(evt.pos(), view)
 				jac = kinematic.grad((
 					*self.pose, 
@@ -544,7 +541,7 @@ class KinematicManip(Group):
 		# constants during translation
 		clicked = view.ptat(view.somenear(evt.pos()))
 		solid = self.parts[moved]
-		anchor = affineInverse(mat4(self.world * self.local) * solid) * vec4(clicked,1)
+		anchor = affineInverse(mat4(self.world) * solid) * vec4(clicked,1)
 		init_tool = vec4(self.toolcenter, 1)
 		tool = affineInverse(solid) * vec4(self.toolcenter, 1)
 		
@@ -557,7 +554,7 @@ class KinematicManip(Group):
 				if not (evt.buttons() & Qt.LeftButton):
 					break
 
-				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world * self.local)
+				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world)
 				target_anchor = qtpos(evt.pos(), view)
 				target_tool = model * init_tool
 				jac = kinematic.grad((

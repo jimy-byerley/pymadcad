@@ -1,10 +1,10 @@
 from madcad import *
-from madcad.displays import *
-from madcad.rendering import Displayable
+from madcad.rendering.d3.dense import VoxelsDisplay
+from madcad.rendering import Displayable, show
 import numpy as np
 
 voxel = np.random.random((30,20,10))
-disp = Displayable(VoxelDisplay, voxel, fmat4(3,2,1,1), (0.4, 0.9))
+disp = Displayable(VoxelsDisplay, voxel, fmat4(3,2,1,1), (0.4, 0.9))
 
 show([
 	disp, 

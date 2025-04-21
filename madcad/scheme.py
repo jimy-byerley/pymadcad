@@ -29,8 +29,9 @@ from .rendering import Display
 from .common import resourcedir
 from .mesh import Mesh, Web, Wire, web, wire, mesh_distance
 from .hashing import connef, connpe, connpp, edgekey, arrangeface, arrangeedge
-from .rendering import Scene, writeproperty
-from .text import TextDisplay, textsize
+from .rendering import Scene, Displayable, writeproperty
+from .text import textsize
+from .text.displays import TextDisplay
 from .primitives import *
 from . import mathutils
 from . import generation as gt
@@ -234,10 +235,12 @@ class Scheme:
 			blend_func: int
 		
 		def __init__(self, scene, sch):
-			ctx = scene.ctx
+			ctx = scene.context
+			self._selected = False
+			self._hovered = False
 			
 			# load the resources
-			self.shaders, self.shader_ident = scene.resource('scheme', self.load)
+			self.shaders, self.shader_ident = scene.share(type(self), self._share)
 			
 			# switch to array indexed spaces
 			self.spaces = typedlist.full(fmat4(0), len(sch.spaces))
@@ -292,22 +295,10 @@ class Scheme:
 			if ident_triangles:	self.vai_triangles	= ctx.vertex_array(self.shader_ident, verticesdef, ctx.buffer(np.array(ident_triangles, 'u4')), skip_errors=True)
 			if ident_lines:		self.vai_lines 		= ctx.vertex_array(self.shader_ident, verticesdef, ctx.buffer(np.array(ident_lines, 'u4')), skip_errors=True)
 			
-		def __del__(self):
-			for va in self.vas.values():
-				va.release()
-			self.vas.clear()
-			if self.vai_triangles:
-				self.vai_triangles.release()
-			if self.vai_lines:
-				self.vai_lines.release()
-			if self.vb_vertices:
-				self.vb_vertices.release()
-				self.vb_vertices = None
-			
-		def load(self, scene):
+		def _share(self, scene):
 			''' Load shaders and all static data for the current OpenGL context '''
 			vert = open(resourcedir+'/shaders/scheme.vert').read()
-			shader_ident = scene.ctx.program(
+			shader_ident = scene.context.program(
 						vertex_shader=vert,
 						fragment_shader=open(resourcedir+'/shaders/scheme-ident.frag').read(),
 						)
@@ -316,7 +307,7 @@ class Scheme:
 					mode = mgl.LINES, 
 					enable = mgl.BLEND | mgl.DEPTH_TEST,
 					blend_func = (mgl.SRC_ALPHA, mgl.ONE_MINUS_SRC_ALPHA),
-					program = scene.ctx.program(
+					program = scene.context.program(
 						vertex_shader=vert,
 						fragment_shader=open(resourcedir+'/shaders/scheme-uniform.frag').read(),
 						)),
@@ -324,7 +315,7 @@ class Scheme:
 					mode = mgl.TRIANGLES,
 					enable = mgl.BLEND | mgl.DEPTH_TEST | mgl.CULL_FACE,
 					blend_func = (mgl.SRC_ALPHA, mgl.ONE_MINUS_SRC_ALPHA),
-					program = scene.ctx.program(
+					program = scene.context.program(
 						vertex_shader=vert,
 						fragment_shader=open(resourcedir+'/shaders/scheme-uniform.frag').read(),
 						)),
@@ -332,14 +323,31 @@ class Scheme:
 					mode = mgl.TRIANGLES,
 					enable = mgl.BLEND | mgl.CULL_FACE,
 					blend_func = (mgl.SRC_ALPHA, mgl.ONE),
-					program = scene.ctx.program(
+					program = scene.context.program(
 						vertex_shader=vert,
 						fragment_shader=open(resourcedir+'/shaders/scheme-ghost.frag').read(),
 						)),
 				}
 			return shaders, shader_ident
+		
+		def stack(self, scene):
+			yield (self, 'screen', -1, self._compute_spaces)
+			yield (self, 'screen', 2, self._render) 
+			yield (self, 'ident', 2, self._identify)
+			for space,disp in self.components:
+				yield from disp.stack(scene)
+				
+		@writeproperty
+		def selected(self):
+			for space, disp in self.components:
+				disp.selected = self._selected
+		
+		@writeproperty
+		def hovered(self):
+			for space, disp in self.components:
+				disp.hovered = self._hovered
 			
-		def compute_spaces(self, view):
+		def _compute_spaces(self, view):
 			''' Compute the new spaces for this frame.
 				This is meant to be overriden when new spaces are required 
 			'''
@@ -352,9 +360,9 @@ class Scheme:
 					disp.world = invview * self.spaces[space]
 			self.b_spaces.write(self.spaces)
 		
-		def render(self, view):
+		def _render(self, view):
 			''' Render each va in self.vas '''
-			ctx = view.scene.ctx
+			ctx = view.scene.context
 			for name in self.vas:
 				if name not in self.shaders:
 					continue
@@ -365,11 +373,17 @@ class Scheme:
 				self.b_spaces.bind_to_storage_buffer(0)
 				shader.program['b_spaces'].binding = 0
 				shader.program['proj'].write(view.uniforms['proj'])
-				shader.program['highlight'].write( fvec4(fvec3(settings.display['selection_color']), 0.5) if self.selected else fvec4(0) )
+				if self._selected:
+					highlight = settings.display['selection_color']
+				elif self._hovered:
+					highlight = settings.display['hover_color']
+				else:
+					highlight = fvec4(0)
+				shader.program['highlight'].write(highlight)
 				va.render()
 			ctx.enable_only(mgl.BLEND | mgl.DEPTH_TEST)
 		
-		def identify(self, view):
+		def _identify(self, view):
 			''' Render all the triangles and lines for identification '''
 			self.b_spaces.bind_to_storage_buffer(0)
 			self.shader_ident['b_spaces'].binding = 0
@@ -378,18 +392,6 @@ class Scheme:
 			
 			if self.vai_lines:		self.vai_lines.render(mgl.LINES)
 			if self.vai_triangles:	self.vai_triangles.render(mgl.TRIANGLES)
-		
-		def stack(self, scene):
-			yield ((), 'screen', -1, self.compute_spaces)
-			yield ((), 'screen', 2, self.render) 
-			yield ((), 'ident', 2, self.identify)
-			for space,disp in self.components:
-				yield from disp.stack(scene)
-				
-		@writeproperty
-		def selected(self, value):
-			for space, disp in self.components:
-				disp.selected = value
 				
 class SchemeInstance:
 	def __init__(self, name, scheme, *kwargs):
@@ -400,11 +402,11 @@ class SchemeInstance:
 	class display(Scheme.display):
 		def __init__(self, scene, instance):
 			self.instance = instance
-			disp = scene.resource(id(instance.scheme), lambda: inst.scheme.display(scene, instance.scheme))
+			disp = scene.share(id(instance.scheme), lambda: inst.scheme.display(scene, instance.scheme))
 			vars(self).update(vars(disp))
 			self.spaces = deepcopy(disp.spaces)
 			
-		def compute_spaces(self, view):
+		def _compute_spaces(self, view):
 			''' Computes the new spaces for this frame.
 				This is meant to be overriden when new spaces are required 
 			'''

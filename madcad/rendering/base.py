@@ -168,14 +168,21 @@ class Scene:
 			This must be called by the view widget, once the OpenGL context is set.
 		'''
 		with self.context:
-			self.prepare()
+			# restack and bufferize
+			try:
+				self.prepare()
+			except Exception:
+				traceback.print_exc()
 			# render everything
 			for target, frame, setup in view.targets:
-				view.target = frame
-				frame.use()
-				setup()
-				for step in self.stacks.get(target,empty):
-					step.render(view)
+				try:
+					view.target = frame
+					frame.use()
+					setup()
+					for step in self.stacks.get(target,empty):
+						step.render(view)
+				except Exception:
+					traceback.print_exc()
 	
 	def selection_add(self, display:Display, sub=None):
 		''' select the given display '''
@@ -330,11 +337,12 @@ class Group(Display):
 	displays: dict
 	''' dictionnary of displays currently displayed in the group '''
 	
-	def __init__(self, scene:Scene, src:dict|list):
+	def __init__(self, scene:Scene, src:dict|list=None):
 		self.displays = {}
 		self._pending = None
 		self._world = 1
-		self.update(src)
+		if src:
+			self.update(src)
 		
 	@property
 	def box(self):

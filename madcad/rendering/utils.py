@@ -4,7 +4,8 @@ import moderngl as mgl
 from numpy import ndarray
 import numpy as np
 
-from ..mathutils import ivec2, uvec2
+from .. import settings
+from ..mathutils import ivec2, uvec2, fvec4, mix
 
 
 def writeproperty(func):
@@ -44,7 +45,14 @@ def sceneshare(generator, immortal=False):
 def receiver(generator) -> Callable:
 	''' simple helper running the generator until the first yield, and returning its send method '''
 	next(generator)
-	return generator.send
+	def callback(evt):
+		try:
+			generator.send(evt)
+		except StopIteration:
+			return False
+		else:
+			return True
+	return callback
 	
 class Weak:
 	''' weak reference to an object '''
@@ -147,6 +155,12 @@ def glsize(size: uvec2) -> uvec2:
 	# if the size is not a multiple of 4, it seems that openGL or Qt doesn't understand its strides well
 	m = 4
 	return size + uvec2(-ivec2(size)%m)
+
+def highlight_color(display: Display, color: fvec3) -> fvec3:
+	if display.selected:    highlight = fvec4(settings.display['selection_color'])
+	elif display.hovered:   highlight = fvec4(settings.display['hover_color'])
+	else:                   highlight = fvec4(0)
+	return mix(color, highlight.rgb, highlight.a)
 			
 # qt conversion functions
 

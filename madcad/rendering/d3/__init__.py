@@ -2,6 +2,7 @@ import numpy.core as np
 
 from ...common import resourcedir
 from ...mathutils import Box, fvec3
+from ..base import Display
 from .view import *
 
 def load_shader_ident(scene):

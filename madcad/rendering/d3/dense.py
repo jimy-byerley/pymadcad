@@ -1,4 +1,8 @@
+import moderngl as mgl
+
 from ...mathutils import *
+from ...common import resourcedir
+from ...mesh import typedlist_to_numpy
 from .. import Display
 
 
@@ -58,44 +62,41 @@ class VoxelsDisplay(Display):
 		self.space = space
 		self.value_range = value
 		self.color_range = color
-
-		def load(scene):
-			from . import generation
-			
-			# load shader
-			shader = scene.context.program(
-						vertex_shader=open(resourcedir+'/shaders/voxel.vert').read(),
-						fragment_shader=open(resourcedir+'/shaders/voxel.frag').read(),
-						)
-			# load vertex buffer for the brick
-			brick = generation.brick(min=vec3(0), max=vec3(1)) .flip()
-			pts = typedlist(vec3)
-			for face in brick.faces:
-				pts.extend(brick.facepoints(face))
-			vb = scene.context.buffer(typedlist_to_numpy(pts, 'f4'))
-			
-			return shader, vb
 		
-		self.shader, self.vb = scene.share('shader_voxel', load)
+		self.shader, self.vb = scene.share(type(self), self._share)
 		self.va = scene.context.vertex_array(
 				self.shader,
 				[(self.vb, '3f', 'v_position')],
 				)
-				
-	def __del__(self):
-		self.va.release()
-		self.voxel.release()
-
-	def render(self, view):
-		view.scene.context.enable(mgl.DEPTH_TEST | mgl.CULL_FACE)
-		self.shader['value_min'] = self.value_range[0]
-		self.shader['value_max'] = self.value_range[1]
-		self.shader['color_min'].write(self.color_range[0])
-		self.shader['color_max'].write(self.color_range[1])
-		self.shader['view'].write(view.uniforms['view'] * self.world * self.space)
-		self.shader['proj'].write(view.uniforms['proj'])
-		self.voxel.use(0)
-		self.va.render(mgl.TRIANGLES)
+	
+	def _share(self, scene):
+		from ... import generation
 		
+		# load shader
+		shader = scene.context.program(
+					vertex_shader=open(resourcedir+'/shaders/voxel.vert').read(),
+					fragment_shader=open(resourcedir+'/shaders/voxel.frag').read(),
+					)
+		# load vertex buffer for the brick
+		brick = generation.brick(min=vec3(0), max=vec3(1)) .flip()
+		pts = typedlist(vec3)
+		for face in brick.faces:
+			pts.extend(brick.facepoints(face))
+		vb = scene.context.buffer(typedlist_to_numpy(pts, 'f4'))
+		
+		return shader, vb
+	
 	def stack(self, scene):
-		return ((), 'screen', 10, self.render),
+		return (self, 'screen', 10, self._render),
+
+	def _render(self, view):
+		view.scene.context.enable_only(mgl.DEPTH_TEST | mgl.BLEND | mgl.CULL_FACE)
+		self.voxel.use(0)
+		self.va.program['value_min'] = self.value_range[0]
+		self.va.program['value_max'] = self.value_range[1]
+		self.va.program['color_min'].write(self.color_range[0])
+		self.va.program['color_max'].write(self.color_range[1])
+		self.va.program['view'].write(view.uniforms['view'] * self.world * self.space)
+		self.va.program['proj'].write(view.uniforms['proj'])
+		self.va.render(mgl.TRIANGLES)
+		view.scene.context.enable_only(mgl.DEPTH_TEST | mgl.BLEND)

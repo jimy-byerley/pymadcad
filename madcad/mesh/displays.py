@@ -16,7 +16,6 @@ class MeshDisplay(Display):
 	''' Display render Meshes '''
 	def __init__(self, scene, positions, normals, faces, lines, idents, color=None):
 		self.box = npboundingbox(positions)
-		self._selected = False
 		
 		color = fvec3(color or settings.colors['surface'])
 		line = (	(length(settings.colors['line']) + dot(color-settings.colors['surface'], settings.colors['line']-settings.colors['surface']))
@@ -24,50 +23,50 @@ class MeshDisplay(Display):
 		#if length(s['line_color']) > length(color)
 		reflect = normalize(color + 1e-6) * settings.display['solid_reflectivity']
 		
-		self.vertices = Vertices(scene.context, positions, idents)
-		self.disp_faces = FacesDisplay(scene, self.vertices, normals, faces, color=color, reflect=reflect, layer=0)
-		self.disp_ghost = GhostDisplay(scene, self.vertices, normals, faces, color=line, layer=0)
-		self.disp_groups = LinesDisplay(scene, self.vertices, lines, color=line, alpha=1, layer=-2e-6)
-		self.disp_points = PointsDisplay(scene, self.vertices, range(len(positions)), layer=-3e-6)
+		self._vertices = Vertices(scene.context, positions, idents)
+		self._disp_faces = FacesDisplay(scene, self._vertices, normals, faces, color=color, reflect=reflect, layer=0)
+		self._disp_ghost = GhostDisplay(scene, self._vertices, normals, faces, color=line, layer=0)
+		self._disp_groups = LinesDisplay(scene, self._vertices, lines, color=line, alpha=1, layer=-2e-6)
+		self._disp_points = PointsDisplay(scene, self._vertices, range(len(positions)), layer=-3e-6)
 		wire = []
 		for f in faces:
 			wire.append((f[0], f[1]))
 			wire.append((f[1], f[2]))
 			wire.append((f[2], f[0]))
-		self.disp_wire = LinesDisplay(scene, self.vertices, wire, color=line, alpha=0.3, layer=-1e-6)
+		self._disp_wire = LinesDisplay(scene, self._vertices, wire, color=line, alpha=0.3, layer=-1e-6)
 		
 	def stack(self, scene):
-		yield (self, 'screen', -1, self.vertices.prerender)
+		yield (self, 'screen', -1, self._vertices.prerender)
 		if scene.options['display_faces']:	
-			yield (self, 'screen', 0, self.disp_faces.render)
-			yield (self, 'ident', 0, self.disp_faces.identify)
+			yield (self, 'screen', 0, self._disp_faces.render)
+			yield (self, 'ident', 0, self._disp_faces.identify)
 		else:								
-			yield (self, 'screen', 1, self.disp_ghost.render)
-			yield (self, 'ident', 0, self.disp_ghost.identify)
-		if scene.options['display_groups']:	yield (self, 'screen', 1, self.disp_groups.render)
-		if scene.options['display_points']:	yield (self, 'screen', 2, self.disp_points.render)
-		if scene.options['display_wire']:	yield (self, 'screen', 2, self.disp_wire.render)
+			yield (self, 'screen', 1, self._disp_ghost.render)
+			yield (self, 'ident', 0, self._disp_ghost.identify)
+		if scene.options['display_groups']:	yield (self, 'screen', 1, self._disp_groups.render)
+		if scene.options['display_points']:	yield (self, 'screen', 2, self._disp_points.render)
+		if scene.options['display_wire']:	yield (self, 'screen', 2, self._disp_wire.render)
 	
 	def _get_world(self):	
-		return self.vertices.world
+		return self._vertices.world
 	def _set_world(self, value):	
-		self.vertices.world = value
+		self._vertices.world = value
 	world = property(_get_world, _set_world)
 	
 	def _get_selected(self):
-		return self.vertices.selected
+		return self._vertices.selected
 	def _set_selected(self, value):
 		assert isinstance(value, set)
-		self.vertices.selected = value
-		self.vertices.flags_updated = True
+		self._vertices.selected = value
+		self._vertices.flags_updated = True
 	selected = property(_get_selected, _set_selected)
 	
 	def _get_hovered(self):
-		return self.vertices.hovered
+		return self._vertices.hovered
 	def _set_hovered(self, value):
 		assert isinstance(value, set)
-		self.vertices.hovered = value
-		self.vertices.flags_updated = True
+		self._vertices.hovered = value
+		self._vertices.flags_updated = True
 	hovered = property(_get_hovered, _set_hovered)
 	
 
@@ -75,45 +74,45 @@ class WebDisplay(Display):
 	''' Display to render Webs '''
 	def __init__(self, scene, positions, lines, points, idents, color=None):
 		self.box = npboundingbox(positions)
-		self.options = scene.options
 		color = color or settings.colors['line']
-		self.vertices = Vertices(scene.context, positions, idents)
-		self.disp_edges = LinesDisplay(scene, self.vertices, lines, color=color, alpha=1, layer=-2e-6)
-		self.disp_groups = PointsDisplay(scene, self.vertices, points, layer=-3e-6)
-		self.disp_points = PointsDisplay(scene, self.vertices, range(len(positions)), layer=-1e-6)
+		self._vertices = Vertices(scene.context, positions, idents)
+		self._disp_edges = LinesDisplay(scene, self._vertices, lines, color=color, alpha=1, layer=-2e-6)
+		self._disp_groups = PointsDisplay(scene, self._vertices, points, layer=-3e-6)
+		self._disp_points = PointsDisplay(scene, self._vertices, range(len(positions)), layer=-1e-6)
 
 	def stack(self, scene):
-		yield (self, 'screen', -1, self.vertices.prerender)
-		if self.options['display_groups']:		yield (self, 'screen', 2, self.disp_groups.render)
-		if self.options['display_points']:		yield (self, 'screen', 2, self.disp_points.render)
-		yield (self, 'screen', 1, self.disp_edges.render)
-		yield (self, 'ident', 1, self.disp_edges.identify)
+		yield (self, 'screen', -1, self._vertices.prerender)
+		if scene.options['display_groups']:		yield (self, 'screen', 2, self._disp_groups.render)
+		if scene.options['display_points']:		yield (self, 'screen', 2, self._disp_points.render)
+		yield (self, 'screen', 1, self._disp_edges.render)
+		yield (self, 'ident', 1, self._disp_edges.identify)
 	
 	def _get_world(self):	
-		return self.vertices.world
+		return self._vertices.world
 	def _set_world(self, value):	
-		self.vertices.world = value
+		self._vertices.world = value
 	world = property(_get_world, _set_world)
 	
 	def _get_selected(self):
-		return self.vertices.selected
+		return self._vertices.selected
 	def _set_selected(self, value):
 		assert isinstance(value, set)
-		self.vertices.selected = value
-		self.vertices.flags_updated = True
+		self._vertices.selected = value
+		self._vertices.flags_updated = True
 	selected = property(_get_selected, _set_selected)
 	
 	def _get_hovered(self):
-		return self.vertices.hovered
+		return self._vertices.hovered
 	def _set_hovered(self, value):
 		assert isinstance(value, set)
-		self.vertices.hovered = value
-		self.vertices.flags_updated = True
+		self._vertices.hovered = value
+		self._vertices.flags_updated = True
 	hovered = property(_get_hovered, _set_hovered)
 
 
-class Vertices(object):
+class Vertices:
 	''' convenient class to share vertices between SolidDisplay, WebDisplay, PointsDisplay '''
+	# vertex flags for shaders
 	HOVERED = 1<<0
 	SELECTED = 1<<1
 	
@@ -153,7 +152,7 @@ class FacesDisplay:
 		self.color = color
 		self.layer = layer
 		self.reflect = reflect
-		self.vertices = vertices
+		self._vertices = vertices
 	
 		# load the skybox texture
 		def load(scene):
@@ -174,6 +173,7 @@ class FacesDisplay:
 						(self.vb_normals, '3f', 'v_normal'),
 						(vertices.vb_flags, 'u1', 'v_flags')],
 					self.vb_faces,
+					mode=mgl.TRIANGLES,
 					)
 			
 			self.va_ident = scene.context.vertex_array(
@@ -181,6 +181,7 @@ class FacesDisplay:
 					[	(vertices.vb_positions, '3f', 'v_position'),
 						(vertices.vb_idents, 'u2', 'item_ident')], 
 					self.vb_faces,
+					mode=mgl.TRIANGLES,
 					)
 		else:
 			self.va = None
@@ -196,35 +197,32 @@ class FacesDisplay:
 	
 	def render(self, view):
 		if self.va:
-			# setup uniforms
-			self.shader['u_flags'] = self.vertices.u_flags
-			self.shader['selected_color'].write(settings.display['selection_color'])
-			self.shader['hovered_color'].write(settings.display['hover_color'])
-			self.shader['min_color'].write(self.color * settings.display['solid_color_side'])
-			self.shader['max_color'].write(self.color * settings.display['solid_color_front'])
-			self.shader['refl_color'].write(self.reflect)
-			self.shader['layer'] = self.layer
-			self.shader['world'].write(self.vertices.world)
-			self.shader['view'].write(view.uniforms['view'])
-			self.shader['proj'].write(view.uniforms['proj'])
-			# render on self.context
 			self.reflectmap.use(0)
-			self.va.render(mgl.TRIANGLES)
+			self.va.program['u_flags'] = self._vertices.u_flags
+			self.va.program['selected_color'].write(settings.display['selection_color'])
+			self.va.program['hovered_color'].write(settings.display['hover_color'])
+			self.va.program['min_color'].write(self.color * settings.display['solid_color_side'])
+			self.va.program['max_color'].write(self.color * settings.display['solid_color_front'])
+			self.va.program['refl_color'].write(self.reflect)
+			self.va.program['layer'] = self.layer
+			self.va.program['world'].write(self._vertices.world)
+			self.va.program['view'].write(view.uniforms['view'])
+			self.va.program['proj'].write(view.uniforms['proj'])
+			self.va.render()
 	
 	def identify(self, view):
 		if self.va:
-			self.ident_shader['layer'] = self.layer
-			self.ident_shader['start_ident'] = view.identstep(self.vertices.nident)
-			self.ident_shader['view'].write(view.uniforms['view'] * self.vertices.world)
-			self.ident_shader['proj'].write(view.uniforms['proj'])
-			# render on self.context
-			self.va_ident.render(mgl.TRIANGLES)
+			self.va_ident.program['layer'] = self.layer
+			self.va_ident.program['start_ident'] = view.identstep(self._vertices.nident)
+			self.va_ident.program['view'].write(view.uniforms['view'] * self._vertices.world)
+			self.va_ident.program['proj'].write(view.uniforms['proj'])
+			self.va_ident.render()
 
 class GhostDisplay:
 	def __init__(self, scene, vertices, normals, faces, color, layer=0):
 		self.color = color
 		self.layer = layer
-		self.vertices = vertices
+		self._vertices = vertices
 		
 		self.shader = scene.share(type(self), self._share)
 		self.ident_shader = scene.share(load_shader_subident, load_shader_subident)
@@ -260,23 +258,22 @@ class GhostDisplay:
 	def render(self, view):
 		if self.va:
 			# setup uniforms
-			self.shader['u_flags'] = self.vertices.u_flags
-			self.shader['normal_color'].write(self.color)
-			self.shader['selected_color'].write(settings.display['selection_color'])
-			self.shader['hovered_color'].write(settings.display['hover_color'])
-			self.shader['world'].write(self.vertices.world)
-			self.shader['view'].write(view.uniforms['view'])
-			self.shader['proj'].write(view.uniforms['proj'])
-			self.shader['layer'] = self.layer
-			view.scene.context.disable(mgl.DEPTH_TEST)
-			# render on self.context
+			view.scene.context.enable_only(mgl.BLEND)
+			self.va.program['u_flags'] = self._vertices.u_flags
+			self.va.program['normal_color'].write(self.color)
+			self.va.program['selected_color'].write(settings.display['selection_color'])
+			self.va.program['hovered_color'].write(settings.display['hover_color'])
+			self.va.program['world'].write(self._vertices.world)
+			self.va.program['view'].write(view.uniforms['view'])
+			self.va.program['proj'].write(view.uniforms['proj'])
+			self.va.program['layer'] = self.layer
 			self.va.render()
-			view.scene.context.enable(mgl.DEPTH_TEST)
+			view.scene.context.enable_only(mgl.BLEND | mgl.DEPTH_TEST)
 	
 	def identify(self, view):
 		if self.va:
-			self.ident_shader['start_ident'] = view.identstep(self.vertices.nident)
-			self.ident_shader['view'].write(view.uniforms['view'] * self.vertices.world)
+			self.ident_shader['start_ident'] = view.identstep(self._vertices.nident)
+			self.ident_shader['view'].write(view.uniforms['view'] * self._vertices.world)
 			self.ident_shader['proj'].write(view.uniforms['proj'])
 			self.ident_shader['layer'] = self.layer
 			# render on self.context
@@ -286,7 +283,7 @@ class LinesDisplay:
 	def __init__(self, scene, vertices, lines, color, alpha=1, layer=0):
 		self.layer = layer
 		self.color = fvec4(fvec3(color), alpha)
-		self.vertices = vertices
+		self._vertices = vertices
 		
 		# load the line shader
 		self.shader = scene.share(load_shader_wire, load_shader_wire)
@@ -313,21 +310,21 @@ class LinesDisplay:
 	
 	def render(self, view):
 		if self.va:
-			self.shader['u_flags'] = self.vertices.u_flags
-			self.shader['color'].write(self.color)
-			self.shader['selected_color'].write(settings.display['selection_color'])
-			self.shader['hovered_color'].write(settings.display['hover_color'])
-			self.shader['view'].write(view.uniforms['view'] * self.vertices.world)
-			self.shader['proj'].write(view.uniforms['proj'])
-			self.shader['layer'] = self.layer
+			self.va.program['u_flags'] = self._vertices.u_flags
+			self.va.program['color'].write(self.color)
+			self.va.program['selected_color'].write(settings.display['selection_color'])
+			self.va.program['hovered_color'].write(settings.display['hover_color'])
+			self.va.program['view'].write(view.uniforms['view'] * self._vertices.world)
+			self.va.program['proj'].write(view.uniforms['proj'])
+			self.va.program['layer'] = self.layer
 			self.va.render()
 		
 	def identify(self, view):
 		if self.va:
-			self.ident_shader['start_ident'] = view.identstep(self.vertices.nident)
-			self.ident_shader['view'].write(view.uniforms['view'] * self.vertices.world)
-			self.ident_shader['proj'].write(view.uniforms['proj'])
-			self.ident_shader['layer'] = self.layer
+			self.va_ident.program['start_ident'] = view.identstep(self._vertices.nident)
+			self.va_ident.program['view'].write(view.uniforms['view'] * self._vertices.world)
+			self.va_ident.program['proj'].write(view.uniforms['proj'])
+			self.va_ident.program['layer'] = self.layer
 			self.va_ident.render()
 		
 class PointsDisplay:
@@ -336,7 +333,7 @@ class PointsDisplay:
 		self.select_color = fvec4(settings.display['selection_color'].rgb, 1)
 		self.ptsize = ptsize
 		self.layer = layer
-		self.vertices = vertices
+		self._vertices = vertices
 		
 		# load the line shader
 		self.shader = scene.share(load_shader_wire, load_shader_wire)
@@ -345,37 +342,39 @@ class PointsDisplay:
 		if indices is not None and len(indices) and vertices.vb_positions:
 			self.vb_indices = scene.context.buffer(np.asarray(indices, dtype='u4', order='C'))
 			self.va = scene.context.vertex_array(
-						self.shader,
-						[	(vertices.vb_positions, '3f', 'v_position'),
-							(vertices.vb_flags, 'u1', 'v_flags')],
-						self.vb_indices,
-						)
+				self.shader,
+				[	(vertices.vb_positions, '3f', 'v_position'),
+					(vertices.vb_flags, 'u1', 'v_flags')],
+				self.vb_indices,
+				mode=mgl.POINTS,
+				)
 			self.va_ident = scene.context.vertex_array(
-					self.ident_shader, 
-					[	(vertices.vb_positions, '3f', 'v_position'),
-						(vertices.vb_idents, 'u2', 'item_ident')], 
-					self.vb_indices,
-					)
+				self.ident_shader, 
+				[	(vertices.vb_positions, '3f', 'v_position'),
+					(vertices.vb_idents, 'u2', 'item_ident')], 
+				self.vb_indices,
+				mode=mgl.POINTS,
+				)
 		else:
 			self.va = None
 	
 	def render(self, view):
 		if self.va:
-			self.shader['u_flags'] = self.vertices.u_flags
-			self.shader['layer'] = self.layer
-			self.shader['color'].write(self.color)
-			self.shader['selected_color'].write(settings.display['selection_color'])
-			self.shader['hovered_color'].write(settings.display['hover_color'])
-			self.shader['view'].write(view.uniforms['view'] * self.vertices.world)
-			self.shader['proj'].write(view.uniforms['proj'])
 			view.scene.context.point_size = self.ptsize
-			self.va.render(mgl.POINTS)
+			self.va.program['u_flags'] = self._vertices.u_flags
+			self.va.program['layer'] = self.layer
+			self.va.program['color'].write(self.color)
+			self.va.program['selected_color'].write(settings.display['selection_color'])
+			self.va.program['hovered_color'].write(settings.display['hover_color'])
+			self.va.program['view'].write(view.uniforms['view'] * self._vertices.world)
+			self.va.program['proj'].write(view.uniforms['proj'])
+			self.va.render()
 	
 	def identify(self, view):
 		if self.va:
-			scene.subident_shader['layer'] = self.layer
-			scene.subident_shader['start_ident'] = view.identstep(self.vertices.nident)
-			scene.subident_shader['view'].write(view.uniforms['view'] * self.vertices.world)
-			scene.subident_shader['proj'].write(view.uniforms['proj'])
 			view.ctx.point_size = self.ptsize
-			self.va_ident.render(mgl.POINTS)
+			self.va_ident.program['layer'] = self.layer
+			self.va_ident.program['start_ident'] = view.identstep(self._vertices.nident)
+			self.va_ident.program['view'].write(view.uniforms['view'] * self._vertices.world)
+			self.va_ident.program['proj'].write(view.uniforms['proj'])
+			self.va_ident.render()

@@ -7,7 +7,7 @@ from ...mathutils import *
 from ...mesh import typedlist_to_numpy
 from ...common import resourcedir
 from ...qt import Qt, QEvent
-from .. import Display, Scene, writeproperty
+from .. import Display, Scene, writeproperty, highlight_color
 from . import npboundingbox, load_shader_ident, load_shader_subident, load_shader_wire, load_shader_uniformcolor
 
 
@@ -57,7 +57,7 @@ class PointDisplay(Display):
 				(self, 'screen', 2, self._render))
 
 	def _render(self, view):
-		self._va_screen.program['color'].write(highlight_color_line(self, self.color))
+		self._va_screen.program['color'].write(highlight_color(self, self.color))
 		self._va_screen.program['position'].write(fvec3(self.world * fvec4(self.position,1)))
 		self._va_screen.program['view'].write(view.uniforms['view'])
 		self._va_screen.program['proj'].write(view.uniforms['proj'])
@@ -132,7 +132,7 @@ class AxisDisplay(Display):
 				(self, 'screen', 2, self._render))
 	
 	def _render(self, view):
-		self._va_screen.program['color'].write(highlight_color_line(self, self.color))
+		self._va_screen.program['color'].write(highlight_color(self, self.color))
 		self._va_screen.program['projview'].write(view.uniforms['projview'])
 		self._va_screen.program['world'].write(self.world)
 		self._va_screen.program['origin'].write(self.origin)
@@ -189,7 +189,7 @@ class AnnotationDisplay(Display):
 				(self, 'screen', 2, self._render)) 
 	
 	def _render(self, view):
-		self._va_screen.program['color'].write(highlight_color_line(self, self.color))
+		self._va_screen.program['color'].write(highlight_color(self, self.color))
 		self._va_screen.program['proj'].write(view.uniforms['proj'])
 		self._va_screen.program['view'].write(view.uniforms['view'] * self.world)
 		self._va_screen.render()
@@ -258,8 +258,8 @@ class SplineDisplay(Display):
 					(self, 'ident', 1, self._identify)	)
 	
 	def _render(self, view):
-		self._va_handles.program['color'].write(fvec4(highlight_color_line(self, settings.colors['annotation']), 0.6))
-		self._va_curve.program['color'].write(fvec4(highlight_color_line(self, self.color), 1))
+		self._va_handles.program['color'].write(fvec4(highlight_color(self, settings.colors['annotation']), 0.6))
+		self._va_curve.program['color'].write(fvec4(highlight_color(self, self.color), 1))
 		
 		self._va_handles.program['view'].write(view.uniforms['view'] * self.world)
 		self._va_handles.program['proj'].write(view.uniforms['proj'])
@@ -334,7 +334,7 @@ class GridDisplay(Display):
 		zlog = log(-center.z)/log(10)
 		sizelog = floor(zlog)
 		
-		view.scene.context.point_size = 1/400 * min(view.screen.size)
+		view.scene.context.point_size = 1/400 * min(view.uniforms['size'])
 		self._va.program['color'].write(fvec4(
 				self.color.rgb, 
 				self.color.a * exp(self.contrast*(-1+sizelog-zlog)),
@@ -348,12 +348,6 @@ class GridDisplay(Display):
 
 # class CutPlane(Displau):
 #     ''' show a plane cutting all meshes '''
-
-def highlight_color_line(display: Display, color: fvec3) -> fvec3:
-	if display.selected:    highlight = fvec4(settings.display['selection_color'])
-	elif display.hovered:   highlight = fvec4(settings.display['hover_color'])
-	else:                   highlight = fvec4(0)
-	return mix(color, highlight.rgb, highlight.a)
 
 
 def tupledisplay(scene: Scene, t:tuple) -> Display:
