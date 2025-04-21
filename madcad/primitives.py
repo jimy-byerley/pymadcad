@@ -41,7 +41,6 @@
 from math import sqrt
 from .mathutils import *
 from . import settings
-from . import displays
 from . import mesh
 
 __all__ = [
@@ -83,7 +82,7 @@ class Segment(object):
 	def __repr__(self):
 		return 'Segment({}, {})'.format(self.a, self.b)
 	
-	def display(self, scene):	
+	def display(self, scene):
 		return self.mesh().display(scene)
 
 class ArcThrough(object):	
@@ -408,7 +407,8 @@ class Interpolated(object):
 		return 'Interpolated({}, {})'.format(self.points, self.weights)
 
 	def display(self, scene):
-		return displays.SplineDisplay(scene, glmarray(self.points), glmarray(self.mesh().points))
+		from .rendering.d3.marker import SplineDisplay
+		return SplineDisplay(scene, typedlist_to_numpy(self.points), typedlist_to_numpy(self.mesh().points))
 			
 class Softened(object):
 	''' Interpolated curve tangent to each segment midpoint (3rd degree bezier curve)
@@ -457,5 +457,6 @@ class Softened(object):
 		return 'Softened({}, {})'.format(self.points, self.weights)
 
 	def display(self, scene):
-		return displays.SplineDisplay(scene, glmarray(self.points), glmarray(self.mesh().points))
+		from .rendering.d3.marker import SplineDisplay
+		return SplineDisplay(scene, typedlist_to_numpy(self.points), typedlist_to_numpy(self.mesh().points))
 	

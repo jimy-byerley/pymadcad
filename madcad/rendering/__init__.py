@@ -1,6 +1,6 @@
-from numpy import ndarray
+from __future__ import annotations
 
-from ..mathutils import uvec2, Box
+from .. import settings
 from .utils import *
 from .base import *
 from .d3 import *
@@ -62,8 +62,7 @@ else:
 				print('error: Qt exited with code', err)
 
 
-
-def render(scene:Scene|dict|list, size=uvec2(400, 400), view:fmat4=None, proj:fmat4=None, interest:Box=None, **options) -> ndarray:
+def render(scene:Scene|dict|list, size=uvec2(400, 400), view:fmat4=None, proj:fmat4=None, interest:Box=None, alpha=False, **options) -> ndarray:
 	'''
 	render the given scene to an image
 
@@ -83,8 +82,6 @@ def render(scene:Scene|dict|list, size=uvec2(400, 400), view:fmat4=None, proj:fm
 	if not view:
 		view = translate(interest.center + size*Z)
 		# TODO take the projection transformation into account to get an appropriate distance
-	view = Offscreen3D(scene, size, view, proj)
+	view = Offscreen3D(scene, size, view, proj, enable_alpha=alpha)
 	scene.prepare()
 	return view.render()
-
-

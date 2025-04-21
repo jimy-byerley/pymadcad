@@ -127,24 +127,20 @@ That's it ! The primitive list can now be converted to Wire or Web with the good
 '''
 version = '0.18.1'
 
-import os
-from .nprint import nprint
-curdir = os.path.dirname(__file__)
-
 # computation
 from . import (
+		settings,
 		# base tools (defines types for the whole library)
 		mathutils, mesh, 
 		# interdependent functionnalities
-		generation, boolean, bevel, primitives, constraints, kinematic, #joints,
+		generation, text, boolean, bevel, primitives, constraints, kinematic, joints,
 		# near-independant modules
 		io, hashing, triangulation,
 		# parts
 		standard,
-		settings,
 	)
 # gui
-from . import rendering, displays, text, scheme
+from . import rendering, scheme
 
 # the most common tools, imported to access it directly from madcad
 from .mathutils import *
@@ -164,8 +160,11 @@ from .triangulation import TriangulationError
 from .hull import convexhull, convexoutline, horizon
 from .hashing import suites
 
-from .scheme import *
-from .rendering import Scene, Display, show, render
-
 from .standard import *
 
+try:
+	import moderngl
+except ImportError: pass
+else:
+	from .scheme import *
+	from .rendering import Scene, Display, show, render

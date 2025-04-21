@@ -18,14 +18,17 @@
 '''
 
 from collections import Counter
+
 import numpy as np
 from scipy.optimize import least_squares
-from .nprint import nprint
+from arrex import typedlist
+
 from .mathutils import *
-from . import primitives
-from . import displays, text, settings
-from . import scheme
-import array
+from . import primitives, settings
+
+__all__ = ['SolveError', 'Constraint', 'isconstraint', 
+	'Tangent', 'Distance', 'Angle', 'Parallel', 'Radius', 'OnPlane', 'PointOn',
+	'solve', 'Problem']
 
 
 class SolveError(Exception):	pass
@@ -89,6 +92,7 @@ class Distance(Constraint):
 	#def fitgrad(self):
 		#return derived.compose(dot, Derived(self.p1), Derived(self.p2))
 	def display(self, scene):
+		from . import sceme
 		if isinstance(self.p1, vec3) and isinstance(self.p2, vec3):
 			return scene.display(scheme.note_distance(
 					self.p1, self.p2, 
@@ -284,7 +288,7 @@ class Problem:
 			i += l
 	
 	def fit(self):
-		residuals = array.array('d')
+		residuals = typedlist(float)
 		for fit in self.constraints:
 			residuals.extend(fit())
 		return residuals
@@ -316,7 +320,7 @@ class Problem:
 
 
 
-
+# TODO remove this deprecated thing
 def solve2(constraints, precision=1e-4, afterset=None, fixed=(), maxiter=0):
 	params = []
 	corrections = []

@@ -7,7 +7,6 @@ import numpy as np
 import numpy.linalg as la
 import moderngl as mgl
 
-from ..qt import Qt, QEvent	
 from ..common import resourcedir
 from ..mathutils import *
 from ..mesh import Mesh, Web, Wire, striplist, distance2_pm, typedlist_to_numpy
@@ -15,13 +14,17 @@ from .. import settings
 from .. import rendering
 from .. import scheme
 from .. import nprint
-from ..displays import BoxDisplay
 from ..rendering import Group, writeproperty
 from ..scheme import Scheme, halo_screen
 from ..generation import revolution
 from ..mesh import web
 from .solver import Chain, Kinematic, KinematicError, regularize_grad, structure_state, flatten_state
 from .assembly import Solid
+try:
+	from ..qt import Qt, QEvent	
+except ImportError:
+	# it not found, assume the event-handlers will not be called
+	pass
 
 
 class SolidDisplay(Group):

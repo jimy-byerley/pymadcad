@@ -381,7 +381,6 @@ class Wire(NMesh):
 	# END BEGIN ----- ouput methods -----
 	
 	def display(self, scene):
-		from .. import displays
 		from .conversions import web
 		
 		w = web(self)

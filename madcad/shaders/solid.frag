@@ -9,12 +9,15 @@ flat in int flags;
 uniform vec3 min_color;		// color for dark zones
 uniform vec3 max_color;		// color for light zones
 uniform vec3 refl_color;	// color for the reflect
-uniform vec3 select_color;
+uniform vec4 selected_color;
+uniform vec4 hovered_color;
 uniform sampler2D reflectmap;	// color of the sky for reflection
-uniform int selection;
 
 // render color
 out vec4 color;
+
+#define HOVERED   1<<0
+#define SELECTED  1<<1
 
 vec2 skybox(vec3 tosky) {
 	// We do cut the cube into 6 angular sectors, from each face to the center of the cube. 
@@ -32,6 +35,10 @@ vec2 skybox(vec3 tosky) {
 	return sky_coord;
 }
 
+vec4 highlight(vec4 dst, vec4 src) {
+	return vec4(mix(dst.rgb, src.rgb, src.a), dst.a);
+}
+
 void main() {
 	vec3 nsight = normalize(sight);
 	vec3 nnormal = normalize(normal);
@@ -39,8 +46,12 @@ void main() {
 	vec3 tosky = -reflect(nsight, nnormal);
 	vec3 refl = texture(reflectmap, skybox(tosky)).rgb;
 	
+	// surface shading
 	color = vec4(refl * refl_color + mix(min_color, max_color, diffuse), 1);
-	if (((flags) & 1) != 0)		color += vec4(select_color, 0) * min(1/max(0,(diffuse-0.1)), 10);
+	
+	// highlighting
+	float margin = 0.1; // control how close to the horizon is the color saturation
+	float glow = min(margin*(1/max(0,(diffuse-margin)) -1), 1); // produce a glowy highlight
+	if ((flags & HOVERED)  != 0)		color = highlight(color, vec4(hovered_color.rgb,   hovered_color.a * glow));
+	if ((flags & SELECTED) != 0)		color = highlight(color, vec4(selected_color.rgb,  selected_color.a * glow));
 }
-
-

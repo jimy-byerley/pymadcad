@@ -365,7 +365,7 @@ class Scheme:
 				self.b_spaces.bind_to_storage_buffer(0)
 				shader.program['b_spaces'].binding = 0
 				shader.program['proj'].write(view.uniforms['proj'])
-				shader.program['highlight'].write( fvec4(fvec3(settings.display['select_color_line']), 0.5) if self.selected else fvec4(0) )
+				shader.program['highlight'].write( fvec4(fvec3(settings.display['selection_color']), 0.5) if self.selected else fvec4(0) )
 				va.render()
 			ctx.enable_only(mgl.BLEND | mgl.DEPTH_TEST)
 		

@@ -663,7 +663,8 @@ class Mesh(NMesh):
 	# END BEGIN ----- output methods ------
 	
 	def display(self, scene):
-		from .. import displays
+		from ..rendering import Display
+		from .displays import MeshDisplay
 		
 		m = self.own(points=True)
 		
@@ -692,9 +693,9 @@ class Mesh(NMesh):
 		normals = m.vertexnormals()
 		
 		if not m.points or not m.faces:	
-			return displays.Display()
+			return Display()
 		
-		return displays.SolidDisplay(scene, 
+		return MeshDisplay(scene, 
 				typedlist_to_numpy(m.points, 'f4'), 
 				typedlist_to_numpy(normals, 'f4'), 
 				typedlist_to_numpy(m.faces, 'u4'),

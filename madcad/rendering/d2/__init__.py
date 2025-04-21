@@ -1,7 +1,7 @@
 import moderngl as mgl
 
-from ..mathutils import uvec2, fvec2, fvec3, fmat2, fmat3, Box
-from .base import Scene
+from ...mathutils import uvec2, fvec2, fvec3, fmat2, fmat3, Box
+from ..base import Scene
 
 
 
@@ -27,10 +27,6 @@ from .base import Scene
 #     ident: ndarray|None
 #     def render(size=None, view=None)
 # 
-# class Projection(Display, View):
-#     world: mat3
-#     size: vec2
-# 
 # class QView(QWidget, View):
 #     navigation: Pan|None
 #     toolbar: QWidget|None
@@ -46,3 +42,13 @@ from .base import Scene
 #     def pan(offset: vec2)
 #     def rotate(offset: float)
 #     def matrix() -> mat3
+
+# class Projection(Display, View):
+#     ''' 3d view in a 2d scene '''
+#     world: mat3
+#     size: vec2
+#     limits: convex
+# 
+# class Frame(Display):
+#     ''' rectangular frame carying few drawing specifications '''
+# 

@@ -428,8 +428,9 @@ class Web(NMesh):
 					reprarray(self.groups, 'groups'),
 					repr(self.options))
 					
-	def display(self, scene):		
-		from .. import displays
+	def display(self, scene):
+		from ..rendering import Display
+		from .displays import WebDisplay
 		
 		points = typedlist(dtype=vec3)
 		idents = typedlist(dtype='I')
@@ -457,9 +458,9 @@ class Web(NMesh):
 				frontiers.append(used[p])
 				
 		if not points or not edges:
-			return displays.Display()
+			return Display()
 		
-		return displays.WebDisplay(scene,
+		return WebDisplay(scene,
 				typedlist_to_numpy(points, 'f4'), 
 				typedlist_to_numpy(edges, 'u4'),
 				typedlist_to_numpy(frontiers, 'u4'),

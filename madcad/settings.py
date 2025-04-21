@@ -20,10 +20,8 @@ display = {
 	'sharp_angle': pi/6, # above this threshold angles between mesh triangles are considered sharp, below they are rendered softened
 	
 	'background_color': fvec3(0,0,0),  # color of the view background
-	'select_color_face': fvec3(0.01, 0.05, 0.03), # color for selected surfaces
-	'select_color_line': fvec3(0.5, 1, 0.6), # color for selected lines
-	'hover_color_face': fvec3(0.01, 0.04, 0.05), # color for selected surfaces
-	'hover_color_line': fvec3(0.5, 0.8, 1), # color for selected lines
+	'selection_color': fvec4(0.5, 1, 0.6, 1), # color for selected lines
+	'hover_color': fvec4(0.5, 0.8, 1, 0.7), # color for selected lines
 	
 	'solid_color_front': 1., # surface intensity for portions of surface parallel to the view direction
 	'solid_color_side': 0.2, # surface intensity for portions of surface orthogonal to the view direction
@@ -69,7 +67,7 @@ colors = {
 scene = {
 	'projection': 'Perspective',
 	
-	'display_faces': True,
+	'display_faces': False,
 	'display_groups': True,
 	'display_points': False,
 	'display_wire': False,
@@ -80,6 +78,7 @@ scene = {
 	
 	'lock_solids': True,
 	'selection_exclusive': True,
+	'selection_sub': True,
 	
 	'debug_points': False,
 	'debug_faces': False,
@@ -186,10 +185,12 @@ def use_qt_colors():
 	
 	selection = mix(fvec3(0.4, 1, 0), qtc(QPalette.Highlight), 0.6)
 	selection *= mix(1/max(selection), max(qtc(QPalette.Text)), 0.3)
+	hover = mix(fvec3(0., 0.4, 1), qtc(QPalette.Highlight), 0.6)
+	hover *= mix(1/max(selection), max(qtc(QPalette.Text)), 0.3)
 	display.update({
 		'background_color': qtc(QPalette.Base),
-		'select_color_face': selection * 0.05,
-		'select_color_line': selection * 1.1,
+		'selection_color': fvec4(selection * 1.1, 1),
+		'hover_color': fvec4(hover * 1.1, 0.7),
 		})
 	colors.update({
 		'line': qtc(QPalette.Text),

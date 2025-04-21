@@ -3,12 +3,13 @@ from __future__ import annotations
 import numpy as np
 import moderngl as mgl
 
-from .. import settings
-from ..mathutils import *
-from ..qt import QWidget, QImage, QPainter, QEvent
-from .base import Scene
-from .utils import *
+from ... import settings
+from ...mathutils import *
+from ...qt import QWidget, QImage, QPainter, QEvent
+from ..base import Scene
+from ..utils import *
 
+__all__ = ['GLView3D', 'Offscreen3D', 'QView3D', 'Orbit', 'Turntable', 'Perspective', 'Orthographic']
 
 
 class GLView3D:
@@ -199,7 +200,7 @@ class Offscreen3D:
 
 
 try:
-	from ..qt import Qt, QApplication, QWidget, QInputEvent, QMouseEvent, QKeyEvent, QTouchEvent
+	from ...qt import Qt, QApplication, QWidget, QInputEvent, QMouseEvent, QKeyEvent, QTouchEvent
 except ImportError:
 	pass
 else:
@@ -311,35 +312,17 @@ else:
 				if pos:
 					key = self.displayat(pos)
 					if key:
-						print(key)
 						disp, sub = key
 						key = (*disp.key, sub)
 						
 						self.control(key, evt)
 						if evt.isAccepted():
 							return
-						
-						if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton and hasattr(disp, 'selected'):
-							shift = bool(QApplication.queryKeyboardModifiers() & Qt.ShiftModifier)
-							if self.scene.options['selection_exclusive'] ^ shift:
-								self.scene.selection_clear()
-							if disp.selected:
-								self.scene.selection_remove(disp)
-							else:
-								self.scene.selection_add(disp)
-							self.update()
-							evt.accept()
+						self._selection(disp, sub, evt)
+						if evt.isAccepted():
 							return
-						
-						if evt.type() == QEvent.MouseMove and hasattr(disp, 'hovered'):
-							if disp is not self.scene.hover:
-								self.scene.hover = disp
-								self.update()
 			if not pos:
-				if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
-					self.scene.selection_clear()
-				elif evt.type() == QEvent.MouseMove:
-					self.scene.hover = None
+				self._deselection(evt)
 			
 			# if clicks are not accepted, then some following keyboard events may not come to the widget
 			# NOTE this also discarding the ability to move the window from empty areas
@@ -362,6 +345,180 @@ else:
 					break
 				stack.append(disp)
 				
+		def _selection(self, disp, sub, evt):
+			''' handle the selection events '''
+			if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton and hasattr(disp, 'selected'):
+				shift = bool(QApplication.queryKeyboardModifiers() & Qt.ShiftModifier)
+				if self.scene.options['selection_exclusive'] ^ shift:
+					self.scene.selection_clear()
+				self.scene.selection_toggle(disp, sub)
+				self.update()
+				evt.accept()
+				return
+			
+			if evt.type() == QEvent.MouseMove and hasattr(disp, 'hovered'):
+				if disp is not self.scene.hover:
+					self.scene.hover = disp
+					self.update()
+					
+		def _deselection(self, evt):
+			''' handle the deselection events '''
+			if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
+				self.scene.selection_clear()
+				self.update()
+				evt.accept()
+			elif evt.type() == QEvent.MouseMove:
+				if self.scene.hover:
+					self.scene.hover = None
+					self.update()
+		
+		# move the view following events
+		# navigation modes
+		_ZOOM = 1
+		_PAN = 2
+		_ROTATE = 3
+		
+		def _move_mode(self):
+			''' change the navigation mode according to keyboard or mouse events '''
+			ctrl = alt = False
+			self._slow = False
+			self._mode = None
+			while True:
+				evt = yield
+				
+				if isinstance(evt, QKeyEvent):
+					k = evt.key()
+					press = evt.type() == QEvent.KeyPress
+					if	 k == Qt.Key_Control:	ctrl = press
+					elif k == Qt.Key_Alt:		alt = press
+					elif k == Qt.Key_Shift:		self._slow = press
+				elif evt.type() == QEvent.MouseButtonPress:
+					modifiers = QApplication.queryKeyboardModifiers()
+					ctrl = bool(modifiers & Qt.ControlModifier)
+					alt = bool(modifiers & Qt.AltModifier)
+					shift = bool(modifiers & Qt.ShiftModifier)
+				else:
+					continue
+				
+				if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.MiddleButton:
+					self._mode = self._ROTATE
+				else:
+					if ctrl and alt:		self._mode = self._ZOOM
+					elif ctrl:				self._mode = self._PAN
+					elif alt:				self._mode = self._ROTATE
+					else:					self._mode = None
+					
+		def _keyboard_move(self):
+			''' navigate the view with the keyboard '''
+			while True:
+				evt = yield
+				
+				if self._mode and evt.type() == QEvent.KeyPress:
+					dx = dy = 0
+					speed = pi/72 if self._slow else pi/24
+					if evt.key() == Qt.Key_Left:     dx = -speed
+					elif evt.key() == Qt.Key_Right:  dx = +speed
+					elif evt.key() == Qt.Key_Down:   dy = -speed
+					elif evt.key() == Qt.Key_Up:     dy = +speed
+					else:
+						continue
+					
+					if self._mode == self._PAN:
+						self.navigation.pan(fvec2(dx, dy))
+					elif self._mode == self._ROTATE:
+						self.navigation.rotate(fvec3(dx, dy, 0))
+					elif self._mode == self._ZOOM:
+						self.navigation.rotate(dy)
+						
+					evt.accept()
+					self.update()
+				
+		def _mouse_move(self):
+			''' navigate the view using the mouse '''
+			while True:
+				evt = yield
+				
+				if evt.type() == QEvent.Wheel:
+					self.navigation.zoom(exp(-evt.angleDelta().y()/(8*90)))	# the 8 factor is there because of the Qt documentation
+					evt.accept()
+					self.update()
+				
+				if self._mode and evt.type() == QEvent.MouseButtonPress:
+					last = evt.pos()
+					evt.accept()
+					while True:
+						evt = yield
+						
+						if not self._mode or evt.buttons() == Qt.NoButton or evt.type() == QEvent.MouseButtonRelease:
+							break
+						if evt.type() != QEvent.MouseMove:
+							continue
+						
+						gap = evt.pos() - last
+						dx = gap.x()/self.height()
+						dy = gap.y()/self.height()
+						if self._mode == self._PAN:		
+							self.navigation.pan(fvec2(dx, dy))
+						elif self._mode == self._ROTATE:
+							self.navigation.rotate(fvec3(dx, dy, 0))
+						elif self._mode == self._ZOOM:
+							middle = QPoint(self.width(), self.height())/2
+							f = (	(last-middle).manhattanLength()
+								/	(evt.pos()-middle).manhattanLength()	)
+							self.navigation.zoom(f)
+						last = evt.pos()
+						
+						evt.accept()
+						self.update()
+		
+		def _touch_move(self):
+			''' navigate the view using the touchscreen '''
+			while True:
+				evt = yield
+				if isinstance(evt, QTouchEvent):
+					self._mode = None
+					pts = evt.touchPoints()
+					# view rotation
+					if len(pts) == 2:
+						startlength = (pts[0].lastPos()-pts[1].lastPos()).manhattanLength()
+						zoom = startlength / (pts[0].pos()-pts[1].pos()).manhattanLength()
+						displt = (	(pts[0].pos()+pts[1].pos()) /2 
+								-	(pts[0].lastPos()+pts[1].lastPos()) /2 ) /self.height()
+						dc = pts[0].pos() - pts[1].pos()
+						dl = pts[0].lastPos() - pts[1].lastPos()
+						rot = atan2(dc.y(), dc.x()) - atan2(dl.y(), dl.x())
+						self.navigation.zoom(zoom)
+						self.navigation.rotate(fvec3(displt.x(), displt.y(), rot))
+						self.update()
+						evt.accept()
+					# view translation
+					elif len(pts) == 3:
+						lc = (	pts[0].lastPos() 
+							+	pts[1].lastPos() 
+							+	pts[2].lastPos() 
+							)/3
+						lr = (	(pts[0].lastPos() - lc) .manhattanLength()
+							+	(pts[1].lastPos() - lc) .manhattanLength()
+							+	(pts[2].lastPos() - lc) .manhattanLength()
+							)/3
+						cc = (	pts[0].pos() 
+							+	pts[1].pos() 
+							+	pts[2].pos() 
+							)/3
+						cr = (	(pts[0].pos() - cc) .manhattanLength()
+							+	(pts[1].pos() - cc) .manhattanLength()
+							+	(pts[2].pos() - cc) .manhattanLength()
+							)/3
+						zoom = lr / cr
+						displt = (cc - lc)  /self.height()
+						self.navigation.zoom(zoom)
+						self.navigation.pan(fvec2(displt.x(), displt.y()))
+						self.update()
+						evt.accept()
+					# finish a gesture
+					elif evt.type() in (QEvent.TouchEnd, QEvent.TouchUpdate):
+						evt.accept()
+		
 		# forward access to items
 				
 		def __getitem__(self, key):
@@ -486,149 +643,8 @@ else:
 
 			self.navigation.center(center)
 
-		# move the view following events
-		
-		_ZOOM = 1
-		_PAN = 2
-		_ROTATE = 3
-		
-		def _move_mode(self):
-			ctrl = alt = False
-			self._slow = False
-			self._mode = None
-			while True:
-				evt = yield
-				
-				if isinstance(evt, QKeyEvent):
-					k = evt.key()
-					press = evt.type() == QEvent.KeyPress
-					if	 k == Qt.Key_Control:	ctrl = press
-					elif k == Qt.Key_Alt:		alt = press
-					elif k == Qt.Key_Shift:		self._slow = press
-				elif evt.type() == QEvent.MouseButtonPress:
-					modifiers = QApplication.queryKeyboardModifiers()
-					ctrl = bool(modifiers & Qt.ControlModifier)
-					alt = bool(modifiers & Qt.AltModifier)
-					shift = bool(modifiers & Qt.ShiftModifier)
-				else:
-					continue
-				
-				if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.MiddleButton:
-					self._mode = self._ROTATE
-				else:
-					if ctrl and alt:		self._mode = self._ZOOM
-					elif ctrl:				self._mode = self._PAN
-					elif alt:				self._mode = self._ROTATE
-					else:					self._mode = None
-					
-		def _keyboard_move(self):
-			while True:
-				evt = yield
-				
-				if self._mode and evt.type() == QEvent.KeyPress:
-					dx = dy = 0
-					speed = pi/72 if self._slow else pi/24
-					if evt.key() == Qt.Key_Left:     dx = -speed
-					elif evt.key() == Qt.Key_Right:  dx = +speed
-					elif evt.key() == Qt.Key_Down:   dy = -speed
-					elif evt.key() == Qt.Key_Up:     dy = +speed
-					else:
-						continue
-					
-					if self._mode == self._PAN:
-						self.navigation.pan(fvec2(dx, dy))
-					elif self._mode == self._ROTATE:
-						self.navigation.rotate(fvec3(dx, dy, 0))
-					elif self._mode == self._ZOOM:
-						self.navigation.rotate(dy)
-						
-					evt.accept()
-					self.update()
-				
-		def _mouse_move(self):
-			while True:
-				evt = yield
-				
-				if evt.type() == QEvent.Wheel:
-					self.navigation.zoom(exp(-evt.angleDelta().y()/(8*90)))	# the 8 factor is there because of the Qt documentation
-					evt.accept()
-					self.update()
-				
-				if self._mode and evt.type() == QEvent.MouseButtonPress:
-					last = evt.pos()
-					evt.accept()
-					while True:
-						evt = yield
-						
-						if not self._mode or evt.buttons() == Qt.NoButton or evt.type() == QEvent.MouseButtonRelease:
-							break
-						if evt.type() != QEvent.MouseMove:
-							continue
-						
-						gap = evt.pos() - last
-						dx = gap.x()/self.height()
-						dy = gap.y()/self.height()
-						if self._mode == self._PAN:		
-							self.navigation.pan(fvec2(dx, dy))
-						elif self._mode == self._ROTATE:
-							self.navigation.rotate(fvec3(dx, dy, 0))
-						elif self._mode == self._ZOOM:
-							middle = QPoint(self.width(), self.height())/2
-							f = (	(last-middle).manhattanLength()
-								/	(evt.pos()-middle).manhattanLength()	)
-							self.navigation.zoom(f)
-						last = evt.pos()
-						
-						evt.accept()
-						self.update()
-		
-		def _touch_move(self):
-			while True:
-				evt = yield
-				if isinstance(evt, QTouchEvent):
-					self._mode = None
-					pts = evt.touchPoints()
-					# view rotation
-					if len(pts) == 2:
-						startlength = (pts[0].lastPos()-pts[1].lastPos()).manhattanLength()
-						zoom = startlength / (pts[0].pos()-pts[1].pos()).manhattanLength()
-						displt = (	(pts[0].pos()+pts[1].pos()) /2 
-								-	(pts[0].lastPos()+pts[1].lastPos()) /2 ) /self.height()
-						dc = pts[0].pos() - pts[1].pos()
-						dl = pts[0].lastPos() - pts[1].lastPos()
-						rot = atan2(dc.y(), dc.x()) - atan2(dl.y(), dl.x())
-						self.navigation.zoom(zoom)
-						self.navigation.rotate(fvec3(displt.x(), displt.y(), rot))
-						self.update()
-						evt.accept()
-					# view translation
-					elif len(pts) == 3:
-						lc = (	pts[0].lastPos() 
-							+	pts[1].lastPos() 
-							+	pts[2].lastPos() 
-							)/3
-						lr = (	(pts[0].lastPos() - lc) .manhattanLength()
-							+	(pts[1].lastPos() - lc) .manhattanLength()
-							+	(pts[2].lastPos() - lc) .manhattanLength()
-							)/3
-						cc = (	pts[0].pos() 
-							+	pts[1].pos() 
-							+	pts[2].pos() 
-							)/3
-						cr = (	(pts[0].pos() - cc) .manhattanLength()
-							+	(pts[1].pos() - cc) .manhattanLength()
-							+	(pts[2].pos() - cc) .manhattanLength()
-							)/3
-						zoom = lr / cr
-						displt = (cc - lc)  /self.height()
-						self.navigation.zoom(zoom)
-						self.navigation.pan(fvec2(displt.x(), displt.y()))
-						self.update()
-						evt.accept()
-					# finish a gesture
-					elif evt.type() in (QEvent.TouchEnd, QEvent.TouchUpdate):
-						evt.accept()
-	
+
+# view matrix providers
 
 class Orbit:
 	''' Navigation rotating on the 3 axis around a center.
@@ -676,7 +692,6 @@ class Orbit:
 		# rotate from view euler angles
 		self.orient = inverse(fquat(fvec3(-offset.y, -offset.dx, offset.dz) * pi)) * self.orient
 
-	
 class Turntable:
 	''' Navigation rotating on yaw and pitch around a center 
 	
@@ -694,7 +709,6 @@ class Turntable:
 		self.distance = distance
 	
 	def matrix(self) -> fmat4:
-		print(self.position, self.distance, self.pitch, self.yaw)
 		# build rotation from view euler angles
 		rot = inverse(fquat(fvec3(pi/2-self.pitch, 0, -self.yaw)))
 		mat = translate(fmat4(rot), -self.position)
@@ -730,6 +744,7 @@ class Turntable:
 		if self.pitch > pi:	self.pitch -= 2*pi
 		if self.pitch < -pi: self.pitch += 2*pi
 
+# projection matrix providers
 
 class Perspective:
 	''' Object used as `View.projection` 
@@ -768,17 +783,3 @@ class Orthographic:
 					
 	def adjust(self, size):
 		return size / self.projection.size
-
-
-
-def load_shader_ident(scene):
-	return scene.ctx.program(
-		vertex_shader=open(resourcedir+'/shaders/object-ident.vert').read(),
-		fragment_shader=open(resourcedir+'/shaders/ident.frag').read(),
-		)
-
-def load_shader_subident(scene):
-	return scene.ctx.program(
-		vertex_shader=open(resourcedir+'/shaders/object-item-ident.vert').read(),
-		fragment_shader=open(resourcedir+'/shaders/ident.frag').read(),
-		)        

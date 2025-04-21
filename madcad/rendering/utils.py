@@ -27,7 +27,7 @@ def forwardproperty(attribute, sub):
 
 def sceneshare(generator, immortal=False):
 	''' decorator for shared ressources with the scene '''
-	name = generator.__name__
+	name = generator
 	def share(self, scene):
 		if not scene.shared.get(name):
 			data = generator(self, scene)
@@ -36,7 +36,7 @@ def sceneshare(generator, immortal=False):
 			else:
 				data = Weak(data)
 			scene.shared[name] = data
-		setattr(self, name, Rc(scene.shared[name]))
+		setattr(self, generator.__name__, Rc(scene.shared[name]))
 		vars(self).update(scene.shared[name]())
 	share.__doc__ = generator.__doc__
 	return share

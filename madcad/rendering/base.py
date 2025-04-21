@@ -11,6 +11,8 @@ from .. import settings
 from ..mathutils import boundingbox
 from .utils import writeproperty
 
+__all__ = ['Scene', 'Step', 'Display', 'Group', 'Displayable']
+
 
 # minimum opengl version required by the rendering pipeline
 opengl_version = (4,3)
@@ -125,7 +127,7 @@ class Scene:
 				return True
 		return False
 	
-	def share(self, key, generator=None, hook=False):
+	def share(self, key, generator=None):
 		''' Get a shared resource loaded or load it using the function func.
 			If func is not provided, an error is raised
 		'''
@@ -134,11 +136,9 @@ class Scene:
 		elif callable(generator):
 			res = generator(self)
 			self.shared[key] = res
-			if hook:
-				self.hooks[key] = res
 			return res
 		else:
-			raise KeyError("resource {} doesn't exist or is not loaded".format(repr(name)))
+			raise KeyError("resource {} doesn't exist or is not loaded".format(repr(key)))
 	
 	def prepare(self):
 		''' convert all displayable to displays and bufferize everything for comming renderings '''
@@ -150,7 +150,9 @@ class Scene:
 					if isinstance(step, tuple):
 						step = Step(*step)
 					elif not isinstance(step, Step):
-						raise TypeError('stack step must be of type Step, not {}'.format(step))
+						raise TypeError('stack step must be of type Step, not {}'.format(type(step)))
+					if not isinstance(step.display, Display):
+						raise TypeError('step.display must be a Display, not {}'.format(type(step.display)))
 					if step.target not in self.stacks:	
 						self.stacks[step.target] = []
 					stack = self.stacks[step.target]
@@ -175,20 +177,52 @@ class Scene:
 				for step in self.stacks.get(target,empty):
 					step.render(view)
 	
-	def selection_add(self, display:Display):
+	def selection_add(self, display:Display, sub=None):
 		''' select the given display '''
-		display.selected = True
-		self.selection.add(display)
+		if isinstance(display.selected, set):
+			if self.options['selection_sub']:
+				display.selected.add(sub)
+			else:
+				display.selected.add(None)
+			display.selected = display.selected
+			self.selection.add(display)
+		else:
+			display.selected = True
+			self.selection.add(display)
 	
-	def selection_remove(self, display:Display):
+	def selection_remove(self, display:Display, sub=None):
 		''' deselect the given display '''
-		display.selected = False
-		self.selection.discard(display)
+		if isinstance(display.selected, set):
+			if self.options['selection_sub']:
+				display.selected.discard(sub)
+			else:
+				display.selected.clear()
+			display.selected = display.selected
+			if not display.selected:
+				self.selection.discard(display)
+		else:
+			display.selected = False
+			self.selection.discard(display)
+		
+	def selection_toggle(self, display:Display, sub=None):
+		if isinstance(display.selected, set):
+			selected = sub in display.selected
+		else:
+			selected = display.selected
+		if selected:
+			self.selection_remove(display, sub)
+		else:
+			self.selection_add(display, sub)
 	
 	def selection_clear(self):
 		''' deselect all previously selected displays '''
 		for display in self.selection:
-			display.selected = False
+			if isinstance(display.selected, set):
+				display.selected.clear()
+				display.selected = display.selected
+			else:
+				display.selected = False
+		self.selection.clear()
 	
 	def _get_hover(self):
 		return self._hover
@@ -196,12 +230,26 @@ class Scene:
 		if hover is self._hover:
 			return
 		if self._hover:
-			self._hover.hovered = False
+			if isinstance(self._hover.hovered, set):
+				self._hover.hovered.clear()
+				self._hover.hovered = self._hover.hovered
+			else:
+				self._hover.hovered = False
 		self._hover = hover
 		if self._hover:
-			self._hover.hovered = True
+			if isinstance(self._hover.hovered, set):
+				self._hover.hovered.add(None)
+				self._hover.hovered = self._hover.hovered
+			else:
+				self._hover.hovered = True
 	hover = property(_get_hover, _set_hover)
 
+	def __getitem__(self, key):
+		return self.root[key]
+	
+	def __setitem__(self, key, value):
+		self.root[key] = value
+	
 @dataclass
 class Step:
 	''' describes a rendering step for a display '''
@@ -275,7 +323,10 @@ class Display:
 
 
 class Group(Display):
-	''' display holding multiple displays associated with a key, just like a dictionnary '''
+	''' display holding multiple displays associated with a key, just like a dictionnary 
+	
+		`world`, `selected`, `hovered` properties are propagated to its children
+	'''
 	displays: dict
 	''' dictionnary of displays currently displayed in the group '''
 	
@@ -287,16 +338,24 @@ class Group(Display):
 		
 	@property
 	def box(self):
-		return boundingbox(display.box   for display in self.displays.values())
+		return boundingbox(
+			(getattr(display, 'box', None)   for display in self.displays.values()), 
+			ignore=True)
 	
 	@writeproperty
 	def world(self):
-		''' matrix from local space to scene space
-		
-			a group propagates this value to its children
-		'''
 		for display in self.displays.values():
 			display.world = self.world
+			
+	@writeproperty
+	def selected(self):
+		for display in self.displays.values():
+			display.selected = self.selected
+	
+	@writeproperty
+	def hovered(self):
+		for display in self.displays.values():
+			display.hovered = self.hovered
 	
 	def update(self, src:dict):
 		''' update all child displays with the displayable present in the given dictionnary
