@@ -445,7 +445,7 @@ class Axis(object):
 		return 'Axis({}, {})'.format(self.origin, self.direction)
 	
 	def display(self, scene):
-		from .displays import AxisDisplay
+		from .rendering.d3.marker import AxisDisplay
 		return AxisDisplay(scene, (self.origin, self.direction), self.interval)
 			
 def isaxis(obj):
@@ -624,7 +624,7 @@ def boundingbox(obj, ignore=False, default=Box(width=vec3(-inf))) -> Box:
 				except TypeError:	continue
 				break
 			for e in obj:
-				try:	bound.union(e)
+				try:	bound.union_update(e)
 				except TypeError:	continue
 		else:
 			bound = boundingbox(next(obj, default))

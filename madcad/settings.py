@@ -67,7 +67,7 @@ colors = {
 scene = {
 	'projection': 'Perspective',
 	
-	'display_faces': False,
+	'display_faces': True,
 	'display_groups': True,
 	'display_points': False,
 	'display_wire': False,
@@ -77,7 +77,7 @@ scene = {
 	'kinematic_manipulation': 'joint',
 	
 	'lock_solids': True,
-	'selection_exclusive': True,
+	'selection_multiple': False,
 	'selection_sub': True,
 	
 	'debug_points': False,

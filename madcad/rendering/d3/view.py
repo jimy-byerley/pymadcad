@@ -1,3 +1,7 @@
+# This file is part of pymadcad,  distributed under license LGPL v3
+'''
+	module providing different kind of 3d views over a Scene, and few helpers with them
+'''
 from __future__ import annotations
 
 import numpy as np
@@ -7,7 +11,7 @@ from pnprint import nprint
 from ... import settings
 from ...mathutils import *
 from ...qt import QWidget, QImage, QPainter, QEvent
-from ..base import Scene
+from ..base import Scene, empty
 from ..utils import *
 
 __all__ = ['GLView3D', 'Offscreen3D', 'QView3D', 'Orbit', 'Turntable', 'Perspective', 'Orthographic']
@@ -96,7 +100,7 @@ class GLView3D:
 		''' ident rendering setup '''
 		self._stepi = 0
 		self._step = 1
-		if self.scene.stacks and len(self.scene.stacks['ident']) != len(self._steps):
+		if len(self.scene.stacks.get('ident', empty)) != len(self._steps):
 			self._steps = [0] * len(self.scene.stacks['ident'])
 		# ident rendering setup
 		ctx = self.scene.context
@@ -364,8 +368,10 @@ else:
 			''' handle the selection events '''
 			if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton and hasattr(disp, 'selected'):
 				shift = bool(QApplication.queryKeyboardModifiers() & Qt.ShiftModifier)
-				if self.scene.options['selection_exclusive'] ^ shift:
+				if not self.scene.options['selection_multiple'] ^ shift:
 					self.scene.selection_clear()
+				if not self.scene.options['selection_sub']:
+					sub = None
 				self.scene.selection_toggle(disp, sub)
 				self.update()
 				evt.accept()
@@ -621,7 +627,7 @@ else:
 					nprint(self.gl._steps)
 					return
 				
-				return (self.scene.stacks['ident'][rdri].display, subi)
+				return (self.scene.stacks['ident'][rdri].display, int(subi))
 				
 		# move the view (in addition to what already exists in navigation)
 		
@@ -631,6 +637,7 @@ else:
 			'''
 			if not position:	position = self.scene.box().center
 			self.navigation.look(position)
+			self.update()
 		
 		def adjust(self, box:Box=None):
 			''' Make the navigation camera large enough to get the given box in .
@@ -648,6 +655,7 @@ else:
 
 			# adjust navigation distance
 			self.navigation.adjust(self.projection.adjust(dist))
+			self.update()
 
 		def center(self, center: fvec3=None):
 			''' Relocate the navigation to the given position .
@@ -657,6 +665,7 @@ else:
 			if not isfinite(center):	return
 
 			self.navigation.center(center)
+			self.update()
 
 
 # view matrix providers
@@ -686,12 +695,15 @@ class Orbit:
 
 	def look(self, position: fvec3):
 		dir = position - fvec3(affineInverse(self.matrix())[3])
-		if dot(dir,dir) <= 1e-6:
+		self.distance = length(dir)
+		self.position = position
+		self.sight(dir)
+		
+	def sight(self, direction: fvec3):
+		if length2(direction, direction) <= 1e-6:
 			return
 		focal = self.orient * fvec3(0,0,1)
-		self.orient = quat(dir, focal) * self.navigation.orient
-		self.position = position
-		self.distance = length(dir)
+		self.orient = quat(direction, focal) * self.orient
 
 	def center(self, position: fvec3):
 		self.position = position
@@ -735,12 +747,15 @@ class Turntable:
 	
 	def look(self, position: fvec3):
 		dir = position - fvec3(affineInverse(self.matrix())[3])
-		if dot(dir,dir) <= 1e-6:
-			return
-		self.yaw = atan2(dir.x, dir.y)
-		self.pitch = -atan2(dir.z, length(dir.xy))
-		self.position = position
 		self.distance = length(dir)
+		self.position = position
+		self.sight(dir)
+	
+	def sight(self, direction: fvec3):
+		if length2(direction) <= 1e-6:
+			return
+		self.yaw = atan2(direction.x, direction.y)
+		self.pitch = -atan2(direction.z, length(direction.xy))
 	
 	def center(self, position: fvec3):
 		self.position = position
@@ -774,7 +789,7 @@ class Perspective:
 		return perspective(self.fov/min(1, ratio), ratio, distance*1e-2, distance*1e4)
 	
 	def adjust(self, size):
-		return size / tan(self.fov)
+		return size / tan(self.fov/2)
 
 class Orthographic:
 	''' Object used as `View.projection` 
@@ -797,4 +812,4 @@ class Orthographic:
 					0,       0,          -(rf+rn)/(rf-rn), 1)
 					
 	def adjust(self, size):
-		return size / self.projection.size
+		return size / self.size

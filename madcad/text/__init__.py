@@ -24,9 +24,11 @@ from ..primitives import Segment
 from ..mesh import Wire, Web, Mesh, web
 from .. import settings
 
+__all__ = ['font_locations', 'font_list', 'font_path', 'exploredir', 'text', 'textsize', 'processalign']
 
 
 fontpath = [resourcedir]
+''' list of paths to directories containing fonts '''
 
 cache_fonts = {}
 ''' font caching dictionnary 

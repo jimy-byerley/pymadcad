@@ -56,7 +56,12 @@ class MeshDisplay(Display):
 	def _get_selected(self):
 		return self._vertices.selected
 	def _set_selected(self, value):
-		assert isinstance(value, set)
+		if not isinstance(value, set):
+			if value:
+				self._vertices.selected.add(None)
+			else:
+				self._vertices.selected.clear()
+			value = self._vertices.selected
 		self._vertices.selected = value
 		self._vertices.flags_updated = True
 	selected = property(_get_selected, _set_selected)
@@ -64,7 +69,12 @@ class MeshDisplay(Display):
 	def _get_hovered(self):
 		return self._vertices.hovered
 	def _set_hovered(self, value):
-		assert isinstance(value, set)
+		if not isinstance(value, set):
+			if value:
+				self._vertices.hovered.add(None)
+			else:
+				self._vertices.hovered.clear()
+			value = self._vertices.hovered
 		self._vertices.hovered = value
 		self._vertices.flags_updated = True
 	hovered = property(_get_hovered, _set_hovered)

@@ -1,9 +1,12 @@
+# This file is part of pymadcad,  distributed under license LGPL v3
+'''
+	implementation of views and displays for 3D
+'''
 import numpy.core as np
 
 from ...common import resourcedir
 from ...mathutils import Box, fvec3
 from ..base import Display
-from .view import *
 
 def load_shader_ident(scene):
 	return scene.context.program(
@@ -37,3 +40,4 @@ def npboundingbox(points: np.ndarray) -> Box:
 		)
 
 from . import view, marker, dense
+from .view import *

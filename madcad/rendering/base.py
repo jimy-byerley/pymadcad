@@ -1,3 +1,4 @@
+# This file is part of pymadcad,  distributed under license LGPL v3
 from __future__ import annotations
 import traceback
 from weakref import WeakValueDictionary
@@ -49,10 +50,10 @@ class Scene:
 	''' opengl context used in this scene's displays. It is assumed to have `gc_mode = auto` '''
 	selection: set[Display]
 	''' current set of selected displays (readonly, use the scene methods to alter the selection) '''
-	hover: Display = None
+	hover: Display|None = None
 	''' current display being hovered (readwrite) '''
 	
-	def __init__(self, src:object, options:dict=None, context:mgl.Context=None, overrides:dict=None):
+	def __init__(self, src:object=None, options:dict=None, context:mgl.Context=None, overrides:dict=None):
 		'''
 		Args:
 			src:        the root object of the scene, it must be a displayable and is usually a `dict`
@@ -82,8 +83,10 @@ class Scene:
 		
 		self.update(src)
 	
-	def update(self, src):
+	def update(self, src:object):
 		''' update the root display of the scene '''
+		if src is None:
+			src = {}
 		self.root = self.display(src, self.root)
 		self.root.key = ()
 		self.touch()
@@ -103,6 +106,8 @@ class Scene:
 		if type(obj) in self.overrides:
 			disp = self.overrides[type(obj)](self, obj)
 		elif hasattr(obj, 'display'):
+			if isinstance(obj, type):
+				raise TypeError('types are not displayable')
 			if isinstance(obj.display, type):
 				disp = obj.display(self, obj)
 			elif callable(obj.display):
@@ -121,6 +126,8 @@ class Scene:
 		if type(obj) in self.overrides:
 			return True
 		elif hasattr(obj, 'display'):
+			if isinstance(obj, type):
+				return False
 			if isinstance(obj.display, type):
 				return True
 			elif callable(obj.display):
@@ -143,6 +150,10 @@ class Scene:
 	def prepare(self):
 		''' convert all displayable to displays and bufferize everything for comming renderings '''
 		if self._need_restack:
+			self._need_restack = False
+			self.active = None
+			self.hover = None
+			self.selection_clear()
 			with self.context:
 				for stack in self.stacks.values():
 					stack.clear()
@@ -160,7 +171,6 @@ class Scene:
 				# sort the stack using the specified priorities
 				for stack in self.stacks.values():
 					stack.sort(key=attrgetter('priority'))
-				self._need_restack = False
 	
 	def render(self, view):
 		''' Render to the view targets. 
@@ -184,26 +194,23 @@ class Scene:
 				except Exception:
 					traceback.print_exc()
 	
-	def selection_add(self, display:Display, sub=None):
+	def selection_add(self, display:Display, sub:int=None):
 		''' select the given display '''
 		if isinstance(display.selected, set):
-			if self.options['selection_sub']:
-				display.selected.add(sub)
-			else:
-				display.selected.add(None)
+			display.selected.add(sub)
 			display.selected = display.selected
 			self.selection.add(display)
 		else:
 			display.selected = True
 			self.selection.add(display)
 	
-	def selection_remove(self, display:Display, sub=None):
+	def selection_remove(self, display:Display, sub:int=None):
 		''' deselect the given display '''
 		if isinstance(display.selected, set):
-			if self.options['selection_sub']:
-				display.selected.discard(sub)
-			else:
+			if sub is None:
 				display.selected.clear()
+			else:
+				display.selected.discard(sub)
 			display.selected = display.selected
 			if not display.selected:
 				self.selection.discard(display)
@@ -211,7 +218,7 @@ class Scene:
 			display.selected = False
 			self.selection.discard(display)
 		
-	def selection_toggle(self, display:Display, sub=None):
+	def selection_toggle(self, display:Display, sub:int=None):
 		if isinstance(display.selected, set):
 			selected = sub in display.selected
 		else:
@@ -257,6 +264,11 @@ class Scene:
 	def __setitem__(self, key, value):
 		self.root[key] = value
 	
+	def item(self, key:tuple):
+		node = self.root
+		for sub in key:
+			node = node[sub]
+	
 @dataclass
 class Step:
 	''' describes a rendering step for a display '''
@@ -279,22 +291,29 @@ class Display:
 	box: Box
 	''' (optional) boudingbox of the display in local space '''
 	selected: bool|set
-	''' (optional) whether the display has been selected by the user '''
-	hovered: bool|set
-	''' (optional) whether the display is hovered by a pointing device and might be selected '''
+	''' (optional) whether the display has been selected by the user 
 	
-	def display(scene) -> Self:
+		when display sets this value as a set, it designate selection of internal parts of the display designed by integers (like groups in a mesh). when the whole display is selected and not a subpart of it, `None` is present in the set.
+		This doesn't prevent the scene from trying to assign booleans to it so it must be protected by a setter adding `None` to the set instead of assigning to `True`
+	'''
+	hovered: bool|set
+	''' (optional) whether the display is hovered by a pointing device and might be selected 
+	
+		the same semantics of `selected` applies here
+	'''
+	
+	def display(self, scene:Scene) -> Self:
 		''' Displays are obviously displayable as themselves, this should be overriden '''
 		return self
 	
-	def update(scene, src) -> bool:
+	def update(self, scene:Scene, src:object) -> bool:
 		''' Update the current displays internal datas with the given displayable .
 			
 			If the display cannot be upgraded, it must return False to be replaced by a fresh new display created from the displayable
 		'''
 		return False
 	
-	def stack() -> Iterable[Step]:
+	def stack(self, scene:Scene) -> Iterable[Step]:
 		''' Rendering functions to insert in the renderpipeline.
 		
 			The expected result can be any iterable providing tuples `(key, target, priority, callable)` such as:
@@ -303,7 +322,7 @@ class Display:
 		'''
 		return empty
 	
-	def control(self, view, key, sub, evt: 'QEvent'):
+	def control(self, view, key:tuple, sub:tuple, evt:QEvent):
 		''' Handle input events occuring on the area of this display (or of one of its subdisplay).
 			For subdisplay events, the parents control functions are called first, and the sub display controls are called only if the event is not accepted by parents
 			
@@ -318,15 +337,9 @@ class Display:
 		''' yield child displays '''
 		return iter(empty)
 	
-	def __getitem__(self, key) -> 'display':
+	def __getitem__(self, key) -> Display:
 		''' Get a child display by its key in this display (like in a scene) '''
 		raise IndexError('{} has no sub displays'.format(type(self).__name__))
-
-	def share(self, scene, name=None):
-		if not name:
-			name = type(self)
-		self._shared = scene.shared(self.shared)
-		vars(self).update(self._shared.vars)
 
 
 class Group(Display):
@@ -337,12 +350,14 @@ class Group(Display):
 	displays: dict
 	''' dictionnary of displays currently displayed in the group '''
 	
-	def __init__(self, scene:Scene, src:dict|list=None):
+	def __init__(self, scene:Scene, src:dict|list=None, world=1):
 		self.displays = {}
 		self._pending = None
-		self._world = 1
+		self._world = world
+		self._selected = False
+		self._hovered = False
 		if src:
-			self.update(src)
+			self.update(None, src)
 		
 	@property
 	def box(self):
@@ -358,30 +373,41 @@ class Group(Display):
 	@writeproperty
 	def selected(self):
 		for display in self.displays.values():
+			if not hasattr(display, 'selected'):
+				continue
 			display.selected = self.selected
 	
 	@writeproperty
 	def hovered(self):
 		for display in self.displays.values():
+			if not hasattr(display, 'hovered'):
+				continue
 			display.hovered = self.hovered
 	
-	def update(self, src:dict):
+	def update(self, *args):
 		''' update all child displays with the displayable present in the given dictionnary
 			
 			former children that do not match keys in the given dictionnary are dropped
 			
 			the new content will not be immediately available in `self.displays` because they will only be buffered at next rendering
 		'''
+		if len(args) == 1:
+			src, = args
+		elif len(args) == 2:
+			scene, src = args
+		else:
+			raise TypeError("expected 1 or 2 arguments, got {}".format(len(args)))
 		if isinstance(src, list):
 			src = dict(enumerate(src))
 		if not isinstance(src, dict):
 			return False
 		self._pending = src
+		return True
 	
 	def stack(self, scene):
 		# update with the pending data
 		if self._pending is not None:
-			removed = [key  for key in self.displays if key not in self.pending]
+			removed = [key  for key in self.displays if key not in self._pending]
 			for key in removed:
 				del self.displays[key]
 			for key, displayable in self._pending.items():

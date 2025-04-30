@@ -1,6 +1,4 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
-__all__ = ['ChainManip', 'KinematicManip', 'scale_solid', 'world_solid']
-
 import warnings
 from dataclasses import dataclass
 import numpy as np
@@ -25,6 +23,8 @@ try:
 except ImportError:
 	# it not found, assume the event-handlers will not be called
 	pass
+
+__all__ = ['ChainManip', 'KinematicManip', 'scale_solid', 'world_solid']
 
 
 class SolidDisplay(Group):

@@ -1,3 +1,8 @@
+# This file is part of pymadcad,  distributed under license LGPL v3
+'''
+	implementation of views and displays for 3D
+'''
+
 import moderngl as mgl
 
 from ...mathutils import uvec2, fvec2, fvec3, fmat2, fmat3, Box

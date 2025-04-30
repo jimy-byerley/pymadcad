@@ -335,17 +335,22 @@ class Scheme:
 			yield (self, 'screen', 2, self._render) 
 			yield (self, 'ident', 2, self._identify)
 			for space,disp in self.components:
+				disp.key = self.key
 				yield from disp.stack(scene)
 				
 		@writeproperty
 		def selected(self):
-			for space, disp in self.components:
-				disp.selected = self._selected
+			for space, display in self.components:
+				if not hasattr(display, 'selected'):
+					continue
+				display.selected = self._selected
 		
 		@writeproperty
 		def hovered(self):
-			for space, disp in self.components:
-				disp.hovered = self._hovered
+			for space, display in self.components:
+				if not hasattr(display, 'hovered'):
+					continue
+				display.hovered = self._hovered
 			
 		def _compute_spaces(self, view):
 			''' Compute the new spaces for this frame.

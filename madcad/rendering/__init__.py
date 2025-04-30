@@ -1,10 +1,29 @@
+# This file is part of pymadcad,  distributed under license LGPL v3
+'''	
+	Display module of pymadcad
+	
+	This module provides a render pipeline system featuring:
+
+	- Class `Scene` to gather the data to render, basically instances of `Display`
+	- many kind of `View` that actually renders the scene 
+	- The `Display` base class meant to be subclassed into any kind of display
+	- The `Group` class that allows to nest displays in the scene
+
+	The `Scene` is only to manage the objects to render . Almost all madcad data types can be rendered to scenes being converted into an appropriate subclass of `Display`. Since the conversion from madcad data types into display instance is automatically handled via the object's `display` method (or scene overrides), you usually don't need to deal with displays directly.
+	
+	The views can be widgets or simply a bunch of buffers to render the scene onto. There is different view implementations for different use cases.
+		
+	WARNING
+	-------
+		As the GPU native precision is f4 (float 32 bits), all the vector stuff regarding rendering is made using simple precision types: `fvec3, fvec4, fmat3, fmat4, ...`
+'''
 from __future__ import annotations
 
 from .. import settings
 from .utils import *
 from .base import *
-from .d3 import *
-from .d2 import *
+from .d3.view import *
+# from .d2.view import *
 
 try:
 	from ..qt import QApplication
@@ -22,6 +41,8 @@ else:
 			scene:     a mapping (dict or list) giving the objects to render in the scene
 			interest:  the region of interest to zoom on at the window initialization
 			size:      the window size (pixel)
+			projection: an object handling the camera projection (aka intrinsic parameters), see `QView3D.projection`
+			navigation: an object handling the camera movements, see `QView3D.navigation`
 			options:   options to set in `Scene.options`
 
 		Tip:
@@ -66,12 +87,19 @@ def render(scene:Scene|dict|list, size=uvec2(400, 400), view:fmat4=None, proj:fm
 	'''
 	render the given scene to an image
 
-	The output image is a numpy buffer RGB8
-	
+	The output image is a numpy tensor RGB8 (w,h,3) or RGBA8 (w,h,4)
 	For repeated renderings or view manipulation, you should directly use `Offscreen3D` rather than calling this function repeatedly
 
 	NOTE:
 		The system theme colors cannot be automatically loaded since no running QApplication is assumed in the function
+		
+	Parameters:
+		scene:     a mapping (dict or list) giving the objects to render in the scene
+		interest:  the region of interest to zoom on at the window initialization
+		size:      the resulting image size (pixel)
+		view:    the view matrix, which should be a affine matrix with rotation and translation
+		proj:    the openGL projection matrix, could be generated with `perspective` or `orthographic`		
+		alpha:   whether to add an alpha channel for the background in the resulting image
 	'''
 	scene = Scene(scene, options)
 	if not interest:

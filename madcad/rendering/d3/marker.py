@@ -1,3 +1,4 @@
+# This file is part of pymadcad,  distributed under license LGPL v3
 import numpy.core as np
 import moderngl as mgl
 from PIL import Image
@@ -10,6 +11,7 @@ from ...qt import Qt, QEvent
 from .. import Display, Scene, writeproperty, highlight_color
 from . import npboundingbox, load_shader_ident, load_shader_subident, load_shader_wire, load_shader_uniformcolor
 
+__all__ = ['PointDisplay', 'AxisDisplay', 'BoxDisplay', 'SplineDisplay', 'GridDisplay']
 
 
 class PointDisplay(Display):
