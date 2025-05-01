@@ -76,9 +76,9 @@ scene = {
 	'surface_shading': True,
 	'kinematic_manipulation': 'joint',
 	
-	'lock_solids': True,
+	'solid_freemove': False,
 	'selection_multiple': False,
-	'selection_sub': True,
+	'selection_sub': False,
 	
 	'debug_points': False,
 	'debug_faces': False,

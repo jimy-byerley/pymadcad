@@ -153,7 +153,6 @@ class Scene:
 			self._need_restack = False
 			self.active = None
 			self.hover = None
-			self.selection_clear()
 			with self.context:
 				for stack in self.stacks.values():
 					stack.clear()
@@ -241,8 +240,19 @@ class Scene:
 	def _get_hover(self):
 		return self._hover
 	def _set_hover(self, hover):
+		# hover can be set to a tuple to hover a subitem
+		if isinstance(hover, tuple):
+			hover, sub = hover
+		else:
+			sub = None
+		# prevent unnecessary hover change to avoid triggering rebuffering of hover settings
 		if hover is self._hover:
-			return
+			if hover and isinstance(hover.hovered, set):
+				if sub in hover.hovered:
+					return
+			else:
+				return
+		# clear previous hover in displays
 		if self._hover:
 			if isinstance(self._hover.hovered, set):
 				self._hover.hovered.clear()
@@ -250,9 +260,10 @@ class Scene:
 			else:
 				self._hover.hovered = False
 		self._hover = hover
+		# set new hover in displays
 		if self._hover:
 			if isinstance(self._hover.hovered, set):
-				self._hover.hovered.add(None)
+				self._hover.hovered.add(sub)
 				self._hover.hovered = self._hover.hovered
 			else:
 				self._hover.hovered = True
@@ -301,6 +312,9 @@ class Display:
 	
 		the same semantics of `selected` applies here
 	'''
+	
+	def __init__(self, *args): 
+		pass
 	
 	def display(self, scene:Scene) -> Self:
 		''' Displays are obviously displayable as themselves, this should be overriden '''
@@ -404,21 +418,28 @@ class Group(Display):
 		self._pending = src
 		return True
 	
-	def stack(self, scene):
+	def prepare(self, scene):
 		# update with the pending data
 		if self._pending is not None:
-			removed = [key  for key in self.displays if key not in self._pending]
+			removed = []
+			for key in self.displays:
+				if key not in self._pending or not scene.displayable(self._pending[key]):
+					removed.append(key)
 			for key in removed:
 				del self.displays[key]
 			for key, displayable in self._pending.items():
+				if not scene.displayable(displayable):
+					continue
 				try:
 					self.displays[key] = scene.display(displayable, self.displays.get(key))
 				except:
 					print('\ntried to display', object.__repr__(displayable))
 					traceback.print_exc()
+					continue
 			self._pending = None
-			scene.touch()
-		# stack children
+	
+	def stack(self, scene):
+		self.prepare(scene)
 		for key, display in self.displays.items():
 			display.world = self.world
 			display.key = (*self.key, key)
@@ -437,6 +458,7 @@ class Group(Display):
 
 Scene.overrides[dict] = Group
 Scene.overrides[list] = Group
+Scene.overrides[type(None)] = Display
 
 
 class Displayable:

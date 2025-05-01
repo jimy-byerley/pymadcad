@@ -224,7 +224,7 @@ else:
 		''' access to the depthmap from last rendering '''
 		ident: CheapMap[np.uint16]
 		''' access to the identification map from last rendering '''
-		receivers: list
+		callbacks: list
 		''' list of callbacks subscribing to input events
 		
 			they will be called in revered order, and as any Qt event handler, this first accepting prevents the other to be called
@@ -246,7 +246,7 @@ else:
 			self.navigation = navigation
 			self.projection = projection or globals()[settings.scene['projection']]()
 			self.color = self.depth = self.ident = None
-			self.receivers = []
+			self.callbacks = []
 			
 			self._move_mode = receiver(self._move_mode())
 			self._keyboard_move = receiver(self._keyboard_move())
@@ -310,9 +310,9 @@ else:
 			'''
 			evt.ignore()
 			
-			for i in reversed(range(len(self.receivers))):
-				if not self.receivers[i](evt):
-					self.receivers.pop(i)
+			for i in reversed(range(len(self.callbacks))):
+				if not self.callbacks[i](evt):
+					self.callbacks.pop(i)
 				if evt.isAccepted():
 					return
 			
@@ -355,31 +355,33 @@ else:
 				This function can be overwritten to change the interaction with the scene objects.
 			'''
 			disp = self.scene.root.displays
-			stack = []
 			for i in range(1,len(key)):
 				disp = disp[key[i-1]]
 				disp.control(self, key[:i], key[i:], evt)
 				if evt.isAccepted(): 
 					self.update()
 					break
-				stack.append(disp)
 				
 		def _selection(self, disp, sub, evt):
 			''' handle the selection events '''
-			if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton and hasattr(disp, 'selected'):
+			if not self.scene.options['selection_sub']:
+				sub = None
+			
+			# selection on click above
+			if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton and hasattr(disp, 'selected'):
 				shift = bool(QApplication.queryKeyboardModifiers() & Qt.ShiftModifier)
 				if not self.scene.options['selection_multiple'] ^ shift:
 					self.scene.selection_clear()
-				if not self.scene.options['selection_sub']:
-					sub = None
 				self.scene.selection_toggle(disp, sub)
 				self.update()
 				evt.accept()
 				return
 			
+			# hover on move above
 			if evt.type() == QEvent.MouseMove and hasattr(disp, 'hovered'):
-				if disp is not self.scene.hover:
-					self.scene.hover = disp
+				# precise condition on hover change, to avoid triggering unnecessary renderings
+				if disp is not self.scene.hover or (isinstance(disp.hovered, set) and sub not in disp.hovered):
+					self.scene.hover = (disp, sub)
 					self.update()
 					
 		def _deselection(self, evt):
@@ -583,13 +585,13 @@ else:
 				#near, far = self.projection.limits  or settings.display['view_limits']
 				#depth = 2 * near / (far + near - depthred * (far - near))
 				#print('depth', depth, depthred)
-				return vec3(fvec3(affineInverse(view) * fvec4(
+				return fvec3(affineInverse(view) * fvec4(
 							depth * x /proj[0][0],
 							depth * y /proj[1][1],
 							-depth,
-							1)))
+							1))
 
-		def ptfrom(self, point: QPoint, center: fvec3) -> fvec3:
+		def ptfrom(self, point: QPoint, center: fvec3|vec3) -> fvec3:
 			''' 3D point below the cursor in the plane orthogonal to the sight, with center as origin '''
 			point = qpoint_to_vec(point)
 			view = self.uniforms['view']
@@ -598,11 +600,11 @@ else:
 			x =  (point.x/size.x *2 -1)
 			y = -(point.y/size.y *2 -1)
 			depth = (view * fvec4(fvec3(center),1))[2]
-			return vec3(fvec3(affineInverse(view) * fvec4(
+			return fvec3(affineInverse(view) * fvec4(
 						-depth * x /proj[0][0],
 						-depth * y /proj[1][1],
 						depth,
-						1)))
+						1))
 
 		def displayat(self, point: QPoint) -> (Display, int)|None:
 			''' Return the display at the given screen position (widget relative).

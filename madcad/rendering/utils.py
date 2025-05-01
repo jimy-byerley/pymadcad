@@ -44,7 +44,7 @@ def sceneshare(generator, immortal=False):
 
 def receiver(generator) -> Callable:
 	''' simple helper running the generator until the first yield, and returning its send method '''
-	next(generator)
+	next(generator, None)
 	def callback(evt):
 		try:
 			generator.send(evt)

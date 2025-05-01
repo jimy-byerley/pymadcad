@@ -29,36 +29,85 @@ __all__ = ['ChainManip', 'KinematicManip', 'scale_solid', 'world_solid']
 
 class SolidDisplay(Group):
 	''' Movable `Group` for the rendering pipeline '''
-	def __init__(self, scene, solid:Solid):
-		self._local = fmat4(solid.pose)
-		self._world = fmat4()
-		super().__init__(scene, solid.content)
+	def __init__(self, scene, solid:Solid, world=fmat4()):
+		self._local = fmat4()
+		self._free = fmat4()
+		super().__init__(scene, world)
+		self.update(self, solid)
+	
+	@property
+	def box(self):
+		return boundingbox(
+			(getattr(display, 'box', None)   for display in self.displays.values()), 
+			ignore=True).transform(self._local)
 
 	@writeproperty
-	def local(self):
-		sub = self._world * self._local
-		for display in self.displays.values():
-			display.world = sub
+	def local(self):  self._place_displays()
 			
 	@writeproperty
-	def world(self):
-		sub = self._world * self._local
+	def world(self):  self._place_displays()
+			
+	@writeproperty
+	def free(self):   self._place_displays()
+			
+	def _place_displays(self):
+		sub = self._world * self._local * self._free
 		for display in self.displays.values():
 			display.world = sub
 	
-	def update(self, scene, solid:Solid):
-		if not isinstance(solid, Solid):
+	def update(self, *args):
+		if len(args) == 1:
+			src, = args
+		elif len(args) == 2:
+			scene, src = args
+		else:
+			raise TypeError("expected 1 or 2 arguments, got {}".format(len(args)))
+		if not isinstance(src, Solid):
 			return False
-		super().update(scene, solid.content)
-		self.local = fmat4(solid.pose)
+		if not super().update(src.content):
+			return False
+		self._local = fmat4(src.pose)
 		return True
 	
 	def stack(self, scene):
-		for key,display in self.displays.items():
+		self.prepare(scene)
+		if not scene.options['solid_freemove']:
+			self._free = fmat4()
+		
+		sub = self._world * self._local * self._free
+		for key, display in self.displays.items():
+			display.world = sub
+			display.key = (*self.key, key)
 			if key == 'annotations' and not scene.options['display_annotations'] and not self.selected:
 				continue
-			for sub,target,priority,func in display.stack(scene):
-				yield ((key, *sub), target, priority, func)
+			yield from display.stack(scene)
+
+	def control(self, view, key, sub, evt):
+		if self.selected and view.scene.options['solid_freemove']:
+			if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
+				evt.accept()
+			
+			if evt.type() == QEvent.MouseMove and evt.buttons() & Qt.LeftButton:
+				evt.accept()
+				# put the tool into the view, to handle events
+				view.callbacks.append(receiver(self._move(view, evt)))
+				
+	def _move(self, view, evt):
+		former = self.free
+		anchor = view.ptat(view.somenear(evt.pos()))
+		while True:
+			evt = yield
+			if not evt.type() in (QEvent.MouseMove, QEvent.MouseButtonRelease):
+				continue
+			evt.accept()
+			if not (evt.buttons() & Qt.LeftButton):
+				break
+			view.update()
+			
+			click = view.ptfrom(evt.pos(), anchor)
+			move = transpose(fmat3(self._world * self._local * self._free)) * (click - anchor)
+			self.free = former * translate(move)
+
 
 class ChainManip(Group):
 	''' object to display and interact with a robot in the 3d view
@@ -117,12 +166,6 @@ class ChainManip(Group):
 		''' user event manager, optional part of the madcad rendering system '''
 		if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
 			evt.accept()
-			
-		if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.RightButton:
-			evt.accept()
-			self.panel.setParent(view)
-			self.panel.move(evt.pos())
-			self.panel.show()
 		
 		if evt.type() == QEvent.MouseMove and evt.buttons() & Qt.LeftButton:
 			evt.accept()
@@ -132,7 +175,7 @@ class ChainManip(Group):
 				generator = self.move_tool(view, sub, evt)
 			else:
 				generator = getattr(self, 'move_'+view.scene.options['kinematic_manipulation'])(view, sub, evt)
-			view.receivers.append(receiver(generator))
+			view.callbacks.append(receiver(generator))
 				
 	def move_tool(self, view, sub, evt):
 		place = mat4(self.world) * self.parts[-1]
@@ -157,7 +200,7 @@ class ChainManip(Group):
 		else:					solid = sub[0]
 		
 		# get 3d location of mouse
-		click = view.ptat(view.somenear(evt.pos()))
+		click = vec3(view.ptat(view.somenear(evt.pos())))
 		joint = max(0, solid-1)
 		anchor = affineInverse(mat4(self.world) * self.parts[joint+1]) * vec4(click,1)
 		
@@ -212,7 +255,7 @@ class ChainManip(Group):
 
 	def move_translate(self, view, sub, evt):
 		# translate the tool
-		clicked = view.ptat(view.somenear(evt.pos()))
+		clicked = vec3(view.ptat(view.somenear(evt.pos())))
 		solid = self.parts[-1]
 		anchor = affineInverse(mat4(self.world) * solid) * vec4(clicked,1)
 		init_solid = solid
@@ -247,7 +290,7 @@ class ChainManip(Group):
 
 	def move_rotate(self, view, sub, evt):
 		# translate the tool
-		clicked = view.ptat(view.somenear(evt.pos()))
+		clicked = vec3(view.ptat(view.somenear(evt.pos())))
 		solid = self.parts[-1]
 		anchor = affineInverse(mat4(self.world) * solid) * vec4(clicked,1)
 		tool = vec4(self.toolcenter,1)
@@ -323,7 +366,7 @@ class KinematicManip(Group):
 		
 		if self.kinematic.content:
 			for key, solid in self.kinematic.content.items():
-				if Scene.displayable(solid):
+				if scene.displayable(solid):
 					self.displays[key] = scene.display(solid)
 		
 		scheme, self.index = kinematic_scheme(kinematic.joints)
@@ -332,11 +375,14 @@ class KinematicManip(Group):
 		
 	def stack(self, scene):
 		''' rendering stack requested by the madcad rendering system '''
+		self.prepare(scene)
 		yield (self, 'screen', -1, self.place_solids)
-		for item in super().stack(scene):
-			if not scene.options['display_annotations'] and not self.selected and len(self.displays) >1 and item[0][0] == 'scheme':
+		for key, display in self.displays.items():
+			display.world = self.world
+			display.key = (*self.key, key)
+			if key == 'scheme' and not scene.options['display_annotations'] and not self.selected:
 				continue
-			yield item
+			yield from display.stack(scene)
 
 	def place_solids(self, view):
 		for key in self.displays:
@@ -356,12 +402,10 @@ class KinematicManip(Group):
 		''' user event manager, optional part of the madcad rendering system '''
 		# give priority to sub elements
 		disp = self.displays
-		stack = list(key)
 		for i in range(1,len(sub)):
 			disp = disp[sub[i-1]]
 			disp.control(view, sub[:i], sub[i:], evt)
 			if evt.isAccepted(): return
-			stack.append(disp)
 		
 		if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
 			# accept mouse pressing to tell we are interested in mouse movements
@@ -372,14 +416,15 @@ class KinematicManip(Group):
 			# put the tool into the view, to handle events
 			# TODO: allow changing mode during move
 			if sub == ('scheme', index_toolcenter):
-				view.tool.append(rendering.Tool(self.move_tool, view, sub, evt))
+				generator = self.move_tool(view, sub, evt)
 			else:
-				view.tool.append(rendering.Tool(getattr(self, 'move_'+view.scene.options['kinematic_manipulation']), view, sub, evt))
+				generator = getattr(self, 'move_'+view.scene.options['kinematic_manipulation'])(view, sub, evt)
+			view.callbacks.append(receiver(generator))
 	
-	def move_tool(self, dispatcher, view, sub, evt):
+	def move_tool(self, view, sub, evt):
 		place = mat4(self.world)
 		init = place * vec3(self.toolcenter)
-		offset = init - view.ptfrom(evt.pos(), init)
+		offset = init - vec3(view.ptfrom(evt.pos(), init))
 		
 		while True:
 			evt = yield
@@ -390,7 +435,7 @@ class KinematicManip(Group):
 				if not (evt.buttons() & Qt.LeftButton):
 					break
 			
-			self.toolcenter = affineInverse(place) * (view.ptfrom(evt.pos(), init) + offset)
+			self.toolcenter = affineInverse(place) * (vec3(view.ptfrom(evt.pos(), init)) + offset)
 					
 	def move_opt(self, optmove, optjac):
 		'''
@@ -431,7 +476,7 @@ class KinematicManip(Group):
 		except KinematicError:
 			pass
 	
-	def move_joint(self, dispatcher, view, sub, evt):
+	def move_joint(self, view, sub, evt):
 		# identify the solid clicked
 		if sub[0] == 'scheme':  moved = self.index[sub[1]]
 		else:                   moved = sub[0]
@@ -444,7 +489,7 @@ class KinematicManip(Group):
 			outputs = [moved],
 			)
 		# constants during translation
-		clicked = view.ptat(view.somenear(evt.pos()))
+		clicked = vec3(view.ptat(view.somenear(evt.pos())))
 		solid = self.parts[moved]
 		anchor = affineInverse(mat4(self.world) * solid) * vec4(clicked,1)
 		
@@ -475,7 +520,7 @@ class KinematicManip(Group):
 								for grad in freejac]),
 						)
 	
-	def move_translate(self, dispatcher, view, sub, evt):
+	def move_translate(self, view, sub, evt):
 		# identify the solid clicked
 		if sub[0] == 'scheme':  moved = self.index[sub[1]]
 		else:                   moved = sub[0]
@@ -488,7 +533,7 @@ class KinematicManip(Group):
 			outputs = [moved],
 			)
 		# constants during translation
-		clicked = view.ptat(view.somenear(evt.pos()))
+		clicked = vec3(view.ptat(view.somenear(evt.pos())))
 		solid = self.parts[moved]
 		anchor = affineInverse(mat4(self.world) * solid) * vec4(clicked,1)
 		init_solid = solid
@@ -526,7 +571,7 @@ class KinematicManip(Group):
 							for grad in jac]),
 						)
 				
-	def move_rotate(self, dispatcher, view, sub, evt):
+	def move_rotate(self, view, sub, evt):
 		# identify the solid clicked
 		if sub[0] == 'scheme':  moved = self.index[sub[1]]
 		else:                   moved = sub[0]
@@ -539,7 +584,7 @@ class KinematicManip(Group):
 			outputs = [moved],
 			)
 		# constants during translation
-		clicked = view.ptat(view.somenear(evt.pos()))
+		clicked = vec3(view.ptat(view.somenear(evt.pos())))
 		solid = self.parts[moved]
 		anchor = affineInverse(mat4(self.world) * solid) * vec4(clicked,1)
 		init_tool = vec4(self.toolcenter, 1)
