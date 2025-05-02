@@ -84,10 +84,10 @@ class SolidDisplay(Group):
 
 	def control(self, view, key, sub, evt):
 		if self.selected and view.scene.options['solid_freemove']:
-			if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
+			if evt.type() == QEvent.Type.MouseButtonPress and evt.button() == Qt.MouseButton.LeftButton:
 				evt.accept()
 			
-			if evt.type() == QEvent.MouseMove and evt.buttons() & Qt.LeftButton:
+			if evt.type() == QEvent.Type.MouseMove and evt.buttons() & Qt.MouseButton.LeftButton:
 				evt.accept()
 				# put the tool into the view, to handle events
 				view.callbacks.append(receiver(self._move(view, evt)))
@@ -97,10 +97,10 @@ class SolidDisplay(Group):
 		anchor = view.ptat(view.somenear(evt.pos()))
 		while True:
 			evt = yield
-			if not evt.type() in (QEvent.MouseMove, QEvent.MouseButtonRelease):
+			if not evt.type() in (QEvent.Type.MouseMove, QEvent.Type.MouseButtonRelease):
 				continue
 			evt.accept()
-			if not (evt.buttons() & Qt.LeftButton):
+			if not (evt.buttons() & Qt.MouseButton.LeftButton):
 				break
 			view.update()
 			
@@ -164,10 +164,10 @@ class ChainManip(Group):
 
 	def control(self, view, key, sub, evt):
 		''' user event manager, optional part of the madcad rendering system '''
-		if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
+		if evt.type() == QEvent.Type.MouseButtonPress and evt.button() == Qt.MouseButton.LeftButton:
 			evt.accept()
 		
-		if evt.type() == QEvent.MouseMove and evt.buttons() & Qt.LeftButton:
+		if evt.type() == QEvent.Type.MouseMove and evt.buttons() & Qt.MouseButton.LeftButton:
 			evt.accept()
 			# put the tool into the view, to handle events
 			# TODO: allow changing mode during move
@@ -185,10 +185,10 @@ class ChainManip(Group):
 		while True:
 			evt = yield
 			# drag
-			if evt.type() in (QEvent.MouseMove, QEvent.MouseButtonRelease):
+			if evt.type() in (QEvent.Type.MouseMove, QEvent.Type.MouseButtonRelease):
 				evt.accept()
 				view.update()
-				if not (evt.buttons() & Qt.LeftButton):
+				if not (evt.buttons() & Qt.MouseButton.LeftButton):
 					break
 			
 			self.toolcenter = affineInverse(place) * (view.ptfrom(evt.pos(), init) + offset)
@@ -207,10 +207,10 @@ class ChainManip(Group):
 		while True:
 			evt = yield
 			# drag
-			if evt.type() in (QEvent.MouseMove, QEvent.MouseButtonRelease):
+			if evt.type() in (QEvent.Type.MouseMove, QEvent.Type.MouseButtonRelease):
 				evt.accept()
 				view.update()
-				if not (evt.buttons() & Qt.LeftButton):
+				if not (evt.buttons() & Qt.MouseButton.LeftButton):
 					break
 
 				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world) * self.parts[joint]
@@ -263,10 +263,10 @@ class ChainManip(Group):
 		while True:
 			evt = yield
 			# drag
-			if evt.type() in (QEvent.MouseMove, QEvent.MouseButtonRelease):
+			if evt.type() in (QEvent.Type.MouseMove, QEvent.Type.MouseButtonRelease):
 				evt.accept()
 				view.update()
-				if not (evt.buttons() & Qt.LeftButton):
+				if not (evt.buttons() & Qt.MouseButton.LeftButton):
 					break
 
 				solid = self.parts[-1]
@@ -299,10 +299,10 @@ class ChainManip(Group):
 		while True:
 			evt = yield
 			# drag
-			if evt.type() in (QEvent.MouseMove, QEvent.MouseButtonRelease):
+			if evt.type() in (QEvent.Type.MouseMove, QEvent.Type.MouseButtonRelease):
 				evt.accept()
 				view.update()
-				if not (evt.buttons() & Qt.LeftButton):
+				if not (evt.buttons() & Qt.MouseButton.LeftButton):
 					break
 
 				solid = self.parts[-1]
@@ -407,11 +407,11 @@ class KinematicManip(Group):
 			disp.control(view, sub[:i], sub[i:], evt)
 			if evt.isAccepted(): return
 		
-		if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
+		if evt.type() == QEvent.Type.MouseButtonPress and evt.button() == Qt.MouseButton.LeftButton:
 			# accept mouse pressing to tell we are interested in mouse movements
 			evt.accept()
 		
-		if evt.type() == QEvent.MouseMove and evt.buttons() & Qt.LeftButton:
+		if evt.type() == QEvent.Type.MouseMove and evt.buttons() & Qt.MouseButton.LeftButton:
 			evt.accept()
 			# put the tool into the view, to handle events
 			# TODO: allow changing mode during move
@@ -429,10 +429,10 @@ class KinematicManip(Group):
 		while True:
 			evt = yield
 			# drag
-			if evt.type() in (QEvent.MouseMove, QEvent.MouseButtonRelease):
+			if evt.type() in (QEvent.Type.MouseMove, QEvent.Type.MouseButtonRelease):
 				evt.accept()
 				view.update()
-				if not (evt.buttons() & Qt.LeftButton):
+				if not (evt.buttons() & Qt.MouseButton.LeftButton):
 					break
 			
 			self.toolcenter = affineInverse(place) * (vec3(view.ptfrom(evt.pos(), init)) + offset)
@@ -496,10 +496,10 @@ class KinematicManip(Group):
 		while True:
 			evt = yield
 			# drag
-			if evt.type() in (QEvent.MouseMove, QEvent.MouseButtonRelease):
+			if evt.type() in (QEvent.Type.MouseMove, QEvent.Type.MouseButtonRelease):
 				evt.accept()
 				view.update()
-				if not (evt.buttons() & Qt.LeftButton):
+				if not (evt.buttons() & Qt.MouseButton.LeftButton):
 					break
 
 				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world)
@@ -541,10 +541,10 @@ class KinematicManip(Group):
 		while True:
 			evt = yield
 			# drag
-			if evt.type() in (QEvent.MouseMove, QEvent.MouseButtonRelease):
+			if evt.type() in (QEvent.Type.MouseMove, QEvent.Type.MouseButtonRelease):
 				evt.accept()
 				view.update()
-				if not (evt.buttons() & Qt.LeftButton):
+				if not (evt.buttons() & Qt.MouseButton.LeftButton):
 					break
 
 				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world)
@@ -593,10 +593,10 @@ class KinematicManip(Group):
 		while True:
 			evt = yield
 			# drag
-			if evt.type() in (QEvent.MouseMove, QEvent.MouseButtonRelease):
+			if evt.type() in (QEvent.Type.MouseMove, QEvent.Type.MouseButtonRelease):
 				evt.accept()
 				view.update()
-				if not (evt.buttons() & Qt.LeftButton):
+				if not (evt.buttons() & Qt.MouseButton.LeftButton):
 					break
 
 				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world)

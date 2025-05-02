@@ -125,7 +125,7 @@ That's it ! The primitive list can now be converted to Wire or Web with the good
 	(vec3(...), vec3(...), vec3(...))
 
 '''
-version = '0.18.1'
+version = '0.19.0'
 
 # computation
 from . import (
@@ -139,8 +139,6 @@ from . import (
 		# parts
 		standard,
 	)
-# gui
-from . import rendering, scheme
 
 # the most common tools, imported to access it directly from madcad
 from .mathutils import *
@@ -162,9 +160,17 @@ from .hashing import suites
 
 from .standard import *
 
-try:
-	import moderngl
-except ImportError: pass
-else:
-	from .scheme import *
-	from .rendering import Scene, Display, show, render
+
+def show(*args, **kwargs):
+	''' shorthand to `rendering.show`,
+		but this function can be exposed without loading Qt and openGL
+	'''
+	from .rendering import show
+	return show(*args, **kwargs)
+
+def render(*args, **kwargs):
+	''' shorthand to `rendering.render`,
+		but this function can be exposed without loading Qt and openGL
+	'''
+	from .rendering import render
+	return render(*args, **kwargs)

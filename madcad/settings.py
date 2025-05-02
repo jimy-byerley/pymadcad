@@ -177,27 +177,28 @@ def use_qt_colors():
 	''' Set the color settings to fit the current system colors '''
 	from .mathutils import fvec3, mix, distance
 	from .qt import QApplication, QPalette
+	role = QPalette.ColorRole
 	palette = QApplication.instance().palette()
 	def qtc(role):
 		''' Convert a QColor or QPalette role to fvec3'''
 		c = palette.color(role)
 		return fvec3(c.red(), c.green(), c.blue()) / 255
 	
-	selection = mix(fvec3(0.4, 1, 0), qtc(QPalette.Highlight), 0.6)
-	selection *= mix(1/max(selection), max(qtc(QPalette.Text)), 0.3)
-	hover = mix(fvec3(0., 0.4, 1), qtc(QPalette.Highlight), 0.6)
-	hover *= mix(1/max(selection), max(qtc(QPalette.Text)), 0.3)
+	selection = mix(fvec3(0.4, 1, 0), qtc(role.Highlight), 0.6)
+	selection *= mix(1/max(selection), max(qtc(role.Text)), 0.3)
+	hover = mix(fvec3(0., 0.4, 1), qtc(role.Highlight), 0.6)
+	hover *= mix(1/max(selection), max(qtc(role.Text)), 0.3)
 	display.update({
-		'background_color': qtc(QPalette.Base),
+		'background_color': qtc(role.Base),
 		'selection_color': fvec4(selection * 1.1, 1),
 		'hover_color': fvec4(hover * 1.1, 0.7),
 		})
 	colors.update({
-		'line': qtc(QPalette.Text),
-		'point': qtc(QPalette.Text),
-		'surface': mix(qtc(QPalette.Text), qtc(QPalette.Window), 0.7),
-		'schematic': mix(qtc(QPalette.Text)*normalize(qtc(QPalette.LinkVisited)+0.01), qtc(QPalette.LinkVisited), 0.5),
-		'annotation': mix(qtc(QPalette.Text)*normalize(qtc(QPalette.Link)+0.01), qtc(QPalette.Link), 0.5),
+		'line': qtc(role.Text),
+		'point': qtc(role.Text),
+		'surface': mix(qtc(role.Text), qtc(role.Window), 0.7),
+		'schematic': mix(qtc(role.Text)*normalize(qtc(role.LinkVisited)+0.01), qtc(role.LinkVisited), 0.5),
+		'annotation': mix(qtc(role.Text)*normalize(qtc(role.Link)+0.01), qtc(role.Link), 0.5),
 		})
 
 

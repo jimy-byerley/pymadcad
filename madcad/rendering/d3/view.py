@@ -10,7 +10,6 @@ from pnprint import nprint
 
 from ... import settings
 from ...mathutils import *
-from ...qt import QWidget, QImage, QPainter, QEvent
 from ..base import Scene, empty
 from ..utils import *
 
@@ -206,7 +205,8 @@ class Offscreen3D:
 
 
 try:
-	from ...qt import Qt, QApplication, QWidget, QInputEvent, QMouseEvent, QKeyEvent, QTouchEvent
+	from ...qt import (Qt, QApplication, QWidget, QImage, QPainter, 
+					QEvent, QInputEvent, QMouseEvent, QKeyEvent, QTouchEvent)
 except ImportError:
 	pass
 else:
@@ -237,8 +237,8 @@ else:
 		
 		def __init__(self, scene, projection=None, navigation=True, parent=None):
 			QWidget.__init__(self, parent)
-			self.setFocusPolicy(Qt.StrongFocus)
-			self.setAttribute(Qt.WA_AcceptTouchEvents, True)
+			self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+			self.setAttribute(Qt.WidgetAttribute.WA_AcceptTouchEvents, True)
 			self.setMouseTracking(True)
 			self.gl = GLView3D(scene)
 			if navigation is True:
@@ -281,7 +281,7 @@ else:
 				self.color,
 				self.color.shape[1], 
 				self.color.shape[0],
-				QImage.Format_RGB888)
+				QImage.Format.Format_RGB888)
 			painter = QPainter(self).drawImage(0, 0, image)
 		
 		def event(self, evt):
@@ -298,9 +298,13 @@ else:
 		
 		def changeEvent(self, evt):
 			# detect theme change
-			if evt.type() == QEvent.PaletteChange and settings.display['system_theme']:
+			if evt.type() == QEvent.Type.PaletteChange and settings.display['system_theme']:
 				settings.use_qt_colors()
 			return QWidget.changeEvent(self, evt)
+		
+		def leaveEvent(self, evt):
+			self.scene.hover = None
+			self.update()
 		
 		def inputEvent(self, evt):
 			''' Default handler for every input event (mouse move, press, release, keyboard, ...)
@@ -345,7 +349,7 @@ else:
 			
 			# if clicks are not accepted, then some following keyboard events may not come to the widget
 			# NOTE this also discarding the ability to move the window from empty areas
-			if evt.type() == QEvent.MouseButtonPress:
+			if evt.type() == QEvent.Type.MouseButtonPress:
 				evt.accept()
 		
 		def control(self, key, evt):
@@ -368,8 +372,8 @@ else:
 				sub = None
 			
 			# selection on click above
-			if evt.type() == QEvent.MouseButtonRelease and evt.button() == Qt.LeftButton and hasattr(disp, 'selected'):
-				shift = bool(QApplication.queryKeyboardModifiers() & Qt.ShiftModifier)
+			if evt.type() == QEvent.Type.MouseButtonRelease and evt.button() == Qt.MouseButton.LeftButton and hasattr(disp, 'selected'):
+				shift = bool(QApplication.queryKeyboardModifiers() & Qt.KeyboardModifier.ShiftModifier)
 				if not self.scene.options['selection_multiple'] ^ shift:
 					self.scene.selection_clear()
 				self.scene.selection_toggle(disp, sub)
@@ -378,7 +382,7 @@ else:
 				return
 			
 			# hover on move above
-			if evt.type() == QEvent.MouseMove and hasattr(disp, 'hovered'):
+			if evt.type() == QEvent.Type.MouseMove and hasattr(disp, 'hovered'):
 				# precise condition on hover change, to avoid triggering unnecessary renderings
 				if disp is not self.scene.hover or (isinstance(disp.hovered, set) and sub not in disp.hovered):
 					self.scene.hover = (disp, sub)
@@ -386,11 +390,11 @@ else:
 					
 		def _deselection(self, evt):
 			''' handle the deselection events '''
-			if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.LeftButton:
+			if evt.type() == QEvent.Type.MouseButtonPress and evt.button() == Qt.MouseButton.LeftButton:
 				self.scene.selection_clear()
 				self.update()
 				evt.accept()
-			elif evt.type() == QEvent.MouseMove:
+			elif evt.type() == QEvent.Type.MouseMove:
 				if self.scene.hover:
 					self.scene.hover = None
 					self.update()
@@ -411,19 +415,19 @@ else:
 				
 				if isinstance(evt, QKeyEvent):
 					k = evt.key()
-					press = evt.type() == QEvent.KeyPress
-					if	 k == Qt.Key_Control:	ctrl = press
-					elif k == Qt.Key_Alt:		alt = press
-					elif k == Qt.Key_Shift:		self._slow = press
-				elif evt.type() == QEvent.MouseButtonPress:
+					press = evt.type() == QEvent.Type.KeyPress
+					if	 k == Qt.Key.Key_Control:	ctrl = press
+					elif k == Qt.Key.Key_Alt:		alt = press
+					elif k == Qt.Key.Key_Shift:		self._slow = press
+				elif evt.type() == QEvent.Type.MouseButtonPress:
 					modifiers = QApplication.queryKeyboardModifiers()
-					ctrl = bool(modifiers & Qt.ControlModifier)
-					alt = bool(modifiers & Qt.AltModifier)
-					shift = bool(modifiers & Qt.ShiftModifier)
+					ctrl = bool(modifiers & Qt.KeyboardModifier.ControlModifier)
+					alt = bool(modifiers & Qt.KeyboardModifier.AltModifier)
+					shift = bool(modifiers & Qt.KeyboardModifier.ShiftModifier)
 				else:
 					continue
 				
-				if evt.type() == QEvent.MouseButtonPress and evt.button() == Qt.MiddleButton:
+				if evt.type() == QEvent.Type.MouseButtonPress and evt.button() == Qt.MouseButton.MiddleButton:
 					self._mode = self._ROTATE
 				else:
 					if ctrl and alt:		self._mode = self._ZOOM
@@ -436,13 +440,13 @@ else:
 			while True:
 				evt = yield
 				
-				if self._mode and evt.type() == QEvent.KeyPress:
+				if self._mode and evt.type() == QEvent.Type.KeyPress:
 					dx = dy = 0
 					speed = pi/72 if self._slow else pi/24
-					if evt.key() == Qt.Key_Left:     dx = -speed
-					elif evt.key() == Qt.Key_Right:  dx = +speed
-					elif evt.key() == Qt.Key_Down:   dy = -speed
-					elif evt.key() == Qt.Key_Up:     dy = +speed
+					if evt.key() == Qt.Key.Key_Left:     dx = -speed
+					elif evt.key() == Qt.Key.Key_Right:  dx = +speed
+					elif evt.key() == Qt.Key.Key_Down:   dy = -speed
+					elif evt.key() == Qt.Key.Key_Up:     dy = +speed
 					else:
 						continue
 					
@@ -461,20 +465,20 @@ else:
 			while True:
 				evt = yield
 				
-				if evt.type() == QEvent.Wheel:
+				if evt.type() == QEvent.Type.Wheel:
 					self.navigation.zoom(exp(-evt.angleDelta().y()/(8*90)))	# the 8 factor is there because of the Qt documentation
 					evt.accept()
 					self.update()
 				
-				if self._mode and evt.type() == QEvent.MouseButtonPress:
+				if self._mode and evt.type() == QEvent.Type.MouseButtonPress:
 					last = evt.pos()
 					evt.accept()
 					while True:
 						evt = yield
 						
-						if not self._mode or evt.buttons() == Qt.NoButton or evt.type() == QEvent.MouseButtonRelease:
+						if not self._mode or evt.type() == QEvent.Type.MouseButtonRelease or isinstance(evt, QMouseEvent) and evt.buttons() == Qt.MouseButton.NoButton:
 							break
-						if evt.type() != QEvent.MouseMove:
+						if evt.type() != QEvent.Type.MouseMove:
 							continue
 						
 						gap = evt.pos() - last
@@ -539,7 +543,7 @@ else:
 						self.update()
 						evt.accept()
 					# finish a gesture
-					elif evt.type() in (QEvent.TouchEnd, QEvent.TouchUpdate):
+					elif evt.type() in (QEvent.Type.TouchEnd, QEvent.Type.TouchUpdate):
 						evt.accept()
 		
 		# forward access to items

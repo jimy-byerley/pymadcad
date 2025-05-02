@@ -2,9 +2,7 @@
 
 from .mathutils import *
 from .kinematic.solver import Joint
-from .kinematic.displays import scale_solid, world_solid, kinematic_color
 from .mesh import Mesh, Wire, wire, web, Web
-from .scheme import Scheme
 from . import generation as gt
 from . import generation, primitives, settings
 
@@ -71,6 +69,9 @@ class Revolute(Joint):
 		return Screw(l.resulting, project(l.momentum, self.axis[1]))
 		
 	def scheme(self, index, maxsize, attach_start, attach_end):
+		from .scheme import Scheme
+		from .kinematic.displays import scale_solid, world_solid, kinematic_color
+		
 		size = settings.display['joint_size']
 		radius = size/4
 		sch = Scheme()
@@ -192,7 +193,10 @@ class Planar(Joint):
 		return Screw(project(action.resulting, normal), noproject(action.momentum, normal), action.position)
 	
 	
-	def scheme(self, index, maxsize, attach_start, attach_end):		
+	def scheme(self, index, maxsize, attach_start, attach_end):
+		from .scheme import Scheme
+		from .kinematic.displays import scale_solid, world_solid, kinematic_color
+		
 		size = settings.display['joint_size']
 		sch = Scheme()
 		gap = 0.1
@@ -284,6 +288,9 @@ class Prismatic(Joint):
 		return Screw(noproject(action.resulting, normal), action.momentum, action.position)
 	
 	def scheme(self, index, maxsize, attach_start, attach_end):
+		from .scheme import Scheme
+		from .kinematic.displays import scale_solid, world_solid, kinematic_color
+		
 		size = settings.display['joint_size']
 		sch = Scheme()
 		
@@ -384,6 +391,9 @@ class Cylindrical(Joint):
 		return Screw(l.resulting, project(l.momentum, self.axis[1]))
 		
 	def scheme(self, index, maxsize, attach_start, attach_end):
+		from .scheme import Scheme
+		from .kinematic.displays import scale_solid, world_solid, kinematic_color
+		
 		size = settings.display['joint_size']
 		radius = size/4
 		sch = Scheme()
@@ -506,6 +516,9 @@ class Ball(Joint):
 		return Screw(vec3(0), force.momentum, self.center)
 	
 	def scheme(self, index, maxsize, attach_start, attach_end):
+		from .scheme import Scheme
+		from .kinematic.displays import scale_solid, world_solid, kinematic_color
+		
 		from .primitives import ArcCentered
 		
 		size = settings.display['joint_size']
@@ -582,6 +595,9 @@ class PointSlider(Joint):
 			)
 	
 	def scheme(self, index, maxsize, attach_start, attach_end):
+		from .scheme import Scheme
+		from .kinematic.displays import scale_solid, kinematic_color
+		
 		size = settings.display['joint_size']
 		radius = size * 0.2
 		resolution = ('div', 16)
@@ -655,6 +671,9 @@ class EdgeSlider(Joint):
 			)
 	
 	def scheme(self, index, maxsize, attach_start, attach_end):
+		from .scheme import Scheme
+		from .kinematic.displays import scale_solid, kinematic_color
+		
 		size = settings.display['joint_size']
 		radius = 0.2*size
 		resolution = ('div', 16)
@@ -721,6 +740,9 @@ class Ring(Joint):
 		return Screw(vec3(0), force.momentum, self.center)
 	
 	def scheme(self, index, maxsize, attach_start, attach_end):
+		from .scheme import Scheme
+		from .kinematic.displays import scale_solid, kinematic_color
+		
 		from .primitives import ArcCentered
 		
 		size = settings.display['joint_size']
@@ -785,6 +807,8 @@ class Universal(Joint):
 			)
 			
 	def scheme(self, index, maxsize, attach_start, attach_end):
+		from .scheme import Scheme
+		from .kinematic.displays import scale_solid, world_solid, kinematic_color
 		from .primitives import ArcCentered
 		
 		size = settings.display['joint_size']
@@ -869,6 +893,8 @@ class Rack(Joint):
 		return atan(*m[0].xy)
 	
 	def scheme(self, index, maxsize, attach_start, attach_end):
+		from .scheme import Scheme
+		from .kinematic.displays import world_solid, kinematic_color
 		from .generation import revolution
 		from .primitives import Circle, Segment
 		sch = Scheme()
@@ -936,6 +962,8 @@ class Gear(Joint):
 		return (angle - close + pi) % (2*pi) - pi
 	
 	def scheme(self, index, maxsize, attach_start, attach_end):
+		from .scheme import Scheme
+		from .kinematic.displays import world_solid, kinematic_color
 		from .generation import revolution
 		from .primitives import Circle, Segment
 		sch = Scheme()
