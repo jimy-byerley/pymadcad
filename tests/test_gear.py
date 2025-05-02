@@ -32,7 +32,7 @@ def test_gear(name, *args, **kwargs):
 		raise
 	else:
 		results.append(mesh)
-	#show([mesh])
+	show([mesh])
 
 def testing(function):
 	def wrapper(name, *args, **kwargs):
