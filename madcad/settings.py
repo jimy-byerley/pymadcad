@@ -76,13 +76,15 @@ scene = {
 	'surface_shading': True,
 	'kinematic_manipulation': 'joint',
 	
-	'solid_freemove': False,
+	'solid_freemove': True,
 	'selection_multiple': False,
 	'selection_sub': False,
 	
 	'debug_points': False,
 	'debug_faces': False,
 	'debug_groups': False,
+	
+	'track_source': True,
 	}
 		
 controls = {

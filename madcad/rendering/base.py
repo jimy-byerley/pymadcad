@@ -60,6 +60,7 @@ class Scene:
 		Args:
 			src:        the root object of the scene, it must be a displayable and is usually a `dict`
 			options:    scene rendering parameters, overriding `settings.scene`
+			context:    the openGL context to use to send rendering instructions to the GPU
 		'''
 		self.root = None
 		self.overrides = deepcopy(Scene.overrides)
@@ -71,6 +72,7 @@ class Scene:
 		self.selection = set()
 		self.touched = False
 		self._hover = None
+		self._memo = set()
 		if options:   self.options.update(options)
 		
 		global global_context
@@ -103,24 +105,42 @@ class Scene:
 			This is the actual function converting objects into displays.
 			You don't need to call this method if you just want to add an object to the scene, use add() instead
 		'''
-		if former and former.update(self, obj):
-			return former
-		if type(obj) in self.overrides:
-			disp = self.overrides[type(obj)](self, obj)
-		elif hasattr(obj, 'display'):
-			if isinstance(obj, type):
-				raise TypeError('types are not displayable')
-			if isinstance(obj.display, type):
-				disp = obj.display(self, obj)
-			elif callable(obj.display):
-				disp = obj.display(self)
-			else:
-				raise TypeError("member 'display' must be a method or a type, on {}".format(type(obj).__name__))
-		else:
-			raise TypeError('type {} is not displayable'.format(type(obj).__name__))
+		ido = id(obj)
+		assert ido not in self.memo, 'there should not be recursion loops in cascading displays'
+		self.memo.add(ido)
 		
-		if not isinstance(disp, Display):
-			raise TypeError('the display for {} is not a subclass of Display: {}'.format(type(obj).__name__, type(disp)))
+		try:
+			# no refresh if object has not changed
+			if hasattr(former, 'source') and former.source == obj:
+				disp = former
+			# refresh cleverly if a previous displays proposes it
+			elif former and former.update(self, obj):
+				disp = former
+			# create it with overrides
+			elif type(obj) in self.overrides:
+				disp = self.overrides[type(obj)](self, obj)
+			# create it with the displayable protocol
+			elif hasattr(obj, 'display'):
+				if isinstance(obj, type):
+					raise TypeError('types are not displayable')
+				if isinstance(obj.display, type):
+					disp = obj.display(self, obj)
+				elif callable(obj.display):
+					disp = obj.display(self)
+				else:
+					raise TypeError("member 'display' must be a method or a type, on {}".format(type(obj).__name__))
+			else:
+				raise TypeError('type {} is not displayable'.format(type(obj).__name__))
+			
+			if not isinstance(disp, Display):
+				raise TypeError('the display for {} is not a subclass of Display: {}'.format(type(obj).__name__, type(disp)))
+				
+		finally:
+			self.memo.remove(ido)
+		
+		# keeping a reference of the source object may increas the RAM used but avoid to refresh displays when updating the scene with the same constant value
+		if self.options['track_source']:
+			disp.source = obj
 		return disp
 		
 	def displayable(self, obj) -> bool:
@@ -303,6 +323,8 @@ class Display:
 	''' base class for objects displayed in a scene '''
 	key: str = None
 	''' display path in the scene tree, set when Scene.restack is called '''
+	source: object
+	''' source object of that display, set by `Scene.display` if this option is enabled '''
 	world: fmat3|fmat4
 	''' (optional) matrix from local space to scene space '''
 	box: Box
