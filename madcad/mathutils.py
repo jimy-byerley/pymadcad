@@ -623,11 +623,13 @@ def boundingbox(obj, ignore=False, default=Box(width=vec3(-inf))) -> Box:
 				try:	bound = boundingbox(e)
 				except TypeError:	continue
 				break
+			bound = Box(bound.min, bound.max)
 			for e in obj:
 				try:	bound.union_update(e)
 				except TypeError:	continue
 		else:
 			bound = boundingbox(next(obj, default))
+			bound = Box(bound.min, bound.max)
 			for e in obj:	bound.union_update(e)
 		return bound
 	if ignore:

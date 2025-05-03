@@ -2,7 +2,7 @@
 '''
 	implementation of views and displays for 3D
 '''
-import numpy.core as np
+import numpy as np
 
 from ...common import resourcedir
 from ...mathutils import Box, fvec3
@@ -32,12 +32,18 @@ def load_shader_uniformcolor(scene):
 		fragment_shader=open(resourcedir+'/shaders/uniformcolor.frag').read(),
 		)
 
-def npboundingbox(points: np.ndarray) -> Box:
+def npboundingbox(points: np.ndarray, ignore=False) -> Box:
 	''' boundingbox for numpy arrays of points on the 3 first components '''
-	return Box(
-		fvec3(np.min(points, axis=0)),
-		fvec3(np.max(points, axis=0)),
-		)
+	if not ignore:
+		return Box(
+			fvec3(np.min(points, axis=0)),
+			fvec3(np.max(points, axis=0)),
+			)
+	else:
+		return Box(
+			fvec3(np.nan_to_num(np.min(points, axis=0), True, +np.inf)),
+			fvec3(np.nan_to_num(np.max(points, axis=0), True, -np.inf)),
+			)
 
 from . import view, marker, dense
 from .view import *

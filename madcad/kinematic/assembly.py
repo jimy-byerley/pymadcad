@@ -4,22 +4,21 @@ __all__ = ['Solid', 'placement', 'explode', 'explode_offsets']
 from ..mathutils import *
 
 
-class Solid:
-	''' Solid for objects display
+class Solid(dict):
+	''' Movable group of objects
 	
-		A Solid is also a way to group objects and move it anywhere without modifying them, as the objects contained in a solid are considered to be in solid local coordinates.
 		A Solid is just like a dictionary with a pose.
-	
-		Attributes:
-			pose (mat4):   placement matrix, it defines a base in which the solid's content is displayed
-			content (dict/list):      objects to display using the solid's pose
 			
 		Example:
 			
 			>>> mypart = icosphere(vec3(0), 1)
 			>>> s = Solid(part=mypart, anything=vec3(0))   # create a solid with whatever inside
 			
-			>>> s.transform(vec3(1,2,3))   # make a new translated solid, keeping the same content without copy
+			>>> st = s.transform(vec3(1,2,3))   # make a new translated solid, keeping the same content without copy
+			
+			>>> # use content as attributes
+			>>> s.part
+			<Mesh ...>
 			
 			>>> # put any content in as a dict
 			>>> s['part']
@@ -27,60 +26,54 @@ class Solid:
 			>>> s['whatever'] = vec3(5,2,1)
 	'''
 	
-	def __init__(self, pose=1, **content):
-		self.pose = mat4(pose)
-		self.content = content
-		
-	def __copy__(self):
-		return Solid(self.pose, **self.content)
+	pose: mat4
+	''' placement matrix, it defines a base in which other attributes are displayed '''
+	
+	def __init__(self, *args, **kwargs):
+		super().__init__(*args, **kwargs)
+		self.__dict__ = self
+		if 'pose' not in self:
+			self.pose = mat4()
 	
 	def transform(self, value) -> 'Solid':
 		''' Displace the solid by the transformation '''
-		return Solid(transform(value) * self.pose, **self.content)
+		return Solid(self).update(pose = transform(value) * self.pose)
 	
 	def place(self, *args, **kwargs) -> 'Solid': 
 		''' Strictly equivalent to `.transform(placement(...))`, see `placement` for parameters specifications. '''
-		return Solid(placement(*args, **kwargs), **self.content)
+		return self.transform(placement(*args, **kwargs))
 		
-	def loc(self, *args):
-		transform = mat4()
-		for key in args:
-			transform = transform @ obj.pose
-		return transform
+	def loc(self, *args) -> object:
+		''' chain transforms in the given key path '''
+		obj, transform = self._unroll(args)
+		return transfrom
 	
-	def deloc(self, *args):
+	def deloc(self, *args) -> object:
+		''' return the object at the given key path with the chain of transforms applied to it '''
+		obj, transform = self._unroll(args)
+		return obj.transform(transform)
+	
+	def _unroll(self, args):
+		''' seek on object in nested solids and return the object and the chain of transformations to it '''
 		obj = self
 		transform = mat4()
 		for key in args:
 			transform = transform @ obj.pose
-			obj = obj.content[key]
-		return obj.transform(transform)
+			obj = obj[key]
+		return obj, transform
 	
-	def reloc(self, *args):
-		indev
+	def __reduce__(self):		return type(self), (dict(self),)
 	
-	# convenient content access
-	def __getitem__(self, key):
-		''' Shorthand to `self.content` '''
-		return self.content[key]
-		
-	def __setitem__(self, key, value):
-		''' Shorthand to `self.content` '''
-		self.content[key] = value
+	def update(self, *args, **kwargs) -> 'Solid':
+		super().update(*args, **kwargs)
+		return self
 	
-	def append(self, value):
+	def append(self, value) -> int:
 		''' Add an item in self.content, a key is automatically created for it and is returned '''
 		key = next(i 	for i in range(len(self.content)+1)
 						if i not in self.content	)
-		self.content[key] = value
+		self[key] = value
 		return key
-	
-	def set(self, **objs):
-		''' Convenient method to set many elements in one call.
-			Equivalent to `self.content.update(objs)`
-		'''
-		self.content.update(objs)
-		return self
 	
 	def display(self, scene):
 		from .displays import SolidDisplay

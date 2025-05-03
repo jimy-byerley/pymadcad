@@ -1,5 +1,5 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
-import numpy.core as np
+import numpy as np
 import moderngl as mgl
 from PIL import Image
 
@@ -15,7 +15,7 @@ __all__ = ['MeshDisplay', 'WebDisplay']
 class MeshDisplay(Display):
 	''' Display render Meshes '''
 	def __init__(self, scene, positions, normals, faces, lines, idents, color=None):
-		self.box = npboundingbox(positions)
+		self.box = npboundingbox(positions, ignore=True)
 		
 		color = fvec3(color or settings.colors['surface'])
 		line = ( (length(settings.colors['line']) + dot(
@@ -85,7 +85,7 @@ class MeshDisplay(Display):
 class WebDisplay(Display):
 	''' Display to render Webs '''
 	def __init__(self, scene, positions, lines, points, idents, color=None):
-		self.box = npboundingbox(positions)
+		self.box = npboundingbox(positions, ignore=True)
 		color = color or settings.colors['line']
 		self._vertices = Vertices(scene.context, positions, idents)
 		self._disp_edges = LinesDisplay(scene, self._vertices, lines, color=color, alpha=1, layer=-2e-6)

@@ -36,6 +36,8 @@ class Scene:
 	''' the root display of the scene, usually a `Group` '''
 	stacks: dict[str, list[Frame]]
 	''' a list of the display callbacks for each target frame buffers '''
+	touched: bool
+	''' trigger for restacking render steps '''
 	overrides: dict[type, Callable] = {}
 	''' attribute allowing to alter how the displayable are transformed into displays
 	
@@ -67,8 +69,8 @@ class Scene:
 		self.options = deepcopy(settings.scene)
 		self.shared = {}
 		self.selection = set()
+		self.touched = False
 		self._hover = None
-		self._need_restack = False
 		if options:   self.options.update(options)
 		
 		global global_context
@@ -92,8 +94,8 @@ class Scene:
 		self.touch()
 		
 	def touch(self):
-		''' require a restack before next rendering '''
-		self._need_restack = True
+		''' inform the scene than its composition changed and that it needs to recompute its call stack '''
+		self.touched = True
 		
 	def display(self, obj, former:Display=None) -> Display:
 		''' Create a display for the given object for the current scene.
@@ -149,8 +151,8 @@ class Scene:
 	
 	def prepare(self):
 		''' convert all displayable to displays and bufferize everything for comming renderings '''
-		if self._need_restack:
-			self._need_restack = False
+		if self.touched:
+			self.touched = False
 			self.active = None
 			self.hover = None
 			with self.context:
@@ -202,6 +204,7 @@ class Scene:
 		else:
 			display.selected = True
 			self.selection.add(display)
+		self.touch()
 	
 	def selection_remove(self, display:Display, sub:int=None):
 		''' deselect the given display '''
@@ -216,6 +219,7 @@ class Scene:
 		else:
 			display.selected = False
 			self.selection.discard(display)
+		self.touch()
 		
 	def selection_toggle(self, display:Display, sub:int=None):
 		if isinstance(display.selected, set):
@@ -235,7 +239,9 @@ class Scene:
 				display.selected = display.selected
 			else:
 				display.selected = False
-		self.selection.clear()
+		if self.selection:
+			self.touch()
+			self.selection.clear()
 	
 	def _get_hover(self):
 		return self._hover
@@ -399,11 +405,16 @@ class Group(Display):
 			display.hovered = self.hovered
 	
 	def update(self, *args):
-		''' update all child displays with the displayable present in the given dictionnary
+		''' 
+			update(scene, src)
+			update(src)
+		
+			update all child displays with the displayable present in the given dictionnary
 			
 			former children that do not match keys in the given dictionnary are dropped
 			
-			the new content will not be immediately available in `self.displays` because they will only be buffered at next rendering
+			Note:
+				the new content will not be immediately available in `self.displays` because they will only be buffered at next rendering. it makes this function thread safe and able to run without a reference to the scene
 		'''
 		if len(args) == 1:
 			src, = args

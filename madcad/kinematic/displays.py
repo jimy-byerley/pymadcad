@@ -39,7 +39,7 @@ class SolidDisplay(Group):
 	def box(self):
 		return boundingbox(
 			(getattr(display, 'box', None)   for display in self.displays.values()), 
-			ignore=True).transform(self._local)
+			ignore=True) .transform(self._local * self._free)
 
 	@writeproperty
 	def local(self):  self._place_displays()
@@ -56,6 +56,15 @@ class SolidDisplay(Group):
 			display.world = sub
 	
 	def update(self, *args):
+		''' 
+			update(scene, src)
+			update(src)
+		
+			update to the solid pose and its content dictionnary
+			
+			Note:
+				the new content will not be immediately available in `self.displays` because they will only be buffered at next rendering. it makes this function thread safe and able to run without a reference to the scene
+		'''
 		if len(args) == 1:
 			src, = args
 		elif len(args) == 2:
@@ -64,9 +73,11 @@ class SolidDisplay(Group):
 			raise TypeError("expected 1 or 2 arguments, got {}".format(len(args)))
 		if not isinstance(src, Solid):
 			return False
-		if not super().update(src.content):
+		content = dict(src)
+		pose = content.pop('pose')
+		if not super().update(content):
 			return False
-		self._local = fmat4(src.pose)
+		self._local = fmat4(pose)
 		return True
 	
 	def stack(self, scene):
@@ -84,16 +95,30 @@ class SolidDisplay(Group):
 
 	def control(self, view, key, sub, evt):
 		if self.selected and view.scene.options['solid_freemove']:
-			if evt.type() == QEvent.Type.MouseButtonPress and evt.button() == Qt.MouseButton.LeftButton:
+			# accept clicks to listen for dragging
+			if evt.type() == QEvent.Type.MouseButtonPress and (
+					evt.button() == Qt.MouseButton.LeftButton
+					or evt.button() == Qt.MouseButton.RightButton):
 				evt.accept()
 			
-			if evt.type() == QEvent.Type.MouseMove and evt.buttons() & Qt.MouseButton.LeftButton:
-				evt.accept()
-				# put the tool into the view, to handle events
-				view.callbacks.append(receiver(self._move(view, evt)))
+			elif evt.type() == QEvent.Type.MouseMove:
+				# drag with left click moves the solid
+				if evt.buttons() & Qt.MouseButton.LeftButton:
+					evt.accept()
+					# put the tool into the view, to handle events
+					view.callbacks.append(receiver(self._move(view, evt)))
+			
+				# drag with right click resets its free pose
+				elif evt.buttons() & Qt.MouseButton.RightButton:
+					evt.accept()
+					self.free = fmat4()
+					view.update()
 				
 	def _move(self, view, evt):
-		former = self.free
+		''' moves the selected solids in the view plane following the mouse movements '''
+		moving = [(solid, solid.free)   
+			for solid in view.scene.selection if isinstance(solid, SolidDisplay)]
+		
 		anchor = view.ptat(view.somenear(evt.pos()))
 		while True:
 			evt = yield
@@ -105,8 +130,10 @@ class SolidDisplay(Group):
 			view.update()
 			
 			click = view.ptfrom(evt.pos(), anchor)
-			move = transpose(fmat3(self._world * self._local * self._free)) * (click - anchor)
-			self.free = former * translate(move)
+			
+			for solid, former in moving:
+				move = transpose(fmat3(solid._world * solid._local * solid._free)) * (click - anchor)
+				solid.free = former * translate(move)
 
 
 class ChainManip(Group):
