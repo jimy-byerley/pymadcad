@@ -42,12 +42,17 @@ vec4 highlight(vec4 dst, vec4 src) {
 void main() {
 	vec3 nsight = normalize(sight);
 	vec3 nnormal = normalize(normal);
-	float diffuse = max(0, dot(nsight, nnormal));
+	float diffuse = dot(nsight, nnormal);
 	vec3 tosky = -reflect(nsight, nnormal);
 	vec3 refl = texture(reflectmap, skybox(tosky)).rgb;
 	
 	// surface shading
 	color = vec4(refl * refl_color + mix(min_color, max_color, diffuse), 1);
+	
+	if (diffuse < 0)  {
+		diffuse = 0.6;
+		color = vec4(min_color, 1);
+	}
 	
 	// highlighting
 	float margin = 0.1; // control how close to the horizon is the color saturation

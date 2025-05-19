@@ -40,6 +40,7 @@
 
 from math import sqrt
 from .mathutils import *
+from .mesh.container import typedlist_to_numpy
 from . import settings
 from . import mesh
 
@@ -408,7 +409,7 @@ class Interpolated(object):
 
 	def display(self, scene):
 		from .rendering.d3.marker import SplineDisplay
-		return SplineDisplay(scene, typedlist_to_numpy(self.points), typedlist_to_numpy(self.mesh().points))
+		return SplineDisplay(scene, typedlist_to_numpy(self.points, np.float32), typedlist_to_numpy(self.mesh().points, np.float32))
 			
 class Softened(object):
 	''' Interpolated curve tangent to each segment midpoint (3rd degree bezier curve)
@@ -458,5 +459,5 @@ class Softened(object):
 
 	def display(self, scene):
 		from .rendering.d3.marker import SplineDisplay
-		return SplineDisplay(scene, typedlist_to_numpy(self.points), typedlist_to_numpy(self.mesh().points))
+		return SplineDisplay(scene, typedlist_to_numpy(self.points, np.float32), typedlist_to_numpy(self.mesh().points, np.float32))
 	

@@ -239,10 +239,15 @@ class SplineDisplay(Display):
 	''' display for spline curve, with handles around'''
 	color: fvec4
 	box: Box
+	selected: bool
+	hovered: bool
 	
 	def __init__(self, scene, handles, curve, color=None):
 		self.color = fvec3(color or settings.colors['line'])
+		self.color_handles = fvec3(settings.colors['annotation'])
 		self.box = npboundingbox(handles)
+		self.selected = False
+		self.hovered = False
 		
 		ctx = scene.context
 		vb_handles = ctx.buffer(handles)
@@ -252,7 +257,7 @@ class SplineDisplay(Display):
 		self._va_handles = ctx.vertex_array(shader, [(vb_handles, '3f4', 'v_position')])
 		self._va_curve = ctx.vertex_array(shader, [(vb_curve, '3f4', 'v_position')], mode=mgl.LINE_STRIP)
 		
-		shader = scene.share(shader_ident, shader_ident)
+		shader = scene.share(load_shader_ident, load_shader_ident)
 		self._va_ident = ctx.vertex_array(shader, [(vb_curve, '3f4', 'v_position')], mode=mgl.LINE_STRIP)
 	
 	def stack(self, scene):
@@ -268,19 +273,19 @@ class SplineDisplay(Display):
 		view.scene.context.point_size = 4
 		
 		self._va_handles.program['layer'] = -2e-6
-		self._va_handles.program['color'].write(self.color_handles if not self.selected else fvec4(settings.display['selection_color'],self.color_handles[3]))
+		self._va_handles.program['color'].write(fvec4(highlight_color(self, self.color_handles), 0.5))
 		self._va_handles.render(mgl.POINTS)
 		self._va_handles.render(mgl.LINE_STRIP)
 		
 		self._va_curve.program['layer'] = -1e-6
-		self._va_curve.program['color'].write(self.color if not self.selected else fvec4(settings.display['selection_color'],self.color[3]))
+		self._va_curve.program['color'].write(fvec4(highlight_color(self, self.color), 1))
 		self._va_curve.render()
 		
 	def _identify(self, view):
-		self.shader_ident['ident'] = view.identstep(1)
-		self.shader_ident['view'].write(view.uniforms['view'] * self.world)
-		self.shader_ident['proj'].write(view.uniforms['proj'])
-		self.va_ident.render()
+		self._va_ident.program['ident'] = view.identstep(1)
+		self._va_ident.program['view'].write(view.uniforms['view'] * self.world)
+		self._va_ident.program['proj'].write(view.uniforms['proj'])
+		self._va_ident.render()
 		
 
 def digitfit(n):

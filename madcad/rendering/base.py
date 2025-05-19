@@ -105,9 +105,10 @@ class Scene:
 			This is the actual function converting objects into displays.
 			You don't need to call this method if you just want to add an object to the scene, use add() instead
 		'''
+		# prevent reference-loop in groups (groups are taken from the execution env, so the user may not want to display it however we are trying to)
 		ido = id(obj)
-		assert ido not in self.memo, 'there should not be recursion loops in cascading displays'
-		self.memo.add(ido)
+		assert ido not in self._memo, 'there should not be recursion loops in cascading displays'
+		self._memo.add(ido)
 		
 		try:
 			# no refresh if object has not changed
@@ -136,7 +137,7 @@ class Scene:
 				raise TypeError('the display for {} is not a subclass of Display: {}'.format(type(obj).__name__, type(disp)))
 				
 		finally:
-			self.memo.remove(ido)
+			self._memo.remove(ido)
 		
 		# keeping a reference of the source object may increas the RAM used but avoid to refresh displays when updating the scene with the same constant value
 		if self.options['track_source']:
@@ -217,6 +218,8 @@ class Scene:
 	
 	def selection_add(self, display:Display, sub:int=None):
 		''' select the given display '''
+		if not hasattr(display, 'selected'):
+			raise TypeError('{} is not selectable'.format(type(display).__name__))
 		if isinstance(display.selected, set):
 			display.selected.add(sub)
 			display.selected = display.selected
@@ -228,6 +231,8 @@ class Scene:
 	
 	def selection_remove(self, display:Display, sub:int=None):
 		''' deselect the given display '''
+		if not hasattr(display, 'selected'):
+			raise TypeError('{} is not selectable'.format(type(display).__name__))
 		if isinstance(display.selected, set):
 			if sub is None:
 				display.selected.clear()
@@ -242,6 +247,8 @@ class Scene:
 		self.touch()
 		
 	def selection_toggle(self, display:Display, sub:int=None):
+		if not hasattr(display, 'selected'):
+			raise TypeError('{} is not selectable'.format(type(display).__name__))
 		if isinstance(display.selected, set):
 			selected = sub in display.selected
 		else:

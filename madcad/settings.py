@@ -71,7 +71,6 @@ scene = {
 	'display_groups': True,
 	'display_points': False,
 	'display_wire': False,
-	'display_grid': True,
 	'display_annotations': True,
 	'surface_shading': True,
 	'kinematic_manipulation': 'joint',
