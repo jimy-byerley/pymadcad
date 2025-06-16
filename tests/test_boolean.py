@@ -1,44 +1,125 @@
 from copy import deepcopy
+from pnprint import nprint
+
 from madcad import *
-from madcad.boolean import pierce, boolean, difference, cut_mesh
+from madcad.boolean import pierce, boolean, difference, cut_mesh, pierce_web, boolean_web
 from madcad.generation import brick
-from madcad.nprint import nprint
+from . import visualcheck
 
 m1 = brick(width=vec3(2))
 m2 = (deepcopy(m1)
 		.transform(vec3(0.5, 0.3, 0.4))
 		.transform(quat(0.7*vec3(1,1,0)))
 		)
-		
-#from madcad.boolean import cut_mesh
-#res, frontier = cut_mesh(m1, m2)
-#show([res, frontier, m2], options={'display_wire':True, 'display_faces':False})
 
-results = []
-
-def test_pierce():
+@visualcheck
+def test_pierce_mesh():
+	results = []
 	for side in (False, True):
 		nprint('* pierce(side={})'.format(side))
 		
 		r = pierce(m1, m2, side)
 		r.check()
 		assert r.issurface()
-		results.append(r)
+		results.append(Solid(body=r))
 		
 		r = pierce(m2, m1, side)
 		r.check()
 		assert r.issurface()
-		results.append(r)
+		results.append(Solid(body=r))
+	for i, result in enumerate(results):
+		results[i] = result.transform(translate(4*i*Z))
+	return results
 
-def test_boolean():
+@visualcheck
+def test_boolean_mesh():
+	results = []
 	for sidea in (False, True):
 		for sideb in (False, True):
 			nprint('* boolean(sides=({}, {}))'.format(sidea, sideb))
 			r = boolean(m1, m2, (sidea, sideb))
 			r.check()
 			assert r.isenvelope()
-			results.append(r)
+			results.append(Solid(body=r))
+	for i, result in enumerate(results):
+		results[i] = result.transform(translate(4*i*Z))
+	return results
+
+@visualcheck
+def test_boolean_web():
+	wa = web(Circle((O,Z), 1))
+
+	others = {
+		0: web(wire([vec3(-1, 0.5, 0), vec3(1, 0.2, 0)])),
+		1: web(Softened([vec3(-2, 0, 0), vec3(-1, 0.5, 0), vec3(1, 0.2, 0), vec3(2, 3, 0)])),
+		2: web(wire([vec3(-2,-0.5,0), vec3(2,-0.5,0), vec3(2,0.5,0), vec3(-2,0.5,0)]).close()),
+		#3: web(wire([vec3(-1,-0.5,0), vec3(1,-0.5,0), vec3(1,0.5,0), vec3(-1,0.5,0)]).close()),    # that one will fail until overlapping geometries are handled
+		4: web([
+			Segment(vec3(-1,-0.5,0), vec3(1,-0.5,0)), 
+			Segment(vec3(1,0.5,0), vec3(-1,0.5,0)),
+			]),
+		}
+
+	results = []
+	for i, wb in others.items():
+		nprint('* wb={} '.format(i))
 		
+		r = pierce_web(wa, wb)
+		r.check()
+		assert r.isline()
+		results.append(Solid(content=r, wb=wb))
+		
+		r = boolean_web(wa, wb, (True, False))
+		r.check()
+		assert r.isline()
+		results.append(Solid(content=r))
+		
+		r = boolean_web(wa, wb, (False, True))
+		r.check()
+		assert r.isline()
+		results.append(Solid(content=r))
+
+	for i, result in enumerate(results):
+		results[i] = result.transform(translate(i*Z))
+
+	return results
+
+@visualcheck
+def test_boolean_web_mesh():
+	mesh = extrusion(Circle((O,Z),1), Z, alignment=0.5)
+
+	others = {
+		0: web(wire([vec3(-1, 0.5, 0), vec3(1, 0.2, 0)])),
+		1: web(Softened([vec3(-2, 0, 0), vec3(-1, 0.5, 0), vec3(1, 0.2, 0), vec3(2, 3, 0)])),
+		2: web(wire([vec3(-2,-0.5,0), vec3(2,-0.5,0), vec3(2,0.5,0), vec3(-2,0.5,0)]).close()),
+		#3: web(wire([vec3(-1,-0.5,0), vec3(1,-0.5,0), vec3(1,0.5,0), vec3(-1,0.5,0)]).close()),	# that one will fail until overlapping geometries are handled
+		4: web([
+			Segment(vec3(-1,-0.5,0), vec3(1,-0.5,0)), 
+			Segment(vec3(1,0.5,0), vec3(-1,0.5,0)),
+			]),
+		}
+
+	results = []
+	for i, w in others.items():
+		nprint('* w={} '.format(i))
+		
+		r = pierce(w, mesh, False)
+		r.check()
+		assert r.isline()
+		results.append(Solid(content=r, mesh=mesh))
+		
+		r = pierce(w, mesh, True)
+		r.check()
+		assert r.isline()
+		results.append(Solid(content=r, mesh=mesh))
+
+	for i, result in enumerate(results):
+		results[i] = result.transform(translate(2*i*Z))
+
+	return results
+
+		
+@visualcheck
 def test_sidecases():
 	z = vec3(0,0,1)
 	cut_tool = icosphere(vec3(0), 1, resolution=("div", 1))
@@ -50,9 +131,9 @@ def test_sidecases():
 	mesh.check()
 	assert mesh.issurface()
 	
-	results.append(mesh)
-	results.append(web)
+	return [mesh, web]
 
+@visualcheck
 def test_edgecrossing():
 	# 2 bricks intersecting
 	b1 = brick(width=vec3(2))
@@ -79,8 +160,9 @@ def test_edgecrossing():
 	cyl.check()
 	assert cyl.isenvelope()
 
-	results.append(cyl)
+	return [cyl]
 	
+@visualcheck
 def test_repetition():
 	def cylinder(axis, radius, height):
 		return extrusion(
@@ -120,19 +202,5 @@ def test_repetition():
 	res.check()
 	assert res.isenvelope()
 	
-	results.append(res)
-
-	
-	
-test_pierce()
-test_boolean()
-test_sidecases()
-test_edgecrossing()
-test_repetition()
-	
-# display
-for i in range(len(results)):
-	results[i] = Solid(content=results[i]).transform(4*i*Y)
-
-show(results)
+	return [res]
 
