@@ -74,10 +74,23 @@ class Solid(dict):
 						if i not in self.content	)
 		self[key] = value
 		return key
+		
+	def __repr__(self):
+		return '{}({})'.format(
+			self.__class__.__name__,
+			','.join('{}={}'.format(key, repr(value))  for key,value in self.items()),
+			)
 	
 	def display(self, scene):
 		from .displays import SolidDisplay
 		return SolidDisplay(scene, self)
+		
+	def __eq__(self, other):
+		''' equaly when all members including pose are equal '''
+		return self is other or isinstance(other, Solid) and (
+			len(self.__dict__) == len(other.__dict__)
+			and all(self.__dict__.get(k) == other.__dict__.get(k)  for k in self.__dict__ if not k.startswith('_'))
+			)
 
 
 def placement(*pairs, precision=1e-3):

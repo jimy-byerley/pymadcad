@@ -57,7 +57,6 @@ from .mathutils import *
 from . import settings
 from . import generation
 
-from .nprint import nprint
 
 
 def get_interfaces(objs, tangents, weights):

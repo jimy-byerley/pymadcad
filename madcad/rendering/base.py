@@ -112,7 +112,7 @@ class Scene:
 		
 		try:
 			# no refresh if object has not changed
-			if hasattr(former, 'source') and former.source == obj:
+			if former and hasattr(former, 'source') and (former.source is obj or former.source == obj):
 				disp = former
 			# refresh cleverly if a previous displays proposes it
 			elif former and former.update(self, obj):
@@ -510,6 +510,12 @@ class Displayable:
 	def __init__(self, build, *args, **kwargs):
 		self.args, self.kwargs = args, kwargs
 		self.build = build
+	def __eq__(self, other):
+		return self is other or isinstance(other, Displayable) and (
+			self.build == other.build
+			and self.args == other.args
+			and self.kwargs == other.kwargs
+			)
 	def __repr__(self):
 		return '{}({}, {})'.format(
 			type(self).__name__, 

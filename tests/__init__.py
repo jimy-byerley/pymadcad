@@ -6,7 +6,11 @@ from os.path import abspath, exists
 from functools import wraps, reduce
 from operator import xor
 
+from pnprint import nformat
+
 from madcad.rendering import show
+from madcad.qt import QApplication, QMessageBox, QWidget, QLabel, QGridLayout, QPlainTextEdit, QFont
+from madcad.rendering import QView3D, Scene
 
 def visualcheck(test:Callable) -> Callable:
     ''' decorator for non-regression tests, providing snapshot caching and visual inspection '''
@@ -35,14 +39,16 @@ def visualcheck(test:Callable) -> Callable:
             )
         
         result = test()
+        reference = None
         try:
-            reference = pickle.load(open(fullname, 'rb'))
-            if result != reference:
+            binary_result = pickle.dumps(result)
+            binary_reference = open(fullname, 'rb').read()
+            reference = pickle.loads(binary_reference)
+            if binary_result != binary_reference:
                 raise AssertionError("result of {} with arguments {} doesn't match cache".format(test.__name__, bound))
         except (OSError, AssertionError) as err:
             if _visualinspect(title, reference, result):
-            # if input('result is different from last time\n is it correct ?') == 'y':
-                pickle.dump(result, open(fullname, 'wb'))
+                open(fullname, 'wb').write(binary_result)
             else:
                 raise
     return wrapper
@@ -50,24 +56,13 @@ def visualcheck(test:Callable) -> Callable:
 app = None
 
 def _visualinspect(title, reference, result) -> bool:
-    ''' pop a 3d view to visually inspect the result and a question box to give user answer '''
-    from madcad.qt import QApplication, QMessageBox
-    from madcad.rendering import QView3D, Scene
-    from pnprint import nprint
-    
+    ''' pop a 3d view to visually inspect the result and a question box to give user answer '''    
     global app
     if app is None:
         app = QApplication([])
+    # app = QApplication([])
     
-    # just like in `show`
-    view = QView3D(Scene(result, options=dict(display_wire=True, display_points=True)))
-    view.scene.prepare()
-    interest = view.scene.root.box
-    view.center(interest.center)
-    view.adjust(interest)
-    view.resize(600,600)
-    
-    # usual Qt stuff
+    # ask the question to the user
     question = QMessageBox()
     question.setText("result is different from last time\n is it correct ?")
     question.setStandardButtons(QMessageBox.Save | QMessageBox.Discard)
@@ -77,19 +72,65 @@ def _visualinspect(title, reference, result) -> bool:
     def retreive(button):
         nonlocal answer
         answer = question.buttonRole(button) == QMessageBox.ButtonRole.AcceptRole
-        view.close()
-        app.quit()
+        window.close()
+        # app.quit()
+    
+    # text and geometry views for results and reference side by side
+    if Scene.displayable(Scene, reference):
+        reference_geometry = _geometry_view(reference)
+    else:
+        reference_geometry = QLabel('non displayable')
+    if Scene.displayable(Scene, result):
+        result_geometry = _geometry_view(result)
+    else:
+        result_geometry = QLabel('non displayable')
+    reference_text = _text_view(reference)
+    result_text = _text_view(result)
+    
+    reference_text.verticalScrollBar().valueChanged.connect(result_text.verticalScrollBar().setValue)
+    result_text.verticalScrollBar().valueChanged.connect(reference_text.verticalScrollBar().setValue)
+    
+    layout = QGridLayout()
+    layout.addWidget(QLabel('reference'), 0, 0)
+    layout.addWidget(reference_geometry, 1, 0)
+    layout.addWidget(reference_text, 2, 0)
+    layout.addWidget(QLabel('result'), 0, 1)
+    layout.addWidget(result_geometry, 1, 1)
+    layout.addWidget(result_text, 2, 1)
+    window = QWidget()
+    window.setLayout(layout)
+    
+    # floating question box
+    question.setParent(window)
+    question.move(10,430)
     question.resize(question.sizeHint())
-    
-    nprint('\u2022 test result', result)
-    nprint('\u2022 test reference', reference)
-    
-    view.show()
-    view.setWindowTitle(title)
-    question.setParent(view)
-    question.move(0,0)
     question.show()
+    
+    window.show()
+    # window.resize(800,500)
+    window.setWindowTitle(title)
     app.exec_()
+    # question.exec_()
     
     return answer
     
+def _text_view(obj):
+    view = QPlainTextEdit(nformat(obj).replace('\t', '    '))
+    view.document().setDefaultFont(QFont('monospace', 7))
+    return view
+
+def _geometry_view(obj):
+    view = QView3D(Scene(obj, options=dict(display_wire=True, display_points=True)))
+    view.scene.prepare()
+    interest = view.scene.root.box
+    view.center(interest.center)
+    view.adjust(interest)
+    view.setMinimumSize(500,500)
+    return view
+
+class Hidden:
+    ''' a data container that compare its content but doesn't show it '''
+    def __init__(self, obj):
+        self.obj = obj
+    def __eq__(self, other):
+        return isinstance(other, type(self)) and self.obj == other.obj

@@ -441,6 +441,11 @@ class Axis(object):
 	def slv_tangent(self, pt):
 		return self.direction
 		
+	def __eq__(self, other):
+		return self is other or isinstance(other, Axis) and (
+			self.origin == other.origin and self.direction == other.direction
+			)
+		
 	def __repr__(self):
 		return 'Axis({}, {})'.format(self.origin, self.direction)
 	

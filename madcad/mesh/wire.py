@@ -87,7 +87,19 @@ class Wire(NMesh):
 			return self
 		else:
 			return NotImplemented
-			
+	
+	def __eq__(self, other):
+		''' meshes are equal only when their buffers are byte to byte identical 
+			this notion is stronger than only shape
+		'''
+		return self is other or isinstance(other, Wire) and (
+			self.points == other.points
+			and self.indices == other.indices
+			and self.tracks == other.tracks
+			and self.groups == other.groups
+			and self.options == other.options
+			)
+	
 	# END BEGIN ----- data management -----
 	
 	def strippoints(self):
@@ -388,7 +400,7 @@ class Wire(NMesh):
 		return w.display(scene)
 	
 	def __repr__(self):
-		return '<Wire with {} points at 0x{:x}, {} indices>'.format(len(self.points), id(self.points), len(self.indices))
+		return '<Wire with {} points {} indices>'.format(len(self.points), len(self.indices))
 	
 	def __str__(self):
 		return 'Wire(\n  points={},\n  indices={},\n  tracks={},\n  groups={})'.format(

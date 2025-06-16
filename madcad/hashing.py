@@ -585,25 +585,4 @@ class Asso(object):
 						for k,v in self.items()
 					))
 
-def test_asso():
-	m = Asso([
-			(1,'truc'), 
-			(2,'machin'),
-			(12, 'chose'),
-			(1, 'bidule'),
-			])
-	nprint('created', m)
-	
-	m.update([
-		(1,'machin'),
-		(-1,'gna'),
-		])
-	nprint('updated', m)
-	
-	m.add(1, 2)
-	nprint('inserted', m)
-	
-	assert set(m[1]) == {'truc', 'bidule', 2, 'machin'}
-	assert set(m[12]) == {'chose'}
-
 

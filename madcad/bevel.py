@@ -731,7 +731,6 @@ def mesh_filet(mesh, edges, resolution=None, **cutter):
 	
 	
 # ---- web operations -----
-from .nprint import nprint
 	
 def web_cut(web, start, cutplane, conn, prec, removal):
 	''' Propagation cut for a point 

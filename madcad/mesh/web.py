@@ -60,7 +60,19 @@ class Web(NMesh):
 			return self
 		else:
 			return NotImplemented
-			
+	
+	def __eq__(self, other):
+		''' meshes are equal only when their buffers are byte to byte identical 
+			this notion is stronger than only shape
+		'''
+		return self is other or isinstance(other, Web) and (
+			self.points == other.points
+			and self.edges == other.edges
+			and self.tracks == other.tracks
+			and self.groups == other.groups
+			and self.options == other.options
+			)
+	
 	# END BEGIN ----- data management -----
 	
 	def strippoints(self) -> list:
@@ -418,7 +430,7 @@ class Web(NMesh):
 	# END BEGIN ----- output methods ------
 	
 	def __repr__(self):
-		return '<Web with {} points at 0x{:x}, {} edges>'.format(len(self.points), id(self.points), len(self.edges))
+		return '<Web with {} points {} edges>'.format(len(self.points), len(self.edges))
 	
 	def __str__(self):
 		return 'Web(\n  points={},\n  edges={},\n  tracks={},\n  groups={},\n  options={})'.format(

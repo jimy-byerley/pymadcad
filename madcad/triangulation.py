@@ -4,7 +4,6 @@ from math import inf
 from .mathutils import *
 from .mesh import Mesh, Web, Wire, MeshError, web
 from .hashing import *
-from .nprint import nformat, nprint
 
 from copy import copy
 from operator import itemgetter
@@ -745,8 +744,6 @@ def retriangulate(mesh):
 		update_scores((d,a))
 		update_scures((a,c))
 		update_scores((c,d))
-
-from .nprint import nprint
 
 from .mathutils import atan, mix
 from . import settings

@@ -338,8 +338,6 @@ def cut_web(w1: Web, ref: Web, prec=None) -> '(Web, Wire)':
 	mn.check()
 	return mn, frontier
 
-from .nprint import nprint
-	
 def pierce_web(web, ref, side=False, prec=None) -> Web:
 
 	if not prec:	prec = web.precision()

@@ -124,6 +124,9 @@ class Scheme:
 		r += other
 		return r
 		
+	def __eq__(self, other):
+		return self is other or isinstance(other, Scheme) and vars(self) == vars(other)
+		
 	def set(self, *args, **kwargs):
 		''' Change the specified attributes in the current default vertex definition '''
 		if args:
@@ -170,6 +173,9 @@ class Scheme:
 		if isinstance(obj, Mesh):
 			indices.extend(((a+l, b+l, c+l)  for a,b,c in obj.faces))
 			for i,n in enumerate(obj.vertexnormals()):
+				# prefer +inf to nan or -inf because the normal is supposed to be positive and nan is not comparable
+				if not isfinite(n):
+					n = vec3(inf)
 				self.vertices[i+l][2] = n
 		elif isinstance(obj, Web):
 			indices.extend(((a+l, b+l)  for a,b in obj.edges))

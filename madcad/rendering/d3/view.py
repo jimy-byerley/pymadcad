@@ -157,13 +157,14 @@ class Offscreen3D:
 	view = forwardproperty('gl', 'view')
 	proj = forwardproperty('gl', 'proj')
 	uniforms = forwardproperty('gl', 'uniforms')
+	enable_ident = forwardproperty('gl', 'enable_ident')
 	
 	def __init__(self, scene, size:uvec2=None, view:fmat4=None, proj:fmat4=None, 
 			enable_depth=False, 
 			enable_ident=False, 
 			enable_alpha=False,
 			**uniforms):
-		self.gl = GLView3D(size, view, proj, enable_ident, **uniforms)
+		self.gl = GLView3D(scene, size, view, proj, enable_ident, **uniforms)
 		self.color = self.depth = self.ident = None
 		self.enable_depth = enable_depth
 		self.enable_alpha = enable_alpha
@@ -177,14 +178,15 @@ class Offscreen3D:
 			- the `view` and `proj` instance attributes can be changed on the fly without extra cost.
 			- a `size` change will trigger reallocation of the buffers
 		'''
-		size = glsize(size)
-		self.gl.render(size, view, proj)
-		self._reallocate(size)
+		if size:
+			size = glsize(size)
+			self.gl.render(size, view, proj)
+			self._reallocate(size)
 		# retreive everything from the GPU to the CPU
 		if self.enable_alpha:
-			self.gl.screen.read_into(self.color, attachments=4)
+			self.gl.screen.read_into(self.color, components=4)
 		else:
-			self.gl.screen.read_into(self.color, attachments=3)
+			self.gl.screen.read_into(self.color, components=3)
 		# switch vertical axis to convert from opengl image convention to usual (and Qt) image convention
 		self.color[:] = self.color[::-1]
 		if self.enable_ident:
@@ -196,7 +198,7 @@ class Offscreen3D:
 		return self
 		
 	def _reallocate(self, size):
-		if self.colr is not None and size == self.color.shape[::-1]:
+		if self.color is not None and size == self.color.shape[::-1]:
 			return
 		w,h = size
 		self.color = np.empty((h,w,3), dtype='u1')

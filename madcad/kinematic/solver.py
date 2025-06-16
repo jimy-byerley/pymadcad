@@ -13,7 +13,6 @@ import numpy.linalg as la
 import scipy
 
 from ..mathutils import *
-from .. import nprint
 
 mat4x3 = dmat4x3
 

@@ -2,7 +2,6 @@ from .mathutils import *
 from .mesh import Mesh
 from .hashing import connef, edgekey
 from .constraints import SolveError
-from .nprint import nprint
 
 import numpy as np
 from scipy.optimize import minimize, least_squares

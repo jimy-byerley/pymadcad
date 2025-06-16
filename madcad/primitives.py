@@ -55,12 +55,18 @@ def isprimitive(obj):
 	''' Return True if obj match the signature for primitives '''
 	return hasattr(obj, 'mesh') and hasattr(obj, 'slvvars')
 
+def _trivial_eq(self, other):
+	return self is other or isinstance(other, type(self)) and all(getattr(self, name) == getattr(other, name) for name in self.__slots__)
+
+
 
 class Segment(object):
 	''' Segment from a to b '''
 	__slots__ = ('a', 'b')
 	def __init__(self, a, b):
 		self.a, self.b = a,b
+		
+	__eq__ = _trivial_eq
 		
 	def __call__(self, t):
 		return mix(self.a, self.b, t)
@@ -93,6 +99,8 @@ class ArcThrough(object):
 	def __init__(self, a,b,c, resolution=None):
 		self.a, self.b, self.c = a,b,c
 		self.resolution = resolution
+	
+	__eq__ = _trivial_eq
 	
 	@property
 	def center(self):
@@ -141,6 +149,8 @@ class ArcCentered(object):
 		self.a, self.b = a, b
 		self.resolution = resolution
 	
+	__eq__ = _trivial_eq
+	
 	@property
 	def center(self):
 		return self.axis[0]
@@ -177,6 +187,8 @@ class ArcTangent(object):
 	def __init__(self, a, b, c, resolution=None):
 		self.a, self.b, self.c = a,b,c
 		self.resolution = resolution
+	
+	__eq__ = _trivial_eq
 	
 	@property
 	def center(self):
@@ -238,6 +250,8 @@ class TangentEllipsis(object):
 		self.a, self.b, self.c = a,b,c
 		self.resolution = resolution
 		
+	__eq__ = _trivial_eq
+	
 	def __call__(self, t):
 		x = 0.5*pi*t
 		return (  (self.b - self.a)*sin(x) 
@@ -288,6 +302,8 @@ class Circle(object):
 		self.alignment = alignment
 		self.resolution = resolution
 	
+	__eq__ = _trivial_eq
+	
 	@property
 	def center(self):
 		return self.axis[0]
@@ -326,6 +342,8 @@ class Ellipsis(object):
 		self.major = major
 		self.resolution = resolution
 		
+	__eq__ = _trivial_eq
+	
 	@property
 	def axis(self):
 		''' the ellipsis axis, deduces from its major and minor semi axis '''
@@ -369,6 +387,8 @@ class Interpolated(object):
 		self.weights = weights or [1] * len(self.points)
 		self.resolution = resolution
 		
+	__eq__ = _trivial_eq
+	
 	def mesh(self, resolution=None):
 		pts = self.points
 		if not pts:		return Wire()
@@ -422,6 +442,8 @@ class Softened(object):
 		self.weights = weights or [1] * len(self.points)
 		self.resolution = resolution
 		
+	__eq__ = _trivial_eq
+	
 	def mesh(self, resolution=None):
 		pts = self.points
 		if not pts:		return Wire()

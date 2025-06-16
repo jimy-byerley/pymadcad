@@ -317,33 +317,3 @@ else:
 
 
 
-
-def test_character_primitives():
-	from .rendering import show
-	
-	face = freetype.Face('cad/pymadcad/madcad/NotoMono-Regular.ttf')
-	face.set_char_size(1024)
-	face.load_char('&')
-	show([ triangulation(character_primitives(face)) ])
-
-def test_character_cached():
-	from .rendering import show
-	show([ 
-		character_outline('&', 'NotoMono-Regular').web,
-		character_surface('g', 'NotoMono-Regular').mesh.transform(vec3(1,0,0)),
-		])
-
-def test_text():
-	from .rendering import show
-	from .generation import extrusion
-	from .scheme import note_distance
-	settings.display['view_font_size'] = 10
-	part = text('Hello everyone.\nthis is a great font !!', font='NotoSans-Regular', align=('center', 0))
-	part = extrusion(part.flip(), vec3(0,0,-1))
-	show([
-			vec3(0),
-			note_distance(vec3(0), vec3(0,1,0), offset=vec3(-0.5,0,0), text='size'),
-			part,
-			], 
-		display_wire=True,
-		)

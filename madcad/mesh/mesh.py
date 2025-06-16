@@ -61,6 +61,18 @@ class Mesh(NMesh):
 			return self
 		else:
 			return NotImplemented
+			
+	def __eq__(self, other):
+		''' meshes are equal only when their buffers are byte to byte identical 
+			this notion is stronger than only shape
+		'''
+		return self is other or isinstance(other, Mesh) and (
+			self.points == other.points
+			and self.faces == other.faces
+			and self.tracks == other.tracks
+			and self.groups == other.groups
+			and self.options == other.options
+			)
 		
 	# END BEGIN --- data management ---
 	
@@ -705,7 +717,7 @@ class Mesh(NMesh):
 				)
 	
 	def __repr__(self):
-		return '<Mesh with {} points at 0x{:x}, {} faces>'.format(len(self.points), id(self.points), len(self.faces))
+		return '<Mesh with {} points {} faces>'.format(len(self.points), len(self.faces))
 	
 	def __str__(self):
 		return 'Mesh(\n  points={},\n  faces={},\n  tracks={},\n  groups={},\n  options={})'.format(

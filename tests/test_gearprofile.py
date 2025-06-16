@@ -4,8 +4,6 @@ from . import visualcheck
 
 @visualcheck
 def test_gearprofile():
-	settings.resolution = ('rad', 0.05)
-
 	axis = (vec3(0),vec3(0,0,1))
 
 	teeth = 8
@@ -14,7 +12,7 @@ def test_gearprofile():
 	height = 0.5 * 2.25 * step/pi * cos(pressure_angle)/cos(radians(20))
 	offset = 0.5*height
 	primitive = step*teeth / (2*pi)
-	prof = gear.gearprofile(step, teeth, height, offset, pressure_angle=pressure_angle)
+	prof = gear.gearprofile(step, teeth, height, offset, pressure_angle=pressure_angle, resolution = ('rad', 0.05))
 
 	return [
 		vec3(0),

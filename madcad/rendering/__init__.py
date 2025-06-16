@@ -101,15 +101,17 @@ def render(scene:Scene|dict|list, size=uvec2(400, 400), view:fmat4=None, proj:fm
 		proj:    the openGL projection matrix, could be generated with `perspective` or `orthographic`		
 		alpha:   whether to add an alpha channel for the background in the resulting image
 	'''
+	from ..mathutils import length, translate, Z, fvec3
+	
 	scene = Scene(scene, options)
+	scene.prepare()
 	if not interest:
 		interest = scene.root.box
-	size = length(interest.width)
+	distance = length(interest.width)
 	if not proj:
-		proj = globals()[settings.scene['projection']]().matrix(size)
+		proj = globals()[settings.scene['projection']]().matrix(size.y/size.x, distance)
 	if not view:
-		view = translate(interest.center + size*Z)
+		view = translate(interest.center + distance*fvec3(Z))
 		# TODO take the projection transformation into account to get an appropriate distance
 	view = Offscreen3D(scene, size, view, proj, enable_alpha=alpha)
-	scene.prepare()
-	return view.render()
+	return view.render().color

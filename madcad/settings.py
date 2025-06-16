@@ -187,12 +187,12 @@ def use_qt_colors():
 	
 	selection = mix(fvec3(0.4, 1, 0), qtc(role.Highlight), 0.6)
 	selection *= mix(1/max(selection), max(qtc(role.Text)), 0.3)
-	hover = mix(fvec3(0., 0.4, 1), qtc(role.Highlight), 0.6)
+	hover = mix(fvec3(0., 0.4, 1), qtc(role.Highlight), 0.3)
 	hover *= mix(1/max(selection), max(qtc(role.Text)), 0.3)
 	display.update({
-		'background_color': qtc(role.Base),
-		'selection_color': fvec4(selection * 1.1, 1),
-		'hover_color': fvec4(hover * 1.1, 0.7),
+		'background_color': qtc(role.Window),
+		'selection_color': fvec4(selection, 1),
+		'hover_color': fvec4(hover, 0.7),
 		})
 	colors.update({
 		'line': qtc(role.Text),

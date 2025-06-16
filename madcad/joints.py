@@ -23,6 +23,9 @@ def drotate(angle, axis):
 def dtranslate(direction):
 	return translate(direction) - mat4()
 
+def _trivial_eq(self, other):
+	return self is other or isinstance(other, type(self)) and vars(self) == vars(other)
+
 
 class Revolute(Joint):
 	''' Joint for revolution around an axis
@@ -51,7 +54,7 @@ class Revolute(Joint):
 	def __repr__(self):
 		return '{}({}, Axis(({:.3g},{:.3g},{:.3g}), ({:.3g},{:.3g},{:.3g})))'.format(
 			self.__class__.__name__, self.solids, *self.post[3].xyz, *self.post[2].xyz)
-	
+			
 	def direct(self, angle) -> mat4:
 		return self.post * rotate(angle, Z) * self.pre
 		
@@ -170,7 +173,7 @@ class Planar(Joint):
 	def __repr__(self):
 		return '{}({}, Axis(({:.3g},{:.3g},{:.3g}), ({:.3g},{:.3g},{:.3g})))'.format(
 			self.__class__.__name__, self.solids, *self.post[3].xyz, *self.post[2].xyz)
-	
+			
 	def direct(self, position: tuple):
 		return mat4(self.post) * translate(vec3(position.xy, 0)) * rotate(position.z, Z) * mat4(self.pre)
 		
@@ -272,7 +275,7 @@ class Prismatic(Joint):
 	def __repr__(self):
 		return '{}({}, vec3({:.3g},{:.3g},{:.3g}))'.format(
 			self.__class__.__name__, self.solids, *self.post[3].xyz)
-	
+			
 	def direct(self, translation):
 		return self.post * translate(translation*Z) * self.pre
 		
@@ -370,7 +373,7 @@ class Cylindrical(Joint):
 	def __repr__(self):
 		return '{}({}, Axis(({:.3g},{:.3g},{:.3g}), ({:.3g},{:.3g},{:.3g})))'.format(
 			self.__class__.__name__, self.solids, *self.post[3].xyz, *self.post[2].xyz)
-	
+			
 	def direct(self, parameters) -> mat4:
 		return self.post * rotate(parameters[0], Z) * translate(parameters[1]*Z) * self.pre
 		
@@ -470,6 +473,9 @@ class Ball(Joint):
 			self.position = center, local
 		else:
 			raise TypeError("ball can only be placed on a vec3 or mat4")
+	
+	def __repr__(self):
+		return '{}({}, ({:.3g},{:.3g},{:.3g}))'.format(self.__class__.__name__, self.solids, *self.post[3].xyz)
 	
 	bounds = (quat(-2,-2,-2,-2), quat(2,2,2,2))
 	default = quat()

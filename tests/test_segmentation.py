@@ -1,3 +1,4 @@
+import os
 from madcad import *
 from madcad.reverse import segmentation
 from . import visualcheck

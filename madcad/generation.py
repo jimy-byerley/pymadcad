@@ -10,7 +10,6 @@ from .hashing import edgekey, facekeyo, suites
 from . import triangulation
 from . import settings
 from . import primitives
-from .nprint import nprint
 
 import itertools
 from copy import copy
