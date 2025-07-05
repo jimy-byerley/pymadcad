@@ -13,40 +13,39 @@ m2 = (deepcopy(m1)
 		)
 
 @visualcheck
-def test_pierce_mesh():
+def test_pierce_mesh(subtests):
 	results = []
 	for side in (False, True):
-		nprint('* pierce(side={})'.format(side))
-		
-		r = pierce(m1, m2, side)
-		r.check()
-		assert r.issurface()
-		results.append(Solid(body=r))
-		
-		r = pierce(m2, m1, side)
-		r.check()
-		assert r.issurface()
-		results.append(Solid(body=r))
-	for i, result in enumerate(results):
-		results[i] = result.transform(translate(4*i*Z))
-	return results
-
-@visualcheck
-def test_boolean_mesh():
-	results = []
-	for sidea in (False, True):
-		for sideb in (False, True):
-			nprint('* boolean(sides=({}, {}))'.format(sidea, sideb))
-			r = boolean(m1, m2, (sidea, sideb))
+		with subtests.test(side=side):
+			r = pierce(m1, m2, side)
 			r.check()
-			assert r.isenvelope()
+			assert r.issurface()
+			results.append(Solid(body=r))
+			
+			r = pierce(m2, m1, side)
+			r.check()
+			assert r.issurface()
 			results.append(Solid(body=r))
 	for i, result in enumerate(results):
 		results[i] = result.transform(translate(4*i*Z))
 	return results
 
 @visualcheck
-def test_boolean_web():
+def test_boolean_mesh(subtests):
+	results = []
+	for sidea in (False, True):
+		for sideb in (False, True):
+			with subtests.test(sides=(sidea, sideb)):
+				r = boolean(m1, m2, (sidea, sideb))
+				r.check()
+				assert r.isenvelope()
+				results.append(Solid(body=r))
+	for i, result in enumerate(results):
+		results[i] = result.transform(translate(4*i*Z))
+	return results
+
+@visualcheck
+def test_boolean_web(subtests):
 	wa = web(Circle((O,Z), 1))
 
 	others = {
@@ -62,22 +61,21 @@ def test_boolean_web():
 
 	results = []
 	for i, wb in others.items():
-		nprint('* wb={} '.format(i))
-		
-		r = pierce_web(wa, wb)
-		r.check()
-		assert r.isline()
-		results.append(Solid(content=r, wb=wb))
-		
-		r = boolean_web(wa, wb, (True, False))
-		r.check()
-		assert r.isline()
-		results.append(Solid(content=r))
-		
-		r = boolean_web(wa, wb, (False, True))
-		r.check()
-		assert r.isline()
-		results.append(Solid(content=r))
+		with subtests.test(wb=i):
+			r = pierce_web(wa, wb)
+			r.check()
+			assert r.isline()
+			results.append(Solid(content=r, wb=wb))
+			
+			r = boolean_web(wa, wb, (True, False))
+			r.check()
+			assert r.isline()
+			results.append(Solid(content=r))
+			
+			r = boolean_web(wa, wb, (False, True))
+			r.check()
+			assert r.isline()
+			results.append(Solid(content=r))
 
 	for i, result in enumerate(results):
 		results[i] = result.transform(translate(i*Z))
