@@ -81,17 +81,17 @@ np.set_printoptions(linewidth=1000, precision=3)
 
 # show([standard.serial6(1, 1), standard.serial7(1, 1)])
 
-# show([standard.delta3(1, 0.5, 1, 2)])
+show([standard.delta3(1, 0.5, 1, 2)])
 
-from madcad.gear import gearprofile
-from madcad.generation import repeataround
-step = 1/3*(2*pi)/10
-show([Chain([
-    Gear((0,1), ratio=-0.5, centerline=1, axis=Axis(O,Z), local=Axis(O,Z)),
-    ], content=[
-    repeataround(gearprofile(step, 1/3*(2*pi)/step)),
-    repeataround(gearprofile(step, 2/3*(2*pi)/step)) .transform(rotate(0.5*step/(2/3), Z)),
-    ])])
+# from madcad.gear import gearprofile
+# from madcad.generation import repeataround
+# step = 1/3*(2*pi)/10
+# show([Chain([
+#     Gear((0,1), ratio=-0.5, centerline=1, axis=Axis(O,Z), local=Axis(O,Z)),
+#     ], content=[
+#     repeataround(gearprofile(step, 1/3*(2*pi)/step)),
+#     repeataround(gearprofile(step, 2/3*(2*pi)/step)) .transform(rotate(0.5*step/(2/3), Z)),
+#     ])])
 
 # from madcad.gear import gearprofile, rackprofile
 # from madcad.generation import repeataround, repeat

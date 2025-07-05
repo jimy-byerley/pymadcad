@@ -14,11 +14,14 @@ __all__ = ['Revolute', 'Planar', 'Prismatic', 'Cylindrical', 'Ball', 'PointSlide
 cornersize = 0.1	
 
 def drotate(angle, axis):
-	# derivative of sin and cos an argument translation of pi/2
-	m = rotate(angle+0.5*pi, axis)
-	# remove homogeneous one and axis proper space
-	m -= mat4(outerProduct(axis, axis) / length2(axis))
-	return m
+	# using the preproduct with the rotation velocity (axis vector)
+	x,y,z = axis
+	return mat4(
+		 0,  z, -y, 0,
+		-z,  0,  x, 0,
+		 y, -x,  0, 0,
+		 0,  0,  0, 0,
+		) * rotate(angle,axis)
 	
 def dtranslate(direction):
 	return translate(direction) - mat4()
@@ -59,13 +62,15 @@ class Revolute(Joint):
 		return self.post * rotate(angle, Z) * self.pre
 		
 	def inverse(self, matrix, close=None):
-		m = affineInverse(self.post) * mat3(matrix) * affineInverse(self.pre)
-		angle = atan2(m[1][0] - m[0][1], m[0][0] + m[1][1])
+		if close is None:
+			close = 0
+		m = affineInverse(self.post) * matrix * affineInverse(self.pre)
+		angle = - atan2(m[1][0] - m[0][1], m[0][0] + m[1][1])
 		angle += (2*pi) * ((angle + pi - close) // (2*pi))
 		return angle
 		
 	def grad(self, angle, delta=1e-6):
-		return self.post * drotate(angle, Z) * self.pre
+		return self.post * drotate(angle, Z) * self.pre,
 		
 	def transmit(self, force, parameters=None, velocity=None) -> Screw:
 		l = force.locate(self.axis[0])
@@ -515,6 +520,35 @@ class Ball(Joint):
 				-2*a, -2*d,  2*c, 0,
 				 2*b,  2*c,  2*d, 0,
 				 0,    0,    0,   0,
+				) * self.pre,
+			)
+			
+	def grad(self, orient):
+		w,x,y,z = orient
+		return (
+			self.post * mat4(
+				0,    2*z, -2*y, 0,
+				-2*z,  0,    2*x, 0,
+				2*y, -2*x,  0,   0,
+				0,    0,    0,   0,
+				) * self.pre,
+			self.post * mat4( 
+				0,   2*y,  2*z, 0,
+				2*y, -4*x,  2*w, 0,
+				2*z, -2*w, -4*x, 0,
+				0,   0,    0,   0,
+				) * self.pre,
+			self.post * mat4(
+				-4*y,  2*x, -2*w, 0,
+				2*x,  0,    2*z, 0,
+				2*w,  2*z, -4*y, 0,
+				0,    0,    0,   0,
+				) * self.pre,
+			self.post * mat4(
+				-4*z,  2*w,  2*x, 0,
+				-2*w, -4*z,  2*y, 0,
+				2*x,  2*y,  0,   0,
+				0,    0,    0,   0,
 				) * self.pre,
 			)
 	

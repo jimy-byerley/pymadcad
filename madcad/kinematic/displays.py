@@ -18,7 +18,7 @@ from ..mesh import web
 from .solver import Chain, Kinematic, KinematicError, regularize_grad, structure_state, flatten_state
 from .assembly import Solid
 try:
-	from ..qt import Qt, QEvent	
+	from ..qt import Qt, QEvent, QTimer
 except ImportError:
 	# it not found, assume the event-handlers will not be called
 	pass
@@ -146,6 +146,7 @@ class ChainManip(Group):
 	'''
 	min_colinearity = 1e-2
 	max_increment = 0.3
+	maxiter = 3
 	prec = 1e-6
 	
 	def __init__(self, scene, chain, pose=None, toolcenter=None):
@@ -154,6 +155,7 @@ class ChainManip(Group):
 		self.toolcenter = toolcenter or chain.joints[-1].position[1]
 		self.pose = pose or chain.default
 		self.parts = self.chain.parts(self.pose)
+		self.defered = DeferedSolving()
 		
 		if chain.content:
 			for key, solid in enumerate(chain.content):
@@ -168,10 +170,10 @@ class ChainManip(Group):
 	
 	def stack(self, scene):
 		''' rendering stack requested by the madcad rendering system '''
-		yield (self, 'screen', -1, self.place_solids)
+		yield (self, 'screen', -1, self._place_solids)
 		yield from super().stack(scene)
 
-	def place_solids(self, view):
+	def _place_solids(self, view):
 		index = {}
 		for i, joint in enumerate(self.chain.joints):
 			solid = joint.solids[-1]
@@ -198,15 +200,15 @@ class ChainManip(Group):
 			# put the tool into the view, to handle events
 			# TODO: allow changing mode during move
 			if sub == ('scheme', index_toolcenter):
-				generator = self.move_tool(view, sub, evt)
+				generator = self._move_tool(view, sub, evt)
 			else:
-				generator = getattr(self, 'move_'+view.scene.options['kinematic_manipulation'])(view, sub, evt)
+				generator = getattr(self, '_move_'+view.scene.options['kinematic_manipulation'])(view, sub, evt)
 			view.callbacks.append(receiver(generator))
 				
-	def move_tool(self, view, sub, evt):
+	def _move_tool(self, view, sub, evt):
 		place = mat4(self.world) * self.parts[-1]
 		init = place * vec3(self.toolcenter)
-		offset = init - view.ptfrom(evt.pos(), init)
+		offset = init - vec3(view.ptfrom(evt.pos(), init))
 		
 		while True:
 			evt = yield
@@ -217,9 +219,9 @@ class ChainManip(Group):
 				if not (evt.buttons() & Qt.MouseButton.LeftButton):
 					break
 			
-			self.toolcenter = affineInverse(place) * (view.ptfrom(evt.pos(), init) + offset)
+			self.toolcenter = affineInverse(place) * (vec3(view.ptfrom(evt.pos(), init)) + offset)
 	
-	def move_joint(self, view, sub, evt):
+	def _move_joint(self, view, sub, evt):
 		
 		# find the clicked solid, and joint controled
 		if sub[0] == 'scheme':	solid = sub[1]
@@ -263,7 +265,7 @@ class ChainManip(Group):
 									) .clip(*self.chain.joints[joint].bounds))
 				self.parts = self.chain.parts(self.pose)
 
-	def move(self, move, jac):
+	def _move(self, move, jac):
 		''' newton method step for moving the mechanism
 		'''
 		colinearity = min(1, sum(
@@ -279,7 +281,7 @@ class ChainManip(Group):
 						self.pose))
 		self.parts = self.chain.parts(self.pose)
 
-	def move_translate(self, view, sub, evt):
+	def _move_translate(self, view, sub, evt):
 		# translate the tool
 		clicked = vec3(view.ptat(view.somenear(evt.pos())))
 		solid = self.parts[-1]
@@ -296,25 +298,28 @@ class ChainManip(Group):
 					break
 
 				solid = self.parts[-1]
-				jac = self.chain.grad(self.pose)
 				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world)
 				current_anchor = model * solid * anchor
 				target_anchor = qtpos(evt.pos(), view)
 				
-				self.move(
-					move = np.concatenate([
-						target_anchor - current_anchor.xy / current_anchor.w,
-						np.ravel(mat3(init_solid - solid)),
-						]),
-					jac = np.stack([
-						np.concatenate([
-							(model * grad * anchor).xy / current_anchor.w, 
-							np.ravel(mat3(grad)), 
-							])
-						for grad in jac]),
-					)
+				def prepare(problem):
+					problem.jac = self.chain.grad(self.pose)
+				def solve(problem):
+					self._move(
+						move = np.concatenate([
+							target_anchor - current_anchor.xy / current_anchor.w,
+							np.ravel(mat3(init_solid - solid)),
+							]),
+						jac = np.stack([
+							np.concatenate([
+								(model * grad * anchor).xy / current_anchor.w, 
+								np.ravel(mat3(grad)), 
+								])
+							for grad in problem.jac]),
+						)
+				self.defered.set(prepare, solve, self.maxiter)
 
-	def move_rotate(self, view, sub, evt):
+	def _move_rotate(self, view, sub, evt):
 		# translate the tool
 		clicked = vec3(view.ptat(view.somenear(evt.pos())))
 		solid = self.parts[-1]
@@ -332,25 +337,28 @@ class ChainManip(Group):
 					break
 
 				solid = self.parts[-1]
-				jac = self.chain.grad(self.pose)
 				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world)
 				current_tool = model * solid * tool
 				target_anchor = qtpos(evt.pos(), view)
 				target_tool = model * init_tool
 				
-				self.move(
-					move = np.concatenate([
-						(init_tool - solid * tool).xyz,
-						(target_anchor - target_tool.xy/target_tool.w) 
-							- (model * solid * normalize(anchor - tool)).xy / current_tool.w,
-						]),
-					jac = np.stack([
-						np.concatenate([
-							(grad * tool).xyz, 
-							(model * grad * normalize(anchor - tool)).xy / current_tool.w, 
-							])
-						for grad in jac]),
-					)
+				def prepare(problem):
+					problem.jac = self.chain.grad(self.pose)
+				def solve(problem):
+					self._move(
+						move = np.concatenate([
+							(init_tool - solid * tool).xyz,
+							(target_anchor - target_tool.xy/target_tool.w) 
+								- (model * solid * normalize(anchor - tool)).xy / current_tool.w,
+							]),
+						jac = np.stack([
+							np.concatenate([
+								(grad * tool).xyz, 
+								(model * grad * normalize(anchor - tool)).xy / current_tool.w, 
+								])
+							for grad in problem.jac]),
+						)
+				self.defered.set(prepare, solve, self.maxiter)
 		
 
 		
@@ -367,16 +375,19 @@ class KinematicManip(Group):
 	max_increment = 0.3
 	prec = 1e-6
 	
-	move_maxiter = 8
+	move_maxiter = 5
 	stay_maxiter = 10000
 	move_precision = 1e-4
 	stay_precision = 1e-6
 	tolerated_precision = 1e-1
+	damping = 0.9
 	
 	def __init__(self, scene, kinematic, pose=None, toolcenter=None):
 		super().__init__(scene)
 		self.kinematic = kinematic
+		self.defered = DeferedSolving()
 		self.toolcenter = toolcenter or vec3(0)
+		self.pose = pose or self.kinematic.default
 		try:
 			self.pose = self.kinematic.solve(
 				close=pose or self.kinematic.default, 
@@ -402,7 +413,7 @@ class KinematicManip(Group):
 	def stack(self, scene):
 		''' rendering stack requested by the madcad rendering system '''
 		self.prepare(scene)
-		yield (self, 'screen', -1, self.place_solids)
+		yield (self, 'screen', -1, self._place_solids)
 		for key, display in self.displays.items():
 			display.world = self.world
 			display.key = (*self.key, key)
@@ -410,7 +421,7 @@ class KinematicManip(Group):
 				continue
 			yield from display.stack(scene)
 
-	def place_solids(self, view):
+	def _place_solids(self, view):
 		for key in self.displays:
 			if key in self.parts:
 				self.displays[key].world = self.world * fmat4(self.parts[key])
@@ -442,12 +453,12 @@ class KinematicManip(Group):
 			# put the tool into the view, to handle events
 			# TODO: allow changing mode during move
 			if sub == ('scheme', index_toolcenter):
-				generator = self.move_tool(view, sub, evt)
+				generator = self._move_tool(view, sub, evt)
 			else:
-				generator = getattr(self, 'move_'+view.scene.options['kinematic_manipulation'])(view, sub, evt)
+				generator = getattr(self, '_move_'+view.scene.options['kinematic_manipulation'])(view, sub, evt)
 			view.callbacks.append(receiver(generator))
 	
-	def move_tool(self, view, sub, evt):
+	def _move_tool(self, view, sub, evt):
 		place = mat4(self.world)
 		init = place * vec3(self.toolcenter)
 		offset = init - vec3(view.ptfrom(evt.pos(), init))
@@ -463,7 +474,7 @@ class KinematicManip(Group):
 			
 			self.toolcenter = affineInverse(place) * (vec3(view.ptfrom(evt.pos(), init)) + offset)
 					
-	def move_opt(self, optmove, optjac):
+	def _move_opt(self, optmove, optjac):
 		'''
 			newton method step for moving the mechanism
 			
@@ -492,17 +503,18 @@ class KinematicManip(Group):
 		# assemble the new pose and normalize it
 		newpose = self.kinematic.normalize(structure_state(
 			flatten_state(self.pose)
-			+ increment * min(1, self.max_increment / np.abs(increment).max()),
+			+ self.damping * increment * min(1, self.max_increment / np.abs(increment).max()),
 			self.pose))
 		
 		# try to move
 		try:
-			self.parts = self.kinematic.parts(self.pose, precision=self.tolerated_precision)
-			self.pose = newpose
-		except KinematicError:
-			pass
+			self.parts = self.kinematic.parts(newpose, precision=self.tolerated_precision)
+		except KinematicError as err:
+			print(err)
+			return
+		self.pose = newpose
 	
-	def move_joint(self, view, sub, evt):
+	def _move_joint(self, view, sub, evt):
 		# identify the solid clicked
 		if sub[0] == 'scheme':  moved = self.index[sub[1]]
 		else:                   moved = sub[0]
@@ -527,26 +539,31 @@ class KinematicManip(Group):
 				view.update()
 				if not (evt.buttons() & Qt.MouseButton.LeftButton):
 					break
-
+				
 				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world)
 				target_anchor = qtpos(evt.pos(), view)
-				freejac = kinematic.grad((
-					*self.pose, 
-					kinematic.joints[-1].inverse(self.parts[moved]),
-					))
-				
-				for i in range(self.move_maxiter):
+				def prepare(problem):
+					problem.freejac = kinematic.grad((
+						*self.pose, 
+						kinematic.joints[-1].inverse(self.parts[moved]),
+						))
+					
+				def solve(problem, target_anchor=target_anchor, model=model):
 					solid = self.parts[moved]
 					current_anchor = model * solid * anchor
 					
-					self.move_opt(
+					self._move_opt(
 						optmove = np.asarray(target_anchor - current_anchor.xy / current_anchor.w),
 						optjac = np.stack([
 								np.asarray((model * grad * anchor).xy / current_anchor.w)
-								for grad in freejac]),
+								for grad in problem.freejac]),
 						)
+					view.update()
+				
+				# process solving and move independently of events ticks to gain perf
+				self.defered.set(prepare, solve, self.move_maxiter)
 	
-	def move_translate(self, view, sub, evt):
+	def _move_translate(self, view, sub, evt):
 		# identify the solid clicked
 		if sub[0] == 'scheme':  moved = self.index[sub[1]]
 		else:                   moved = sub[0]
@@ -575,16 +592,17 @@ class KinematicManip(Group):
 
 				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world)
 				target_anchor = qtpos(evt.pos(), view)
-				jac = kinematic.grad((
-					*self.pose, 
-					kinematic.joints[-1].inverse(self.parts[moved]),
-					))
+				def prepare(problem):
+					problem.jac = kinematic.grad((
+						*self.pose, 
+						kinematic.joints[-1].inverse(self.parts[moved]),
+						))
 					
-				for i in range(self.move_maxiter):
+				def solve(problem, model=model, target_anchor=target_anchor):
 					solid = self.parts[moved]
 					current_anchor = model * solid * anchor
 				
-					self.move_opt(
+					self._move_opt(
 						optmove = np.concatenate([
 							target_anchor - current_anchor.xy / current_anchor.w,
 							np.ravel(mat3(init_solid - solid)),
@@ -594,10 +612,14 @@ class KinematicManip(Group):
 								(model * grad * anchor).xy / current_anchor.w, 
 								np.ravel(mat3(grad)), 
 								])
-							for grad in jac]),
+							for grad in problem.jac]),
 						)
+					view.update()
 				
-	def move_rotate(self, view, sub, evt):
+				# process solving and move independently of events ticks to gain perf
+				self.defered.set(prepare, solve, self.move_maxiter)
+				
+	def _move_rotate(self, view, sub, evt):
 		# identify the solid clicked
 		if sub[0] == 'scheme':  moved = self.index[sub[1]]
 		else:                   moved = sub[0]
@@ -628,16 +650,17 @@ class KinematicManip(Group):
 				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world)
 				target_anchor = qtpos(evt.pos(), view)
 				target_tool = model * init_tool
-				jac = kinematic.grad((
-					*self.pose, 
-					kinematic.joints[-1].inverse(self.parts[moved]),
-					))
+				def prepare(problem):
+					problem.jac = kinematic.grad((
+						*self.pose, 
+						kinematic.joints[-1].inverse(self.parts[moved]),
+						))
 				
-				for i in range(self.move_maxiter):
+				def solve(problem, model=model, target_anchor=target_anchor, target_tool=target_tool):
 					solid = self.parts[moved]
 					current_tool = model * solid * tool
 				
-					self.move_opt(
+					self._move_opt(
 						optmove = np.concatenate([
 							(init_tool - solid * tool).xyz,
 							(target_anchor - target_tool.xy/target_tool.w) 
@@ -648,10 +671,54 @@ class KinematicManip(Group):
 								(grad * tool).xyz, 
 								(model * grad * normalize(anchor - tool)).xy / current_tool.w, 
 								])
-							for grad in jac]),
+							for grad in problem.jac]),
 						)
+					view.update()
+
+				# process solving and move independently of events ticks to gain perf
+				self.defered.set(prepare, solve, self.move_maxiter)
 
 
+class DeferedSolving:
+	''' helper executing solver iterations following ticks of a QTimer '''
+	def __init__(self):
+		self.timer = None
+		self.problem = None
+	def set(self, prepare, solve, iterations):
+		''' schedule solving steps starting now for the given count of iterations '''
+		if not self.timer:
+			self.timer = QTimer()
+			self.timer.timeout.connect(self._step)
+			self.timer.setInterval(10)
+		self.problem = DeferedProblem(prepare, solve, iterations)
+		if not self.timer.isActive():
+			self.timer.start()
+	def stop(self):
+		''' stop iterations '''
+		self.timer.stop()
+	def _step(self):
+		''' iteration body '''
+		problem = self.problem
+		try:
+			if problem.prepare:
+				problem.prepare(problem)
+			problem.solve(problem)
+		except Exception as err:
+			print(err)
+			self.problem = None
+			self.timer.stop()
+		else:
+			problem.iterations -= 1
+			if problem.iterations <= 0:
+				self.problem = None
+				self.timer.stop()
+				
+@dataclass
+class DeferedProblem:
+	prepare: callable
+	solve: callable
+	iterations: int
+						
 
 
 @dataclass

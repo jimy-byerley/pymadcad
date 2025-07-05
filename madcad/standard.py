@@ -1611,12 +1611,9 @@ def delta3(base:float, tool:float, backarm:float, forearm:float, forearm_width:f
 		joints.append(Ball(('tool', f'forearm.{i}.0'), p*tool + forearm_width*cross(Z,p), forearm*Z))
 		joints.append(Ball(('tool', f'forearm.{i}.1'), p*tool - forearm_width*cross(Z,p), forearm*Z))
 		
-		# joints.append(Ball((f'backarm.{i}', f'forearm.{i}.0'), backarm*Z + forearm_width*X, O))
-		# joints.append(Ball((f'backarm.{i}', f'forearm.{i}.1'), backarm*Z - forearm_width*X, O))
-		# joints.append(Ball(('tool', f'forearm.{i}.0'), p*tool + forearm_width*cross(Z,p), forearm*Z))
-		# joints.append(Ball(('tool', f'forearm.{i}.1'), p*tool - forearm_width*cross(Z,p), forearm*Z))
-	return Kinematic(joints, inputs=motors, outputs=['tool'], ground='base')
-	# return Kinematic(motors+joints, ground='base')
+	kin = Kinematic(joints, inputs=motors, outputs=['tool'], ground='base')
+	kin.default = kin.solve({kin.outputs[0]: kin.outputs[0].inverse(translate(-forearm*Z))}, maxiter=1000)
+	return kin
 
 # def delta4(backarm, forearm) -> Kinematic:
 # 	indev
