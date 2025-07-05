@@ -12,7 +12,7 @@ else:
 setup(
 	# package declaration
 	name='pymadcad',
-	version='0.18.1',
+	version='0.19.0',
 	python_requires='>=3.8',
 	install_requires=[
 		'pyglm>=2.5.5',
@@ -56,16 +56,14 @@ setup(
 	url='https://github.com/jimy-byerley/pymadcad',
 	keywords='CAD 3D parametric mesh kinematic solid solver part design',
 	classifiers=[
-		'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
+		'License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)',
 		'Topic :: Scientific/Engineering',
-		'Development Status :: 3 - Alpha',
 		'Programming Language :: Python :: 3.8',
 		'Programming Language :: Python :: 3.9',
 		'Programming Language :: Python :: 3.10',
 		'Programming Language :: Python :: 3.11',
 		'Programming Language :: Python :: 3.12',
 		'Programming Language :: Python :: Implementation :: CPython',
-		'License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)',
 		'Intended Audience :: Science/Research',
 		'Intended Audience :: Manufacturing',
 		'Intended Audience :: Education',
