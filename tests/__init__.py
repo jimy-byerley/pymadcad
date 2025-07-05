@@ -16,36 +16,28 @@ def visualcheck(test:Callable) -> Callable:
     ''' decorator for non-regression tests, providing snapshot caching and visual inspection '''
     @wraps(test)
     def wrapper(*args, **kwargs):
-        bound = inspect.signature(test).bind(*args, **kwargs)
-        bound.apply_defaults()
-        if bound.arguments:
-            key = reduce(xor, map(hash, sorted(bound.arguments.items())))
-        else:
-            key = 0
-        
         references = abspath('{}/../__snapshot__'.format(__file__))
         if not exists(references):
             mkdir(references)
             
-        fullname = '{}/{}.{}.{:x}.pickle'.format(
+        fullname = '{}/{}.{}.pickle'.format(
             references,
             test.__globals__['__name__'], 
             test.__qualname__, 
-            key)
-        title = '{}.{}({})'.format(
+            )
+        title = '{}.{}'.format(
             test.__globals__['__name__'],
             test.__qualname__,
-            repr(bound.arguments)[1:-1],
             )
         
-        result = test()
+        result = test(*args, **kwargs)
         reference = None
         try:
             binary_result = pickle.dumps(result)
             binary_reference = open(fullname, 'rb').read()
             reference = pickle.loads(binary_reference)
             if binary_result != binary_reference:
-                raise AssertionError("result of {} with arguments {} doesn't match cache".format(test.__name__, bound))
+                raise AssertionError("result of {} doesn't match cache".format(test.__name__))
         except (OSError, AssertionError) as err:
             if _visualinspect(title, reference, result):
                 open(fullname, 'wb').write(binary_result)

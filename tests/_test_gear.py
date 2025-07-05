@@ -17,54 +17,30 @@ class bcolors:
 	BOLD = '\033[1m'
 	UNDERLINE = '\033[4m'
 
-results = []
-
-def test_gear(name, *args, **kwargs):
-	print("{}: {}, {}".format(name, args, kwargs))
-	try:
-		mesh = gear(*args, **kwargs)
-		if mesh.isenvelope():
-			print(f"{bcolors.OKGREEN}Passed !\n{bcolors.ENDC}")
-		else:
-			print(f"{bcolors.FAIL}>>> Failed ! <<<\n{bcolors.ENDC}")
-	except Exception as e:
-		print(bcolors.WARNING + str(e) + bcolors.ENDC)
-		print(f"{bcolors.FAIL}>>> Failed ! <<<\n{bcolors.ENDC}")
-		raise
-	else:
-		results.append(mesh)
-	# show([mesh])
-
-def testing(function):
-	def wrapper(name, *args, **kwargs):
-		print("{}: {}, {}".format(name, args, kwargs))
-		try:
-			function(name, *args, **kwargs)
-			print(f"{bcolors.OKGREEN}Passed !\n{bcolors.ENDC}")
-		except Exception as e:
-			print(bcolors.WARNING + str(e) + bcolors.ENDC)
-			print(f"{bcolors.FAIL}>>> Failed ! <<<\n{bcolors.ENDC}")
-			raise
-	return wrapper
-
-@testing
-def test_full(name, *args, **kwargs):
-    pattern_full(*args, **kwargs)
-
-@testing
-def test_circle(name, *args, **kwargs):
-    pattern_circle(*args, **kwargs)
-
-@testing
-def test_rect(name, *args, **kwargs):
-    pattern_rect(*args, **kwargs)
-
-@testing
-def test_rounded(name, *args, **kwargs):
-    pattern_rounded(*args, **kwargs)
 
 @visualcheck
 def test_gears():
+	results = []
+
+	def test_gear(name, *args, **kwargs):
+		# with subtests.test(msg=name, args=args, kwargs=kwargs):
+		mesh = gear(*args, **kwargs)
+		assert mesh.isenvelope()
+		results.append(mesh)
+
+	def test_full(name, *args, **kwargs):
+		# with subtests.test(msg=name, args=args, kwargs=kwargs):
+		results.append(pattern_full(*args, **kwargs))
+
+	def test_circle(name, *args, **kwargs):
+		results.append(pattern_circle(*args, **kwargs))
+
+	def test_rect(name, *args, **kwargs):
+		results.append(pattern_rect(*args, **kwargs))
+
+	def test_rounded(name, *args, **kwargs):
+		results.append(pattern_rounded(*args, **kwargs))
+	
 	# Automatic part
 
 	test_gear("full test", 10, 30, 10)
@@ -103,13 +79,13 @@ def test_gears():
 	test_gear("gearexterior values test", 2, 10, 2, helix_angle = radians(30))
 	test_gear('gearexterior values test', 1, 10, 1, helix_angle = radians(30), chamfer=radians(20))
 
-	'''
+	
 	# full pattern tests
 	test_full("test full pattern", 10, 5, 5, int_height = 2)
 	test_full("test full pattern", 20, 5, 15, int_height = 5)
 	test_full("test full pattern", 60.5, 52, 1, int_height = 0)
 	test_full("test full pattern", 15, 5, 15, int_height = 0)
-
+	
 	# circle pattern tests
 	test_circle("test circle pattern", 10, 5, 5, int_height = 2)
 	test_circle("test circle pattern", 20, 5, 15, int_height = 5, ratio = 1.5)
@@ -122,7 +98,7 @@ def test_gears():
 	test_circle("test circle pattern", 15, 5, 15, int_height = 5, patterns = 4)
 	test_circle("test circle pattern", 15, 5, 15, int_height = 5, patterns = 3)
 	test_circle("test circle pattern", 15, 5, 15, int_height = 5, patterns = 2)
-
+	'''
 	# rect pattern tests
 	test_rect("test rect pattern", 10, 5, 5, int_height = 2)
 	test_rect("test rect pattern", 20, 5, 15, int_height = 5, ratio = 0.8)
@@ -153,7 +129,6 @@ def test_gears():
 	z = 0
 	for i, part in enumerate(results):
 		box = boundingbox(part)
-		results[i] = solid = Solid(content=part)
-		solid.position = vec3(0,0,z-box.min.z)
+		results[i] = Solid(content=part).transform(vec3(0,0,z-box.min.z))
 		z +=  box.width.z*2
 	return results
