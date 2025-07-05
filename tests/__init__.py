@@ -38,7 +38,7 @@ def visualcheck(test:Callable) -> Callable:
             reference = pickle.loads(binary_reference)
             if binary_result != binary_reference:
                 raise AssertionError("result of {} doesn't match cache".format(test.__name__))
-        except (OSError, AssertionError) as err:
+        except (OSError, AssertionError, FileNotFoundError) as err:
             if _visualinspect(title, reference, result):
                 open(fullname, 'wb').write(binary_result)
             else:
