@@ -11,6 +11,7 @@ import itertools
 import numpy as np
 import numpy.linalg as la
 import scipy
+from pnprint import nprint
 
 from ..mathutils import *
 
@@ -206,10 +207,11 @@ _squeeze = np.array([0,1,2,  5,6, 10,  12,13,14])
 def squeeze_homogeneous(m):
 	return np.asarray(m, order='F').ravel('F')[_squeeze]
 def unsqueeze_homogeneous(m):
-	return mat4(m[0], m[1], m[2], 0,  
-			-m[1], m[3], m[4], 0,  
-			-m[2],-m[4], m[5], 0,  
-				m[6], m[7], m[8], 1)
+	return mat4(
+		 m[0], m[1], m[2], 0,  
+		-m[1], m[3], m[4], 0,  
+		-m[2],-m[4], m[5], 0,  
+		 m[6], m[7], m[8], 1)
 
 
 class Weld(Joint):
@@ -224,7 +226,7 @@ class Weld(Joint):
 	
 	def __init__(self, solids, transform: mat4=None):
 		self.solids = solids
-		self.transform = transform or affineInverse(s1.pose) * s2.pose
+		self.transform = transform or mat4()
 	
 	def direct(self, parameters):
 		assert len(parameters) == 0
@@ -267,51 +269,51 @@ class Free(Joint):
 		return np.concatenate([quat(matrix), matrix[3].xyz])
 		
 	def grad(self, parameters):
-		a,b,c,d,*_ = parameters
+		w,x,y,z,*_ = parameters
 		return (
 			# derivatives of quaternion based rotation matrix (column major of course)
+			mat4(
+				0,    2*z, -2*y, 0,
+				-2*z,  0,    2*x, 0,
+				2*y, -2*x,  0,   0,
+				0,    0,    0,   0,
+				),
 			mat4( 
-				 2*a,  2*d, -2*c, 0,
-				-2*d,  2*a,  2*b, 0,
-				 2*c, -2*b,  2*a, 0,
-				 0,   0,     0,   0,
+				0,   2*y,  2*z, 0,
+				2*y, -4*x,  2*w, 0,
+				2*z, -2*w, -4*x, 0,
+				0,   0,    0,   0,
 				),
 			mat4(
-				 2*b,  2*c,  2*d, 0,
-				 2*c, -2*b,  2*a, 0,
-				 2*d, -2*a, -2*b, 0,
-				 0,    0,    0,   0,
+				-4*y,  2*x, -2*w, 0,
+				2*x,  0,    2*z, 0,
+				2*w,  2*z, -4*y, 0,
+				0,    0,    0,   0,
 				),
 			mat4(
-				-2*c,  2*b, -2*a, 0,
-				 2*b,  2*c,  2*d, 0,
-				 2*a,  2*d, -2*c, 0,
-				 0,    0,    0,   0,
-				),
-			mat4(
-				-2*d,  2*a,  2*b, 0,
-				-2*a, -2*d,  2*c, 0,
-				 2*b,  2*c,  2*d, 0,
-				 0,    0,    0,   0,
+				-4*z,  2*w,  2*x, 0,
+				-2*w, -4*z,  2*y, 0,
+				2*x,  2*y,  0,   0,
+				0,    0,    0,   0,
 				),
 			# derivatives of translation (column major of course)
 			mat4(
-				 0,    0,    0,   0,
-				 0,    0,    0,   0,
-				 0,    0,    0,   0,
-				 1,    0,    0,   0,
+				0,    0,    0,   0,
+				0,    0,    0,   0,
+				0,    0,    0,   0,
+				1,    0,    0,   0,
 				),
 			mat4(
-				 0,    0,    0,   0,
-				 0,    0,    0,   0,
-				 0,    0,    0,   0,
-				 0,    1,    0,   0,
+				0,    0,    0,   0,
+				0,    0,    0,   0,
+				0,    0,    0,   0,
+				0,    1,    0,   0,
 				),
 			mat4(
-				 0,    0,    0,   0,
-				 0,    0,    0,   0,
-				 0,    0,    0,   0,
-				 0,    0,    1,   0,
+				0,    0,    0,   0,
+				0,    0,    0,   0,
+				0,    0,    0,   0,
+				0,    0,    1,   0,
 				),
 			)
 	
@@ -588,14 +590,14 @@ class Kinematic:
 				conn[solid].append(joint)
 		
 		# number of scalar variables
-		vars = {joint: flatten_state(joint.default).size
+		dims = {joint: flatten_state(joint.default).size
 			for joint in conn  
 			if isinstance(joint, Joint)}
 		
-		self.dim = sum(vars.values())
+		self.dim = sum(dims.values())
 		if inputs and outputs:
-			self.inputs_dim = sum(vars[joint]  for joint in self.inputs)
-			self.outputs_dim = sum(vars[joint]  for joint in self.outputs)
+			self.inputs_dim = sum(dims[joint]  for joint in self.inputs)
+			self.outputs_dim = sum(dims[joint]  for joint in self.outputs)
 		
 		# reversed joints using the tree
 		tree = depthfirst(conn, starts=[ground])
@@ -604,7 +606,7 @@ class Kinematic:
 		# joint computation order, for direct kinematic
 		self.order = []
 		for parent, child in tree:
-			if child in vars:
+			if child in dims:
 				joint = child
 				if joint.solids[0] != parent:
 					if joint not in self.rev:
@@ -613,7 +615,7 @@ class Kinematic:
 		
 		# decompose into cycles, for inverse kinematic
 		self.cycles = []
-		for cycle in shortcycles(conn, vars, branch=False, tree=tree):
+		for cycle in shortcycles(conn, dims, branch=False):
 			# cycles may not begin with a solid, change this
 			if isinstance(cycle[0], Joint):
 				cycle.pop(0)
@@ -657,16 +659,19 @@ class Kinematic:
 		# collect transformations
 		state = iter(state)
 		transforms = {}
+		# nprint('transforms')
 		for joint in self.joints:
 			if joint in fixed:
 				transforms[joint] = joint.direct(fixed[joint])
 			else:
 				transforms[joint] = joint.direct(next(state, empty))
+			# nprint('  ', joint, repr(transforms[joint]))
 			if joint in self.rev:
 				transforms[self.rev.get(joint)] = affineInverse(transforms[joint])
 		
 		# chain transformations
 		residuals = np.empty((len(self.cycles), squeezed_homogeneous), float)
+		# print('residuals')
 		for i, cycle in enumerate(self.cycles):
 			# b is the transform of the complete cycle: it should be identity
 			b = mat4()
@@ -675,6 +680,7 @@ class Kinematic:
 			# the residual of this matrix is the difference to identity
 			# pick only non-redundant components to reduce the problem size
 			residuals[i] = squeeze_homogeneous(b - mat4())
+			# nprint('  cycle', cycle, repr(b - mat4()))
 			#residuals[i] **= 2
 		return residuals.ravel()
 		
@@ -736,7 +742,7 @@ class Kinematic:
 		# assert jac.transpose((0,2,1)).shape == (len(cycles), 9, nvars)
 		return jac.transpose((0,2,1)).reshape((len(self.cycles)*squeezed_homogeneous, index))
 	
-	def solve(self, fixed:dict={}, close:list=None, precision=1e-6, maxiter=None, strict=0.) -> list:
+	def solve(self, fixed:dict={}, close:list=None, precision=1e-6, maxiter=None, strict=0., record=[]) -> list:
 		'''
 			compute the joint positions for the given fixed solids positions
 			
@@ -792,6 +798,8 @@ class Kinematic:
 			if maxiter and k > maxiter and strict==inf:
 				break
 			
+			record.append(flatten_state(state))
+			
 			move = -self.cost_residuals(state, fixed)
 			error = np.abs(move).max()
 			if error <= precision:
@@ -819,7 +827,7 @@ class Kinematic:
 		final = []
 		for joint, default in zip(self.joints, close):
 			if joint in fixed:
-				final.append(default)
+				final.append(fixed[joint])
 			else:
 				final.append(next(result))
 		return final
@@ -867,18 +875,26 @@ class Kinematic:
 		'''
 		return null_space(self.cost_jacobian(state), precision).transpose()
 	
-	def grad(self, state) -> dict:
+	def grad(self, state, freedom=None) -> dict:
 		''' 
 			return a gradient of the all the solids poses at the given joints position 
 			
 			Note:
 				this function will ignore any degree of freedom of the kinematic that is not defined in `inputs`
 		'''
-		free = self.freedom(state).T
+		if freedom is None:
+			freedom = self.freedom(state, precision=1e-3)
+		free = freedom.T
 		inputs, outputs = free[:self.inputs_dim], free[-self.outputs_dim:]
 		# pseudo inverse the input directions to get a jacobian matrix with input space being the defined input space
 		try:
-			jac = outputs @ la.inv(inputs.T @ inputs) @ inputs.T
+			# this version fails when some inputs do not have effects on any degree of freedom (and not only outputs)
+			# if len(inputs) >= len(freedom):
+				# jac = outputs @ la.inv(inputs.T @ inputs) @ inputs.T
+			# else:
+				# jac = outputs @ inputs.T @ la.inv(inputs @ inputs.T)
+			# this version is robust but involves a SVD
+			jac = outputs @ la.pinv(inputs, 1e-2)
 		except la.LinAlgError as err:
 			raise KinematicError("the defined degrees of freedom cannot move") from err
 		# get matrix derivatives for each output joint
@@ -935,6 +951,8 @@ def structure_state(flat, structure):
 			else:
 				structured.append(next(it))
 		return structured
+	elif isinstance(structure, (int,float)):
+		return flat
 	elif isinstance(structure, (vec1, vec2, vec3, vec4, quat)):
 		return type(structure)(*[x  for i,x in zip(range(len(structure)), flat)])
 	elif isinstance(structure, np.ndarray):
@@ -958,7 +976,7 @@ def cycles(conn: '{node: [node]}') -> '[[node]]':
 	''' extract a set of any-length cycles decomposing the graph '''
 	todo
 
-def shortcycles(conn: '{node: [node]}', costs: '{node: float}', branch=True, tree=None) -> '[[node]]':
+def shortcycles(conn: '{node: [node]}', costs: '{node: float}', branch=True) -> '[[node]]':
 	'''
 		extract a set of minimal cycles decompsing the graph
 		
@@ -969,7 +987,7 @@ def shortcycles(conn: '{node: [node]}', costs: '{node: float}', branch=True, tre
 	distances = {}
 	merges = []
 	tree = {}
-	for parent, child in tree or depthfirst(conn):
+	for parent, child in depthfirst(conn):
 		if child in distances:
 			merges.append((parent, child))
 		else:
@@ -982,9 +1000,6 @@ def shortcycles(conn: '{node: [node]}', costs: '{node: float}', branch=True, tre
 	#  - the second distance being the secondary branch bigest distance to the root node
 	key = lambda edge: (distances[edge[1]], -distances[edge[0]])
 	merges = sorted(merges, key=key)
-	# nprint('tree', tree)
-	# nprint('distances', distances)
-	# nprint('merges', merges)
 	
 	cycles = []
 	c = len(merges)

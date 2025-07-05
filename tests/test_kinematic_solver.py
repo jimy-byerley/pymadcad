@@ -10,6 +10,35 @@ from . import visualcheck
 
 np.random.seed(7)
 
+def test_drotate():
+	from madcad.joints import drotate
+	epsilon = 1e-6
+	for dir in [X, Y, Z, normalize(X+Y+Z), normalize(vec3(1,2,3))]:
+		for i in range(20):
+			print(dir, i)
+			assert np.array(drotate(i,dir)) == approx(np.array(rotate(i+epsilon,dir)-rotate(i,dir))/epsilon, abs=10*epsilon)
+
+def test_joints():
+	def check(joint):
+		for i in range(5):
+			print(joint, i)
+			
+			pose = np.arange(len(flatten_state(joint.default))) + float(i)
+			close = pose + 0.2
+			pose = structure_state(pose, joint.default)		
+			close = structure_state(close, joint.default)
+			# close reciprocity
+			# assert flatten_state(joint.inverse(joint.direct(pose), close=close)) == approx(flatten_state(pose))
+			# derivative
+			assert np.array(joint.grad(pose)) == approx(np.array(Joint.grad(joint, pose, 1e-6)), abs=1e-5)
+			# far reciprocity
+			pose = joint.direct(pose)
+			assert np.array(joint.direct(joint.inverse(pose))) == approx(np.array(pose))
+	
+	check(Free((0,1)))
+	check(Weld((0,1)))
+	check(Revolute((0,1), Axis(O,normalize(X+Y+Z))))
+
 def test_one_free_pivot():
 	assert Kinematic([
 		Revolute((0,1), Axis(O,Y)),
@@ -41,6 +70,15 @@ def test_three_pivots_inverse():
 		outputs=[3], 
 		ground=0,
 		).inverse([translate(-0.5*X)], close=np.arange(15)))
+
+def test_free_loop():
+	kin = Kinematic([
+		Free((0,1)),
+		Revolute((1,2), Axis(X,Z)),
+		Revolute((2,3), Axis(X+Y,Z)),
+		Revolute((3,0), Axis(Y,Z)),
+		])
+	print(kin.solve(close=structure_state(np.arange(10), kin.default)))
 
 def test_pivot_loop():
 	print(Kinematic([
