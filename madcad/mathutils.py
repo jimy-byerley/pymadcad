@@ -2,9 +2,14 @@
 
 ''' Group of functions and math classes of pymadcad '''
 
-import glm
-from glm import *
+try:
+	from pyglm import glm
+	from pyglm.glm import *
+except ImportError:
+	import glm
+	from glm import *
 del version, license
+
 import math
 from math import pi, inf, nan, atan2
 from copy import deepcopy

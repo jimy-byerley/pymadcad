@@ -1,16 +1,7 @@
-Sphinx>=5.1.1
+sphinx~=5.1.1
 sphinx-rtd-theme>=1.0
 sphinx-collapse>=0.1
 sphinx-subfigure>=0.2
 sphinxcontrib-mermaid>=0.7
 myst-parser>=0.18
 docutils==0.16
-
-cython>=0.28
-PyGlm>=1.2
-moderngl>=5.6
-numpy>=1.1
-PyQt5>=5
-Pillow>=5.4
-arrex>=0.3.1
-freetype-py>=2.3
