@@ -3,11 +3,15 @@ name = "pymadcad"
 version = "0.19.0"
 description = "Simple yet powerful CAD (Computer Aided Design) library, written with Python"
 authors = [
-    {name="jimy-byerley", email="jimy.byerley@gmail.com"},
-    {name="bourbonut", email="bourbonut@gmail.com"},
+    { name="jimy-byerley", email="jimy.byerley@gmail.com" },
+    { name="bourbonut", email="bourbonut@gmail.com" },
     ]
 license = {text = "LGPL v3"}
 readme = "README.md"
+classifiers = [
+    'Topic :: Software Development :: Libraries',
+    'Topic :: Utilities',
+    ]
 requires-python = ">=3.8"
 dependencies = [
     'pyglm~=2.5',
@@ -20,6 +24,7 @@ dependencies = [
     'pnprint~=1.1',
     'freetype-py~=2.3',
     ]
+
 [project.optional-dependencies]
 pyside6 = ["pyside6"]
 pyqt6 = ["pyqt6"]
@@ -28,16 +33,14 @@ ply = ['plyfile>=0.7']
 stl = ['numpy-stl~=2.0']
 obj = ['pywavefront~=1.3']
 
-[tool.poetry]
-packages = [
-    {include = "madcad"},
-    ]
-include = [
-    { path = "madcad/**/*.so", format = "wheel" },
-    { path = "madcad/**/*.pyx", format = "sdist" },
-    ]
-[tool.poetry.build]
-script = "build.py"
+[tool.poetry.group.test.dependencies]
+pytest = "~=8.3"
+pnprint = "~=1.1"
+
+[project.urls]
+homepage = "https://madcad.netlify.app/pymadcad"
+repository = "https://github.com/jimy-byerley/pymadcad"
+documentation = "https://pymadcad.readthedocs.io"
 
 
 [build-system]
@@ -47,3 +50,20 @@ requires = [
     "cython~=3.0",
     ]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+packages = [
+    { include = "madcad" },
+    ]
+include = [
+    { path = "madcad/**/*.so", format = "wheel" },
+    { path = "madcad/**/*.pyx", format = "sdist" },
+    ]
+exclude = [
+    "madcad/**/*.pyx",
+    "madcad/**/*.so",
+    "madcad/**/*.c",
+    "madcad/**/*.html",
+    ]
+[tool.poetry.build]
+script = "build.py"
