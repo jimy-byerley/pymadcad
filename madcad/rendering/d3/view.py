@@ -688,13 +688,12 @@ class Orbit:
 	orientation: fquat
 
 	def __init__(self, position:fvec3=0, distance:float=1, orient:fvec3=fvec3(1,0,0)):
-		self.center = fvec3(center)
+		self.position = fvec3(position)
 		self.distance = float(distance)
 		self.orient = fquat(orient)
-		self.tool = navigation_tool
 
 	def matrix(self) -> fmat4:
-		mat = translate(fmat4(self.orient), -self.center)
+		mat = translate(fmat4(self.orient), -self.position)
 		mat[3][2] -= self.distance
 		return mat
 
@@ -717,15 +716,15 @@ class Orbit:
 		self.position = position
 
 	def zoom(self, ratio: float):
-		self.distance *= f
+		self.distance *= ratio
 
 	def pan(self, offset: vec2):
 		x,y,z = transpose(fmat3(self.orient))
-		self.center += (fvec3(x) * -offset.x + fvec3(y) * offset.y) * self.distance/2
+		self.position += (fvec3(x) * -offset.x + fvec3(y) * offset.y) * self.distance/2
 
 	def rotate(self, offset: vec3):
 		# rotate from view euler angles
-		self.orient = inverse(fquat(fvec3(-offset.y, -offset.dx, offset.dz) * pi)) * self.orient
+		self.orient = inverse(fquat(fvec3(-offset.y, -offset.x, offset.z) * pi)) * self.orient
 
 class Turntable:
 	''' Navigation rotating on yaw and pitch around a center 
