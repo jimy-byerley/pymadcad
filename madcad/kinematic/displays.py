@@ -258,7 +258,7 @@ class ChainManip(Group):
 							dot(grad, move)**2 / (length2(grad) + length2(move) + self.prec)
 							for grad in jac) / self.min_colinearity)
 				# combination of the closest directions to the mouse position
-				increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ (move * colinearity))
+				increment = la.lstsq(jac.transpose(), move * colinearity, 1e-6)[0]
 				self.pose[joint] = self.chain.joints[joint].normalize(
 										(np.asarray(self.pose[joint]) 
 										+ increment * min(1, self.max_increment / np.abs(increment).max())
@@ -272,7 +272,7 @@ class ChainManip(Group):
 			np.dot(grad, move)**2 / (normsq(grad) + normsq(move) + self.prec)
 			for grad in jac) / self.min_colinearity)
 		
-		increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ (move * colinearity))
+		increment = la.lstsq(jac.transpose(), move * colinearity, 1e-6)[0]
 		
 		self.pose = self.chain.normalize(structure_state((
 						flatten_state(self.pose)
@@ -499,11 +499,11 @@ class KinematicManip(Group):
 			optjac,
 			self.kinematic.cost_jacobian(self.pose).transpose(),
 			])
-		increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ move)
+		increment = la.lstsq(jac.T, move, 1e-6)[0]
 		# assemble the new pose and normalize it
 		newpose = self.kinematic.normalize(structure_state(
 			flatten_state(self.pose)
-			+ self.damping * increment * min(1, self.max_increment / np.abs(increment).max()),
+			+ self.damping * increment * min(1, self.max_increment / np.amax(increment)),
 			self.pose))
 		
 		# try to move
@@ -553,10 +553,13 @@ class KinematicManip(Group):
 					current_anchor = model * solid * anchor
 					
 					self._move_opt(
-						optmove = np.asarray(target_anchor - current_anchor.xy / current_anchor.w),
+						optmove = np.asarray(
+							# keep grasped position under mouse
+							target_anchor - current_anchor.xy / current_anchor.w),
 						optjac = np.stack([
-								np.asarray((model * grad * anchor).xy / current_anchor.w)
-								for grad in problem.freejac]),
+							# keep grasped position under mouse
+							np.asarray((model * grad * anchor).xy / current_anchor.w)
+							for grad in problem.freejac]),
 						)
 					view.update()
 				
@@ -604,13 +607,17 @@ class KinematicManip(Group):
 				
 					self._move_opt(
 						optmove = np.concatenate([
+							# move grasped point under mouse
 							target_anchor - current_anchor.xy / current_anchor.w,
-							np.ravel(mat3(init_solid - solid)),
+								# keep initial orientation
+							np.ravel(dmat3x2(init_solid - solid)),
 							]),
 						optjac = np.stack([
 							np.concatenate([
+								# move grasped point under mouse
 								(model * grad * anchor).xy / current_anchor.w, 
-								np.ravel(mat3(grad)), 
+								# keep initial orientation
+								np.ravel(dmat3x2(grad)), 
 								])
 							for grad in problem.jac]),
 						)
@@ -635,8 +642,10 @@ class KinematicManip(Group):
 		clicked = vec3(view.ptat(view.somenear(evt.pos())))
 		solid = self.parts[moved]
 		anchor = affineInverse(mat4(self.world) * solid) * vec4(clicked,1)
-		init_tool = vec4(self.toolcenter, 1)
-		tool = affineInverse(solid) * vec4(self.toolcenter, 1)
+		target_tool = vec4(self.toolcenter, 1)
+		target_axis = normalize(target_tool - vec4(affineInverse(view.uniforms['view'] * self.world)[3]))
+		axis = affineInverse(solid) * target_axis
+		tool = affineInverse(solid) * target_tool
 		
 		while True:
 			evt = yield
@@ -649,27 +658,36 @@ class KinematicManip(Group):
 
 				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world)
 				target_anchor = qtpos(evt.pos(), view)
-				target_tool = model * init_tool
 				def prepare(problem):
-					problem.jac = kinematic.grad((
-						*self.pose, 
-						kinematic.joints[-1].inverse(self.parts[moved]),
-						))
+					pass
 				
 				def solve(problem, model=model, target_anchor=target_anchor, target_tool=target_tool):
 					solid = self.parts[moved]
 					current_tool = model * solid * tool
-				
+					current_anchor = model * solid * anchor
+					
+					problem.jac = kinematic.grad((
+						*self.pose, 
+						kinematic.joints[-1].inverse(self.parts[moved]),
+						))
+					
 					self._move_opt(
 						optmove = np.concatenate([
-							(init_tool - solid * tool).xyz,
-							(target_anchor - target_tool.xy/target_tool.w) 
-								- (model * solid * normalize(anchor - tool)).xy / current_tool.w,
+							# move grasped point under mouse
+							(target_anchor - current_anchor.xy / current_anchor.w),
+							# keep tool center point at the same place
+							(target_tool - solid * tool).xyz / kinematic.scale,
+							# keep rotation axis unchanged
+							(target_axis - solid * axis).xyz,
 							]),
 						optjac = np.stack([
 							np.concatenate([
-								(grad * tool).xyz, 
-								(model * grad * normalize(anchor - tool)).xy / current_tool.w, 
+								# move grasped point under mouse
+								(model * grad * anchor).xy / current_anchor.w, 
+								# keep tool center point at the same place
+								(grad * tool).xyz / kinematic.scale, 
+								# keep rotation axis unchanged
+								(grad * axis).xyz,
 								])
 							for grad in problem.jac]),
 						)
@@ -818,3 +836,4 @@ def qtpos(qtpos, view):
 def normsq(x):
 	x = x.ravel()
 	return np.dot(x,x)
+	

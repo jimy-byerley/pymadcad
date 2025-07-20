@@ -57,6 +57,8 @@ class Joint:
 	
 	# parameter bounds if any
 	bounds = (-inf, inf)
+	# reference distance scale
+	scale = 0
 	
 	def normalize(self, state) -> 'params':
 		'''  make the given joint coordinates consistent. For most joint is is a no-op or just coordinates clipping
@@ -399,6 +401,7 @@ class Chain(Joint):
 			[joint.bounds[0]  for joint in self.joints],
 			[joint.bounds[1]  for joint in self.joints],
 			)
+		self.scale = max(joint.scale  for joint in self.joints)
 		
 	def normalize(self, state) -> list:
 		''' inplace normalize the joint coordinates in the given state '''
@@ -558,6 +561,7 @@ class Kinematic:
 			
 			default:  the default joint pose of the kinematic
 			bounds:   a tuple of (min, max) joint poses
+			scale:    the reference distance scale used to adimension residuals
 	'''
 	def __init__(self, joints:list=[], content:dict=None, ground=None, inputs=None, outputs=None):
 		if ground is None:
@@ -635,6 +639,9 @@ class Kinematic:
 				chain.append(joint)
 			self.cycles.append(chain)
 			
+		# reference distance, useful to adimension the problem
+		self.scale = max(joint.scale  for joint in self.joints) or 1
+			
 	def cycles(self) -> list:
 		'''
 			return a list of minimal cycles decomposing the gkinematic graph
@@ -678,8 +685,10 @@ class Kinematic:
 			for joint in cycle:
 				b = b * transforms[joint]
 			# the residual of this matrix is the difference to identity
+			error = b - mat4()
+			error[3] /= self.scale
 			# pick only non-redundant components to reduce the problem size
-			residuals[i] = squeeze_homogeneous(b - mat4())
+			residuals[i] = squeeze_homogeneous(error)
 			# nprint('  cycle', cycle, repr(b - mat4()))
 			#residuals[i] **= 2
 		return residuals.ravel()
@@ -736,6 +745,7 @@ class Kinematic:
 			
 			for ig, g in zip(positions, grad):
 				# print('-', icycle, ig)
+				g[3] /= self.scale
 				jac[icycle, ig] = squeeze_homogeneous(g)
 				# jac[icycle*squeezed_homogeneous:(icycle+1)*squeezed_homogeneous, ig] = squeeze_homogeneous(g)
 		
@@ -812,7 +822,7 @@ class Kinematic:
 			
 			# newton method with a pseudo inverse
 			jac = self.cost_jacobian(state, fixed).transpose()
-			increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*prec, jac @ move)
+			increment = la.lstsq(jac.T, move, prec)[0]
 			state = structure_state(
 				flatten_state(state)
 				+ increment * min(1, max_increment / np.abs(increment).max()),
@@ -854,7 +864,9 @@ class Kinematic:
 			tip = base * transforms[joint]
 			if joint.solids[-1] in poses:
 				# check that the given state is consistent, meaning kinematic loops are closed
-				if np.abs(poses[joint.solids[-1]] - tip).max() > precision:
+				error = poses[joint.solids[-1]] - tip
+				error[3] /= self.scale
+				if np.amax(error) > precision:
 					raise KinematicError('position out of reach: kinematic cycles not closed')
 			else:
 				poses[joint.solids[-1]] = tip
@@ -894,7 +906,7 @@ class Kinematic:
 			# else:
 				# jac = outputs @ inputs.T @ la.inv(inputs @ inputs.T)
 			# this version is robust but involves a SVD
-			jac = outputs @ la.pinv(inputs, 1e-2)
+			jac = outputs @ la.pinv(inputs, 1e-4)
 		except la.LinAlgError as err:
 			raise KinematicError("the defined degrees of freedom cannot move") from err
 		# get matrix derivatives for each output joint
