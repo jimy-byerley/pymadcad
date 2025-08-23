@@ -759,7 +759,7 @@ def note_radius(mesh, offset=None, d=None, tol=None, text=None, propagate=2):
 		conn = connpp(mesh.edges)
 		radius, place = mesh_curvature_radius(mesh, conn=conn, propagate=propagate)
 		normal = - normalize(sum(normalize(mesh.points[p]-mesh.points[place])  for p in conn[place]))
-	elif isinstance(mesh, wire):
+	elif isinstance(mesh, Wire):
 		normals = mesh.vertexnormals()
 		radius, place = mesh_curvature_radius(mesh, normals=normals, propagate=propagate)
 		normal = normals[place]

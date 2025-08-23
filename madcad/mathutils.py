@@ -2,6 +2,8 @@
 
 ''' Group of functions and math classes of pymadcad '''
 
+from __future__ import annotations
+
 try:
 	from pyglm import glm
 	from pyglm.glm import *
@@ -487,6 +489,12 @@ class Box:
 		return (self.min + self.max) /2
 	@property
 	def width(self) -> vec3:
+		''' Diagonal vector of the box 
+			deprecated
+		'''
+		return self.size
+	@property
+	def size(self) -> vec3:
 		''' Diagonal vector of the box '''
 		return self.max - self.min
 	
@@ -506,7 +514,7 @@ class Box:
 			v *= edge
 		return v
 		
-	def contain(self, point):
+	def contains(self, point):
 		''' Return True if the given point is inside or on the surface of the box '''
 		return all(self.min <= point) and all(point <= self.max)
 		
@@ -649,18 +657,17 @@ def boundingbox(obj, ignore=False, default=Box(width=vec3(-inf))) -> Box:
 
 
 
-class Screw(object):
-	''' A 3D torsor aka Screw aka Wrench aka Twist - is a mathematical object defined as follow:
-		  * a resulting vector R
-		  * a momentum vector field M
+class Screw:
+	''' A 3D torsor aka Screw - is a mathematical object defined as follow:
+		  * a resultant vector R
+		  * a moment vector field M
 
-		The momentum is a function of space, satisfying the relationship:
+		The moment is a function of space, satisfying the relationship:
 			M(A) = M(B) + cross(R, A-B)
 		
 		Therefore it is possible to represent a localized torsor such as:
-		  * R = resulting
-		  * M = momentum vector at position P
-		  * P = position at which M takes the current value
+		  * R = resultant
+		  * M(P) = moment vector at position P
 		
 		Torsor are useful for generalized solid mechanics to handle multiple variables of the same nature:
 		  * Force torsor:	
@@ -671,53 +678,112 @@ class Screw(object):
 			  Screw(linear movement quantity, rotational movement quantity, pos)
 			
 		  All these torsors makes it possible to represent all these values independently from expression location
-		  
-		  
-		Attributes:
-			resulting (vec3): 
-			momentum (vec3):
-			position (vec3):
 	'''
-	__slots__ = ('resulting', 'momentum', 'position')
-	def __init__(self, resulting=None, momentum=None, position=None):
-		self.resulting, self.momentum, self.position = resulting or vec3(0), momentum or vec3(0), position or vec3(0)
-	def locate(self, pt) -> 'Screw':
-		''' Gets the same torsor, but expressed for an other location '''
-		return Screw(self.resulting, self.momentum + cross(self.resulting, pt-self.position), pt)
+	location: vec3
+	resultant: vec3
+	moment: vec3
 	
-	def transform(self, mat) -> 'Screw':
-		''' Changes the torsor from coordinate system '''
-		if isinstance(mat, mat4):
-			rot, trans = mat3(mat), vec3(mat[3])
-		elif isinstance(mat, mat3):
-			rot, trans = mat, 0
-		elif isinstance(mat, quat):
-			rot, trans = mat, 0
-		elif isinstance(mat, vec3):
-			rot, trans = 1, mat
-		else:
-			raise TypeError('Screw.transform() expect mat4, mat3 or vec3')
-		return Screw(rot*self.resulting, rot*self.momentum, rot*self.position + trans)
+	def __init__(self, location, resultant, moment):
+		self.location = location
+		self.resultant = resultant
+		self.moment = moment
 	
-	def __add__(self, other):
-		if other.position != self.position:		other = other.locate(self.position)
-		return Screw(self.resulting+other.resulting, self.momentum+other.momentum, self.position)
+	def transform(self, transform:mat4) -> Screw:
+		''' change the screw from a frame to an other '''
+		orient = mat3(transform)
+		return Screw(
+			transform * self.location,
+			orient * self.resultant,
+			orient * self.moment,
+			)
 	
-	def __sub__(self, other):
-		if other.position != self.position:		other = other.locate(self.position)
-		return Screw(self.resulting-other.resulting, self.momentum-other.momentum, self.position)
-	
-	def __neg__(self):
-		return Screw(-self.resulting, -self.momentum, self.position)
-	
-	def __mul__(self, x):
-		return Screw(x*self.resulting, x*self.momentum, self.position)
-	
-	def __div__(self, x):
-		return Screw(self.resulting/x, self.momentum/x, self.position)
+	def locate(self, location:vec3) -> Screw:
+		''' relocate the screw at the given location
 		
+			this changes the resultant and moment vectors, but doesn't change the screw itself
+			
+			Warning:
+				this is different from translating the screw 
+		'''
+		return Screw(
+			location,
+			self.resultant,
+			self.moment + cross(self.resultant, location - self.location),
+			)
+	
+	def comoment(self, other:Screw) -> float:
+		''' screws comoment, performs relocation if necessary '''
+		other = other.locate(self.location)
+		return dot(self.moment, other.resultant) + dot(self.resultat * other.moment)
+		
+	def __add__(self, other:Screw) -> Screw:
+		''' screws addition, performs relocation if necessary '''
+		other = other.locate(self.location)
+		return Screw(
+			self.location,
+			self.resultant + other.resultant,
+			self.moment + other.moment,
+			)
+	def __sub__(self, other:Screw) -> Screw:
+		''' screws substraction, performs relocation if necessary '''
+		other = other.locate(self.location)
+		return Screw(
+			self.location,
+			self.resultant - other.resultant,
+			self.moment - other.moment,
+			)
+	def __neg__(self) -> Screw:
+		return Screw(
+			self.location,
+			-self.resultant,
+			-self.moment,
+			)
+			
+	def __mul__(self, other:float) -> Screw:
+		return Screw(
+			self.location,
+			self.resultant * other,
+			self.moment * other,
+			)	
+	def __div__(self, other:float) -> Screw:
+		return Screw(
+			self.location,
+			self.resultant / other,
+			self.moment / other,
+			)
+			
+	def __eq__(self, other:Screw) -> bool:
+		''' screws equality, performs relocation if necessary '''
+		other = other.locate(self.position)
+		return glm.all(self.moment == other.moment) and glm.all(self.resultant == other.resultant)
+			
+	def to_matrix(self) -> mat4:
+		''' convert the screw to its matrix form
+		
+			represents the relocate operation for any screw and the derivative of the rotation matrix for velocity screws
+		'''
+		base = self.locate(vec3(0))
+		return mat4(
+			 0,                -base.resultant.z, +base.resultant.y, 0,
+			+base.resultant.z, 0,                 -base.resultant.x, 0,
+			-base.resultant.y, +base.resultant.x, 0,                 0,
+			 base.moment.x,     base.moment.y,     base.moment.z,    0,
+			)
+	@staticmethod
+	def from_matrix(mat, position=vec3(0)) -> Screw:
+		return Screw(
+			vec3(position),
+			vec3(mat[1][0], mat[0][2], mat[2][1]),
+			vec3(mat[3]),
+			)
+
 	def __repr__(self):
-		return '{}(\n\t{}, \n\t{}, \n\t{})'.format(self.__class__.__name__, repr(self.resulting), repr(self.momentum), repr(self.position))
+		return '{}(\n\t{}, \n\t{}, \n\t{})'.format(self.__class__.__name__, 
+			repr(self.location), repr(self.resultant), repr(self.moment))
+			
+	def display(self, scene):
+		# TODO draw resultant and moment vectors at the current location
+		indev
 
 def comomentum(t1, t2):
 	''' Comomentum of screws:   `dot(M1, R2)  +  dot(M2, R1)`

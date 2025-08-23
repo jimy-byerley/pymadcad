@@ -1,4 +1,4 @@
-#version 330
+#version 430
 
 flat in uint identcolor;
 out uint color;

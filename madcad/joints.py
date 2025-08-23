@@ -506,36 +506,7 @@ class Ball(Joint):
 	
 	def inverse(self, matrix, close=None):
 		return quat(affineInverse(self.post) * matrix * affineInverse(self.pre))
-		
-	def grad(self, orient):
-		a,b,c,d = orient
-		return (
-			self.post * mat4( 
-				 2*a,  2*d, -2*c, 0,
-				-2*d,  2*a,  2*b, 0,
-				 2*c, -2*b,  2*a, 0,
-				 0,   0,     0,   0,
-				) * self.pre,
-			self.post * mat4(
-				 2*b,  2*c,  2*d, 0,
-				 2*c, -2*b,  2*a, 0,
-				 2*d, -2*a, -2*b, 0,
-				 0,    0,    0,   0,
-				) * self.pre,
-			self.post * mat4(
-				-2*c,  2*b, -2*a, 0,
-				 2*b,  2*c,  2*d, 0,
-				 2*a,  2*d, -2*c, 0,
-				 0,    0,    0,   0,
-				) * self.pre,
-			self.post * mat4(
-				-2*d,  2*a,  2*b, 0,
-				-2*a, -2*d,  2*c, 0,
-				 2*b,  2*c,  2*d, 0,
-				 0,    0,    0,   0,
-				) * self.pre,
-			)
-			
+	
 	def grad(self, orient):
 		w,x,y,z = orient
 		return (

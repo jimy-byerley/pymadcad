@@ -111,6 +111,7 @@ def test_two_bound_pivot_loops():
 		]).solve(close=np.arange(6)))
 
 def test_stretched_chain():
+	# skip('numerically unstable')
 	njoints = 80
 	joints = []
 	for i in range(0, njoints, 2):
@@ -141,3 +142,62 @@ def test_grid():
 			if y > 0:
 				joints.append(Revolute((name(x,y-1), name(x,y)), Axis(vec3(0,1,0),Z), Axis(O,Z)))
 	print(Kinematic(joints).solve(close=2*pi*np.random.random(len(joints)), precision=1e-3, maxiter=1000))
+
+def test_screw():
+	def derive(f, t):
+		dt = 1e-5
+		return Screw.from_matrix( 
+			(f(t+dt) - f(t-dt)) / (2*dt) * mat4(transpose(mat3(f(t)))),
+			vec3(f(t)[3]) )
+	def check(a, b):
+		assert np.amax(a.resultant - b.resultant) < 1e-3
+		assert np.amax(a.moment - b.moment) < 1e-3
+		
+	a = lambda t: translate(vec3(1, t, t**2)) * rotate(t, normalize(vec3(1+t, t, 0.2*t)))
+	b = lambda t: translate(vec3(t, 0, 0)) * rotate(t, normalize(vec3(0, 1, 1)))
+	c = vec3(1,2,3)
+	ab = lambda t: a(t) * b(t)
+	ac = lambda t: a(t) * translate(c)
+	
+	for t in [0, 0.2, 1, 2.34]:
+		da = derive(a, t)
+		db = derive(b, t)
+		check(da.locate(a(t) * c), derive(ac, t))
+		check(da + db.transform(a(t)), derive(ab, t))
+	
+def test_dynamic():
+	def derive(f, t):
+		dt = 1e-5
+		df = Screw.from_matrix( (f(t+dt) - f(t-dt)) / (2*dt) )
+		ddf = Screw.from_matrix( (f(t+dt) + f(t-dt) - 2*f(t)) / dt**2 )
+		return Dynamic(
+			position = f(t),
+			drotation = df.moment,
+			dtranslation = df.resultant,
+			ddrotation = ddf.moment,
+			ddtranslation = ddf.resultant,
+			)
+	def derive(f, t):
+		dt = 1e-5
+		return Dynamic(
+			position = f(t),
+			velocity = (f(t+dt) - f(t-dt)) / (2*dt),
+			acceleration = (f(t+dt) + f(t-dt) - 2*f(t)) / dt**2,
+			)
+	def check(a, b):
+		assert np.amax(a.position - b.position) < 1e-3
+		assert np.amax(a.velocity - b.velocity) < 1e-3
+		assert np.amax(a.acceleration - b.acceleration) < 1e-3
+	
+	a = lambda t: translate(vec3(1, t, t**2)) * rotate(t, normalize(vec3(1+t, t, 0.2*t)))
+	b = lambda t: translate(vec3(t, 0, 0)) * rotate(t, normalize(vec3(0, 1, 1)))
+	c = vec3(1,2,3)
+	ab = lambda t: a(t) * b(t)
+	ac = lambda t: a(t) * translate(c)
+	
+	for t in [0, 0.2, 1, 2.34]:
+		da = derive(a, t)
+		db = derive(b, t)
+		check(da.locate(a(t) * c), derive(ac, t))
+		check(da.compose(db), derive(ab, t))
+		check(da.locate(c).locate(O), da.locate(O))

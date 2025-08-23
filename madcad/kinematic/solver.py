@@ -1,12 +1,16 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
+from __future__ import annotations
+
 __all__ = [
 	'Kinematic', 'Joint', 'Weld', 'Free', 'Reverse', 'Chain',
+	'Dynamic', 'Inertia',
 	'flatten_state', 'structure_state',
 	'cycles', 'shortcycles', 'depthfirst', 'arcs',
 	'KinematicError',
 	]
 
 from copy import copy, deepcopy
+from dataclasses import dataclass
 import itertools
 import numpy as np
 import numpy.linalg as la
@@ -85,7 +89,7 @@ class Joint:
 	def inverse(self, matrix, close=None, precision=1e-6, maxiter=None, strict=0.) -> list:
 		''' inverse kinematic computation
 		
-			the default implementation is using a newton method to nullify the error between the given and acheived matrices
+			the default implementation is using a newton method to nullify the error between the given and acheived matrices. For precision and efficiency it is better to implement an exact solution whenever possible especially if `self.grad` is using finite differentiation.
 			
 			Parameters:
 				matrix:	the transfer matrix from solids `self.stop` to `self.start` we want the parameters for
@@ -139,7 +143,7 @@ class Joint:
 	def grad(self, state, delta=1e-6) -> '[mat4]':
 		''' compute the gradient of the direct kinematic 
 		
-			The default implementation is using a finite differentiation
+			The default implementation is using a finite differentiation. For precision it is better to implement an exact solution in every joint
 		
 			Parameters:
 				state:	anything accepted by `self.direct()` including singularities
@@ -153,31 +157,6 @@ class Joint:
 		for i in range(len(state)):
 			grad.append(partial_difference(self.direct, state, base, i, delta))
 		return grad
-	
-	def transmit(self, force: 'Screw', state=None, velocity=None) -> 'Screw':
-		''' compute the force transmited by the kinematic chain in free of its moves
-			
-			The default implementation uses the direct kinematic gradient to compute the moving directions of the chain
-			
-			Parameters:
-				force:	force sent by `self.start` in its coordinate system
-				
-				state:  
-					
-					the joint position in which the joint is at the force transmision instant.
-					If not specified it defaults to `self.default` (many joints transmit the same regardless of their position)
-				
-				velocity:  
-				
-					current derivative of `state` at the transmision instant
-					Perfect joints are transmiting the same regardless of their velocity
-					
-			Returns:	
-				force received by `self.stop` in its coordinate system
-		'''
-		if not state:	state = self.default
-		grad = self.grad(state)
-		indev
 	
 	def scheme(self, size: float, junc: vec3=None) -> '[Scheme]':
 		''' generate the scheme elements to render the joint '''
@@ -203,6 +182,142 @@ def partial_difference(f, x, fx, i, d):
 		except KinematicError:
 			pass
 	raise ValueError('cannot compute below or above parameter {} given value'.format(i))
+	
+
+class Dynamic:
+	''' struct carying the derivatives of the position of a solid '''
+	position: mat4
+	''' position of the solid 
+		- the rotation matrix orients the local frame
+		- the translation column sets the point at which translative velocities and accelerations are given
+	'''
+	drotation: vec3
+	''' rotation velocity vector
+		its cross product matrix is the derivative of the rotation matrix of the solid 
+	'''
+	ddrotation: vec3
+	'''
+		rotation acceleration vector
+		it is the derivative of the rotation velocity vector
+		its cross product matrix is the 2nd derivative of the rotation matrix of the solid
+	'''
+	dtranslation: vec3
+	'''
+		translation velocity vector at the current position
+		it is the derivative of the position column
+	'''
+	ddtranslation: vec3
+	'''
+		translation acceleration vector at the current position
+		it is the 2nd derivative of the position column
+	'''
+	
+	def __init__(self, position, *args):
+		self.position = position
+		if len(args) == 2:
+			velocity, acceleration = args
+			velocity = Screw.from_matrix(velocity).locate(vec3(position[3]))
+			acceleration = acceleration.locate()
+			self.drotation = velocity.resultant
+			self.dtranslation = velocity.moment
+		elif len(args) == 4:
+			self.drotation, self.dtranslation, self.ddrotation, self.ddtranslation = args
+	
+	@property
+	def rotation(self) -> mat3:
+		return mat3(self.position)
+		
+	@property
+	def translation(self) -> vec3:
+		return vec3(self.position[3])
+	
+	@property
+	def velocity(self) -> Screw:
+		''' velocity screw '''
+		return Screw(vec3(self.position[3]), self.drotation, self.dtranslation)
+		
+	@property
+	def acceleration(self) -> Screw:
+		''' acceleration, it doesn't have screw properties but is the derivative of `velocity` '''
+		return Screw(vec3(self.position[3]), self.ddrotation, self.ddtranslation)
+	
+	def locate(self, position:vec3) -> Dynamic:
+		''' get the dynamic of the same solid but at given position in the global frame '''
+		offset = position - vec3(self.position[3])
+		return Dynamic(
+			position = self.position * translate(offset),
+			drotation = self.drotation,
+			ddrotation = self.ddrotation,
+			dtranslation = self.dtranslation + cross(self.drotation, offset),
+			ddtranslation = self.dtranslation + cross(self.ddrotation, offset) 
+								+ cross(self.drotation, cross(self.drotation, offset)),
+			)
+	
+	def compose(self, other: Dynamic) -> Dynamic:
+		''' composition global (current) and local (other) dynamic 
+			
+			if `a` is dynamic of solid A in global frame and `b` the dynamic of solid B relatively to A, then the dynamic of B in the global frame is `a.compose(b)`
+		'''
+		orient = mat3(self.position)
+		offset = orient * vec3(self.position[3]) - vec3(self.position[3])
+		return Dynamic(
+			position = self.position * other.position,
+			drotation = self.drotation + orient * other.drotation,
+			ddrotation = self.ddrotation + orient * other.ddrotation,
+			dtranslation = self.dtranslation + cross(self.drotation, offset),
+			ddtranslation = self.dtranslation + cross(self.ddrotation, offset) 
+							+ cross(self.drotation, cross(self.drotation, offset))
+							+ orient * other.ddtranslation
+							+ 2*cross(self.drotation, orient * other.dtranslation),
+			)
+
+@dataclass
+class Dynamic:
+	position: mat4
+	velocity: mat4
+	acceleration: mat4
+	
+	def __init__(self, position:mat4, velocity:mat4, acceleration:mat4):
+		self.position = position
+		self.velocity = velocity
+		self.acceleration = acceleration
+	
+	def locate(self, position:vec3) -> Dynamic:
+		offset = translate(affineInverse(self.position) * position)
+		return Dynamic(
+			position = self.position * offset,
+			velocity = self.velocity * offset,
+			acceleration = self.acceleration * offset,
+			)
+			
+	def compose(self, other):
+		return Dynamic(
+			position = self.position * other.position,
+			velocity = self.velocity * other.position + self.position * other.velocity,
+			acceleration = self.acceleration * other.position + self.position * other.acceleration + 2*self.velocity * other.velocity,
+			)
+	
+	def velocity_screw(self):
+		return Screw.from_matrix(
+			self.velocity * mat4(transpose(mat3(self.position))),
+			position = vec3(self.position[3]),
+			)
+	def acceleration_screw(self):
+		return Screw.from_matrix(
+			self.acceleration * mat4(transpose(mat3(self.position))),
+			position = vec3(self.position[3]),
+			)
+
+@dataclass
+class Inertia:
+	''' struct carying inertia parameters of a solid '''
+	center: vec3
+	''' center of mass of a kinematic solid '''
+	mass: float
+	''' mass of a kinematic solid '''
+	moment: mat3
+	''' matrix of the moment of inertia '''
+
 
 squeezed_homogeneous = 9
 _squeeze = np.array([0,1,2,  5,6, 10,  12,13,14])
@@ -443,7 +558,26 @@ class Chain(Joint):
 		for i in range(len(self.joints)):
 			solids[i+1] = solids[i] * self.joints[i].direct(state[i])
 		return solids
-		
+	
+	def dynamics(self, base:Dynamic, joints:list[Dynamic]) -> list[Dynamic]:
+		''' compute the global space dynamic of each solid, given local dynamics of each joint '''
+		result = []
+		# prev = base
+		# for joint, local in zip(self.joints, joints):
+		# 	result.append(Dynamic(
+		# 		position = prev.position * local.position,
+		# 		velocity = prev.velocity + local.velocity.transform(prev.position),
+		# 		acceleration = Screw(
+		# 			resultant = prev.acceleration.resultant + mat3(prev.position) * local.acceleration.resultant
+		# 			moment = prev.acceleration + mat3(prev.position) * local.acceleration 
+		# 				# + cross(prev.acceleration.resultant, translation)
+		# 				# + cross(prev.velocity.resultant, cross(prev.velocity.resultant, translation))
+		# 				+ 2*cross(prev.velocity.resultant, mat3(prev.position)*local.velocity.moment)
+		# 			),
+		# 		))
+	def forces(self, dynamic:list[Dynamic], inertias:list[Inertia], exterior:dict[object,Screw]=None, motors:dict[Joint,Screw]=None) -> list[Screw]:
+		indev
+	
 	def to_kinematic(self) -> 'Kinematic':
 		return Kinematic(inputs=self.joints, outputs=[self.solids[-1]], ground=self.solids[0])
 		
@@ -752,7 +886,7 @@ class Kinematic:
 		# assert jac.transpose((0,2,1)).shape == (len(cycles), 9, nvars)
 		return jac.transpose((0,2,1)).reshape((len(self.cycles)*squeezed_homogeneous, index))
 	
-	def solve(self, fixed:dict={}, close:list=None, precision=1e-6, maxiter=None, strict=0., record=[]) -> list:
+	def solve(self, fixed:dict={}, close:list=None, precision=1e-6, maxiter=None, strict=0.) -> list:
 		'''
 			compute the joint positions for the given fixed solids positions
 			
@@ -807,8 +941,6 @@ class Kinematic:
 			k += 1
 			if maxiter and k > maxiter and strict==inf:
 				break
-			
-			record.append(flatten_state(state))
 			
 			move = -self.cost_residuals(state, fixed)
 			error = np.abs(move).max()
@@ -887,7 +1019,7 @@ class Kinematic:
 		'''
 		return null_space(self.cost_jacobian(state), precision).transpose()
 	
-	def grad(self, state, freedom=None) -> dict:
+	def grad(self, state, freedom=None) -> list:
 		''' 
 			return a gradient of the all the solids poses at the given joints position 
 			
@@ -934,6 +1066,24 @@ class Kinematic:
 		fixed = {joint: joint.inverse(x)  for joint, x in zip(self.outputs, parameters)}
 		result = self.solve(fixed, close)[:len(self.inputs)]
 		return result[:len(self.inputs)]
+	
+	
+	def dynamics(self, solids:dict[object,Dynamic], joints:list[Dynamic]) -> dict[object,Dynamic]:
+		''' from local dynamics to global dynamics, the reverse is rarely needed '''
+		# propagate velocity and acceleration
+		indev
+	def forces(self, dynamics:dict[object,Dynamic], inertias:dict[object,Inertia], exterior:dict[object,Screw]=None, motors:dict[Joint,Screw]=None) -> list[Screw]:
+		''' from dynamics to joint forces, the reverse is trivial application of Newton law '''
+		# propagate forces
+		# balance sum using the motors
+		indev
+	
+	def __repr__(self):
+		if self.inputs and self.outputs:
+			interfaces = ',\n\tinputs={}, outputs={}'.format(self.inputs, self.outputs)
+		else:
+			interfaces = ''
+		return 'Kinematic({}, ground={}{})'.format(self.joints, self.ground, interfaces)
 	
 	def display(self, scene):
 		''' display allowing manipulation of kinematic '''
