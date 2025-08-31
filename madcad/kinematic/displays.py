@@ -1,9 +1,13 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
+from __future__ import annotations
 import warnings
 from dataclasses import dataclass
 import numpy as np
 import numpy.linalg as la
 import moderngl as mgl
+from functools import partial
+from time import time
+from glm import smoothstep
 
 from ..common import resourcedir
 from ..mathutils import *
@@ -31,7 +35,9 @@ class SolidDisplay(Group):
 	def __init__(self, scene, solid:Solid, world=fmat4()):
 		self._local = fmat4()
 		self._free = fmat4()
+		self._animation = None
 		super().__init__(scene, world)
+		self._animate = scene.share(Animator, Animator)
 		self.update(self, solid)
 	
 	@property
@@ -82,7 +88,7 @@ class SolidDisplay(Group):
 	def stack(self, scene):
 		self.prepare(scene)
 		if not scene.options['solid_freemove']:
-			self._free = fmat4()
+			self.reset()
 		
 		sub = self._world * self._local * self._free
 		for key, display in self.displays.items():
@@ -106,12 +112,12 @@ class SolidDisplay(Group):
 					evt.accept()
 					# put the tool into the view, to handle events
 					view.callbacks.append(receiver(self._move(view, evt)))
+					self.animated = False
 			
 				# drag with right click resets its free pose
 				elif evt.buttons() & Qt.MouseButton.RightButton:
 					evt.accept()
-					self.free = fmat4()
-					view.update()
+					self.reset_animated(view)
 				
 	def _move(self, view, evt):
 		''' moves the selected solids in the view plane following the mouse movements '''
@@ -134,6 +140,22 @@ class SolidDisplay(Group):
 				move = transpose(fmat3(solid._world * solid._local * solid._free)) * (click - anchor)
 				solid.free = former * translate(move)
 
+	def reset(self):
+		''' reset solid free position '''
+		self.free = fmat4()
+	
+	def reset_animated(self, view):
+		''' reset solid free with an animation '''
+		if not (self._animation and self._animation.complete()) and self._free != fmat4():
+			rinit = fquat(fmat3(self.free))
+			tinit = fvec3(self.free[3])
+			rfinal = fquat()
+			tfinal = fvec3(0)
+			def reset(x):
+				x = smoothstep(0, 1, x)
+				self.free = translate(mix(tinit, tfinal, x)) * fmat4(slerp(rinit, rfinal, x))
+				view.update()
+			self._animation = self._animate(0.15, reset)
 
 class ChainManip(Group):
 	''' object to display and interact with a robot in the 3d view
@@ -738,6 +760,65 @@ class DeferedProblem:
 	iterations: int
 						
 
+class Animator:
+	''' shared object for managing simple animations in the madcad scene '''
+	def __init__(self, scene):
+		self.timer = None
+		self.animations = {}
+		self.removal = set()
+	
+	def __call__(self, duration:float, callback:callable) -> Animation:
+		''' schedule an animation callback
+			it receives values from 0 to 1, 1 is passed the last time the callback is ran 
+		'''
+		# JIT initialization, so no ressource is loaded when no animation ever run
+		if not self.timer:
+			self.timer = QTimer()
+			self.timer.timeout.connect(self._step)
+			self.timer.setInterval(30)
+		# add an entry
+		entry = [time(), duration, callback]
+		self.animations[id(entry)] = entry
+		self.timer.start()
+		return Animation(self, id(entry))
+	
+	def _step(self):
+		# run all callbacks
+		now = time()
+		for id, (start, duration, callback) in self.animations.items():
+			progress = (now-start)/duration
+			if 0 <= progress <= 1:
+				callback((time()-start)/duration)
+			else:
+				callback(1.)
+				self.removal.add(id)
+		# clean ended animations
+		for id in self.removal:
+			del self.animations[id]
+		self.removal.clear()
+		# stop when no more animations
+		if not self.animations:
+			self.timer.stop()
+
+class Animation:
+	''' animation handle '''
+	def __init__(self, animator, id):
+		self.animator = animator
+		self.id = id
+	
+	def complete(self):
+		''' return True if the animation is over '''
+		if self.id in self.animator.animations:
+			start, duration, _ = self.animator.animations[self.id]
+			return time() - start >= duration
+		return False
+	
+	def stop(self):
+		''' stop the animation immediately, callback(1) is called a last time '''
+		if self.id in self.animator.animations:
+			_, _, callback = self.animator.animations.pop(self.id)
+			callback(1)
+			self.id = None
 
 @dataclass
 class scale_solid:
