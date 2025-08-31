@@ -107,7 +107,7 @@ def render(scene:Scene|dict|list, size=uvec2(400, 400), view:fmat4=None, proj:fm
 	scene.prepare()
 	if not interest:
 		interest = scene.root.box
-	distance = length(interest.width)
+	distance = length(interest.size)
 	if not proj:
 		proj = globals()[settings.scene['projection']]().matrix(size.y/size.x, distance)
 	if not view:

@@ -217,7 +217,7 @@ def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)
 				continue
 			
 			# the parent is always the biggest of the two, this also breaks any possible parenting cycle
-			if length2(boxes[i].width) > length2(boxes[j].width):
+			if length2(boxes[i].size) > length2(boxes[j].size):
 				continue
 			
 			# select the shortest link
@@ -266,10 +266,10 @@ def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)
 		j = parents[i]
 		if j and length2(offsets[i]):
 			offsets[i] *= (1 
-							+ 0.5* length(blob[i].width) / length(offsets[i]) 
+							+ 0.5* length(blob[i].size) / length(offsets[i]) 
 							- dot(blob[i].center - barycenters[i], offsets[i]) / length2(offsets[i])
 							)
-			blob[j].union_update(blob[i].transform(offsets[i]))
+			blob[j].merge_update(blob[i].transform(offsets[i]))
 								
 	return [(i, parents[i], offsets[i], barycenters[i])  for i in order]
 			
@@ -316,3 +316,6 @@ def explode(solids, factor=1, offsets=None) -> '(solids:list, graph:Mesh)':
 			graph.points.append(solids[solid].position + center)
 			
 	return [solids, graph]
+
+	
+

@@ -442,7 +442,7 @@ def brick(*args, **kwargs) -> 'Mesh':
 		[None] * 6,
 		)
 	for i in range(len(mesh.points)):
-		mesh.points[i] = mesh.points[i]*box.width + box.min
+		mesh.points[i] = mesh.points[i]*box.size + box.min
 	return mesh
 	
 def parallelogram(*directions, origin=vec3(0), align=vec3(0), fill=True) -> 'Mesh':

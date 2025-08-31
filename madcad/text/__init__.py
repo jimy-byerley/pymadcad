@@ -303,12 +303,12 @@ else:
 				if cache['fixed']:
 					position.x += 0.5 + spacing.x
 				else:
-					position.x += cache['cbox'].width.x + spacing.x
+					position.x += cache['cbox'].size.x + spacing.x
 		
 		if size != 1:	
 			pool = pool.transform(size)
 		if align != (0,0):	
-			width = pool.box().width
+			width = pool.box().size
 			pool = pool.transform(vec3(
 					processalign(align[0], -width[0]),
 					processalign(align[1], -width[1]),

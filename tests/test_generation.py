@@ -15,7 +15,7 @@ def test_generation():
 		absciss -= bounds.min.x
 		p = absciss*X
 		results.append([p, shape.transform(p).option(color=0.1+0.1*abs(vec3(sin(absciss), sin(absciss*1.5), sin(absciss*1.3))))])
-		absciss += bounds.max.x + bounds.width.x*0.2
+		absciss += bounds.max.x + bounds.size.x*0.2
 
 	def test(shape):
 		shape.check()

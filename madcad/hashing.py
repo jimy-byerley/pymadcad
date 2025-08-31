@@ -345,7 +345,7 @@ def meshcellsize(mesh):
 	'''
 	# the number of key for triangles is propotionate to the surface
 	# points are placed on this surface, so sqrt(len(pts)) is a good hint for the point density on the surface
-	return length(mesh.box().width) / sqrt(len(mesh.points))
+	return length(mesh.box().size) / sqrt(len(mesh.points))
 
 
 class PointSet:

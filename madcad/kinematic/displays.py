@@ -910,7 +910,7 @@ def kinematic_color(i):
 def qtpos(qtpos, view):
 	''' convert qt position in the widget to opengl screen coords in range (-1, 1) '''
 	return vec2(
-		+ (qtpos.x()/view.width() *2 -1),
+		+ (qtpos.x()/view.size() *2 -1),
 		- (qtpos.y()/view.height() *2 -1),
 		)
 

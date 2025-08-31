@@ -1251,7 +1251,7 @@ def bolt(a: vec3, b: vec3, dscrew: float, washera=False, washerb=False, nutb=Tru
 	'''
 	dir = normalize(b-a)
 	rwasher = washer(dscrew)
-	thickness = rwasher['part'].box().width.z
+	thickness = rwasher['part'].box().size.z
 	rscrew = screw(dscrew, stceil(distance(a,b) + 1.2*dscrew, precision=0.2))
 	#rscrew['annotations'] = [
 				#note_distance(O, -stceil(distance(a,b) + 1.2*dscrew)*Z, offset=2*dscrew*X),

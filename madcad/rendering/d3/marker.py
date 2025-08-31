@@ -64,7 +64,7 @@ class PointDisplay(Display):
 		self._va_screen.program['view'].write(view.uniforms['view'])
 		self._va_screen.program['proj'].write(view.uniforms['proj'])
 		self._va_screen.program['ratio'] = (
-				self.size / view.screen.width,
+				self.size / view.screen.size,
 				self.size / view.screen.height,
 				)
 		self._texture.use(0)
@@ -76,7 +76,7 @@ class PointDisplay(Display):
 		self._va_ident.program['view'].write(view.uniforms['view'])
 		self._va_ident.program['proj'].write(view.uniforms['proj'])
 		self._va_ident.program['ratio'] = (
-				1.5 * self.size / view.screen.width,
+				1.5 * self.size / view.screen.size,
 				1.5 * self.size / view.screen.height,
 				)
 		self._va_ident.render()
@@ -205,7 +205,7 @@ class AnnotationDisplay(Display):
 class BoxDisplay(AnnotationDisplay):
 	def __init__(self, scene, box, color=None):
 		# place points
-		x,y,z = box.width
+		x,y,z = box.size
 		c = 0.1*min(x,y,z)	# corner
 		o = 0.4 # wire alpha
 		pts = np.array([

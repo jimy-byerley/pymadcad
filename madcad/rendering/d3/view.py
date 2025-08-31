@@ -264,7 +264,7 @@ else:
 			self.color = np.empty((h,w,3), dtype='u1')
 		
 		def paintEvent(self, painter):
-			w = self.width()
+			w = self.size()
 			h = self.height()
 			size = glsize(uvec2(w, h))
 			
@@ -491,7 +491,7 @@ else:
 						elif self._mode == self._ROTATE:
 							self.navigation.rotate(fvec3(dx, dy, 0))
 						elif self._mode == self._ZOOM:
-							middle = QPoint(self.width(), self.height())/2
+							middle = QPoint(self.size(), self.height())/2
 							f = (	(last-middle).manhattanLength()
 								/	(evt.pos()-middle).manhattanLength()	)
 							self.navigation.zoom(f)
@@ -658,7 +658,7 @@ else:
 			invview = affineInverse(self.navigation.matrix())
 			camera, look = fvec3(invview[3]), fvec3(invview[2])
 			margin = 0.3  # margins around the zomed box, to make sure the displays fits in the view, sqrt(2)-1 should be necessary, but lower is generally better
-			dist = length(noproject(box.center-camera, look)) + max(glm.abs(box.width))/2 * (1+margin)
+			dist = length(noproject(box.center-camera, look)) + max(glm.abs(box.size))/2 * (1+margin)
 			if not dist > 1e-6:	return
 
 			# adjust navigation distance

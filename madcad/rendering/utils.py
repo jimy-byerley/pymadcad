@@ -172,4 +172,4 @@ else:
 	def vec_to_qpoint(p: ivec2) -> QPoint: 	return QPoint(p.x, p.y)
 	def qpoint_to_vec(p: QPoint) -> ivec2:	return ivec2(p.x(), p.y())
 	def vec_to_qsize(p: uvec2) -> QSize: 	return QSize(p.x, p.y)
-	def qsize_to_vec(p: QSize) -> uvec2:	return uvec2(p.width(), p.height())
+	def qsize_to_vec(p: QSize) -> uvec2:	return uvec2(p.size(), p.height())
