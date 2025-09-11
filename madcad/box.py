@@ -1,4 +1,6 @@
 from __future__ import annotations
+from copy import copy
+
 from .mathutils import *
 
 
@@ -31,22 +33,22 @@ class Box:
         ''' create a box bounding the positions given by the input iterable '''
         it = iter(it)
         first = next(it)
-        new = box(first, first)
+        new = Box(first, first)
         for p in it:
             new |= p
         return new
     
     @staticmethod
     def from_torch(array: tuple) -> Box[vec2]:
-        ''' create from a tuple `(xmin, ymin, xmax, ymax)` '''
+        ''' create from a tuple `(xmin, ymin, xmax, ymax)` which is the pytorch convention '''
         return box(vec2(array[0:2]), vec2(array[2:4]))
     
     @staticmethod
     def from_cv(array: tuple) -> Box[vec2]:
-        ''' create from a tuple `(xmin, ymax, width, height)` '''
+        ''' create from a tuple `(xmin, ymax, width, height)` which is the opencv convention '''
         min = vec2(array[0:2])
         return box(min, min + vec2(array[2:4]))
-            
+    
     @staticmethod
     def from_matrix(matrix:mat4, centered=False) -> Box:
         ''' reciprocal of `self.to_matrix()` '''
@@ -80,10 +82,10 @@ class Box:
         else:
             s = self.size
             o = self.min
-        m = _to_affine_mat[type(s)]
+        m = _to_affine_mat[type(s)]()
         for i in range(len(s)):
             m[i][i] = s[i]
-            m[-1][i] = o[i]
+            m[len(s)][i] = o[i]
         return m
     
     @property
@@ -120,7 +122,7 @@ class Box:
         for i in range(2**d):
             for j in range(d):
                 vec[j] = self.max[j] if (i>>j)&1 else self.min[j]
-            yield vec
+            yield copy(vec)
     
     def slice(self):
         ''' create a tuple of slice, a slice each dimension of the box '''
@@ -129,7 +131,7 @@ class Box:
     def transform(self, transformation) -> Box:
         ''' box bounding the current one in a transformed space '''
         if not self.isvalid():	return self
-        return box.from_iter(transformation * p   for p in self.corners())
+        return Box.from_iter(transformation * p   for p in self.corners())
         
         
     def touch_borders(self, other:Box) -> bool:

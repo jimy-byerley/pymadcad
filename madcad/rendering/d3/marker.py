@@ -60,11 +60,11 @@ class PointDisplay(Display):
 
 	def _render(self, view):
 		self._va_screen.program['color'].write(highlight_color(self, self.color))
-		self._va_screen.program['position'].write(fvec3(self.world * fvec4(self.position,1)))
+		self._va_screen.program['position'].write(self.world * self.position)
 		self._va_screen.program['view'].write(view.uniforms['view'])
 		self._va_screen.program['proj'].write(view.uniforms['proj'])
 		self._va_screen.program['ratio'] = (
-				self.size / view.screen.size,
+				self.size / view.screen.width,
 				self.size / view.screen.height,
 				)
 		self._texture.use(0)
@@ -72,11 +72,11 @@ class PointDisplay(Display):
 
 	def _identify(self, view):
 		self._va_ident.program['ident'] = view.identstep(1)
-		self._va_ident.program['position'].write(fvec3(self.world * fvec4(self.position,1)))
+		self._va_ident.program['position'].write(self.world * self.position)
 		self._va_ident.program['view'].write(view.uniforms['view'])
 		self._va_ident.program['proj'].write(view.uniforms['proj'])
 		self._va_ident.program['ratio'] = (
-				1.5 * self.size / view.screen.size,
+				1.5 * self.size / view.screen.width,
 				1.5 * self.size / view.screen.height,
 				)
 		self._va_ident.render()

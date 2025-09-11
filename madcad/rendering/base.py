@@ -3,7 +3,7 @@ from __future__ import annotations
 import traceback
 from weakref import WeakValueDictionary
 from dataclasses import dataclass
-from copy import deepcopy
+from copy import deepcopy, copy
 from operator import attrgetter
 
 import moderngl as mgl
@@ -492,9 +492,9 @@ class Group(Display):
 		return self.displays[key]
 
 	def __setitem__(self, key, value):
-		if self.pending is None:
-			self.pending = copy(self.displays)
-		self.pending[key] = value
+		if self._pending is None:
+			self._pending = copy(self.displays)
+		self._pending[key] = value
 
 Scene.overrides[dict] = Group
 Scene.overrides[list] = Group

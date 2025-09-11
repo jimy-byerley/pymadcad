@@ -317,5 +317,130 @@ def explode(solids, factor=1, offsets=None) -> '(solids:list, graph:Mesh)':
 			
 	return [solids, graph]
 
+from itertools import chain
+from pnprint import nprint
+def explode_offsets(boxes:list[Box], places:list[mat4], spacing=0.) -> list[vec3]:
+	# create a tree of almost enclosing boxes
+	def ios(a, b):
+		return a.intersection(b).volume() / (a.volume() + b.volume())
+	def nest(root, new, threshold):
+		if root.children:
+			parent = max(root.children, key=lambda parent: ios(new.world, parent.world))
+			score = ios(new.world, parent.world)
+			if score > threshold:
+				nest(parent, new, score)
+				return
+		root.children.append(new)
 	
+	root = _Node(None, 
+		world=Box(width=-inf), 
+		local=Box(width=-inf), 
+		place=mat4(), 
+		children=[],
+		offset=vec3(),
+		)
+	for index, box in sorted(enumerate(boxes), key=lambda item: item[1].volume(), reverse=True):
+		nest(root, _Node(index, 
+			world=box.transform(places[index]), 
+			local=box, 
+			place=places[index], 
+			children=[],
+			offset=None,
+			), 0)
+	
+	# explode boxes recursively
+	def inner_distance(parent, child):
+		return min(glm.min(child.min - parent.min, parent.max - child.max) / parent.size)
+	def place(node):
+		for child in node.children:
+			place(child)
+		placed = [node.place * p   for p in node.local.corners() if isfinite(p)]
+		ordered = sorted(node.children, key=lambda child: inner_distance(node.world, child.world), reverse=True)
+		for child in ordered:
+			# choose offset direction the closest to exterior of enclosing box
+			bounds = _box_planes(node.local, node.place)
+			shape = _box_planes(child.local, child.place)
+			direction = max(shape, 
+				key=lambda axis: max(dot(axis.origin - bound.origin, bound.direction)  for bound in bounds) * (
+						max(dot(axis.direction, bound.origin)  for bound in bounds)
+						- min(dot(axis.direction, bound.origin)  for bound in bounds)
+						)
+				).direction
+			shape_bot = min(dot(axis.origin, direction)  for axis in _box_planes(child.world, 1))
+			shape_top = max(dot(axis.origin, direction)  for axis in _box_planes(child.world, 1))
+			explode_top = max((dot(p, direction)  for p in placed), default=shape_bot)
+			
+			offset = explode_top - shape_bot + spacing*(shape_top - shape_bot)
+			child.offset = direction * offset
+			child.world = child.world.transform(translate(child.offset))
+			placed.extend(offset + child.place * p   for p in child.local.corners())
+			
+		node.world |= boundingbox(child.world  for child in node.children)
+	place(root)
+	
+	offsets = [vec3()  for box in boxes]
+	def get(node, offset):
+		offsets[node.index] = node.offset + offset
+		for child in node.children:
+			get(child, node.offset + offset)
+	for node in root.children:
+		get(node, vec3(0))
+	return offsets
 
+def _box_planes(box, place):
+	m = box.to_matrix(centered=True)
+	# return [Axis(m*d, d/dot(box.size, d)).transform(place)  for d in (-X,-Y,-Z, +X,+Y,+Z)]
+	return [Axis(m*d, d).transform(place)  for d in (-X,-Y,-Z, +X,+Y,+Z)]
+	
+from dataclasses import dataclass
+@dataclass
+class _Node:
+	index: int
+	world: Box
+	local: Box
+	place: mat4()
+	children: list
+	offset: vec3
+	
+	
+	
+# def explode_offsets(boxes:list[Box]) -> list[vec3]:
+# 	tree = {}
+# 	for box in sorted(boxes, key=Box.volume):
+# 		parent, iou = min((
+# 			(boxes, intersection(box, boxes[parent]).volume() / union(box, boxes[parent]).volume())
+# 			for parent in tree
+# 			), key=itemgetter(1))
+# 		if iou > 
+
+import numpy as np
+def explode_offsets_(boxes:list[Box], places:list[mat4], spacing=0.) -> list[vec3]:
+	offsets = [vec3(0)  for box in boxes]
+	gboxes = [box.transform(place)  for box,place in zip(boxes, places)]
+	gbounds = boundingbox(gboxes)
+	# sort by distance to bounding box
+	ordered = sorted(range(len(boxes)), 
+			key=lambda i:  min(glm.min((gbounds.min - gboxes[i].min), (gbounds.max - gboxes[i].max)) / gbounds.size), 
+			reverse=True)
+	print('  order', ordered)
+	for k,i in enumerate(ordered):
+		if not k:
+			continue
+		# choose local offset direction the closest to side
+		iplace = affineInverse(places[i])
+		lbounds = gbounds.transform(iplace)
+		# closest side
+		# idir = np.argmin(np.concatenate([boxes[i].min - lbounds.min, lbounds.max - boxes[i].max]))
+		# opposite to farest side
+		idir = np.argmax(np.concatenate([(lbounds.max - boxes[i].max)/lbounds.size, (boxes[i].min - lbounds.min)/lbounds.size]))
+		bots = np.concatenate([-boxes[i].max, boxes[i].min])
+		dir = vec3()
+		dir[idir%3] = -1 if idir<3 else +1
+		
+		# dir = vec3(0,0,1)
+		# move on the top of already moved parts
+		top = max( dot(iplace * (p + offsets[j]), dir)  for j in ordered[:k] for p in gboxes[j].corners() )
+		print('    top', dir, top)
+		offset = top - bots[idir]
+		offsets[i] = mat3(places[i]) * dir * (offset + dot(boxes[i].size, dir)*spacing)
+	return offsets

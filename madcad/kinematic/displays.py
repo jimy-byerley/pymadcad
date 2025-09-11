@@ -30,13 +30,123 @@ except ImportError:
 __all__ = ['ChainManip', 'KinematicManip', 'scale_solid', 'world_solid']
 
 
-class SolidDisplay(Group):
+
+
+class DictDisplay(Group):
+	def __init__(self, scene, src=None, world=1):
+		super().__init__(scene, src, world)
+		self._exploded = False
+	
+	def stack(self, scene):
+		if not scene.options['solid_freemove']:
+			self.unexplode()
+		return super().stack(scene)
+		
+	def control(self, view, key, sub, event):
+		if not view.scene.options['solid_freemove']:
+			return
+		if event.button() == Qt.MouseButton.RightButton and event.type() == QEvent.MouseButtonRelease:
+			stack = []
+			disp = self
+			for i,key in enumerate(sub[:-1]):
+				if isinstance(disp, DictDisplay):
+					stack.append(disp)
+				disp = disp[key]
+			# explode if any display not already exploded in the stack
+			explode = any(not disp.exploded for disp in stack)
+			
+			boxes = {}
+			for disp in reversed(stack):
+				if explode:
+					disp.explode(view, boxes)
+				else:
+					disp.unexplode(view)
+			
+			event.accept()
+			view.scene.touch()
+			view.update()
+			
+	@property
+	def exploded(self):
+		return self._exploded
+
+	def unexplode(self, view=None):
+		self._exploded = False
+		for child in self.displays.values():
+			if isinstance(child, SolidDisplay):
+				child.reset(view)
+				child.displays.pop('box', None)
+			
+	def explode(self, view=None, cache=None) -> Box[fvec3]:
+		from madcad.kinematic.assembly import explode_offsets
+		from madcad.rendering import Group
+		from madcad.kinematic.displays import SolidDisplay
+		from pnprint import nprint
+		from functools import partial
+		
+		if self._exploded:
+			return
+		self._exploded = True
+		
+		if cache is None:
+			cache = {}
+		
+		solids = [None]
+		nonsolid = Box(fvec3(+inf), fvec3(-inf))
+		for child in self.displays.values():
+			if isinstance(child, SolidDisplay):
+				child._free = fmat4()
+				# child.displays.pop('box', None)
+				solids.append(child)
+			elif hasattr(child, 'box'):
+				nonsolid |= child.box
+		
+		# for solid in solids:
+		# 	if solid:
+		# 		solid['box'] = boundingbox(cache.get(id(child), child.box)  for child in solid.displays.values())
+				
+		boxes = []
+		places = []
+		for solid in solids:
+			if solid is None:
+				if not nonsolid.isempty():
+					boxes.append(nonsolid.cast(vec3))
+					places.append(mat4())
+			else:
+				boxes.append(boundingbox(cache.get(id(child), child.box)  for child in solid.displays.values()) .cast(vec3))
+				places.append(mat4(solid.local))
+		
+		offsets = explode_offsets(boxes, places, spacing=0.5)
+		offsets = [offset - offsets[0]  for offset in offsets]
+
+		for solid, offset in zip(solids, offsets):
+			if solid:
+				if view:
+					inv = transpose(fmat3(solid.local))
+					def animation(x, solid=solid, offset=offset, inv=inv):
+						solid.free = translate(inv * smoothstep(0, 1, x) * fvec3(offset))
+						view.update()
+					solid._animate(0.15, animation)
+				else:
+					solid.free = translate(transpose(fmat3(solid.local)) * fvec3(offset))
+		
+		cache[id(self)] = boundingbox(box.transform(offset) for box in boxes) .cast(fvec3)
+	
+
+from ..rendering import Scene
+Scene.overrides[list] = DictDisplay
+Scene.overrides[dict] = DictDisplay
+
+
+			
+
+class SolidDisplay(DictDisplay):
 	''' Movable `Group` for the rendering pipeline '''
 	def __init__(self, scene, solid:Solid, world=fmat4()):
 		self._local = fmat4()
 		self._free = fmat4()
 		self._animation = None
-		super().__init__(scene, world)
+		super().__init__(scene, world=world)
 		self._animate = scene.share(Animator, Animator)
 		self.update(self, solid)
 	
@@ -54,7 +164,7 @@ class SolidDisplay(Group):
 			
 	@writeproperty
 	def free(self):   self._place_displays()
-			
+	
 	def _place_displays(self):
 		sub = self._world * self._local * self._free
 		for display in self.displays.values():
@@ -89,7 +199,7 @@ class SolidDisplay(Group):
 		self.prepare(scene)
 		if not scene.options['solid_freemove']:
 			self.reset()
-		
+
 		sub = self._world * self._local * self._free
 		for key, display in self.displays.items():
 			display.world = sub
@@ -99,7 +209,10 @@ class SolidDisplay(Group):
 			yield from display.stack(scene)
 
 	def control(self, view, key, sub, evt):
-		if self.selected and view.scene.options['solid_freemove']:
+		super().control(view, key, sub, evt)
+		if not view.scene.options['solid_freemove']:
+			return
+		if self.selected:
 			# accept clicks to listen for dragging
 			if evt.type() == QEvent.Type.MouseButtonPress and (
 					evt.button() == Qt.MouseButton.LeftButton
@@ -117,7 +230,8 @@ class SolidDisplay(Group):
 				# drag with right click resets its free pose
 				elif evt.buttons() & Qt.MouseButton.RightButton:
 					evt.accept()
-					self.reset_animated(view)
+					if self._free != fmat4():
+						self.reset(view)
 				
 	def _move(self, view, evt):
 		''' moves the selected solids in the view plane following the mouse movements '''
@@ -140,23 +254,26 @@ class SolidDisplay(Group):
 				move = transpose(fmat3(solid._world * solid._local * solid._free)) * (click - anchor)
 				solid.free = former * translate(move)
 
-	def reset(self):
-		''' reset solid free position '''
-		self.free = fmat4()
-	
-	def reset_animated(self, view):
-		''' reset solid free with an animation '''
-		if not (self._animation and self._animation.complete()) and self._free != fmat4():
+	def reset(self, view=None):
+		''' reset solid free position, with animation is view is provided '''
+		if view:
+			if (self._animation and not self._animation.complete()):
+				return
 			rinit = fquat(fmat3(self.free))
 			tinit = fvec3(self.free[3])
 			rfinal = fquat()
 			tfinal = fvec3(0)
-			def reset(x):
+			def animation(x):
 				x = smoothstep(0, 1, x)
 				self.free = translate(mix(tinit, tfinal, x)) * fmat4(slerp(rinit, rfinal, x))
 				view.update()
-			self._animation = self._animate(0.15, reset)
-
+			self._animation = self._animate(0.15, animation)
+		else:
+			self.free = fmat4()
+		
+		
+		
+			
 class ChainManip(Group):
 	''' object to display and interact with a robot in the 3d view
 
@@ -760,6 +877,7 @@ class DeferedProblem:
 	iterations: int
 						
 
+import random
 class Animator:
 	''' shared object for managing simple animations in the madcad scene '''
 	def __init__(self, scene):
@@ -777,25 +895,26 @@ class Animator:
 			self.timer.timeout.connect(self._step)
 			self.timer.setInterval(30)
 		# add an entry
+		id = 0
+		while id in self.animations:
+			id = random.randrange(len(self.animations)*2)
 		entry = [time(), duration, callback]
-		self.animations[id(entry)] = entry
+		self.animations[id] = entry
 		self.timer.start()
-		return Animation(self, id(entry))
+		return Animation(self, id)
 	
 	def _step(self):
 		# run all callbacks
 		now = time()
 		for id, (start, duration, callback) in self.animations.items():
+			if not callback:
+				continue
 			progress = (now-start)/duration
 			if 0 <= progress <= 1:
 				callback((time()-start)/duration)
 			else:
 				callback(1.)
-				self.removal.add(id)
-		# clean ended animations
-		for id in self.removal:
-			del self.animations[id]
-		self.removal.clear()
+				self.animations[id][2] = None
 		# stop when no more animations
 		if not self.animations:
 			self.timer.stop()
@@ -805,13 +924,17 @@ class Animation:
 	def __init__(self, animator, id):
 		self.animator = animator
 		self.id = id
+	def __del__(self):
+		if self.id is not None:
+			self.animator.animations[self.id]
+			self.id = None
 	
 	def complete(self):
 		''' return True if the animation is over '''
 		if self.id in self.animator.animations:
 			start, duration, _ = self.animator.animations[self.id]
 			return time() - start >= duration
-		return False
+		return True
 	
 	def stop(self):
 		''' stop the animation immediately, callback(1) is called a last time '''
@@ -910,7 +1033,7 @@ def kinematic_color(i):
 def qtpos(qtpos, view):
 	''' convert qt position in the widget to opengl screen coords in range (-1, 1) '''
 	return vec2(
-		+ (qtpos.x()/view.size() *2 -1),
+		+ (qtpos.x()/view.width() *2 -1),
 		- (qtpos.y()/view.height() *2 -1),
 		)
 

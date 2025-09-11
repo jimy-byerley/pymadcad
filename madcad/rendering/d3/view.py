@@ -264,7 +264,7 @@ else:
 			self.color = np.empty((h,w,3), dtype='u1')
 		
 		def paintEvent(self, painter):
-			w = self.size()
+			w = self.width()
 			h = self.height()
 			size = glsize(uvec2(w, h))
 			
@@ -360,13 +360,13 @@ else:
 
 				This function can be overwritten to change the interaction with the scene objects.
 			'''
-			disp = self.scene.root.displays
-			for i in range(1,len(key)):
-				disp = disp[key[i-1]]
+			disp = self.scene.root
+			for i in range(len(key)-1):
 				disp.control(self, key[:i], key[i:], evt)
 				if evt.isAccepted(): 
 					self.update()
 					break
+				disp = disp[key[i]]
 				
 		def _selection(self, disp, sub, evt):
 			''' handle the selection events '''
@@ -491,7 +491,7 @@ else:
 						elif self._mode == self._ROTATE:
 							self.navigation.rotate(fvec3(dx, dy, 0))
 						elif self._mode == self._ZOOM:
-							middle = QPoint(self.size(), self.height())/2
+							middle = QPoint(self.width(), self.height())/2
 							f = (	(last-middle).manhattanLength()
 								/	(evt.pos()-middle).manhattanLength()	)
 							self.navigation.zoom(f)
