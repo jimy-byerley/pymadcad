@@ -32,7 +32,7 @@ __all__ = ['ChainManip', 'KinematicManip', 'scale_solid', 'world_solid']
 
 
 
-class DictDisplay(Group):
+class ExplodableGroup(Group):
 	def __init__(self, scene, src=None, world=1):
 		super().__init__(scene, src, world)
 		self._exploded = False
@@ -49,11 +49,11 @@ class DictDisplay(Group):
 			stack = []
 			disp = self
 			for i,key in enumerate(sub[:-1]):
-				if isinstance(disp, DictDisplay):
+				if isinstance(disp, ExplodableGroup):
 					stack.append(disp)
 				disp = disp[key]
-			# explode if any display not already exploded in the stack
-			explode = any(not disp.exploded for disp in stack)
+			# explode if interacted display not already exploded
+			explode = not stack[-1].exploded
 			
 			boxes = {}
 			for disp in reversed(stack):
@@ -96,14 +96,15 @@ class DictDisplay(Group):
 		for child in self.displays.values():
 			if isinstance(child, SolidDisplay):
 				child._free = fmat4()
-				# child.displays.pop('box', None)
+				child.displays.pop('box', None)
 				solids.append(child)
 			elif hasattr(child, 'box'):
 				nonsolid |= child.box
 		
-		# for solid in solids:
-		# 	if solid:
-		# 		solid['box'] = boundingbox(cache.get(id(child), child.box)  for child in solid.displays.values())
+		for solid in solids:
+			if solid:
+				# solid['box'] = boundingbox(cache.get(id(child), child.box)  for child in solid.displays.values())
+				solid['box'] = boundingbox(child.box  for child in solid.displays.values())
 				
 		boxes = []
 		places = []
@@ -113,7 +114,8 @@ class DictDisplay(Group):
 					boxes.append(nonsolid.cast(vec3))
 					places.append(mat4())
 			else:
-				boxes.append(boundingbox(cache.get(id(child), child.box)  for child in solid.displays.values()) .cast(vec3))
+				# boxes.append(boundingbox(cache.get(id(child), child.box)  for child in solid.displays.values()) .cast(vec3))
+				boxes.append(boundingbox(child.box  for child in solid.displays.values()) .cast(vec3))
 				places.append(mat4(solid.local))
 		
 		offsets = explode_offsets(boxes, places, spacing=0.5)
@@ -134,13 +136,13 @@ class DictDisplay(Group):
 	
 
 from ..rendering import Scene
-Scene.overrides[list] = DictDisplay
-Scene.overrides[dict] = DictDisplay
+Scene.overrides[list] = ExplodableGroup
+Scene.overrides[dict] = ExplodableGroup
 
 
 			
 
-class SolidDisplay(DictDisplay):
+class SolidDisplay(ExplodableGroup):
 	''' Movable `Group` for the rendering pipeline '''
 	def __init__(self, scene, solid:Solid, world=fmat4()):
 		self._local = fmat4()

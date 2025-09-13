@@ -360,12 +360,14 @@ def explode_offsets(boxes:list[Box], places:list[mat4], spacing=0.) -> list[vec3
 			# choose offset direction the closest to exterior of enclosing box
 			bounds = _box_planes(node.local, node.place)
 			shape = _box_planes(child.local, child.place)
-			direction = max(shape, 
-				key=lambda axis: max(dot(axis.origin - bound.origin, bound.direction)  for bound in bounds) * (
-						max(dot(axis.direction, bound.origin)  for bound in bounds)
-						- min(dot(axis.direction, bound.origin)  for bound in bounds)
-						)
+			# move in the direction where the needed offset is the smallest
+			direction = - max(shape, 
+				key=lambda axis: max(
+					dot(axis.origin - bound.origin, -axis.direction)
+					for bound in bounds
+					if dot(axis.direction, bound.direction) < 0)
 				).direction
+			
 			shape_bot = min(dot(axis.origin, direction)  for axis in _box_planes(child.world, 1))
 			shape_top = max(dot(axis.origin, direction)  for axis in _box_planes(child.world, 1))
 			explode_top = max((dot(p, direction)  for p in placed), default=shape_bot)
