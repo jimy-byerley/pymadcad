@@ -67,3 +67,8 @@ exclude = [
     ]
 [tool.poetry.build]
 script = "build.py"
+
+
+# enhance pytest default output
+[tool.pytest.ini_options]
+addopts = "-v -rF --no-header --force-short-summary"
