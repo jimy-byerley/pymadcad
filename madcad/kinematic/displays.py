@@ -15,12 +15,14 @@ from ..mesh import Mesh, Web, Wire, striplist, distance2_pm, typedlist_to_numpy
 from .. import settings
 from .. import rendering
 from .. import scheme
-from ..rendering import Group, writeproperty, receiver
+from ..rendering import Scene, Group, writeproperty, receiver
 from ..scheme import Scheme, halo_screen
 from ..generation import revolution
 from ..mesh import web
 from .solver import Chain, Kinematic, KinematicError, regularize_grad, structure_state, flatten_state
-from .assembly import Solid
+from .assembly import Solid, explode_offsets, SolidBox
+from pnprint import nprint
+from functools import partial
 try:
 	from ..qt import Qt, QEvent, QTimer
 except ImportError:
@@ -33,6 +35,10 @@ __all__ = ['ChainManip', 'KinematicManip', 'scale_solid', 'world_solid']
 
 
 class ExplodableGroup(Group):
+	''' just like a group but allowing exploded views 
+	
+		expoloded view is enabled by right-clicks on content when `solid_freemove` is enabled in the scene
+	'''
 	def __init__(self, scene, src=None, world=1):
 		super().__init__(scene, src, world)
 		self._exploded = False
@@ -68,29 +74,33 @@ class ExplodableGroup(Group):
 			
 	@property
 	def exploded(self):
+		''' true if this container is currently shown exploded '''
 		return self._exploded
 
 	def unexplode(self, view=None):
+		''' move children back into nominal position 
+		
+			if view is given, the result is not instantaneous but animated
+		'''
 		self._exploded = False
 		for child in self.displays.values():
 			if isinstance(child, SolidDisplay):
 				child.reset(view)
-				child.displays.pop('box', None)
+				# child.displays.pop('box', None)
 			
-	def explode(self, view=None, cache=None) -> Box[fvec3]:
-		from madcad.kinematic.assembly import explode_offsets
-		from madcad.rendering import Group
-		from madcad.kinematic.displays import SolidDisplay
-		from pnprint import nprint
-		from functools import partial
+	def explode(self, view=None, exploded:dict[int,Box]=None) -> Box[fvec3]:
+		''' move `SolidDisplay` children away from each other
 		
+			if view is given, the result is not instantaneous but animated
+		'''
 		if self._exploded:
 			return
 		self._exploded = True
 		
-		if cache is None:
-			cache = {}
+		if exploded is None:
+			exploded = {}
 		
+		# collect solids and non-movable displays at this level
 		solids = [None]
 		nonsolid = Box(fvec3(+inf), fvec3(-inf))
 		for child in self.displays.values():
@@ -105,27 +115,35 @@ class ExplodableGroup(Group):
 		
 		# for solid in solids:
 		# 	if solid:
-		# 		solid['box'] = box_local(solid)
+		# 		solid['box'] = _box_local(solid)
 		
-		boxes = []
-		exploded = []
-		places = []
+		# retreive boundingboxes
+		shapes = []
 		for solid in solids:
 			if solid is None:
-				boxes.append(nonsolid.cast(vec3))
-				exploded.append(nonsolid.cast(vec3))
-				places.append(mat4())
+				# special case for nonsolid
+				shapes.append(SolidBox(
+					box = nonsolid.cast(vec3),
+					exploded = nonsolid.cast(vec3),
+					place = mat4(),
+					))
 			else:
-				if id(solid) in cache:
-					exploded.append(cache[id(solid)].cast(vec3))
+				# solid could be exploded inside
+				if id(solid) in exploded:
+					ex = exploded[id(solid)].cast(vec3)
 				else:
-					exploded.append(boundingbox(child.box  for child in solid.displays.values()) .cast(vec3))
-				boxes.append(box_local(solid) .cast(vec3))
-				places.append(mat4(solid.local))
+					ex = boundingbox(child.box  for child in solid.displays.values()) .cast(vec3)
+				shapes.append(SolidBox(
+					box = _box_local(solid) .cast(vec3),
+					exploded = ex,
+					place = mat4(solid.local),
+					))
 		
-		offsets = explode_offsets(boxes, places, exploded, spacing=0.5)
+		# compute offsets (relative to first item in case there is non-movable items)
+		offsets = explode_offsets(shapes, spacing=0.5)
 		offsets = [offset - offsets[0]  for offset in offsets]
 
+		# move solids
 		for solid, offset in zip(solids, offsets):
 			if solid:
 				if view:
@@ -137,17 +155,17 @@ class ExplodableGroup(Group):
 				else:
 					solid.free = translate(inverse(fmat3(solid.local)) * fvec3(offset))
 		
-		cache[id(self)] = boundingbox(box.transform(translate(offset) * place) for box, place, offset in zip(boxes, places, offsets)) .cast(fvec3)
+		exploded[id(self)] = boundingbox(shape.box.transform(translate(offset) * shape.place) for shape, offset in zip(shapes, offsets)) .cast(fvec3)
 
-def box_local(display):
+def _box_local(display):
+	''' get the local boundingbox of a soliddisplay, or the normal box for other displays '''
 	if isinstance(display, SolidDisplay):
 		return boundingbox(
-			(box_local(sub)   for sub in display.displays.values()), 
+			(_box_local(sub)   for sub in display.displays.values()), 
 			ignore=True)
 	else:
 		return getattr(display, 'box', None)
 
-from ..rendering import Scene
 Scene.overrides[list] = ExplodableGroup
 Scene.overrides[dict] = ExplodableGroup
 
@@ -155,7 +173,7 @@ Scene.overrides[dict] = ExplodableGroup
 			
 
 class SolidDisplay(ExplodableGroup):
-	''' Movable `Group` for the rendering pipeline '''
+	''' Movable and explodable `Group` for the rendering pipeline '''
 	def __init__(self, scene, solid:Solid, world=fmat4()):
 		self._local = fmat4()
 		self._free = fmat4()

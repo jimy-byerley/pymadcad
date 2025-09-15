@@ -1,5 +1,11 @@
+from __future__ import annotations
+
 # This file is part of pymadcad,  distributed under license LGPL v3
-__all__ = ['Solid', 'placement', 'explode', 'explode_offsets']
+__all__ = ['Solid', 'placement', 'explode', 'explode_offsets', 'SolidBox']
+
+from itertools import chain
+from pnprint import nprint
+from dataclasses import dataclass
 
 from ..mathutils import *
 
@@ -142,146 +148,16 @@ def placement(*pairs, precision=1e-3):
 		return affineInverse(parts[1]) * parts[0]
 	else:
 		return affineInverse(joints[0].direct(joints[0].default))
-	
-def convexhull(pts):
-	import scipy.spatial
-	if len(pts) == 3:
-		return Mesh(pts, [(0,1,2),(0,2,1)])
-	elif len(pts) > 3:
-		hull = scipy.spatial.ConvexHull(typedlist_to_numpy(pts, 'f8'))
-		m = Mesh(pts, hull.simplices.tolist())
-		return m
-	else:
-		return Mesh(pts)
 
-			
-def extract_used(obj):
-	if isinstance(obj, Mesh):	links = obj.faces
-	elif isinstance(obj, Web):	links = obj.edges
-	elif isinstance(obj, Wire):	links = [obj.indices]
-	else:
-		raise TypeError('obj must be a mesh of any kind')
-	
-	return striplist(obj.points[:], links)[0]
 
-	
-def explode_offsets(solids) -> '[(solid_index, parent_index, offset, barycenter)]':
-	''' Build a graph of connected objects, ready to create an exploded view or any assembly animation.
-		See `explode()` for an example. The exploded view is computed using the meshes contained in the given solids, so make sure there everything you want in their content.
-	
-		Complexity is `O(m * n)` where m = total number of points in all meshes, n = number of solids
-		
-		NOTE:
-			
-			Despite the hope that this function will be helpful, it's (for computational cost reasons) not a perfect algorithm for complex assemblies (the example above is at the limit of a simple one). The current algorithm will work fine for any simple enough assembly but may return unexpected results for more complex ones.
-		
-	'''
-	import scipy.spatial.qhull
-	# build convex hulls
-	points = [[] for s in solids]
-	# recursively search for meshes in solids
-	def process(i, solid):
-		if hasattr(solid.content, 'values'):	it = solid.content.values()
-		else:									it = solid.content
-		for obj in solid.content.values():
-			if isinstance(obj, Solid):
-				process(i, obj)
-			elif isinstance(obj, (Mesh,Web,Wire)):
-				try:
-					points[i].extend(extract_used(convexhull(extract_used(obj)).transform(solid.pose)))
-				except scipy.spatial.qhull.QhullError:
-					continue
-			
-	for i,solid in enumerate(solids):
-		process(i,solid)
-	
-	# create convex hulls and prepare for parenting
-	hulls = [convexhull(pts).orient()  for pts in points]
-	boxes = [hull.box()  for hull in hulls]
-	normals = [hull.vertexnormals()  for hull in hulls]
-	barycenters = [hull.barycenter()  for hull in hulls]
-	
-	scores = [inf] * len(solids)
-	parents = [None] * len(solids)
-	offsets = [vec3(0)] * len(solids)
-	
-	# build a graph of connected things (distance from center to convex hulls)
-	for i in range(len(solids)):
-		center = barycenters[i]	
-		for j in range(len(solids)):
-			if i == j:
-				continue
-			
-			# case of non-connection, the link won't appear in the graph
-			if boxes[i].intersection(boxes[j]).isempty():
-				continue
-			
-			# the parent is always the biggest of the two, this also breaks any possible parenting cycle
-			if length2(boxes[i].size) > length2(boxes[j].size):
-				continue
-			
-			# select the shortest link
-			d, prim = distance2_pm(center, hulls[j])
-			
-			if d < scores[i]:
-				# take j as new parent for i
-				scores[i] = d
-				parents[i] = j
-				
-				# get the associated displacement vector
-				pts = hulls[j].points
-				if isinstance(prim, int):
-					normal = normals[j][prim]
-					offsets[i] = center - pts[prim]
-				elif len(prim) == 2:
-					normal = normals[j][prim[0]] + normals[j][prim[1]]
-					offsets[i] = noproject(center - pts[prim[0]],  
-										pts[prim[0]]-pts[prim[1]])
-				elif len(prim) == 3:
-					normal = cross(pts[prim[1]]-pts[prim[0]], pts[prim[2]]-pts[prim[0]])
-					offsets[i] = project(center - pts[prim[0]],  normal)
-				else:
-					raise AssertionError('prim should be an index for  point, face, triangle')
-				if dot(offsets[i], normal) < 0:
-					offsets[i] = -offsets[i]
-	
-	# resolve dependencies to output the offsets in the resolution order
-	order = []
-	reached = [False] * len(solids)
-	i = 0
-	while i < len(solids):
-		if not reached[i]:
-			j = i
-			chain = []
-			while not (j is None or reached[j]):
-				reached[j] = True
-				chain.append(j)
-				j = parents[j]
-			order.extend(reversed(chain))
-		i += 1
-	
-	# move more parents that have children on their way out				
-	blob = [deepcopy(box) 	for box in boxes]
-	for i in reversed(range(len(solids))):
-		j = parents[i]
-		if j and length2(offsets[i]):
-			offsets[i] *= (1 
-							+ 0.5* length(blob[i].size) / length(offsets[i]) 
-							- dot(blob[i].center - barycenters[i], offsets[i]) / length2(offsets[i])
-							)
-			blob[j].merge_update(blob[i].transform(offsets[i]))
-								
-	return [(i, parents[i], offsets[i], barycenters[i])  for i in order]
-			
-	
-def explode(solids, factor=1, offsets=None) -> '(solids:list, graph:Mesh)':
+def explode(solids, spacing=1, offsets=None) -> list[Solid]:
 	''' Move the given solids away from each other in the way of an exploded view.
 		It makes easier to seen the details of an assembly . See `explode_offsets` for the algorithm.
 		
 		Parameters:
 			
 			solids:		a list of solids (copies of each will be made before displacing)
-			factor:		displacement factor, 0 for no displacement, 1 for normal displacement
+			spacing:	spacing factor, 0 for no displacement, 1 for normal displacement
 			offsets:	if given, must be the result of `explode_offsets(solids)`
 		
 		Example:
@@ -298,68 +174,77 @@ def explode(solids, factor=1, offsets=None) -> '(solids:list, graph:Mesh)':
 			>>> exploded = explode(parts)
 		
 	'''
-	solids = [copy(solid)  for solid in solids]
 	if not offsets:
-		offsets = explode_offsets(solids)
-	
-	graph = Web(groups=[None])
-	shifts = [	(solids[solid].position - solids[parent].position)
-				if parent else vec3(0)
-				for solid, parent, offset, center in offsets]
-	for solid, parent, offset, center in offsets:
-		if parent:
-			solids[solid].position = solids[parent].position + shifts[solid] + offset * factor
-			
-			graph.edges.append((len(graph.points), len(graph.points)+1))
-			graph.tracks.append(0)
-			graph.points.append(solids[parent].position + shifts[solid] + center)
-			graph.points.append(solids[solid].position + center)
-			
-	return [solids, graph]
+		offsets = explode_offsets([
+			SolidBox(
+				box = boundingbox(list(solid.values()), ignore=True),
+				place = solid.pose,
+				)
+			for solid in solids], spacing)
+	return [solid.transform(offset)  for solid, offset in zip(solids, offsets)]
 
-from itertools import chain
-from pnprint import nprint
-def explode_offsets(boxes:list[Box], places:list[mat4], exploded=None, spacing=0.) -> list[vec3]:
-	if exploded is None:
-		exploded = boxes
+
 	
+@dataclass(slots=True)
+class SolidBox:
+	''' structure just for `explode_offsets` '''
+	box: Box
+	''' object's bounding boxes in local space '''
+	place: mat4
+	''' transform from local to common space '''
+	exploded: Box = None
+	''' if given, it must be a list of object's bounding boxes in their local space representing the size of the object when internally exploded '''
+
+def explode_offsets(solids:list[SolidBox], spacing=0.) -> list[vec3]:
+	''' return offsets for an exploded view
+		
+		Args:
+			solids: objects to explode, described as boundingboxes in their own space
+			spacing:  spacing ratio relative to objects sizes (0 means no spacing, 0.5 is a good value)
+	'''
 	# create a tree of almost enclosing boxes
+	# criterion is intersection over sum
 	def ios(a, b):
 		return a.intersection(b).volume() / (a.volume() + b.volume())
 	def nest(root, new, threshold):
+		# try to insert in one of the children
 		if root.children:
 			parent = max(root.children, key=lambda parent: ios(new.world, parent.world))
 			score = ios(new.world, parent.world)
 			if score > threshold:
 				nest(parent, new, score)
 				return
+		# otherwise insert here
 		root.children.append(new)
 	
 	root = _Node(None, 
-		world=Box(size=-inf), 
-		local=Box(size=-inf), 
-		exploded=Box(size=-inf), 
-		place=mat4(), 
-		children=[],
-		offset=vec3(),
+		world = Box(size=-inf), 
+		local = Box(size=-inf), 
+		exploded = Box(size=-inf), 
+		place = mat4(), 
+		children = [],
+		offset = vec3(),
 		)
-	for index, box in sorted(enumerate(boxes), key=lambda item: item[1].volume(), reverse=True):
+	for index, solid in sorted(enumerate(solids), key=lambda item: item[1].box.volume(), reverse=True):
 		nest(root, _Node(index, 
-			world=box.transform(places[index]), 
-			local=box, 
-			exploded=exploded[index],
-			place=places[index], 
-			children=[],
-			offset=None,
+			world = solid.box.transform(solid.place), 
+			local = solid.box, 
+			exploded = solid.exploded or solid.box,
+			place = solid.place, 
+			children = [],
+			offset = None,
 			), 0)
 	
 	# explode boxes recursively
 	def inner_distance(parent, child):
 		return min(glm.min(child.min - parent.min, parent.max - child.max) / parent.size)
 	def place(node):
+		# process lower level first
 		for child in node.children:
 			place(child)
-		placed = [node.place * p   for p in node.exploded.corners() if isfinite(p)]
+		# bounding points of already exploded boxes at this level
+		exploded = [node.place * p   for p in node.exploded.corners() if isfinite(p)]
+		# process box in this level from most inner to most outer
 		ordered = sorted(node.children, key=lambda child: inner_distance(node.world, child.world), reverse=True)
 		for child in ordered:
 			# choose offset direction the closest to exterior of enclosing box
@@ -375,16 +260,19 @@ def explode_offsets(boxes:list[Box], places:list[mat4], exploded=None, spacing=0
 			
 			shape_length = max(dot(axis.origin, direction)  for axis in shape) - min(dot(axis.origin, direction)  for axis in shape)
 			shape_bot = min(dot(axis.origin, direction)  for axis in _box_planes(child.exploded, child.place))
-			explode_top = max((dot(p, direction)  for p in placed), default=shape_bot)
+			explode_top = max((dot(p, direction)  for p in exploded), default=shape_bot)
 			
+			# compute offset along direction to get the box out of the already exploded area
 			offset = max(0, explode_top - shape_bot) + spacing*mix(shape_length, max(child.world.size), 0.1)
+			# update tree
 			child.offset = direction * offset
-			placed.extend(offset + child.place * p   for p in child.exploded.corners())
-			
-		node.exploded |= boundingbox(affineInverse(node.place) * p  for p in placed)
+			exploded.extend(offset + child.place * p   for p in child.exploded.corners())
+		# publish new exploded bounds for upper level
+		node.exploded |= boundingbox(affineInverse(node.place) * p  for p in exploded)
 	place(root)
 	
-	offsets = [vec3()  for box in boxes]
+	# collect offsets from the tree
+	offsets = [vec3()  for box in solids]
 	def get(node, offset):
 		offsets[node.index] = node.offset + offset
 		for child in node.children:
@@ -393,14 +281,14 @@ def explode_offsets(boxes:list[Box], places:list[mat4], exploded=None, spacing=0
 		get(node, vec3(0))
 	return offsets
 
-def _box_planes(box, place):
+def _box_planes(box, transform):
+	''' return a list of one axis per box face, transformed '''
 	m = box.to_matrix(centered=True)
-	# return [Axis(m*d, d/dot(box.size, d)).transform(place)  for d in (-X,-Y,-Z, +X,+Y,+Z)]
-	return [Axis(m*d, d).transform(place)  for d in (-X,-Y,-Z, +X,+Y,+Z)]
+	return [Axis(m*d, d).transform(transform)  for d in (-X,-Y,-Z, +X,+Y,+Z)]
 	
-from dataclasses import dataclass
 @dataclass
 class _Node:
+	''' node representation in the box nesting algorithm of explode_offsets '''
 	index: int
 	world: Box
 	local: Box
@@ -408,46 +296,3 @@ class _Node:
 	place: mat4()
 	children: list
 	offset: vec3
-	
-	
-	
-# def explode_offsets(boxes:list[Box]) -> list[vec3]:
-# 	tree = {}
-# 	for box in sorted(boxes, key=Box.volume):
-# 		parent, iou = min((
-# 			(boxes, intersection(box, boxes[parent]).volume() / union(box, boxes[parent]).volume())
-# 			for parent in tree
-# 			), key=itemgetter(1))
-# 		if iou > 
-
-import numpy as np
-def explode_offsets_(boxes:list[Box], places:list[mat4], spacing=0.) -> list[vec3]:
-	offsets = [vec3(0)  for box in boxes]
-	gboxes = [box.transform(place)  for box,place in zip(boxes, places)]
-	gbounds = boundingbox(gboxes)
-	# sort by distance to bounding box
-	ordered = sorted(range(len(boxes)), 
-			key=lambda i:  min(glm.min((gbounds.min - gboxes[i].min), (gbounds.max - gboxes[i].max)) / gbounds.size), 
-			reverse=True)
-	print('  order', ordered)
-	for k,i in enumerate(ordered):
-		if not k:
-			continue
-		# choose local offset direction the closest to side
-		iplace = affineInverse(places[i])
-		lbounds = gbounds.transform(iplace)
-		# closest side
-		# idir = np.argmin(np.concatenate([boxes[i].min - lbounds.min, lbounds.max - boxes[i].max]))
-		# opposite to farest side
-		idir = np.argmax(np.concatenate([(lbounds.max - boxes[i].max)/lbounds.size, (boxes[i].min - lbounds.min)/lbounds.size]))
-		bots = np.concatenate([-boxes[i].max, boxes[i].min])
-		dir = vec3()
-		dir[idir%3] = -1 if idir<3 else +1
-		
-		# dir = vec3(0,0,1)
-		# move on the top of already moved parts
-		top = max( dot(iplace * (p + offsets[j]), dir)  for j in ordered[:k] for p in gboxes[j].corners() )
-		print('    top', dir, top)
-		offset = top - bots[idir]
-		offsets[i] = mat3(places[i]) * dir * (offset + dot(boxes[i].size, dir)*spacing)
-	return offsets
