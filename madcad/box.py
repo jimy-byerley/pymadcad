@@ -24,9 +24,12 @@ class Box:
     '''
     __slots__ = ('min', 'max')
     
-    def __init__(self, min=None, max=None, center=vec3(0), width=vec3(-inf)):
+    def __init__(self, min=None, max=None, center=vec3(0), size=vec3(-inf), width=None):
+        # DEPRECATED
+        if width is not None:
+            size = width
         if min and max:			self.min, self.max = min, max
-        else:					self.min, self.max = center-width/2, center+width/2
+        else:					self.min, self.max = center-size/2, center+size/2
         
     @staticmethod
     def from_iter(it) -> Self:
@@ -279,7 +282,7 @@ _from_affine_mat = {v:k  for k,v in _to_affine_mat.items()}
 
 
 
-def boundingbox(obj, ignore=False, default=Box(width=vec3(-inf))) -> Box:
+def boundingbox(obj, ignore=False, default=Box(size=vec3(-inf))) -> Box:
 	''' Return a box containing the object passed
 		`obj` can be a vec3, Box, object with a `box()` method, or an iterable of such objects
 	'''

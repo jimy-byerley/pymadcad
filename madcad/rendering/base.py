@@ -9,7 +9,8 @@ from operator import attrgetter
 import moderngl as mgl
 
 from .. import settings
-from ..mathutils import boundingbox
+from ..mathutils import fvec3, inf
+from ..box import Box, boundingbox
 from .utils import writeproperty
 
 __all__ = ['Scene', 'Step', 'Display', 'Group', 'Displayable']
@@ -412,7 +413,7 @@ class Group(Display):
 	def box(self):
 		return boundingbox(
 			(getattr(display, 'box', None)   for display in self.displays.values()), 
-			ignore=True)
+			ignore=True, default=Box(fvec3(inf), fvec3(-inf)))
 	
 	@writeproperty
 	def world(self):

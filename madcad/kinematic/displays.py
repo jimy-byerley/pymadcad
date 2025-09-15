@@ -41,7 +41,7 @@ class ExplodableGroup(Group):
 		if not scene.options['solid_freemove']:
 			self.unexplode()
 		return super().stack(scene)
-		
+	
 	def control(self, view, key, sub, event):
 		if not view.scene.options['solid_freemove']:
 			return
@@ -96,29 +96,34 @@ class ExplodableGroup(Group):
 		for child in self.displays.values():
 			if isinstance(child, SolidDisplay):
 				child._free = fmat4()
-				child.displays.pop('box', None)
+				# child.displays.pop('box', None)
 				solids.append(child)
 			elif hasattr(child, 'box'):
 				nonsolid |= child.box
+		if nonsolid.isempty():
+			solids.pop(0)
 		
-		for solid in solids:
-			if solid:
-				# solid['box'] = boundingbox(cache.get(id(child), child.box)  for child in solid.displays.values())
-				solid['box'] = boundingbox(child.box  for child in solid.displays.values())
-				
+		# for solid in solids:
+		# 	if solid:
+		# 		solid['box'] = box_local(solid)
+		
 		boxes = []
+		exploded = []
 		places = []
 		for solid in solids:
 			if solid is None:
-				if not nonsolid.isempty():
-					boxes.append(nonsolid.cast(vec3))
-					places.append(mat4())
+				boxes.append(nonsolid.cast(vec3))
+				exploded.append(nonsolid.cast(vec3))
+				places.append(mat4())
 			else:
-				# boxes.append(boundingbox(cache.get(id(child), child.box)  for child in solid.displays.values()) .cast(vec3))
-				boxes.append(boundingbox(child.box  for child in solid.displays.values()) .cast(vec3))
+				if id(solid) in cache:
+					exploded.append(cache[id(solid)].cast(vec3))
+				else:
+					exploded.append(boundingbox(child.box  for child in solid.displays.values()) .cast(vec3))
+				boxes.append(box_local(solid) .cast(vec3))
 				places.append(mat4(solid.local))
 		
-		offsets = explode_offsets(boxes, places, spacing=0.5)
+		offsets = explode_offsets(boxes, places, exploded, spacing=0.5)
 		offsets = [offset - offsets[0]  for offset in offsets]
 
 		for solid, offset in zip(solids, offsets):
@@ -130,10 +135,17 @@ class ExplodableGroup(Group):
 						view.update()
 					solid._animate(0.15, animation)
 				else:
-					solid.free = translate(transpose(fmat3(solid.local)) * fvec3(offset))
+					solid.free = translate(inverse(fmat3(solid.local)) * fvec3(offset))
 		
-		cache[id(self)] = boundingbox(box.transform(offset) for box in boxes) .cast(fvec3)
-	
+		cache[id(self)] = boundingbox(box.transform(translate(offset) * place) for box, place, offset in zip(boxes, places, offsets)) .cast(fvec3)
+
+def box_local(display):
+	if isinstance(display, SolidDisplay):
+		return boundingbox(
+			(box_local(sub)   for sub in display.displays.values()), 
+			ignore=True)
+	else:
+		return getattr(display, 'box', None)
 
 from ..rendering import Scene
 Scene.overrides[list] = ExplodableGroup

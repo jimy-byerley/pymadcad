@@ -319,7 +319,10 @@ def explode(solids, factor=1, offsets=None) -> '(solids:list, graph:Mesh)':
 
 from itertools import chain
 from pnprint import nprint
-def explode_offsets(boxes:list[Box], places:list[mat4], spacing=0.) -> list[vec3]:
+def explode_offsets(boxes:list[Box], places:list[mat4], exploded=None, spacing=0.) -> list[vec3]:
+	if exploded is None:
+		exploded = boxes
+	
 	# create a tree of almost enclosing boxes
 	def ios(a, b):
 		return a.intersection(b).volume() / (a.volume() + b.volume())
@@ -333,8 +336,9 @@ def explode_offsets(boxes:list[Box], places:list[mat4], spacing=0.) -> list[vec3
 		root.children.append(new)
 	
 	root = _Node(None, 
-		world=Box(width=-inf), 
-		local=Box(width=-inf), 
+		world=Box(size=-inf), 
+		local=Box(size=-inf), 
+		exploded=Box(size=-inf), 
 		place=mat4(), 
 		children=[],
 		offset=vec3(),
@@ -343,6 +347,7 @@ def explode_offsets(boxes:list[Box], places:list[mat4], spacing=0.) -> list[vec3
 		nest(root, _Node(index, 
 			world=box.transform(places[index]), 
 			local=box, 
+			exploded=exploded[index],
 			place=places[index], 
 			children=[],
 			offset=None,
@@ -354,7 +359,7 @@ def explode_offsets(boxes:list[Box], places:list[mat4], spacing=0.) -> list[vec3
 	def place(node):
 		for child in node.children:
 			place(child)
-		placed = [node.place * p   for p in node.local.corners() if isfinite(p)]
+		placed = [node.place * p   for p in node.exploded.corners() if isfinite(p)]
 		ordered = sorted(node.children, key=lambda child: inner_distance(node.world, child.world), reverse=True)
 		for child in ordered:
 			# choose offset direction the closest to exterior of enclosing box
@@ -368,16 +373,15 @@ def explode_offsets(boxes:list[Box], places:list[mat4], spacing=0.) -> list[vec3
 					if dot(axis.direction, bound.direction) < 0)
 				).direction
 			
-			shape_bot = min(dot(axis.origin, direction)  for axis in _box_planes(child.world, 1))
-			shape_top = max(dot(axis.origin, direction)  for axis in _box_planes(child.world, 1))
+			shape_length = max(dot(axis.origin, direction)  for axis in shape) - min(dot(axis.origin, direction)  for axis in shape)
+			shape_bot = min(dot(axis.origin, direction)  for axis in _box_planes(child.exploded, child.place))
 			explode_top = max((dot(p, direction)  for p in placed), default=shape_bot)
 			
-			offset = explode_top - shape_bot + spacing*(shape_top - shape_bot)
+			offset = max(0, explode_top - shape_bot) + spacing*mix(shape_length, max(child.world.size), 0.1)
 			child.offset = direction * offset
-			child.world = child.world.transform(translate(child.offset))
-			placed.extend(offset + child.place * p   for p in child.local.corners())
+			placed.extend(offset + child.place * p   for p in child.exploded.corners())
 			
-		node.world |= boundingbox(child.world  for child in node.children)
+		node.exploded |= boundingbox(affineInverse(node.place) * p  for p in placed)
 	place(root)
 	
 	offsets = [vec3()  for box in boxes]
@@ -400,6 +404,7 @@ class _Node:
 	index: int
 	world: Box
 	local: Box
+	exploded: Box
 	place: mat4()
 	children: list
 	offset: vec3
