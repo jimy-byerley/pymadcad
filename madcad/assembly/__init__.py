@@ -1,13 +1,17 @@
-from __future__ import annotations
+'''
+	convenient data structures and functions for putting parts together and explode them to other functions
+'''
 
-# This file is part of pymadcad,  distributed under license LGPL v3
-__all__ = ['Solid', 'placement', 'explode', 'explode_offsets', 'SolidBox']
+from __future__ import annotations
 
 from itertools import chain
 from pnprint import nprint
 from dataclasses import dataclass
 
 from ..mathutils import *
+
+# This file is part of pymadcad,  distributed under license LGPL v3
+__all__ = ['Solid', 'placement', 'explode', 'explode_offsets', 'SolidBox']
 
 
 class Solid(dict):

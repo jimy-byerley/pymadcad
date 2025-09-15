@@ -17,7 +17,7 @@ from itertools import accumulate
 
 from .mathutils import *
 from .primitives import *
-from .kinematic import Solid
+from .assembly import Solid
 from .joints import Revolute
 from .mesh import Mesh, Web, Wire, web, wire
 from .generation import *
