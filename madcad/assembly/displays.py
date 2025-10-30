@@ -123,7 +123,7 @@ class ExplodableGroup(Group):
 				if id(solid) in exploded:
 					ex = exploded[id(solid)].cast(vec3)
 				else:
-					ex = boundingbox(child.box  for child in solid.displays.values()) .cast(vec3)
+					ex = boundingbox(child.box  for child in solid.displays.values()  if hasattr(child, 'box')) .cast(vec3)
 				shapes.append(SolidBox(
 					box = _box_local(solid) .cast(vec3),
 					exploded = ex,

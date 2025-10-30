@@ -24,12 +24,12 @@ class Box:
     '''
     __slots__ = ('min', 'max')
     
-    def __init__(self, min=None, max=None, center=vec3(0), size=vec3(-inf), width=None):
+    def __init__(self, min=None, max=None, center=vec3(0), size=vec3(-inf), width=None, alignment:vec3|float=0.5):
         # DEPRECATED
         if width is not None:
             size = width
         if min and max:			self.min, self.max = min, max
-        else:					self.min, self.max = center-size/2, center+size/2
+        else:					self.min, self.max = center-alignment*size, center+(1-alignment)*size
         
     @staticmethod
     def from_iter(it) -> Self:
@@ -171,16 +171,16 @@ class Box:
     def __add__(self, other:Box|vec3):
         ''' component-wise addition '''
         if isinstance(other, Box):	
-            return box(self.min + other.min, self.max + other.max)
+            return Box(self.min + other.min, self.max + other.max)
         else:		
-            return box(self.min + other, self.max + other)
+            return Box(self.min + other, self.max + other)
     
     def __sub__(self, other:Box|vec3):
         ''' component-wise substraction '''
         if isinstance(other, Box):	
-            return box(self.min - other.min, self.max - other.max)
+            return Box(self.min - other.min, self.max - other.max)
         else:		
-            return box(self.min - other, self.max - other)
+            return Box(self.min - other, self.max - other)
             
     def __iadd__(self, other:Box|vec3):
         if isinstance(other, Box):	
