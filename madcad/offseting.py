@@ -76,7 +76,7 @@ def inflate(surface:Mesh, offset:float, method='face') -> 'Mesh':
             >>> inflate(sphere, 0.1)
 	'''
 	return Mesh(
-				typedlist((p+d   for p,d in zip(surface.points, inflate_offsets(surface, offset, method))), dtype=vec3),
+				typedlist((p+d  if isfinite(d) else p   for p,d in zip(surface.points, inflate_offsets(surface, offset, method))), dtype=vec3),
 				surface.faces,
 				surface.tracks,
 				surface.groups)

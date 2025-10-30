@@ -347,7 +347,7 @@ def nut(d, type='hex', detail=False) -> Mesh:
 	'''
 	args = standard_hexnuts[bisect(standard_hexnuts, d, key=itemgetter(0))]
 	if args[0] != d:
-		raise ValueError('no standard nut for the given diameter')
+		raise ValueError('no standard nut for diameter {}'.format(d))
 	return hexnut(*args)
 
 	
@@ -1258,6 +1258,9 @@ def bolt(a: vec3, b: vec3, dscrew: float, washera=False, washerb=False, nutb=Tru
 				#note_radius(rscrew['part'].group(0)),
 				#]
 	result = Solid(
+			a = a,
+			b = b,
+			dscrew = dscrew,
 			screw = rscrew.place((Revolute, rscrew['axis'], Axis(a-thickness*dir*int(washera), -dir))), 
 			)
 	if washera:
