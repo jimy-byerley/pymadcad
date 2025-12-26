@@ -186,6 +186,14 @@ def partial_difference(f, x, fx, i, d):
 
 @dataclass
 class Dynamic:
+	''' represents the dynamic motion of a frame or solid
+	
+		to get the world dynamic of a point in this frame, you just need to multiply this point by the position/velocity/acceleration matrix:
+		
+		>>> world_p = dyn.position * p
+		>>> world_v = dyn.velocity * p
+		>>> world.a = dyn.acceleration * p
+	'''
 	position: mat4
 	velocity: mat4
 	acceleration: mat4
@@ -210,7 +218,8 @@ class Dynamic:
 			acceleration = self.acceleration * offset,
 			)
 			
-	def compose(self, other) -> Dynamic:
+	def compose(self, other:Dynamic) -> Dynamic:
+		''' compose frame positions, velocities and accelerations '''
 		return Dynamic(
 			position = self.position * other.position,
 			velocity = self.velocity * other.position + self.position * other.velocity,
@@ -218,21 +227,23 @@ class Dynamic:
 			)
 	
 	def velocity_screw(self) -> Screw:
-		return Screw.from_matrix(
-			self.velocity * mat4(transpose(mat3(self.position))),
-			position = vec3(self.position[3]),
-			)
+		''' extract the twist of this frame dynamic. The returned screw is located at world's origin '''
+		return Screw.from_matrix(self.velocity * affineInverse(self.position))
+	
 	def acceleration_screw(self) -> Screw:
-		return Screw.from_matrix(
-			self.acceleration * mat4(transpose(mat3(self.position))),
-			position = vec3(self.position[3]),
-			)
+		''' extract the linear acceleration as moment and angular acceleration and resultant 
+		
+			Beware however that acceleration is not actually a screw because additional terms need to be atted to transport it from one location to another
+		'''
+		return Screw.from_matrix(self.acceleration * affineInverse(self.position))
 			
 	@staticmethod
 	def from_rate(f:callable, t:float, dt=1e-6) -> Dynamic:
 		''' compute a Dynamic of a frame by rating the given function `f` at the given instant `t`
 		
-			this function is expected to be continuous and `f(t-dt)` and `f(t+dt)` to exist
+			`f` is supposed to
+			- take a time instant and return a frame matrix
+			- be continuous and `f(t-dt)` and `f(t+dt)` to exist
 		'''
 		return Dynamic(
 			position = f(t),

@@ -468,7 +468,6 @@ def isaxis(obj):
 
 
 
-@dataclass
 class Screw:
 	''' A 3D torsor aka Screw - is a mathematical object defined as follow:
 		  * a resultant vector R
@@ -585,9 +584,11 @@ class Screw:
 	def from_rate(f:callable, t:float, dt=1e-6) -> Screw:
 		''' compute a Screw of a frame by rating the given function `f` at the given instant `t`
 		
-			this function is expected to be continuous and `f(t-dt)` and `f(t+dt)` to exist
+			`f` is supposed to
+			- take a time instant and return a frame matrix
+			- be continuous and `f(t-dt)` and `f(t+dt)` to exist
 		'''
-		return Screw.from_matrix((f(t+dt) - f(t-dt)) / (2*dt) @ inverse(f(t)))
+		return Screw.from_matrix((f(t+dt) - f(t-dt)) / (2*dt) @ affineInverse(f(t)))
 	
 	def __repr__(self):
 		return '{}(\n\t{}, \n\t{}, \n\t{})'.format(self.__class__.__name__, 
