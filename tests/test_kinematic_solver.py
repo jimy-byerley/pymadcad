@@ -145,13 +145,10 @@ def test_grid():
 
 def test_screw():
 	def derive(f, t):
-		dt = 1e-5
-		return Screw.from_matrix( 
-			(f(t+dt) - f(t-dt)) / (2*dt) * mat4(transpose(mat3(f(t)))),
-			vec3(f(t)[3]) )
-	def check(a, b):
-		assert np.amax(a.resultant - b.resultant) < 1e-3
-		assert np.amax(a.moment - b.moment) < 1e-3
+		return Screw.from_rate(f, t, 1e-5)
+	def check(a, b, text):
+		assert np.amax(a.resultant - b.resultant) < 1e-3, text
+		assert np.amax(a.moment - b.moment) < 1e-3, text
 		
 	a = lambda t: translate(vec3(1, t, t**2)) * rotate(t, normalize(vec3(1+t, t, 0.2*t)))
 	b = lambda t: translate(vec3(t, 0, 0)) * rotate(t, normalize(vec3(0, 1, 1)))
@@ -162,32 +159,17 @@ def test_screw():
 	for t in [0, 0.2, 1, 2.34]:
 		da = derive(a, t)
 		db = derive(b, t)
-		check(da.locate(a(t) * c), derive(ac, t))
-		check(da + db.transform(a(t)), derive(ab, t))
+		check(Screw.from_matrix(da.to_matrix()), da, "convert back and forth")
+		check(da, derive(ac, t), "twist is the same everywhere")
+		check(da + db.transform(a(t)), derive(ab, t), "twist are additive")
 	
 def test_dynamic():
 	def derive(f, t):
-		dt = 1e-5
-		df = Screw.from_matrix( (f(t+dt) - f(t-dt)) / (2*dt) )
-		ddf = Screw.from_matrix( (f(t+dt) + f(t-dt) - 2*f(t)) / dt**2 )
-		return Dynamic(
-			position = f(t),
-			drotation = df.moment,
-			dtranslation = df.resultant,
-			ddrotation = ddf.moment,
-			ddtranslation = ddf.resultant,
-			)
-	def derive(f, t):
-		dt = 1e-5
-		return Dynamic(
-			position = f(t),
-			velocity = (f(t+dt) - f(t-dt)) / (2*dt),
-			acceleration = (f(t+dt) + f(t-dt) - 2*f(t)) / dt**2,
-			)
-	def check(a, b):
-		assert np.amax(a.position - b.position) < 1e-3
-		assert np.amax(a.velocity - b.velocity) < 1e-3
-		assert np.amax(a.acceleration - b.acceleration) < 1e-3
+		return Dynamic.from_rate(f, t, 1e-5)
+	def check(a, b, text):
+		assert np.amax(a.position - b.position) < 1e-3, text
+		assert np.amax(a.velocity - b.velocity) < 1e-3, text
+		assert np.amax(a.acceleration - b.acceleration) < 1e-3, text
 	
 	a = lambda t: translate(vec3(1, t, t**2)) * rotate(t, normalize(vec3(1+t, t, 0.2*t)))
 	b = lambda t: translate(vec3(t, 0, 0)) * rotate(t, normalize(vec3(0, 1, 1)))
@@ -198,6 +180,6 @@ def test_dynamic():
 	for t in [0, 0.2, 1, 2.34]:
 		da = derive(a, t)
 		db = derive(b, t)
-		check(da.locate(a(t) * c), derive(ac, t))
-		check(da.compose(db), derive(ab, t))
-		check(da.locate(c).locate(O), da.locate(O))
+		check(da.locate(a(t) * c), derive(ac, t), "local dynamic is frame-wise equivalent")
+		check(da.compose(db), derive(ab, t), "independent dynamic can be composed into chained dynamic")
+		check(da.locate(c).locate(O), da.locate(O), "dynamic is location-wise equivalent")

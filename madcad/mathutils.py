@@ -468,28 +468,28 @@ def isaxis(obj):
 
 
 
-
+@dataclass
 class Screw:
 	''' A 3D torsor aka Screw - is a mathematical object defined as follow:
 		  * a resultant vector R
 		  * a moment vector field M
 
-		The moment is a function of space, satisfying the relationship:
+		The moment M is a vectorial field function, satisfying the relationship:
 			M(A) = M(B) + cross(R, A-B)
 		
-		Therefore it is possible to represent a localized torsor such as:
+		Therefore it is possible to represent a localized screw such as:
 		  * R = resultant
 		  * M(P) = moment vector at position P
 		
 		Torsor are useful for generalized solid mechanics to handle multiple variables of the same nature:
-		  * Force torsor:	
-			  Screw(force, torque, pos)
-		  * Velocity (aka kinematic) torsor:
-			  Screw(rotation, velocity, pos)
-		  * Kinetic (inertia) torsor:
-			  Screw(linear movement quantity, rotational movement quantity, pos)
+		  * wrench (force screw):
+			  Screw(position, force, torque)
+		  * twist (velocity screw):
+			  Screw(position, angular_velocity, linear_velocity)
+		  * momentum (momentum screw):
+			  Screw(position, mass * linear_velocity_com, inertia * angular_velocity_com)
 			
-		  All these torsors makes it possible to represent all these values independently from expression location
+		  All these screws makes it possible to represent all these values independently from expression location
 	'''
 	location: vec3
 	resultant: vec3
@@ -566,29 +566,29 @@ class Screw:
 			
 	def __eq__(self, other:Screw) -> bool:
 		''' screws equality, performs relocation if necessary '''
-		other = other.locate(self.position)
+		other = other.locate(self.location)
 		return glm.all(self.moment == other.moment) and glm.all(self.resultant == other.resultant)
 			
-	def to_matrix(self) -> mat4:
+	def to_matrix(self, location=None) -> mat4:
 		''' convert the screw to its matrix form
 		
 			represents the relocate operation for any screw and the derivative of the rotation matrix for velocity screws
 		'''
-		base = self.locate(vec3(0))
-		return mat4(
-			 0,                -base.resultant.z, +base.resultant.y, 0,
-			+base.resultant.z, 0,                 -base.resultant.x, 0,
-			-base.resultant.y, +base.resultant.x, 0,                 0,
-			 base.moment.x,     base.moment.y,     base.moment.z,    0,
-			)
+		base = self.locate(location or vec3(0))
+		return skew(base.resultant, base.moment)
+	
 	@staticmethod
-	def from_matrix(mat, position=vec3(0)) -> Screw:
-		return Screw(
-			vec3(position),
-			vec3(mat[1][0], mat[0][2], mat[2][1]),
-			vec3(mat[3]),
-			)
-
+	def from_matrix(mat, location=None) -> Screw:
+		return Screw(location or vec3(0), *unskew(mat))
+	
+	@staticmethod
+	def from_rate(f:callable, t:float, dt=1e-6) -> Screw:
+		''' compute a Screw of a frame by rating the given function `f` at the given instant `t`
+		
+			this function is expected to be continuous and `f(t-dt)` and `f(t+dt)` to exist
+		'''
+		return Screw.from_matrix((f(t+dt) - f(t-dt)) / (2*dt) @ inverse(f(t)))
+	
 	def __repr__(self):
 		return '{}(\n\t{}, \n\t{}, \n\t{})'.format(self.__class__.__name__, 
 			repr(self.location), repr(self.resultant), repr(self.moment))
@@ -597,12 +597,56 @@ class Screw:
 		# TODO draw resultant and moment vectors at the current location
 		indev
 
-def comomentum(t1, t2):
+
+def comoment(t1:Screw, t2:Screw) -> float:
 	''' Comomentum of screws:   `dot(M1, R2)  +  dot(M2, R1)`
 		
 		The result is independent of torsors location
 	'''
-	t2 = t2.locate(t1.position)
-	return dot(t1.momentum, t2.resulting) + dot(t2.momentum, t1.resulting)
+	t2 = t2.locate(t1.location)
+	return dot(t1.moment, t2.resultant) + dot(t2.moment, t1.resultant)
 
+def skew(r:vec3, t:vec3=None) -> mat3|mat4:
+	''' skew matrix of 3D vector `v` (pre cross product matrix). it `t` is given, it provides a fourth column (usefull for affine transforms) 
+	
+		>>> r = vec3(...)
+		>>> a = vec3(...)
+		>>> cross(r, a) == skew(r) * a
+	'''
+	if t is None:
+		return mat3(
+			 0,   +r.z, -r.y,
+			-r.z,  0,   +r.x,
+			+r.y, -r.x,  0,
+			)
+	else:
+		return mat4(
+			 0,   +r.z, -r.y, 0,
+			-r.z,  0,   +r.x, 0,
+			+r.y, -r.x,  0,   0,
+			 t.x,  t.y,  t.z, 0,
+			)
 
+def unskew(m: mat3|mat4) -> vec3|tuple[vec3, vec3]:
+	''' vector(s) from which the given matrix is a skew matrix (approximated it it is not actually a skew matrix) 
+	
+		>>> r = mat3(...)
+		>>> unskew(skew(r)) == r
+	'''
+	if isinstance(m, mat3):
+		return vec3(
+			m[1][2] - m[2][1], 
+			m[2][0] - m[0][2],
+			m[0][1] - m[1][0],
+			) * 0.5
+	elif isinstance(m, mat4):
+		return (
+			vec3(
+				m[1][2] - m[2][1], 
+				m[2][0] - m[0][2],
+				m[0][1] - m[1][0],
+				) * 0.5,
+			vec3(m[3]),
+			)
+	else:
+		raise TypeError('unskew only supports mat3 and mat4')

@@ -184,93 +184,6 @@ def partial_difference(f, x, fx, i, d):
 	raise ValueError('cannot compute below or above parameter {} given value'.format(i))
 	
 
-class Dynamic:
-	''' struct carying the derivatives of the position of a solid '''
-	position: mat4
-	''' position of the solid 
-		- the rotation matrix orients the local frame
-		- the translation column sets the point at which translative velocities and accelerations are given
-	'''
-	drotation: vec3
-	''' rotation velocity vector
-		its cross product matrix is the derivative of the rotation matrix of the solid 
-	'''
-	ddrotation: vec3
-	'''
-		rotation acceleration vector
-		it is the derivative of the rotation velocity vector
-		its cross product matrix is the 2nd derivative of the rotation matrix of the solid
-	'''
-	dtranslation: vec3
-	'''
-		translation velocity vector at the current position
-		it is the derivative of the position column
-	'''
-	ddtranslation: vec3
-	'''
-		translation acceleration vector at the current position
-		it is the 2nd derivative of the position column
-	'''
-	
-	def __init__(self, position, *args):
-		self.position = position
-		if len(args) == 2:
-			velocity, acceleration = args
-			velocity = Screw.from_matrix(velocity).locate(vec3(position[3]))
-			acceleration = acceleration.locate()
-			self.drotation = velocity.resultant
-			self.dtranslation = velocity.moment
-		elif len(args) == 4:
-			self.drotation, self.dtranslation, self.ddrotation, self.ddtranslation = args
-	
-	@property
-	def rotation(self) -> mat3:
-		return mat3(self.position)
-		
-	@property
-	def translation(self) -> vec3:
-		return vec3(self.position[3])
-	
-	@property
-	def velocity(self) -> Screw:
-		''' velocity screw '''
-		return Screw(vec3(self.position[3]), self.drotation, self.dtranslation)
-		
-	@property
-	def acceleration(self) -> Screw:
-		''' acceleration, it doesn't have screw properties but is the derivative of `velocity` '''
-		return Screw(vec3(self.position[3]), self.ddrotation, self.ddtranslation)
-	
-	def locate(self, position:vec3) -> Dynamic:
-		''' get the dynamic of the same solid but at given position in the global frame '''
-		offset = position - vec3(self.position[3])
-		return Dynamic(
-			position = self.position * translate(offset),
-			drotation = self.drotation,
-			ddrotation = self.ddrotation,
-			dtranslation = self.dtranslation + cross(self.drotation, offset),
-			ddtranslation = self.dtranslation + cross(self.ddrotation, offset) 
-								+ cross(self.drotation, cross(self.drotation, offset)),
-			)
-	
-	def compose(self, other: Dynamic) -> Dynamic:
-		''' composition global (current) and local (other) dynamic 
-			
-			if `a` is dynamic of solid A in global frame and `b` the dynamic of solid B relatively to A, then the dynamic of B in the global frame is `a.compose(b)`
-		'''
-		orient = mat3(self.position)
-		offset = orient * vec3(self.position[3]) - vec3(self.position[3])
-		return Dynamic(
-			position = self.position * other.position,
-			drotation = self.drotation + orient * other.drotation,
-			ddrotation = self.ddrotation + orient * other.ddrotation,
-			dtranslation = self.dtranslation + cross(self.drotation, offset),
-			ddtranslation = self.dtranslation + cross(self.ddrotation, offset) 
-							+ cross(self.drotation, cross(self.drotation, offset))
-							+ orient * other.ddtranslation
-							+ 2*cross(self.drotation, orient * other.dtranslation),
-			)
-
 @dataclass
 class Dynamic:
 	position: mat4
@@ -281,6 +194,13 @@ class Dynamic:
 		self.position = position
 		self.velocity = velocity
 		self.acceleration = acceleration
+		
+	def transform(self, transform:mat4) -> Dynamic:
+		return Dynamic(
+			position = transform * self.position,
+			velocity = transform * self.velocity,
+			acceleration = transform * self.acceleration,
+			)
 	
 	def locate(self, position:vec3) -> Dynamic:
 		offset = translate(affineInverse(self.position) * position)
@@ -290,22 +210,34 @@ class Dynamic:
 			acceleration = self.acceleration * offset,
 			)
 			
-	def compose(self, other):
+	def compose(self, other) -> Dynamic:
 		return Dynamic(
 			position = self.position * other.position,
 			velocity = self.velocity * other.position + self.position * other.velocity,
 			acceleration = self.acceleration * other.position + self.position * other.acceleration + 2*self.velocity * other.velocity,
 			)
 	
-	def velocity_screw(self):
+	def velocity_screw(self) -> Screw:
 		return Screw.from_matrix(
 			self.velocity * mat4(transpose(mat3(self.position))),
 			position = vec3(self.position[3]),
 			)
-	def acceleration_screw(self):
+	def acceleration_screw(self) -> Screw:
 		return Screw.from_matrix(
 			self.acceleration * mat4(transpose(mat3(self.position))),
 			position = vec3(self.position[3]),
+			)
+			
+	@staticmethod
+	def from_rate(f:callable, t:float, dt=1e-6) -> Dynamic:
+		''' compute a Dynamic of a frame by rating the given function `f` at the given instant `t`
+		
+			this function is expected to be continuous and `f(t-dt)` and `f(t+dt)` to exist
+		'''
+		return Dynamic(
+			position = f(t),
+			velocity = (f(t+dt) - f(t-dt)) / (2*dt),
+			acceleration = (f(t+dt) + f(t-dt) - 2*f(t)) / dt**2,
 			)
 
 @dataclass
