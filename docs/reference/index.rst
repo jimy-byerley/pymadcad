@@ -18,7 +18,8 @@ References
 
     kinematic.rst
     joints.rst
-
+    assembly.rst
+    
     primitives.rst
     constraints.rst
 

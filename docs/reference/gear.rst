@@ -92,7 +92,6 @@ Helper tools
 .. autofunction:: involuteof
 .. autofunction:: spherical_involute
 .. autofunction:: spherical_involuteof
-.. autofunction:: repeat_circular
 
 Structure patterns
 ------------------

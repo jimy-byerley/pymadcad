@@ -25,9 +25,6 @@ Display protocol
 
 A displayable is an object that implements the signature of `Display`.
 
-
-.. autofunction:: displayable
-
 .. autoclass:: Display
 	
 	- Mendatory interface for the scene
@@ -36,14 +33,15 @@ A displayable is an object that implements the signature of `Display`.
 		.. automethod:: stack
 		.. automethod:: __getitem__
 		
-		.. automethod:: duplicate
 		.. automethod:: update
 	
 	- Optional interface, only for Qt interaction
 	
+		.. py:attribute:: hovered
+		.. py:attribute:: world
+		.. py:attribute:: box
+		.. py:attribute:: hovered
 		.. py:attribute:: selected
-			
-			flag set to True by left-clicking on the object
 		
 		.. automethod:: control
 		
