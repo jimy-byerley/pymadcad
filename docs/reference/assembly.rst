@@ -1,9 +1,13 @@
-.. _kinematic:
+.. _assembly:
 
 assembly   - functions to group and move together 3d objects
 ============================================================
 
+.. automodule:: madcad.assembly
+	
 .. autoclass:: Solid
+
+	.. autoproperty:: pose
 
 	.. automethod:: transform
 	.. automethod:: place

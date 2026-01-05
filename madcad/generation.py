@@ -275,8 +275,7 @@ def extrans(section, transformations:iter, links=None) -> Mesh:
 				t = groups.setdefault((u,v), len(groups))
 				mkquad(mesh, (al+c, al+d, bl+d, bl+c), t)
 		# keep extremities transformations
-		elif face:
-			kept[k] = trans
+		kept[k] = trans
 	
 	# generate all sections faces using links
 	if links:

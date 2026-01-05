@@ -54,10 +54,12 @@ def stfloor(x, precision=0.1):
 		return type(x)(stfloor(e)  for e in x)
 	if not isfinite(x):
 		return x
+	if not x:
+		return x
 	s, x = sign(x), abs(x)
 	
 	base = 10
-	magnitude = base**floor(log(x) / log(base))
+	magnitude = base **floor(log(x) / log(base))
 	ratio = x / magnitude
 	
 	for j in range(2 + int(ceil(-log(precision) / log(base)))):
@@ -1305,7 +1307,7 @@ def screw_slot(axis: Axis, dscrew: float, rslot=None, hole=0., screw=0., expand=
 		else:
 			profile.append(o + 0.5*dscrew*x)
 		profile.append(o + 0.5*dscrew*x - hole*z)
-		profile.append(o + 0.4*dscrew*x - (hole+0.1*dscrew)*z)
+		profile.append(o + 0.4*dscrew*x - min(hole+0.1*dscrew, hole+screw)*z)
 		profile.append(o + 0.4*dscrew*x - (hole+screw)*z)
 		profile.append(o - (hole+screw+0.4*dscrew)*z)
 	else:

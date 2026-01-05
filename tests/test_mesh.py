@@ -68,11 +68,11 @@ def test_orientation():
 	ico = icosphere(vec3(0), 1)
 	ico.faces = typedlist((f if random()>0.5 else (f[0],f[2],f[1])	for f in ico.faces), dtype=uvec3)
 
-	o = ico.orient()
+	o = ico.own(faces=True).orient()
 	o.check()
 	assert len(o.outlines_unoriented()) == 0
 
-	o = ico.orient(vec3(1,0,0))
+	o = ico.own(faces=True).orient(vec3(1,0,0))
 	o.check()
 	assert len(o.outlines_unoriented()) == 0
 

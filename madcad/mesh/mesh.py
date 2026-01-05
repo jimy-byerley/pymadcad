@@ -1,3 +1,4 @@
+from __future__ import annotations
 from .container import *
 from .web import Web
 from .wire import Wire
@@ -288,7 +289,7 @@ class Mesh(NMesh):
 				tangents[loop[i-1]] = normalize(mix(o, c, clamp(length2(c)/length2(o)/NUMPREC, 0, 1) ))
 		return tangents
 	
-	def edges(self) -> set:
+	def edges(self) -> set[uvec2]:
 		''' set of UNORIENTED edges present in the mesh '''
 		edges = set()
 		for face in self.faces:
@@ -297,14 +298,14 @@ class Mesh(NMesh):
 			edges.add(edgekey(face[2], face[0]))
 		return edges
 	
-	def edges_oriented(self) -> set:
+	def edges_oriented(self) -> set[uvec2]:
 		''' iterator of ORIENTED edges, directly retreived of each face '''
 		for face in self.faces:
 			yield face[0], face[1]
 			yield face[1], face[2]
 			yield face[2], face[0]
 	
-	def outlines_oriented(self) -> set:
+	def outlines_oriented(self) -> set[uvec2]:
 		''' return a set of the ORIENTED edges delimiting the surfaces of the mesh '''
 		edges = set()
 		for face in self.faces:
@@ -313,7 +314,7 @@ class Mesh(NMesh):
 				else:			edges.add((e[1], e[0]))
 		return edges
 	
-	def outlines_unoriented(self) -> set:
+	def outlines_unoriented(self) -> set[uvec2]:
 		''' return a set of the UNORIENTED edges delimiting the surfaces of the mesh 
 			this method is robust to face orientation aberations
 		'''
@@ -550,7 +551,7 @@ class Mesh(NMesh):
 		self.faces = newfaces
 		return self
 	
-	def islands(self, conn=None) -> '[Mesh]':
+	def islands(self, conn=None) -> list[Mesh]:
 		''' return the unconnected parts of the mesh as several meshes '''
 		islands = []
 		faces = typedlist(dtype=uvec3)

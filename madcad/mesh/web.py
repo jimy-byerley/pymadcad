@@ -1,3 +1,4 @@
+from __future__ import annotations
 from .container import *
 from .wire import Wire
 
@@ -116,7 +117,7 @@ class Web(NMesh):
 	
 	def isloop(self):
 		''' true if the wire form a loop '''
-		return len(self.extremities()) == 0
+		return len(self.extremities_oriented()) == 0
 	
 	def check(self):
 		''' check that the internal data references are good (indices and list lengths) '''
@@ -255,16 +256,34 @@ class Web(NMesh):
 		new = Web(pts, edges, tracks, self.groups)
 		new.mergeclose()
 		return new
-	
-	def extremities(self) -> set:
-		''' return the points that are used once only (so at wire terminations)
+		
+	def extremities(self) -> Wire:
+		''' return the points that are ending arcs
 			1D equivalent of Mesh.outlines()
 		'''
+		return Wire(self.points, typedlist(self.extremtities_unoriented, dtype='I'))
+	
+	def extremities_unoriented(self) -> set[int]:
+		''' return the points that are ending unoriented arcs
+			1D equivalent of Mesh.outlines_unoriented()
+		'''
 		extr = set()
-		for l in self.edges:
-			for p in l:
+		for e in self.edges:
+			for p in e:
 				if p in extr:	extr.remove(p)
 				else:			extr.add(p)
+		return extr
+		
+	def extremities_oriented(self) -> set[tuple[int,bool]]:
+		''' return the points that are ending oriented arcs, there might be more than for unoriented arcs
+			1D equivalent of Mesh.outlines_oriented()
+		'''
+		extr = set()
+		for e in self.edges:
+			for i,p in enumerate(e):
+				k = (p, bool(i))
+				if k in extr:	extr.remove(k)
+				else:			extr.add((p, not bool(i)))
 		return extr
 	
 	def groupextremities(self) -> 'Wire':
@@ -426,6 +445,75 @@ class Web(NMesh):
 		''' return the contiguous portions of this web '''
 		return [	Wire(self.points, typedlist(loop, dtype=uvec2))		
 					for loop in suites(self.edges, oriented=False)]
+					
+	
+	def orient(self, dir=None, normal=None, conn=None) -> 'Self':
+		''' flip the necessary faces to make the normals consistent, ensuring the continuity of the out side.
+			
+			Argument `dir` tries to make the result deterministic:
+			
+				* if given, the outermost point in this direction will be considered pointing outside
+				* if not given, the farthest point to the barycenter will be considered pointing outside
+				
+				note that if the mesh contains multiple islands, that direction must make sense for each single island
+		'''
+		if not normal:
+			normal = vec3(0)
+		if dir:	
+			metric = lambda p, d: (dot(p, dir), -abs(dot(d, dir)))
+			orient = lambda p, d: dot(cross(normal, d), dir)
+		else:	
+			center = self.barycenter()
+			metric = lambda p, d: (length2(p-center), -abs(dot(d, p-center)))
+			orient = lambda p, d: dot(cross(normal, d), p-center)
+		if not conn:	
+			conn = Asso(  (p,i)
+							for i,e in enumerate(self.edges)
+							for p in e
+							)
+		
+		edges = self.edges
+		
+		reached = [False] * len(edges)	# edges reached by propagation
+		stack = []
+		
+		# propagation
+		while True:
+			# search start point
+			best = (-inf,0)
+			candidate = None
+			for i,e in enumerate(edges):
+				if not reached[i]:
+					direction = self.edgedirection(e)
+					for p in e:
+						score = metric(self.points[p], direction)
+						if score > best:
+							best, candidate = score, i
+							if orient(self.points[p], direction) < 0:
+								edges[i] = (e[1], e[0])
+			# end when everything reached
+			if candidate is None:
+				break
+			else:
+				stack.append(candidate)
+			# process neighbooring
+			while stack:
+				i = stack.pop()
+				if reached[i]:	continue	# make sure this face has not been stacked twice
+				reached[i] = True
+				
+				e = edges[i]
+				for p in e:
+					for n in conn[p]:
+						if reached[n]:	continue
+						ne = edges[n]
+						# check for orientation continuity
+						if ne[0] == e[0] or ne[1] == e[1]:
+							edges[n] = (ne[1],ne[0])
+						# propagate
+						stack.append(n)
+		
+		return self
 		
 	# END BEGIN ----- output methods ------
 	
