@@ -275,8 +275,7 @@ def extrans(section, transformations:iter, links=None) -> Mesh:
 				t = groups.setdefault((u,v), len(groups))
 				mkquad(mesh, (al+c, al+d, bl+d, bl+c), t)
 		# keep extremities transformations
-		elif face:
-			kept[k] = trans
+		kept[k] = trans
 	
 	# generate all sections faces using links
 	if links:
@@ -402,14 +401,15 @@ def brick(*args, **kwargs) -> 'Mesh':
 		
 			- brick(Box)
 			- brick(min, max)
-			- brick(center=vec3(0), width=vec3(-inf))
+			- brick(center=vec3(0), size=vec3(-inf), alignment=0.5)
 			
 		Parameters:
 			
 			min:	the corner with minimal coordinates
 			max:	the corner with maximal coordinates
 			center: the center of the box
-			width:  the all positive diagonal of the box
+			size:  the all positive diagonal of the box
+			alignment: where the center is inside the box
 	'''
 	if len(args) == 1 and not kwargs and isinstance(args[0], Box):		
 		box = args[0]
@@ -442,27 +442,27 @@ def brick(*args, **kwargs) -> 'Mesh':
 		[None] * 6,
 		)
 	for i in range(len(mesh.points)):
-		mesh.points[i] = mesh.points[i]*box.width + box.min
+		mesh.points[i] = mesh.points[i]*box.size + box.min
 	return mesh
 	
-def parallelogram(*directions, origin=vec3(0), align=vec3(0), fill=True) -> 'Mesh':
+def parallelogram(*directions, origin=vec3(0), alignment=vec3(0), fill=True) -> 'Mesh':
 	''' Create a parallelogram or parallelepiped depending on the number of directions given
 	
 		Parameters:
 			
 			directions:	list of 1-3 directions, they must for a right handed base for the face normals to be oriented outward
 			origin: origin the resulting shape, the shape will placed relatively to that point
-			align: relative position of the origin in the shape: 0 means at start of each direction, 1 means at the tip of each direction
+			alignment: relative position of the origin in the shape: 0 means at start of each direction, 1 means at the tip of each direction
 			fill: 
 				- if True, a mesh will be generated (forming a surface with 2 directions, or an envelope with 3 directions)
 				- if False, a Web will be generated
 	'''
-	try:				align = iter(align)
-	except TypeError:	align = itertools.repeat(align)
+	try:				alignment = iter(alignment)
+	except TypeError:	alignment = itertools.repeat(alignment)
 	
 	# generate points by binary combinations
 	points = []
-	min = origin - sum(a*d  for a,d in zip(align, directions))
+	min = origin - sum(a*d  for a,d in zip(alignment, directions))
 	for i in range(2**len(directions)):
 		points.append(min + sum(d if i>>k & 1 else 0   for k,d in enumerate(directions)))
 	

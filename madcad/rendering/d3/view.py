@@ -360,13 +360,13 @@ else:
 
 				This function can be overwritten to change the interaction with the scene objects.
 			'''
-			disp = self.scene.root.displays
-			for i in range(1,len(key)):
-				disp = disp[key[i-1]]
+			disp = self.scene.root
+			for i in range(len(key)-1):
 				disp.control(self, key[:i], key[i:], evt)
 				if evt.isAccepted(): 
 					self.update()
 					break
+				disp = disp[key[i]]
 				
 		def _selection(self, disp, sub, evt):
 			''' handle the selection events '''
@@ -658,7 +658,7 @@ else:
 			invview = affineInverse(self.navigation.matrix())
 			camera, look = fvec3(invview[3]), fvec3(invview[2])
 			margin = 0.3  # margins around the zomed box, to make sure the displays fits in the view, sqrt(2)-1 should be necessary, but lower is generally better
-			dist = length(noproject(box.center-camera, look)) + max(glm.abs(box.width))/2 * (1+margin)
+			dist = length(noproject(box.center-camera, look)) + max(glm.abs(box.size))/2 * (1+margin)
 			if not dist > 1e-6:	return
 
 			# adjust navigation distance
@@ -687,14 +687,13 @@ class Orbit:
 	distance: float
 	orientation: fquat
 
-	def __init__(self, position:fvec3=0, distance:float=1, orient:fvec3=fvec3(1,0,0)):
-		self.center = fvec3(center)
+	def __init__(self, position:fvec3=0, distance:float=1, orientation=fquat()):
+		self.position = fvec3(position)
 		self.distance = float(distance)
-		self.orient = fquat(orient)
-		self.tool = navigation_tool
+		self.orientation = fquat(orientation)
 
 	def matrix(self) -> fmat4:
-		mat = translate(fmat4(self.orient), -self.center)
+		mat = translate(fmat4(self.orientation), -self.position)
 		mat[3][2] -= self.distance
 		return mat
 
@@ -710,22 +709,22 @@ class Orbit:
 	def sight(self, direction: fvec3):
 		if length2(direction, direction) <= 1e-6:
 			return
-		focal = self.orient * fvec3(0,0,1)
-		self.orient = quat(direction, focal) * self.orient
+		focal = self.orientation * fvec3(0,0,1)
+		self.orientation = quat(direction, focal) * self.orientation
 
 	def center(self, position: fvec3):
 		self.position = position
 
 	def zoom(self, ratio: float):
-		self.distance *= f
+		self.distance *= ratio
 
 	def pan(self, offset: vec2):
-		x,y,z = transpose(fmat3(self.orient))
-		self.center += (fvec3(x) * -offset.x + fvec3(y) * offset.y) * self.distance/2
+		x,y,z = transpose(fmat3(self.orientation))
+		self.position += (fvec3(x) * -offset.x + fvec3(y) * offset.y) * self.distance/2
 
 	def rotate(self, offset: vec3):
 		# rotate from view euler angles
-		self.orient = inverse(fquat(fvec3(-offset.y, -offset.dx, offset.dz) * pi)) * self.orient
+		self.orientation = inverse(fquat(fvec3(-offset.y, -offset.x, offset.z) * pi)) * self.orientation
 
 class Turntable:
 	''' Navigation rotating on yaw and pitch around a center 

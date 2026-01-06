@@ -20,4 +20,3 @@
 '''
 
 from .solver import *
-from .assembly import *

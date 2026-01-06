@@ -150,7 +150,8 @@ from .offseting import *
 from .blending import junction, multijunction, blend, blendloop, blendpair, blenditer
 from .primitives import isprimitive, Segment, ArcThrough, ArcCentered, ArcTangent, TangentEllipsis, Ellipsis, Circle, Interpolated, Softened
 from .constraints import isconstraint, SolveError, Tangent, Distance, Angle, Parallel, Radius, PointOn, OnPlane, solve
-from .kinematic import KinematicError, Solid, Joint, Chain, Kinematic
+from .kinematic import KinematicError, Joint, Chain, Kinematic
+from .assembly import Solid
 from .reverse import segmentation
 from .selection import select
 from .io import read, write, cache, cachefunc

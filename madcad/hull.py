@@ -7,6 +7,7 @@
 	Those can be very helpful to complete sketches or parts by adding the missing surface portions. Also very helpful to sort a set of directions.
 '''
 
+from __future__ import annotations
 import scipy.spatial
 from .mathutils import *
 from .mesh import Mesh, Web, Wire, numpy_to_typedlist, typedlist_to_numpy
@@ -17,11 +18,19 @@ from collections import Counter
 
 
 
-def simple_convexhull(points: '[vec3]') -> '[uvec3]':
+def simple_convexhull(points: typedlist[vec3]) -> typedlist[uvec3]:
 	''' Just like `convexhull()` but minimalist.
 		It does not take care of groups crossing. It doesn't return a new Mesh but a buffer of triangles indices 
 	'''
+	# return numpy_to_typedlist(scipy.spatial.ConvexHull(typedlist_to_numpy(points, 'f8'), qhull_options='Qa Qc QJ Qt Qbb Qx').simplices, uvec3)
 	return numpy_to_typedlist(scipy.spatial.ConvexHull(typedlist_to_numpy(points, 'f8'), qhull_options='QJ Pp').simplices, uvec3)
+	
+def simple_convexoutline(points: typedlist[vec2]) -> typedlist[uvec2]:
+	''' Just like `convexhull()` but minimalist.
+		It does not take care of groups crossing. It doesn't return a new Mesh but a buffer of triangles indices 
+	'''
+	# return numpy_to_typedlist(scipy.spatial.ConvexHull(typedlist_to_numpy(points, 'f8'), qhull_options='Qa Qc QJ Qt Qbb Qx').simplices, uvec3)
+	return numpy_to_typedlist(scipy.spatial.ConvexHull(typedlist_to_numpy(points, 'f8'), qhull_options='QJ Pp').simplices, uvec2)
 	
 
 def convexhull(source: '[vec3]') -> Mesh:
@@ -63,9 +72,18 @@ def convexoutline(source: '[vec3]', normal: vec3=None, flatten: bool=False) -> W
 			... 	Circle(Axis(4*X,Z), 2),
 			... 	]))
 	'''
-	hull = convexhull(source)
-	direction = normal or widest_surface_direction(hull)
-	outline = horizon(hull, direction)
+	if isinstance(source, (Mesh,Web,Wire)):
+		source = copy(source)
+		source.strippoints()
+		points = source.points
+	else:
+		points = typedlist(source, dtype=vec3)
+		source = None
+	
+	direction = normal or widest_surface_direction(Mesh(source.points, simple_convexhull(points)))
+	x, y, z = dirbase(direction)
+	proj = transpose(dmat2x3(x, y))
+	outline = restore_groups(source, simple_convexoutline(typedlist(proj * p  for p in points))) .orient(direction)
 	if flatten:
 		outline.strippoints()
 		center = outline.barycenter()
@@ -178,7 +196,7 @@ def flipped(simplex):
 def widest_surface_direction(mesh) -> vec3:
 	# find a direction not orthogonal to any of the mesh faces
 	normals = mesh.facenormals()
-	directionmap = simple_convexhull(normals)
+	directionmap = simple_convexhull(typedlist(p  for p in normals if not glm.any(isnan(p))))
 	score = 0
 	proj = None
 	for face in directionmap:

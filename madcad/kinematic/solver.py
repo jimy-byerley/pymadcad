@@ -1,12 +1,16 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
+from __future__ import annotations
+
 __all__ = [
 	'Kinematic', 'Joint', 'Weld', 'Free', 'Reverse', 'Chain',
+	'Dynamic', 'Inertia',
 	'flatten_state', 'structure_state',
 	'cycles', 'shortcycles', 'depthfirst', 'arcs',
 	'KinematicError',
 	]
 
 from copy import copy, deepcopy
+from dataclasses import dataclass
 import itertools
 import numpy as np
 import numpy.linalg as la
@@ -57,6 +61,8 @@ class Joint:
 	
 	# parameter bounds if any
 	bounds = (-inf, inf)
+	# reference distance scale
+	scale = 0
 	
 	def normalize(self, state) -> 'params':
 		'''  make the given joint coordinates consistent. For most joint is is a no-op or just coordinates clipping
@@ -83,7 +89,7 @@ class Joint:
 	def inverse(self, matrix, close=None, precision=1e-6, maxiter=None, strict=0.) -> list:
 		''' inverse kinematic computation
 		
-			the default implementation is using a newton method to nullify the error between the given and acheived matrices
+			the default implementation is using a newton method to nullify the error between the given and acheived matrices. For precision and efficiency it is better to implement an exact solution whenever possible especially if `self.grad` is using finite differentiation.
 			
 			Parameters:
 				matrix:	the transfer matrix from solids `self.stop` to `self.start` we want the parameters for
@@ -137,7 +143,7 @@ class Joint:
 	def grad(self, state, delta=1e-6) -> '[mat4]':
 		''' compute the gradient of the direct kinematic 
 		
-			The default implementation is using a finite differentiation
+			The default implementation is using a finite differentiation. For precision it is better to implement an exact solution in every joint
 		
 			Parameters:
 				state:	anything accepted by `self.direct()` including singularities
@@ -151,31 +157,6 @@ class Joint:
 		for i in range(len(state)):
 			grad.append(partial_difference(self.direct, state, base, i, delta))
 		return grad
-	
-	def transmit(self, force: 'Screw', state=None, velocity=None) -> 'Screw':
-		''' compute the force transmited by the kinematic chain in free of its moves
-			
-			The default implementation uses the direct kinematic gradient to compute the moving directions of the chain
-			
-			Parameters:
-				force:	force sent by `self.start` in its coordinate system
-				
-				state:  
-					
-					the joint position in which the joint is at the force transmision instant.
-					If not specified it defaults to `self.default` (many joints transmit the same regardless of their position)
-				
-				velocity:  
-				
-					current derivative of `state` at the transmision instant
-					Perfect joints are transmiting the same regardless of their velocity
-					
-			Returns:	
-				force received by `self.stop` in its coordinate system
-		'''
-		if not state:	state = self.default
-		grad = self.grad(state)
-		indev
 	
 	def scheme(self, size: float, junc: vec3=None) -> '[Scheme]':
 		''' generate the scheme elements to render the joint '''
@@ -201,6 +182,85 @@ def partial_difference(f, x, fx, i, d):
 		except KinematicError:
 			pass
 	raise ValueError('cannot compute below or above parameter {} given value'.format(i))
+	
+
+@dataclass
+class Dynamic:
+	''' represents the dynamic motion of a frame or solid
+	
+		to get the world dynamic of a point in this frame, you just need to multiply this point by the position/velocity/acceleration matrix:
+		
+		>>> world_p = dyn.position * p
+		>>> world_v = dyn.velocity * p
+		>>> world.a = dyn.acceleration * p
+	'''
+	position: mat4
+	velocity: mat4
+	acceleration: mat4
+	
+	def __init__(self, position:mat4, velocity:mat4, acceleration:mat4):
+		self.position = position
+		self.velocity = velocity
+		self.acceleration = acceleration
+		
+	def transform(self, transform:mat4) -> Dynamic:
+		return Dynamic(
+			position = transform * self.position,
+			velocity = transform * self.velocity,
+			acceleration = transform * self.acceleration,
+			)
+	
+	def locate(self, position:vec3) -> Dynamic:
+		offset = translate(affineInverse(self.position) * position)
+		return Dynamic(
+			position = self.position * offset,
+			velocity = self.velocity * offset,
+			acceleration = self.acceleration * offset,
+			)
+			
+	def compose(self, other:Dynamic) -> Dynamic:
+		''' compose frame positions, velocities and accelerations '''
+		return Dynamic(
+			position = self.position * other.position,
+			velocity = self.velocity * other.position + self.position * other.velocity,
+			acceleration = self.acceleration * other.position + self.position * other.acceleration + 2*self.velocity * other.velocity,
+			)
+	
+	def velocity_screw(self) -> Screw:
+		''' extract the twist of this frame dynamic. The returned screw is located at world's origin '''
+		return Screw.from_matrix(self.velocity * affineInverse(self.position))
+	
+	def acceleration_screw(self) -> Screw:
+		''' extract the linear acceleration as moment and angular acceleration and resultant 
+		
+			Beware however that acceleration is not actually a screw because additional terms need to be atted to transport it from one location to another
+		'''
+		return Screw.from_matrix(self.acceleration * affineInverse(self.position))
+			
+	@staticmethod
+	def from_rate(f:callable, t:float, dt=1e-6) -> Dynamic:
+		''' compute a Dynamic of a frame by rating the given function `f` at the given instant `t`
+		
+			`f` is supposed to
+			- take a time instant and return a frame matrix
+			- be continuous and `f(t-dt)` and `f(t+dt)` to exist
+		'''
+		return Dynamic(
+			position = f(t),
+			velocity = (f(t+dt) - f(t-dt)) / (2*dt),
+			acceleration = (f(t+dt) + f(t-dt) - 2*f(t)) / dt**2,
+			)
+
+@dataclass
+class Inertia:
+	''' struct carying inertia parameters of a solid '''
+	center: vec3
+	''' center of mass of a kinematic solid '''
+	mass: float
+	''' mass of a kinematic solid '''
+	moment: mat3
+	''' matrix of the moment of inertia '''
+
 
 squeezed_homogeneous = 9
 _squeeze = np.array([0,1,2,  5,6, 10,  12,13,14])
@@ -399,6 +459,7 @@ class Chain(Joint):
 			[joint.bounds[0]  for joint in self.joints],
 			[joint.bounds[1]  for joint in self.joints],
 			)
+		self.scale = max(joint.scale  for joint in self.joints)
 		
 	def normalize(self, state) -> list:
 		''' inplace normalize the joint coordinates in the given state '''
@@ -440,7 +501,26 @@ class Chain(Joint):
 		for i in range(len(self.joints)):
 			solids[i+1] = solids[i] * self.joints[i].direct(state[i])
 		return solids
-		
+	
+	def dynamics(self, base:Dynamic, joints:list[Dynamic]) -> list[Dynamic]:
+		''' compute the global space dynamic of each solid, given local dynamics of each joint '''
+		result = []
+		# prev = base
+		# for joint, local in zip(self.joints, joints):
+		# 	result.append(Dynamic(
+		# 		position = prev.position * local.position,
+		# 		velocity = prev.velocity + local.velocity.transform(prev.position),
+		# 		acceleration = Screw(
+		# 			resultant = prev.acceleration.resultant + mat3(prev.position) * local.acceleration.resultant
+		# 			moment = prev.acceleration + mat3(prev.position) * local.acceleration 
+		# 				# + cross(prev.acceleration.resultant, translation)
+		# 				# + cross(prev.velocity.resultant, cross(prev.velocity.resultant, translation))
+		# 				+ 2*cross(prev.velocity.resultant, mat3(prev.position)*local.velocity.moment)
+		# 			),
+		# 		))
+	def forces(self, dynamic:list[Dynamic], inertias:list[Inertia], exterior:dict[object,Screw]=None, motors:dict[Joint,Screw]=None) -> list[Screw]:
+		indev
+	
 	def to_kinematic(self) -> 'Kinematic':
 		return Kinematic(inputs=self.joints, outputs=[self.solids[-1]], ground=self.solids[0])
 		
@@ -558,6 +638,7 @@ class Kinematic:
 			
 			default:  the default joint pose of the kinematic
 			bounds:   a tuple of (min, max) joint poses
+			scale:    the reference distance scale used to adimension residuals
 	'''
 	def __init__(self, joints:list=[], content:dict=None, ground=None, inputs=None, outputs=None):
 		if ground is None:
@@ -635,6 +716,9 @@ class Kinematic:
 				chain.append(joint)
 			self.cycles.append(chain)
 			
+		# reference distance, useful to adimension the problem
+		self.scale = max(joint.scale  for joint in self.joints) or 1
+			
 	def cycles(self) -> list:
 		'''
 			return a list of minimal cycles decomposing the gkinematic graph
@@ -678,8 +762,10 @@ class Kinematic:
 			for joint in cycle:
 				b = b * transforms[joint]
 			# the residual of this matrix is the difference to identity
+			error = b - mat4()
+			error[3] /= self.scale
 			# pick only non-redundant components to reduce the problem size
-			residuals[i] = squeeze_homogeneous(b - mat4())
+			residuals[i] = squeeze_homogeneous(error)
 			# nprint('  cycle', cycle, repr(b - mat4()))
 			#residuals[i] **= 2
 		return residuals.ravel()
@@ -736,13 +822,14 @@ class Kinematic:
 			
 			for ig, g in zip(positions, grad):
 				# print('-', icycle, ig)
+				g[3] /= self.scale
 				jac[icycle, ig] = squeeze_homogeneous(g)
 				# jac[icycle*squeezed_homogeneous:(icycle+1)*squeezed_homogeneous, ig] = squeeze_homogeneous(g)
 		
 		# assert jac.transpose((0,2,1)).shape == (len(cycles), 9, nvars)
 		return jac.transpose((0,2,1)).reshape((len(self.cycles)*squeezed_homogeneous, index))
 	
-	def solve(self, fixed:dict={}, close:list=None, precision=1e-6, maxiter=None, strict=0., record=[]) -> list:
+	def solve(self, fixed:dict={}, close:list=None, precision=1e-6, maxiter=None, strict=0.) -> list:
 		'''
 			compute the joint positions for the given fixed solids positions
 			
@@ -798,8 +885,6 @@ class Kinematic:
 			if maxiter and k > maxiter and strict==inf:
 				break
 			
-			record.append(flatten_state(state))
-			
 			move = -self.cost_residuals(state, fixed)
 			error = np.abs(move).max()
 			if error <= precision:
@@ -812,7 +897,7 @@ class Kinematic:
 			
 			# newton method with a pseudo inverse
 			jac = self.cost_jacobian(state, fixed).transpose()
-			increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*prec, jac @ move)
+			increment = la.lstsq(jac.T, move, prec)[0]
 			state = structure_state(
 				flatten_state(state)
 				+ increment * min(1, max_increment / np.abs(increment).max()),
@@ -854,7 +939,9 @@ class Kinematic:
 			tip = base * transforms[joint]
 			if joint.solids[-1] in poses:
 				# check that the given state is consistent, meaning kinematic loops are closed
-				if np.abs(poses[joint.solids[-1]] - tip).max() > precision:
+				error = poses[joint.solids[-1]] - tip
+				error[3] /= self.scale
+				if np.amax(error) > precision:
 					raise KinematicError('position out of reach: kinematic cycles not closed')
 			else:
 				poses[joint.solids[-1]] = tip
@@ -875,7 +962,7 @@ class Kinematic:
 		'''
 		return null_space(self.cost_jacobian(state), precision).transpose()
 	
-	def grad(self, state, freedom=None) -> dict:
+	def grad(self, state, freedom=None) -> list:
 		''' 
 			return a gradient of the all the solids poses at the given joints position 
 			
@@ -894,7 +981,7 @@ class Kinematic:
 			# else:
 				# jac = outputs @ inputs.T @ la.inv(inputs @ inputs.T)
 			# this version is robust but involves a SVD
-			jac = outputs @ la.pinv(inputs, 1e-2)
+			jac = outputs @ la.pinv(inputs, 1e-4)
 		except la.LinAlgError as err:
 			raise KinematicError("the defined degrees of freedom cannot move") from err
 		# get matrix derivatives for each output joint
@@ -922,6 +1009,24 @@ class Kinematic:
 		fixed = {joint: joint.inverse(x)  for joint, x in zip(self.outputs, parameters)}
 		result = self.solve(fixed, close)[:len(self.inputs)]
 		return result[:len(self.inputs)]
+	
+	
+	def dynamics(self, solids:dict[object,Dynamic], joints:list[Dynamic]) -> dict[object,Dynamic]:
+		''' from local dynamics to global dynamics, the reverse is rarely needed '''
+		# propagate velocity and acceleration
+		indev
+	def forces(self, dynamics:dict[object,Dynamic], inertias:dict[object,Inertia], exterior:dict[object,Screw]=None, motors:dict[Joint,Screw]=None) -> list[Screw]:
+		''' from dynamics to joint forces, the reverse is trivial application of Newton law '''
+		# propagate forces
+		# balance sum using the motors
+		indev
+	
+	def __repr__(self):
+		if self.inputs and self.outputs:
+			interfaces = ',\n\tinputs={}, outputs={}'.format(self.inputs, self.outputs)
+		else:
+			interfaces = ''
+		return 'Kinematic({}, ground={}{})'.format(self.joints, self.ground, interfaces)
 	
 	def display(self, scene):
 		''' display allowing manipulation of kinematic '''

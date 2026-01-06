@@ -1,9 +1,12 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
+from __future__ import annotations
 import warnings
 from dataclasses import dataclass
 import numpy as np
 import numpy.linalg as la
 import moderngl as mgl
+from time import time
+from glm import smoothstep
 
 from ..common import resourcedir
 from ..mathutils import *
@@ -16,7 +19,6 @@ from ..scheme import Scheme, halo_screen
 from ..generation import revolution
 from ..mesh import web
 from .solver import Chain, Kinematic, KinematicError, regularize_grad, structure_state, flatten_state
-from .assembly import Solid
 try:
 	from ..qt import Qt, QEvent, QTimer
 except ImportError:
@@ -26,115 +28,8 @@ except ImportError:
 __all__ = ['ChainManip', 'KinematicManip', 'scale_solid', 'world_solid']
 
 
-class SolidDisplay(Group):
-	''' Movable `Group` for the rendering pipeline '''
-	def __init__(self, scene, solid:Solid, world=fmat4()):
-		self._local = fmat4()
-		self._free = fmat4()
-		super().__init__(scene, world)
-		self.update(self, solid)
-	
-	@property
-	def box(self):
-		return boundingbox(
-			(getattr(display, 'box', None)   for display in self.displays.values()), 
-			ignore=True) .transform(self._local * self._free)
-
-	@writeproperty
-	def local(self):  self._place_displays()
-			
-	@writeproperty
-	def world(self):  self._place_displays()
-			
-	@writeproperty
-	def free(self):   self._place_displays()
-			
-	def _place_displays(self):
-		sub = self._world * self._local * self._free
-		for display in self.displays.values():
-			display.world = sub
-	
-	def update(self, *args):
-		''' 
-			update(scene, src)
-			update(src)
 		
-			update to the solid pose and its content dictionnary
 			
-			Note:
-				the new content will not be immediately available in `self.displays` because they will only be buffered at next rendering. it makes this function thread safe and able to run without a reference to the scene
-		'''
-		if len(args) == 1:
-			src, = args
-		elif len(args) == 2:
-			scene, src = args
-		else:
-			raise TypeError("expected 1 or 2 arguments, got {}".format(len(args)))
-		if not isinstance(src, Solid):
-			return False
-		content = dict(src)
-		pose = content.pop('pose')
-		if not super().update(content):
-			return False
-		self._local = fmat4(pose)
-		return True
-	
-	def stack(self, scene):
-		self.prepare(scene)
-		if not scene.options['solid_freemove']:
-			self._free = fmat4()
-		
-		sub = self._world * self._local * self._free
-		for key, display in self.displays.items():
-			display.world = sub
-			display.key = (*self.key, key)
-			if key == 'annotations' and not scene.options['display_annotations'] and not self.selected:
-				continue
-			yield from display.stack(scene)
-
-	def control(self, view, key, sub, evt):
-		if self.selected and view.scene.options['solid_freemove']:
-			# accept clicks to listen for dragging
-			if evt.type() == QEvent.Type.MouseButtonPress and (
-					evt.button() == Qt.MouseButton.LeftButton
-					or evt.button() == Qt.MouseButton.RightButton):
-				evt.accept()
-			
-			elif evt.type() == QEvent.Type.MouseMove:
-				# drag with left click moves the solid
-				if evt.buttons() & Qt.MouseButton.LeftButton:
-					evt.accept()
-					# put the tool into the view, to handle events
-					view.callbacks.append(receiver(self._move(view, evt)))
-			
-				# drag with right click resets its free pose
-				elif evt.buttons() & Qt.MouseButton.RightButton:
-					evt.accept()
-					self.free = fmat4()
-					view.update()
-				
-	def _move(self, view, evt):
-		''' moves the selected solids in the view plane following the mouse movements '''
-		moving = [(solid, solid.free)   
-			for solid in view.scene.selection if isinstance(solid, SolidDisplay)]
-		
-		anchor = view.ptat(view.somenear(evt.pos()))
-		while True:
-			evt = yield
-			if not evt.type() in (QEvent.Type.MouseMove, QEvent.Type.MouseButtonRelease):
-				continue
-			evt.accept()
-			if not (evt.buttons() & Qt.MouseButton.LeftButton):
-				break
-			view.update()
-			
-			click = view.ptfrom(evt.pos(), anchor)
-			
-			for solid, former in moving:
-				move = transpose(fmat3(solid._world * solid._local * solid._free)) * (click - anchor)
-				solid.free = former * translate(move)
-
-
 class ChainManip(Group):
 	''' object to display and interact with a robot in the 3d view
 
@@ -258,7 +153,7 @@ class ChainManip(Group):
 							dot(grad, move)**2 / (length2(grad) + length2(move) + self.prec)
 							for grad in jac) / self.min_colinearity)
 				# combination of the closest directions to the mouse position
-				increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ (move * colinearity))
+				increment = la.lstsq(jac.transpose(), move * colinearity, 1e-6)[0]
 				self.pose[joint] = self.chain.joints[joint].normalize(
 										(np.asarray(self.pose[joint]) 
 										+ increment * min(1, self.max_increment / np.abs(increment).max())
@@ -272,7 +167,7 @@ class ChainManip(Group):
 			np.dot(grad, move)**2 / (normsq(grad) + normsq(move) + self.prec)
 			for grad in jac) / self.min_colinearity)
 		
-		increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ (move * colinearity))
+		increment = la.lstsq(jac.transpose(), move * colinearity, 1e-6)[0]
 		
 		self.pose = self.chain.normalize(structure_state((
 						flatten_state(self.pose)
@@ -499,11 +394,11 @@ class KinematicManip(Group):
 			optjac,
 			self.kinematic.cost_jacobian(self.pose).transpose(),
 			])
-		increment = la.solve(jac @ jac.transpose() + np.eye(len(jac))*self.prec, jac @ move)
+		increment = la.lstsq(jac.T, move, 1e-6)[0]
 		# assemble the new pose and normalize it
 		newpose = self.kinematic.normalize(structure_state(
 			flatten_state(self.pose)
-			+ self.damping * increment * min(1, self.max_increment / np.abs(increment).max()),
+			+ self.damping * increment * min(1, self.max_increment / np.amax(increment)),
 			self.pose))
 		
 		# try to move
@@ -553,10 +448,13 @@ class KinematicManip(Group):
 					current_anchor = model * solid * anchor
 					
 					self._move_opt(
-						optmove = np.asarray(target_anchor - current_anchor.xy / current_anchor.w),
+						optmove = np.asarray(
+							# keep grasped position under mouse
+							target_anchor - current_anchor.xy / current_anchor.w),
 						optjac = np.stack([
-								np.asarray((model * grad * anchor).xy / current_anchor.w)
-								for grad in problem.freejac]),
+							# keep grasped position under mouse
+							np.asarray((model * grad * anchor).xy / current_anchor.w)
+							for grad in problem.freejac]),
 						)
 					view.update()
 				
@@ -604,13 +502,17 @@ class KinematicManip(Group):
 				
 					self._move_opt(
 						optmove = np.concatenate([
+							# move grasped point under mouse
 							target_anchor - current_anchor.xy / current_anchor.w,
-							np.ravel(mat3(init_solid - solid)),
+								# keep initial orientation
+							np.ravel(dmat3x2(init_solid - solid)),
 							]),
 						optjac = np.stack([
 							np.concatenate([
+								# move grasped point under mouse
 								(model * grad * anchor).xy / current_anchor.w, 
-								np.ravel(mat3(grad)), 
+								# keep initial orientation
+								np.ravel(dmat3x2(grad)), 
 								])
 							for grad in problem.jac]),
 						)
@@ -635,8 +537,10 @@ class KinematicManip(Group):
 		clicked = vec3(view.ptat(view.somenear(evt.pos())))
 		solid = self.parts[moved]
 		anchor = affineInverse(mat4(self.world) * solid) * vec4(clicked,1)
-		init_tool = vec4(self.toolcenter, 1)
-		tool = affineInverse(solid) * vec4(self.toolcenter, 1)
+		target_tool = vec4(self.toolcenter, 1)
+		target_axis = normalize(target_tool - vec4(affineInverse(view.uniforms['view'] * self.world)[3]))
+		axis = affineInverse(solid) * target_axis
+		tool = affineInverse(solid) * target_tool
 		
 		while True:
 			evt = yield
@@ -649,27 +553,36 @@ class KinematicManip(Group):
 
 				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world)
 				target_anchor = qtpos(evt.pos(), view)
-				target_tool = model * init_tool
 				def prepare(problem):
-					problem.jac = kinematic.grad((
-						*self.pose, 
-						kinematic.joints[-1].inverse(self.parts[moved]),
-						))
+					pass
 				
 				def solve(problem, model=model, target_anchor=target_anchor, target_tool=target_tool):
 					solid = self.parts[moved]
 					current_tool = model * solid * tool
-				
+					current_anchor = model * solid * anchor
+					
+					problem.jac = kinematic.grad((
+						*self.pose, 
+						kinematic.joints[-1].inverse(self.parts[moved]),
+						))
+					
 					self._move_opt(
 						optmove = np.concatenate([
-							(init_tool - solid * tool).xyz,
-							(target_anchor - target_tool.xy/target_tool.w) 
-								- (model * solid * normalize(anchor - tool)).xy / current_tool.w,
+							# move grasped point under mouse
+							(target_anchor - current_anchor.xy / current_anchor.w),
+							# keep tool center point at the same place
+							(target_tool - solid * tool).xyz / kinematic.scale,
+							# keep rotation axis unchanged
+							(target_axis - solid * axis).xyz,
 							]),
 						optjac = np.stack([
 							np.concatenate([
-								(grad * tool).xyz, 
-								(model * grad * normalize(anchor - tool)).xy / current_tool.w, 
+								# move grasped point under mouse
+								(model * grad * anchor).xy / current_anchor.w, 
+								# keep tool center point at the same place
+								(grad * tool).xyz / kinematic.scale, 
+								# keep rotation axis unchanged
+								(grad * axis).xyz,
 								])
 							for grad in problem.jac]),
 						)
@@ -818,3 +731,4 @@ def qtpos(qtpos, view):
 def normsq(x):
 	x = x.ravel()
 	return np.dot(x,x)
+	

@@ -129,5 +129,5 @@ def test_bevel_gear():
 	for i, part in enumerate(results):
 		box = boundingbox(part)
 		results[i] = solid = Solid(content=part).transform(vec3(x-box.min.x,0,0))
-		x +=  box.width.x
+		x +=  box.size.x
 	return results

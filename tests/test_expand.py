@@ -73,7 +73,7 @@ def test_expand():
 
 	x = 0
 	for i,r in enumerate(results):
-		w = r.box().width.x
+		w = r.box().size.x
 		results[i] = r.transform((x+w)*X)
 		x += 2*w
 

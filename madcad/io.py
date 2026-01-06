@@ -75,6 +75,9 @@ def cachefunc(f):
 		
 		Use it if you want to cache their result associated with the argument set used 
 	'''
+	# special case: do not cache if running in a caching interpreter
+	if f.__module__ == '__madcad__':
+		return f
 	@wraps(f)
 	def repl(*args, **kwargs):
 		if not os.path.exists(cachedir):

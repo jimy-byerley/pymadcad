@@ -439,7 +439,7 @@ def view(view):
 				0,0,-1,1)
 
 def screen(view):
-	return fmat4(view.target.width/2,0,0,0,
+	return fmat4(view.target.size/2,0,0,0,
 				0,view.target.height/2,0,0,
 				0,0,1,0,
 				0,0,-1,1)
@@ -581,7 +581,7 @@ def note_leading(placement, offset=None, text='here'):
 	'''
 	origin, normal = mesh_placement(placement)
 	if not offset:
-		offset = 0.2 * length(boundingbox(placement).width) * normal
+		offset = 0.2 * length(boundingbox(placement).size) * normal
 	elif isinstance(offset, (float,int)):
 		offset = offset*normal
 	elif not isinstance(offset, vec3):
@@ -666,7 +666,7 @@ def note_distance_planes(s0, s1, offset=None, d=None, tol=None, text=None):
 		raise ValueError('surfaces are not parallel')
 	if not offset:
 		box = boundingbox(s0,s1)
-		offset = 0.2 * length(box.width) * normalize(noproject(p0+p1 - 2*box.center, n0))
+		offset = 0.2 * length(box.size) * normalize(noproject(p0+p1 - 2*box.center, n0))
 	return note_distance(p0, p1, offset, n0, d, tol, text)
 	
 def note_distance_set(s0, s1, offset=0, d=None, tol=None, text=None):
@@ -759,18 +759,18 @@ def note_radius(mesh, offset=None, d=None, tol=None, text=None, propagate=2):
 		conn = connpp(mesh.edges)
 		radius, place = mesh_curvature_radius(mesh, conn=conn, propagate=propagate)
 		normal = - normalize(sum(normalize(mesh.points[p]-mesh.points[place])  for p in conn[place]))
-	elif isinstance(mesh, wire):
+	elif isinstance(mesh, Wire):
 		normals = mesh.vertexnormals()
 		radius, place = mesh_curvature_radius(mesh, normals=normals, propagate=propagate)
 		normal = normals[place]
 	else:
 		raise TypeError('input mesh must be Mesh, Web or Wire')
 	if not offset:
-		offset = 0.2 * length(boundingbox(mesh).width)
+		offset = 0.2 * length(boundingbox(mesh).size)
 	if not isinstance(offset, vec3):
 		offset = normal * offset
 	if abs(dot(offset, normal))**2 < length2(place)*1e-4:
-		offset += 0.2 * length(boundingbox(mesh).width) * normal
+		offset += 0.2 * length(boundingbox(mesh).size) * normal
 	
 	if isinstance(place, tuple):
 		place = sum(mesh.points[i]  for i in place) / len(place)
@@ -970,7 +970,7 @@ def mesh_curvatures(mesh, conn=None, normals=None, propagate=2):
 def note_bounds(obj):
 	''' Create dimension annotations on the boundingbox of an object '''
 	box = boundingbox(obj)
-	size = 0.05 * length(box.width)
+	size = 0.05 * length(box.size)
 	return [
 		note_distance(box.min, vec3(box.max.x, box.min.y, box.min.z), offset=size*vec3(0,-1,-1)),
 		note_distance(box.min, vec3(box.min.x, box.max.y, box.min.z), offset=size*vec3(-1,0,-1)),
@@ -1020,7 +1020,7 @@ def note_angle_edge(part, edge, offset=0, d=None, tol=None, text=None, unit='deg
 	d1 = part.facenormal(f1)
 	z = normalize(cross(d0,d1))
 	o = mix(part.points[edge[0]], part.points[edge[1]], 0.5)
-	if not offset:	offset = 0.2 * length(boundingbox(part).width)
+	if not offset:	offset = 0.2 * length(boundingbox(part).size)
 	return note_angle(
 			(o, cross(z,d0)),
 			(o, cross(d1,z)),
@@ -1046,7 +1046,7 @@ def note_label(placement, offset=None, text='!', style='rect'):
 	'''
 	p, normal = mesh_placement(placement)
 	if not offset:
-		offset = 0.2 * length(boundingbox(placement).width) * normal
+		offset = 0.2 * length(boundingbox(placement).size) * normal
 	elif isinstance(offset, (float,int)):
 		offset = offset*normal
 	elif not isinstance(offset, vec3):

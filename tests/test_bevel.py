@@ -37,7 +37,7 @@ def test_bevel():
 				print('failed', err)
 				raise
 			else:
-				results[(operation, dim)] = operated.transform(box.width * 1.2 * vec3(i,0,j))
+				results[(operation, dim)] = operated.transform(box.size * 1.2 * vec3(i,0,j))
 				print('ok')
 
 	return results

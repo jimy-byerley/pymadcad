@@ -130,5 +130,5 @@ def test_gears():
 	for i, part in enumerate(results):
 		box = boundingbox(part)
 		results[i] = Solid(content=part).transform(vec3(0,0,z-box.min.z))
-		z +=  box.width.z*2
+		z +=  box.size.z*2
 	return results

@@ -36,12 +36,14 @@ class Revolute(Joint):
 	bounds = (-inf, inf)
 	default = 0
 	
-	def __init__(self, solids, axis: Axis, local=None, default=None):
+	def __init__(self, solids, axis: Axis, local=None, default=None, bounds=None):
 		self.solids = solids
 		local = local or axis
 		
 		if default is not None:
 			self.default = default
+		if bounds is not None:
+			self.bounds = bounds
 		
 		if isinstance(axis, mat4):
 			self.post = axis
@@ -53,6 +55,7 @@ class Revolute(Joint):
 			self.position = axis[0], local[0]
 		else:
 			raise TypeError('Revolute can only be placed on an Axis or a mat4')
+		self.scale = max(glm.abs(self.post[3]))
 		
 	def __repr__(self):
 		return '{}({}, Axis(({:.3g},{:.3g},{:.3g}), ({:.3g},{:.3g},{:.3g})))'.format(
@@ -157,12 +160,14 @@ class Planar(Joint):
 	bounds = (vec3(-inf), vec3(inf))
 	default = vec3(0, 0, 0)
 	
-	def __init__(self, solids, axis, local=None, default=None):
+	def __init__(self, solids, axis, local=None, default=None, bounds=None):
 		self.solids = solids
 		local = local or axis
 		
 		if default is not None:
 			self.default = default
+		if bounds is not None:
+			self.bounds = bounds
 		
 		if isinstance(axis, mat4):
 			self.post = axis
@@ -174,6 +179,7 @@ class Planar(Joint):
 			self.position = axis[0], local[0]
 		else:
 			raise TypeError('Planar can only be placed on an Axis or a mat4')
+		self.scale = max(glm.abs(self.post[3]))
 	
 	def __repr__(self):
 		return '{}({}, Axis(({:.3g},{:.3g},{:.3g}), ({:.3g},{:.3g},{:.3g})))'.format(
@@ -190,8 +196,8 @@ class Planar(Joint):
 		
 	def grad(self, position: vec3, delta=1e-6):
 		return (
-			self.post * translate(X) * rotate(position.z, Z) * self.pre,
-			self.post * translate(Y) * rotate(position.z, Z) * self.pre,
+			self.post * dtranslate(X) * rotate(position.z, Z) * self.pre,
+			self.post * dtranslate(Y) * rotate(position.z, Z) * self.pre,
 			self.post * translate(vec3(position.xy,0)) * drotate(position.z, Z) * self.pre,
 			)
 	
@@ -255,12 +261,14 @@ class Prismatic(Joint):
 	bounds = (-inf, inf)
 	default = 0
 	
-	def __init__(self, solids, axis: Axis, local=None, default=None):
+	def __init__(self, solids, axis: Axis, local=None, default=None, bounds=None):
 		self.solids = solids
 		local = local or axis
 		
 		if default is not None:
 			self.default = default
+		if bounds is not None:
+			self.bounds = bounds
 		
 		if isinstance(axis, mat4):
 			self.post = axis
@@ -276,6 +284,7 @@ class Prismatic(Joint):
 			self.position = axis[0], local[0]
 		else:
 			raise TypeError('Track can only be placed on a vec3, Axis or mat4')
+		self.scale = max(glm.abs(self.post[3]))
 	
 	def __repr__(self):
 		return '{}({}, vec3({:.3g},{:.3g},{:.3g}))'.format(
@@ -357,12 +366,14 @@ class Cylindrical(Joint):
 	bounds = (vec2(-inf), vec2(inf))
 	default = vec2(0)
 	
-	def __init__(self, solids, axis: Axis, local=None, default=None):
+	def __init__(self, solids, axis: Axis, local=None, default=None, bounds=None):
 		self.solids = solids
 		local = local or axis
 		
 		if default is not None:
 			self.default = default
+		if bounds is not None:
+			self.bounds = bounds
 		
 		if isinstance(axis, mat4):
 			self.post = axis
@@ -374,6 +385,7 @@ class Cylindrical(Joint):
 			self.position = axis[0], local[0]
 		else:
 			raise TypeError('Pivot can only be placed on an Axis or a mat4')
+		self.scale = max(glm.abs(self.post[3]))
 		
 	def __repr__(self):
 		return '{}({}, Axis(({:.3g},{:.3g},{:.3g}), ({:.3g},{:.3g},{:.3g})))'.format(
@@ -478,6 +490,7 @@ class Ball(Joint):
 			self.position = center, local
 		else:
 			raise TypeError("ball can only be placed on a vec3 or mat4")
+		self.scale = max(glm.abs(self.post[3]))
 	
 	def __repr__(self):
 		return '{}({}, ({:.3g},{:.3g},{:.3g}))'.format(self.__class__.__name__, self.solids, *self.post[3].xyz)
@@ -493,36 +506,7 @@ class Ball(Joint):
 	
 	def inverse(self, matrix, close=None):
 		return quat(affineInverse(self.post) * matrix * affineInverse(self.pre))
-		
-	def grad(self, orient):
-		a,b,c,d = orient
-		return (
-			self.post * mat4( 
-				 2*a,  2*d, -2*c, 0,
-				-2*d,  2*a,  2*b, 0,
-				 2*c, -2*b,  2*a, 0,
-				 0,   0,     0,   0,
-				) * self.pre,
-			self.post * mat4(
-				 2*b,  2*c,  2*d, 0,
-				 2*c, -2*b,  2*a, 0,
-				 2*d, -2*a, -2*b, 0,
-				 0,    0,    0,   0,
-				) * self.pre,
-			self.post * mat4(
-				-2*c,  2*b, -2*a, 0,
-				 2*b,  2*c,  2*d, 0,
-				 2*a,  2*d, -2*c, 0,
-				 0,    0,    0,   0,
-				) * self.pre,
-			self.post * mat4(
-				-2*d,  2*a,  2*b, 0,
-				-2*a, -2*d,  2*c, 0,
-				 2*b,  2*c,  2*d, 0,
-				 0,    0,    0,   0,
-				) * self.pre,
-			)
-			
+	
 	def grad(self, orient):
 		w,x,y,z = orient
 		return (
@@ -618,6 +602,7 @@ class PointSlider(Joint):
 			self.pre = mat4(quat(local[1], Z)) * translate(-local[0])
 		else:
 			raise TypeError("PointSlider can only be placed on Axis or mat4")
+		self.scale = max(glm.abs(self.post[3]))
 	
 	default = [0]*5
 	bounds = ([-inf]*5, [inf]*5)
@@ -692,6 +677,7 @@ class EdgeSlider(Joint):
 			self.pre = affineInverse(local)
 		else:
 			raise TypeError("EdgeSlider can only be placed on Axis or mat4")
+		self.scale = max(glm.abs(self.post[3]))
 	
 	default = [0]*4
 	bounds = ([-inf]*4, [inf]*4)
@@ -766,6 +752,7 @@ class Ring(Joint):
 			self.post = translate(local)
 		else:
 			raise TypeError("ball can only be placed on a vec3 or mat4")
+		self.scale = max(glm.abs(self.post[3]))
 	
 	bounds = ((-inf, -1, -1, -1, -1), (inf, 1, 1, 1, 1))
 	default = (0, 1, 0, 0, 0)
@@ -816,9 +803,12 @@ class Ring(Joint):
 	
 class Universal(Joint):
 	''' universal joint '''
-	def __init__(self, solids, axis, local=None):
+	def __init__(self, solids, axis, local=None, bounds=None):
 		self.solids = solids
 		local = local or axis
+		
+		if bounds is not None:
+			self.bounds = bounds
 		
 		if isinstance(axis, mat4):
 			self.post = axis
@@ -828,6 +818,7 @@ class Universal(Joint):
 			self.pre = mat4(quat(local[1], Z)) * translate(-local[0])
 		else:
 			raise TypeError('Universal joint can only be placed on an Axis or a mat4')
+		self.scale = max(glm.abs(self.post[3]))
 	
 	bounds = (vec2(-inf), vec2(inf))
 	default = vec2(0)
@@ -915,6 +906,7 @@ class Rack(Joint):
 		self.pre = mat4(quat(axis[1], Z)) * translate(-axis[0])
 		self.post = translate(rack[0]) * mat4(quat(X, rack[1]))
 		self.position = self.rack[0], self.axis[0]
+		self.scale = max(glm.abs(self.post[3]))
 		
 	bounds = (-inf, inf)
 	default = 0
@@ -983,6 +975,7 @@ class Gear(Joint):
 		self.pre = mat4(quat(local[1], Z)) * translate(-local[0])
 		self.post = translate(axis[0]) * mat4(quat(Z, axis[1]))
 		self.position = self.axis[0], local[0]
+		self.scale = max(glm.abs(self.post[3]))
 		
 	bounds = (-inf, inf)
 	default = 0

@@ -111,6 +111,7 @@ def test_two_bound_pivot_loops():
 		]).solve(close=np.arange(6)))
 
 def test_stretched_chain():
+	# skip('numerically unstable')
 	njoints = 80
 	joints = []
 	for i in range(0, njoints, 2):
@@ -141,3 +142,44 @@ def test_grid():
 			if y > 0:
 				joints.append(Revolute((name(x,y-1), name(x,y)), Axis(vec3(0,1,0),Z), Axis(O,Z)))
 	print(Kinematic(joints).solve(close=2*pi*np.random.random(len(joints)), precision=1e-3, maxiter=1000))
+
+def test_screw():
+	def derive(f, t):
+		return Screw.from_rate(f, t, 1e-5)
+	def check(a, b, text):
+		assert np.amax(a.resultant - b.resultant) < 1e-3, text
+		assert np.amax(a.moment - b.moment) < 1e-3, text
+		
+	a = lambda t: translate(vec3(1, t, t**2)) * rotate(t, normalize(vec3(1+t, t, 0.2*t)))
+	b = lambda t: translate(vec3(t, 0, 0)) * rotate(t, normalize(vec3(0, 1, 1)))
+	c = vec3(1,2,3)
+	ab = lambda t: a(t) * b(t)
+	ac = lambda t: a(t) * translate(c)
+	
+	for t in [0, 0.2, 1, 2.34]:
+		da = derive(a, t)
+		db = derive(b, t)
+		check(Screw.from_matrix(da.to_matrix()), da, "convert back and forth")
+		check(da, derive(ac, t), "twist is the same everywhere")
+		check(da + db.transform(a(t)), derive(ab, t), "twist are additive")
+	
+def test_dynamic():
+	def derive(f, t):
+		return Dynamic.from_rate(f, t, 1e-5)
+	def check(a, b, text):
+		assert np.amax(a.position - b.position) < 1e-3, text
+		assert np.amax(a.velocity - b.velocity) < 1e-3, text
+		assert np.amax(a.acceleration - b.acceleration) < 1e-3, text
+	
+	a = lambda t: translate(vec3(1, t, t**2)) * rotate(t, normalize(vec3(1+t, t, 0.2*t)))
+	b = lambda t: translate(vec3(t, 0, 0)) * rotate(t, normalize(vec3(0, 1, 1)))
+	c = vec3(1,2,3)
+	ab = lambda t: a(t) * b(t)
+	ac = lambda t: a(t) * translate(c)
+	
+	for t in [0, 0.2, 1, 2.34]:
+		da = derive(a, t)
+		db = derive(b, t)
+		check(da.locate(a(t) * c), derive(ac, t), "local dynamic is frame-wise equivalent")
+		check(da.compose(db), derive(ab, t), "independent dynamic can be composed into chained dynamic")
+		check(da.locate(c).locate(O), da.locate(O), "dynamic is location-wise equivalent")

@@ -265,29 +265,46 @@ Localy defined data types
 .. autoclass:: Box
 
 	.. autoproperty:: center
-	.. autoproperty:: width
+	.. autoproperty:: size
+	
+	.. automethod:: from_iter
+	.. automethod:: from_torch
+	.. automethod:: from_cv
+	.. automethod:: from_matrix
+	
+	.. automethod:: to_torch
+	.. automethod:: to_cv
+	.. automethod:: to_matrix
+	
 	.. automethod:: corners
 	.. automethod:: volume
+	.. automethod:: map
+	.. automethod:: slice
 	
 	.. automethod:: isvalid
 	.. automethod:: isempty
 	
-	.. automethod:: contain
+	.. automethod:: contains
 	.. automethod:: inside
+	.. automethod:: touch_borders
+	.. automethod:: touch_corners
 	
 	.. automethod:: intersection
-	.. automethod:: union
+	.. automethod:: merge
 	
 	.. automethod:: intersection_update
-	.. automethod:: union_update
+	.. automethod:: merge_update
 	
 	.. automethod:: transform	
+	.. automethod:: cast
 
 .. autoclass:: Screw
-	:members: locate, transform
+	:members: locate, transform, to_matrix, from_matrix, from_rate
 	
-	Of course, as any vector variables, ``Screw`` implements ``+ -`` with other ``Torsor``, and ``* /`` with ``float``
+	``Screw`` implements ``+ -`` with other ``Screw``, and ``* /`` with ``float``
 
-.. autofunction:: comomentum
+.. autofunction:: comoment
 
+.. autofunction:: skew
 
+.. autofunction:: unskew

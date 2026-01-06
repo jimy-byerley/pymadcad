@@ -2,6 +2,8 @@
 
 ''' Group of functions and math classes of pymadcad '''
 
+from __future__ import annotations
+
 try:
 	from pyglm import glm
 	from pyglm.glm import *
@@ -36,7 +38,7 @@ NUMPREC = 1e-13	# float64 here, so 14 decimals
 #NUMPREC = 1e-6	# float32 here, so 7 decimals, so 1e-6 when exponent is 1
 COMPREC = 1-NUMPREC
 
-
+from .box import Box, boundingbox
 
 # common base definition, for end user
 O = vec3(0,0,0)
@@ -465,266 +467,187 @@ def isaxis(obj):
 	return isinstance(obj, Axis) or isinstance(obj, tuple) and len(obj)==2 and isinstance(obj[0],vec3) and isinstance(obj[1],vec3)
 
 
-class Box:
-	''' This class describes a box always orthogonal to the base axis, used as convex for area delimitations 
-	
-		This class is independent from the dimension or number precision of the used vectors. You can for instance have a `Box` of `vec2` as well as a box of `vec3`. However boxes with different vector types cannot interperate.
-	
-		Attributes:
-			
-			min:	vector of minimum coordinates of the box (usually bottom left corner)
-			max:	vector of maximum coordinates of the box (usually top right corner)
-	
-	'''
-	__slots__ = ('min', 'max')
-	def __init__(self, min=None, max=None, center=vec3(0), width=vec3(-inf)):
-		if min and max:			self.min, self.max = min, max
-		else:					self.min, self.max = center-width/2, center+width/2
-	
-	@property
-	def center(self) -> vec3:
-		''' Mid coordinates of the box '''
-		return (self.min + self.max) /2
-	@property
-	def width(self) -> vec3:
-		''' Diagonal vector of the box '''
-		return self.max - self.min
-	
-	def corners(self) -> '[vec3]':
-		''' Create a list of the corners of the box '''
-		c = self.min, self.max
-		t = type(self.min)
-		return [
-			t(c[i&1][0], c[(i>>1)&1][1], c[(i>>2)&1][2])
-			for i in range(8)
-			]
-			
-	def volume(self) -> float:
-		''' Volume inside '''
-		v = 1
-		for edge in self.width:
-			v *= edge
-		return v
-		
-	def contain(self, point):
-		''' Return True if the given point is inside or on the surface of the box '''
-		return all(self.min <= point) and all(point <= self.max)
-		
-	def inside(self, point):
-		''' Return True if the given point is strictly inside the box '''
-		return all(self.min < point) and all(point < self.max)
-	
-	def isvalid(self):
-		''' Return True if the box defines a valid space (min coordinates <= max coordinates) '''
-		return any(self.min <= self.max)
-	def isempty(self):
-		''' Return True if the box contains a non null volume '''
-		return not any(self.min < self.max)
-	
-	def __add__(self, other):
-		if isinstance(other, vec3):		return Box(self.min + other, self.max + other)
-		elif isinstance(other, Box):	return Box(other.min, other.max)
-		else:
-			return NotImplemented
-			
-	def __iadd__(self, other):
-		if isinstance(other, vec3):		
-			self.min += other
-			self.max += other
-		elif isinstance(other, Box):	
-			self.min += other.min
-			self.max += other.max
-		else:
-			return NotImplemented
-			
-	def __sub__(self, other):
-		if isinstance(other, vec3):		return Box(self.min - other, self.max - other)
-		elif isinstance(other, Box):	return Box(other.min, other.max)
-		else:
-			return NotImplemented
-	
-	def __or__(self, other):	return deepcopy(self).union(other)
-	def __and__(self, other):	return deepcopy(self).intersection(other)
-	
-	def union_update(self, other) -> 'self':
-		''' Extend the volume of the current box to bound the given point or box '''
-		if isinstance(other, (dvec3, fvec3)):
-			self.min = glm.min(self.min, other)
-			self.max = glm.max(self.max, other)
-		elif isinstance(other, Box):
-			self.min = glm.min(self.min, other.min)
-			self.max = glm.max(self.max, other.max)
-		else:
-			raise TypeError('unable to integrate {}'.format(type(other)))
-		return self
-	
-	def intersection_update(self, other) -> 'self':
-		''' Reduce the volume of the current box to the intersection between the 2 boxes '''
-		if isinstance(other, Box):
-			self.min = glm.max(self.min, other.min)
-			self.max = glm.min(self.max, other.max)
-		else:
-			raise TypeError('expected a Box'.format(type(other)))
-		return self
-	
-	def union(self, other) -> 'Box':
-		''' Return a box containing the current and the given box (or point) 
-		
-			Example:
-				
-				>>> Box(vec2(1,2), vec2(2,3)) .union(vec3(1,4))
-				Box(vec2(1,2), vec2(2,4))
-				
-				>>> Box(vec2(1,2), vec2(2,3)) .union(Box(vec3(1,-4), vec3(2,8)))
-				Box(vec2(1,-4), vec3(2,8))
-		
-		'''
-		if isinstance(other, (dvec3, fvec3)):
-			return Box(	glm.min(self.min, other),
-						glm.max(self.max, other))
-		elif isinstance(other, Box):
-			return Box(	glm.min(self.min, other.min),
-						glm.max(self.max, other.max))
-		else:
-			raise TypeError('unable to integrate {}'.format(type(other)))
-	
-	def intersection(self, other) -> 'Box':
-		''' Return a box for the volume common to the current and the given box 
-		
-			Example:
-			
-				>>> Box(vec2(-1,2), vec2(2,3)) .intersection(Box(vec3(1,-4), vec3(2,8)))
-				Box(vec2(1,2), vec3(2,3))
-		
-		'''
-		if isinstance(other, Box):
-			return Box(	glm.max(self.min, other.min),
-						glm.min(self.max, other.max))
-		else:
-			raise TypeError('expected a Box'.format(type(other)))
-	
-	def transform(self, trans) -> 'Box':
-		''' Box bounding the current one in a transformed space '''
-		if not self.isvalid():	return self
-		trans = transformer(trans)
-		return boundingbox((trans(p)  for p in self.corners()))
-	
-	def cast(self, vec) -> 'Box':
-		return Box(vec(self.min), vec(self.max))
-	
-	def __bool__(self):
-		return self.isvalid()
-	
-	def __repr__(self):
-		return '{}({}, {})'.format(self.__class__.__name__, repr(self.min), repr(self.max))
 
-def boundingbox(obj, ignore=False, default=Box(width=vec3(-inf))) -> Box:
-	''' Return a box containing the object passed
-		`obj` can be a vec3, Box, object with a `box()` method, or an iterable of such objects
-	'''
-	if isinstance(obj, Box):			return obj
-	if isinstance(obj, (dvec3, fvec3)):	return Box(obj,obj)
-	if hasattr(obj, 'box'):				return obj.box()
-	if hasattr(obj, '__iter__'):
-		obj = iter(obj)
-		if ignore:
-			bound = default
-			for e in obj:
-				try:	bound = boundingbox(e)
-				except TypeError:	continue
-				break
-			bound = Box(bound.min, bound.max)
-			for e in obj:
-				try:	bound.union_update(e)
-				except TypeError:	continue
-		else:
-			bound = boundingbox(next(obj, default))
-			bound = Box(bound.min, bound.max)
-			for e in obj:	bound.union_update(e)
-		return bound
-	if ignore:
-		return default
-	else:
-		raise TypeError('unable to get a boundingbox from {}'.format(type(obj)))
+class Screw:
+	''' A 3D torsor aka Screw - is a mathematical object defined as follow:
+		  * a resultant vector R
+		  * a moment vector field M
 
-
-
-class Screw(object):
-	''' A 3D torsor aka Screw aka Wrench aka Twist - is a mathematical object defined as follow:
-		  * a resulting vector R
-		  * a momentum vector field M
-
-		The momentum is a function of space, satisfying the relationship:
+		The moment M is a vectorial field function, satisfying the relationship:
 			M(A) = M(B) + cross(R, A-B)
 		
-		Therefore it is possible to represent a localized torsor such as:
-		  * R = resulting
-		  * M = momentum vector at position P
-		  * P = position at which M takes the current value
+		Therefore it is possible to represent a localized screw such as:
+		  * R = resultant
+		  * M(P) = moment vector at position P
 		
 		Torsor are useful for generalized solid mechanics to handle multiple variables of the same nature:
-		  * Force torsor:	
-			  Screw(force, torque, pos)
-		  * Velocity (aka kinematic) torsor:
-			  Screw(rotation, velocity, pos)
-		  * Kinetic (inertia) torsor:
-			  Screw(linear movement quantity, rotational movement quantity, pos)
+		  * wrench (force screw):
+			  Screw(position, force, torque)
+		  * twist (velocity screw):
+			  Screw(position, angular_velocity, linear_velocity)
+		  * momentum (momentum screw):
+			  Screw(position, mass * linear_velocity_com, inertia * angular_velocity_com)
 			
-		  All these torsors makes it possible to represent all these values independently from expression location
-		  
-		  
-		Attributes:
-			resulting (vec3): 
-			momentum (vec3):
-			position (vec3):
+		  All these screws makes it possible to represent all these values independently from expression location
 	'''
-	__slots__ = ('resulting', 'momentum', 'position')
-	def __init__(self, resulting=None, momentum=None, position=None):
-		self.resulting, self.momentum, self.position = resulting or vec3(0), momentum or vec3(0), position or vec3(0)
-	def locate(self, pt) -> 'Screw':
-		''' Gets the same torsor, but expressed for an other location '''
-		return Screw(self.resulting, self.momentum + cross(self.resulting, pt-self.position), pt)
+	location: vec3
+	resultant: vec3
+	moment: vec3
 	
-	def transform(self, mat) -> 'Screw':
-		''' Changes the torsor from coordinate system '''
-		if isinstance(mat, mat4):
-			rot, trans = mat3(mat), vec3(mat[3])
-		elif isinstance(mat, mat3):
-			rot, trans = mat, 0
-		elif isinstance(mat, quat):
-			rot, trans = mat, 0
-		elif isinstance(mat, vec3):
-			rot, trans = 1, mat
-		else:
-			raise TypeError('Screw.transform() expect mat4, mat3 or vec3')
-		return Screw(rot*self.resulting, rot*self.momentum, rot*self.position + trans)
+	def __init__(self, location, resultant, moment):
+		self.location = location
+		self.resultant = resultant
+		self.moment = moment
 	
-	def __add__(self, other):
-		if other.position != self.position:		other = other.locate(self.position)
-		return Screw(self.resulting+other.resulting, self.momentum+other.momentum, self.position)
+	def transform(self, transform:mat4) -> Screw:
+		''' change the screw from a frame to an other '''
+		orient = mat3(transform)
+		return Screw(
+			transform * self.location,
+			orient * self.resultant,
+			orient * self.moment,
+			)
 	
-	def __sub__(self, other):
-		if other.position != self.position:		other = other.locate(self.position)
-		return Screw(self.resulting-other.resulting, self.momentum-other.momentum, self.position)
-	
-	def __neg__(self):
-		return Screw(-self.resulting, -self.momentum, self.position)
-	
-	def __mul__(self, x):
-		return Screw(x*self.resulting, x*self.momentum, self.position)
-	
-	def __div__(self, x):
-		return Screw(self.resulting/x, self.momentum/x, self.position)
+	def locate(self, location:vec3) -> Screw:
+		''' relocate the screw at the given location
 		
+			this changes the resultant and moment vectors, but doesn't change the screw itself
+			
+			Warning:
+				this is different from translating the screw 
+		'''
+		return Screw(
+			location,
+			self.resultant,
+			self.moment + cross(self.resultant, location - self.location),
+			)
+	
+	def comoment(self, other:Screw) -> float:
+		''' screws comoment, performs relocation if necessary '''
+		other = other.locate(self.location)
+		return dot(self.moment, other.resultant) + dot(self.resultat * other.moment)
+		
+	def __add__(self, other:Screw) -> Screw:
+		''' screws addition, performs relocation if necessary '''
+		other = other.locate(self.location)
+		return Screw(
+			self.location,
+			self.resultant + other.resultant,
+			self.moment + other.moment,
+			)
+	def __sub__(self, other:Screw) -> Screw:
+		''' screws substraction, performs relocation if necessary '''
+		other = other.locate(self.location)
+		return Screw(
+			self.location,
+			self.resultant - other.resultant,
+			self.moment - other.moment,
+			)
+	def __neg__(self) -> Screw:
+		return Screw(
+			self.location,
+			-self.resultant,
+			-self.moment,
+			)
+			
+	def __mul__(self, other:float) -> Screw:
+		return Screw(
+			self.location,
+			self.resultant * other,
+			self.moment * other,
+			)	
+	def __div__(self, other:float) -> Screw:
+		return Screw(
+			self.location,
+			self.resultant / other,
+			self.moment / other,
+			)
+			
+	def __eq__(self, other:Screw) -> bool:
+		''' screws equality, performs relocation if necessary '''
+		other = other.locate(self.location)
+		return glm.all(self.moment == other.moment) and glm.all(self.resultant == other.resultant)
+			
+	def to_matrix(self, location=None) -> mat4:
+		''' convert the screw to its matrix form
+		
+			represents the relocate operation for any screw and the derivative of the rotation matrix for velocity screws
+		'''
+		base = self.locate(location or vec3(0))
+		return skew(base.resultant, base.moment)
+	
+	@staticmethod
+	def from_matrix(mat, location=None) -> Screw:
+		return Screw(location or vec3(0), *unskew(mat))
+	
+	@staticmethod
+	def from_rate(f:callable, t:float, dt=1e-6) -> Screw:
+		''' compute a Screw of a frame by rating the given function `f` at the given instant `t`
+		
+			`f` is supposed to
+			- take a time instant and return a frame matrix
+			- be continuous and `f(t-dt)` and `f(t+dt)` to exist
+		'''
+		return Screw.from_matrix((f(t+dt) - f(t-dt)) / (2*dt) @ affineInverse(f(t)))
+	
 	def __repr__(self):
-		return '{}(\n\t{}, \n\t{}, \n\t{})'.format(self.__class__.__name__, repr(self.resulting), repr(self.momentum), repr(self.position))
+		return '{}(\n\t{}, \n\t{}, \n\t{})'.format(self.__class__.__name__, 
+			repr(self.location), repr(self.resultant), repr(self.moment))
+			
+	def display(self, scene):
+		# TODO draw resultant and moment vectors at the current location
+		indev
 
-def comomentum(t1, t2):
+
+def comoment(t1:Screw, t2:Screw) -> float:
 	''' Comomentum of screws:   `dot(M1, R2)  +  dot(M2, R1)`
 		
 		The result is independent of torsors location
 	'''
-	t2 = t2.locate(t1.position)
-	return dot(t1.momentum, t2.resulting) + dot(t2.momentum, t1.resulting)
+	t2 = t2.locate(t1.location)
+	return dot(t1.moment, t2.resultant) + dot(t2.moment, t1.resultant)
 
+def skew(r:vec3, t:vec3=None) -> mat3|mat4:
+	''' skew matrix of 3D vector `v` (pre cross product matrix). it `t` is given, it provides a fourth column (usefull for affine transforms) 
+	
+		>>> r = vec3(...)
+		>>> a = vec3(...)
+		>>> cross(r, a) == skew(r) * a
+	'''
+	if t is None:
+		return mat3(
+			 0,   +r.z, -r.y,
+			-r.z,  0,   +r.x,
+			+r.y, -r.x,  0,
+			)
+	else:
+		return mat4(
+			 0,   +r.z, -r.y, 0,
+			-r.z,  0,   +r.x, 0,
+			+r.y, -r.x,  0,   0,
+			 t.x,  t.y,  t.z, 0,
+			)
 
+def unskew(m: mat3|mat4) -> vec3|tuple[vec3, vec3]:
+	''' vector(s) from which the given matrix is a skew matrix (approximated it it is not actually a skew matrix) 
+	
+		>>> r = mat3(...)
+		>>> unskew(skew(r)) == r
+	'''
+	if isinstance(m, mat3):
+		return vec3(
+			m[1][2] - m[2][1], 
+			m[2][0] - m[0][2],
+			m[0][1] - m[1][0],
+			) * 0.5
+	elif isinstance(m, mat4):
+		return (
+			vec3(
+				m[1][2] - m[2][1], 
+				m[2][0] - m[0][2],
+				m[0][1] - m[1][0],
+				) * 0.5,
+			vec3(m[3]),
+			)
+	else:
+		raise TypeError('unskew only supports mat3 and mat4')

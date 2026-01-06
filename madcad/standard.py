@@ -17,7 +17,7 @@ from itertools import accumulate
 
 from .mathutils import *
 from .primitives import *
-from .kinematic import Solid
+from .assembly import Solid
 from .joints import Revolute
 from .mesh import Mesh, Web, Wire, web, wire
 from .generation import *
@@ -54,10 +54,12 @@ def stfloor(x, precision=0.1):
 		return type(x)(stfloor(e)  for e in x)
 	if not isfinite(x):
 		return x
+	if not x:
+		return x
 	s, x = sign(x), abs(x)
 	
 	base = 10
-	magnitude = base**floor(log(x) / log(base))
+	magnitude = base **floor(log(x) / log(base))
 	ratio = x / magnitude
 	
 	for j in range(2 + int(ceil(-log(precision) / log(base)))):
@@ -347,7 +349,7 @@ def nut(d, type='hex', detail=False) -> Mesh:
 	'''
 	args = standard_hexnuts[bisect(standard_hexnuts, d, key=itemgetter(0))]
 	if args[0] != d:
-		raise ValueError('no standard nut for the given diameter')
+		raise ValueError('no standard nut for diameter {}'.format(d))
 	return hexnut(*args)
 
 	
@@ -1251,13 +1253,16 @@ def bolt(a: vec3, b: vec3, dscrew: float, washera=False, washerb=False, nutb=Tru
 	'''
 	dir = normalize(b-a)
 	rwasher = washer(dscrew)
-	thickness = rwasher['part'].box().width.z
+	thickness = rwasher['part'].box().size.z
 	rscrew = screw(dscrew, stceil(distance(a,b) + 1.2*dscrew, precision=0.2))
 	#rscrew['annotations'] = [
 				#note_distance(O, -stceil(distance(a,b) + 1.2*dscrew)*Z, offset=2*dscrew*X),
 				#note_radius(rscrew['part'].group(0)),
 				#]
 	result = Solid(
+			a = a,
+			b = b,
+			dscrew = dscrew,
 			screw = rscrew.place((Revolute, rscrew['axis'], Axis(a-thickness*dir*int(washera), -dir))), 
 			)
 	if washera:
@@ -1302,7 +1307,7 @@ def screw_slot(axis: Axis, dscrew: float, rslot=None, hole=0., screw=0., expand=
 		else:
 			profile.append(o + 0.5*dscrew*x)
 		profile.append(o + 0.5*dscrew*x - hole*z)
-		profile.append(o + 0.4*dscrew*x - (hole+0.1*dscrew)*z)
+		profile.append(o + 0.4*dscrew*x - min(hole+0.1*dscrew, hole+screw)*z)
 		profile.append(o + 0.4*dscrew*x - (hole+screw)*z)
 		profile.append(o - (hole+screw+0.4*dscrew)*z)
 	else:
