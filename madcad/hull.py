@@ -122,7 +122,7 @@ def restore_groups(source, indices) -> Mesh:
 			combine = tuple(sorted(shortlist))
 			if combine not in groupindex:
 				groupindex[combine] = len(groups)
-				groups.append(combine)
+				groups.append(dict())
 			tracks[i] = groupindex[combine]
 	
 	outdim = len(simplex)
