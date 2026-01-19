@@ -578,6 +578,7 @@ class Screw:
 	
 	@staticmethod
 	def from_matrix(mat, location=None) -> Screw:
+		''' convert a velocity matrix into a screw at world location 0 '''
 		return Screw(location or vec3(0), *unskew(mat))
 	
 	@staticmethod
