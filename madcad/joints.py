@@ -186,7 +186,7 @@ class Planar(Joint):
 			self.__class__.__name__, self.solids, *self.post[3].xyz, *self.post[2].xyz)
 			
 	def direct(self, position: tuple):
-		return mat4(self.post) * translate(vec3(position.xy, 0)) * rotate(position.z, Z) * mat4(self.pre)
+		return self.post * translate(vec3(position.xy, 0)) * rotate(position.z, Z) * self.pre
 		
 	def inverse(self, matrix, close=None):
 		m = mat4(transpose(self.post)) * matrix * mat4(transpose(self.pre))
@@ -196,8 +196,8 @@ class Planar(Joint):
 		
 	def grad(self, position: vec3, delta=1e-6):
 		return (
-			self.post * dtranslate(X) * rotate(position.z, Z) * self.pre,
-			self.post * dtranslate(Y) * rotate(position.z, Z) * self.pre,
+			self.post * dtranslate(X) * translate(position.y*Y) * rotate(position.z, Z) * self.pre,
+			self.post * dtranslate(Y) * translate(position.x*X) * rotate(position.z, Z) * self.pre,
 			self.post * translate(vec3(position.xy,0)) * drotate(position.z, Z) * self.pre,
 			)
 	
@@ -221,14 +221,14 @@ class Planar(Joint):
 			color = kinematic_color(index[self.solids[0]]),
 			space = scale_solid(self.solids[0], fvec3(o), maxsize/size),
 			)
-		square = gt.parallelogram(x*size, y*size, origin=o-gap*size*z, align=0.5)
+		square = gt.parallelogram(x*size, y*size, origin=-gap*size*z, alignment=0.5)
 		sch.add(square.outlines(), shader='line')
 		sch.add(square, shader='ghost')
 		
 		if attach_start:
-			sch.add(gt.cone(o-size*(gap+cornersize)*z, o-size*gap*z, size*cornersize, fill=False, resolution=('div', 4)), shader='fill')
+			sch.add(gt.cone(-size*(gap+cornersize)*z, -size*gap*z, size*cornersize, fill=False, resolution=('div', 4)), shader='fill')
 			sch.set(shader='line')
-			sch.add(o-size*(gap+cornersize)*z)
+			sch.add(-size*(gap+cornersize)*z)
 			sch.add(attach_start, space=world_solid(self.solids[0]))
 		
 		x,y,z,o = dmat4x3(affineInverse(self.pre))
@@ -237,14 +237,14 @@ class Planar(Joint):
 			color = kinematic_color(index[self.solids[1]]),
 			space = scale_solid(self.solids[1], fvec3(o), maxsize/size),
 			)
-		square = gt.parallelogram(-x*size, y*size, origin=o+gap*size*z, align=0.5)
+		square = gt.parallelogram(-x*size, y*size, origin=+gap*size*z, alignment=0.5)
 		sch.add(square.outlines(), shader='line')
 		sch.add(square, shader='ghost')
 		
 		if attach_end:
-			sch.add(gt.cone(o+size*(gap+cornersize)*z, o+size*gap*z, size*cornersize, fill=False, resolution=('div', 4)), shader='fill')
+			sch.add(gt.cone(+size*(gap+cornersize)*z, +size*gap*z, size*cornersize, fill=False, resolution=('div', 4)), shader='fill')
 			sch.set(shader='line')
-			sch.add(o+size*(gap+cornersize)*z)
+			sch.add(+size*(gap+cornersize)*z)
 			sch.add(attach_end, space=world_solid(self.solids[1]))
 		
 		return sch
@@ -317,7 +317,7 @@ class Prismatic(Joint):
 			color = kinematic_color(index[self.solids[0]]),
 			space = scale_solid(self.solids[0], fvec3(o), maxsize/size),
 			)
-		profile = gt.parallelogram(0.4*size*x, 0.4*size*y, origin=o, align=0.5, fill=False)
+		profile = gt.parallelogram(0.4*size*x, 0.4*size*y, origin=o, alignment=0.5, fill=False)
 		profile.tracks = typedlist(range(len(profile.edges)))
 		exterior = gt.extrusion(profile, size*z, alignment=0.5)
 		exterior.splitgroups()
@@ -604,12 +604,17 @@ class PointSlider(Joint):
 			raise TypeError("PointSlider can only be placed on Axis or mat4")
 		self.scale = max(glm.abs(self.post[3]))
 	
-	default = [0]*5
-	bounds = ([-inf]*5, [inf]*5)
+	default = [*vec2(), *quat()]
+	bounds = ([-inf,-inf, -2,-2,-2,-2], [inf,inf, 2,2,2,2])
+	
+	def normalize(self, parameters):
+		translation = vec2(parameters[0:2])
+		rotation = normalize(quat(parameters[2:6]))
+		return [*translation, *rotation]
 	
 	def direct(self, parameters):
 		translation = vec2(parameters[0:2])
-		rotation = quat(parameters[2:5])
+		rotation = normalize(quat(parameters[2:6]))
 		return self.post * translate(vec3(translation, 0)) * mat4(rotation) * self.pre
 		
 	def inverse(self, matrix, close=None):
@@ -634,7 +639,7 @@ class PointSlider(Joint):
 			color = kinematic_color(index[self.solids[0]]),
 			space = scale_solid(self.solids[0], fvec3(o), maxsize/size),
 			)
-		square = gt.parallelogram(x*size, y*size, origin=o+radius*z, align=0.5)
+		square = gt.parallelogram(x*size, y*size, origin=radius*z, alignment=0.5)
 		sch.add(square.outlines(), shader='line')
 		sch.add(square, shader='ghost')
 		
@@ -649,7 +654,7 @@ class PointSlider(Joint):
 			color = kinematic_color(index[self.solids[1]]),
 			space = scale_solid(self.solids[1], fvec3(center), maxsize/size),
 			)
-		sch.add(gt.icosphere(center, radius, resolution), shader='ghost')
+		sch.add(gt.icosphere(vec3(0), radius, resolution), shader='ghost')
 		
 		if attach_end:
 			x,y,z = dirbase(attach_end)
@@ -711,7 +716,7 @@ class EdgeSlider(Joint):
 			color = kinematic_color(index[self.solids[0]]),
 			space = scale_solid(self.solids[0], fvec3(o), maxsize/size),
 			)
-		square = gt.parallelogram(x*size, y*size, origin=o+radius*z, align=0.5)
+		square = gt.parallelogram(x*size, y*size, origin=o+radius*z, alignment=0.5)
 		sch.add(square.outlines(), shader='line')
 		sch.add(square, shader='ghost')
 		
