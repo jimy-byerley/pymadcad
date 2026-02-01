@@ -1,5 +1,9 @@
-# cython outputs
+# Cython outputs (legacy)
 madcad/core.c
+
+# Rust build artifacts
+/target/
+Cargo.lock
 
 # env
 .envrc

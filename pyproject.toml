@@ -33,45 +33,36 @@ ply = ['plyfile>=0.7']
 stl = ['numpy-stl~=2.0']
 obj = ['pywavefront~=1.3']
 
-[tool.poetry.group.test.dependencies]
-pytest = "~=8.3"
-pnprint = "~=1.1"
-moderngl = "~=5.12.0"
-pyside6 = "~=6.6.3.1"
-plyfile = "~=0.7"
-numpy-stl = "~=2.0"
-
 [project.urls]
 homepage = "https://madcad.netlify.app/pymadcad"
 repository = "https://github.com/jimy-byerley/pymadcad"
 documentation = "https://pymadcad.readthedocs.io"
 
 
+# === Build system: maturin for Rust extension ===
 [build-system]
-requires = [
-    "poetry-core~=2.0",
-    "setuptools>=40",
-    "cython~=3.0",
-    ]
-build-backend = "poetry.core.masonry.api"
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
 
-[tool.poetry]
-packages = [
-    { include = "madcad" },
-    ]
-include = [
-    { path = "madcad/**/*.so", format = "wheel" },
-    { path = "madcad/**/*.pyx", format = "sdist" },
-    ]
-exclude = [
-    "madcad/**/*.pyx",
-    "madcad/**/*.so",
-    "madcad/**/*.c",
-    "madcad/**/*.html",
-    ]
-[tool.poetry.build]
-script = "build.py"
+[tool.maturin]
+# Compiled module location: madcad/core.so
+module-name = "madcad.core"
+# Python package is at repository root
+python-source = "."
+# Strip symbols for smaller binaries
+strip = true
+# Rust source directory
+manifest-path = "Cargo.toml"
 
+# === Poetry for dev dependencies (optional, for local development) ===
+[tool.poetry.group.dev.dependencies]
+pytest = "~=8.3"
+pnprint = "~=1.1"
+moderngl = "~=5.12.0"
+pyside6 = "~=6.6.3.1"
+plyfile = "~=0.7"
+numpy-stl = "~=2.0"
+maturin = "~=1.7"
 
 # enhance pytest default output
 [tool.pytest.ini_options]

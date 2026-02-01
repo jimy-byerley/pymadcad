@@ -1,0 +1,52 @@
+# CI workflow: runs tests on every push/PR
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Rust checks
+  rust-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Check formatting
+        run: cargo fmt --check
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Run Rust tests
+        run: cargo test
+
+  # Build and test Python package
+  python-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Build with maturin
+        uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          args: --release
+      - name: Install wheel
+        run: |
+          pip install target/wheels/*.whl
+          pip install pytest pnprint
+      - name: Run Python tests
+        run: pytest tests/ -v
