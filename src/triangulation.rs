@@ -123,7 +123,7 @@ pub fn triangulation_outline<'a>(
     wire: &Wire<'a>,
     normal: Option<Vec3>,
     prec: Option<Float>,
-) -> Result<Surface<'a>, TriangulationError> {
+) -> Result<Vec<Vec3>, TriangulationError> {
     // Get a normal in the right direction for loop winding
     let normal = normal.unwrap_or_else(|| wire.normal());
     let base_prec = prec.unwrap_or_else(|| wire.precision(3));
@@ -132,16 +132,8 @@ pub fn triangulation_outline<'a>(
     let prec = base_prec * base_prec / NUMPREC;
 
     // Project all points in the plane
-    let proj = match planeproject(wire, Some(normal)) {
-        Ok(p) => p,
-        Err(_) => {
-            return Ok(Surface {
-                points: wire.points.clone(),
-                simplices: Cow::Owned(Vec::new()),
-                tracks: Cow::Owned(Vec::new()),
-            })
-        }
-    };
+    let Ok(proj) = planeproject(wire, Some(normal))
+        else {return Ok(Vec::new())};
 
     // Reducing contour, indexing proj and wire indices
     let mut hole: Vec<usize> = (0..wire.len()).collect();
@@ -157,11 +149,7 @@ pub fn triangulation_outline<'a>(
     }
 
     if hole.len() < 3 {
-        return Ok(Surface {
-            points: wire.points.clone(),
-            simplices: Cow::Owned(Vec::new()),
-            tracks: Cow::Owned(Vec::new()),
-        });
+        return Ok(Vec::new());
     }
 
     let l = wire.len();
@@ -266,13 +254,8 @@ pub fn triangulation_outline<'a>(
         scores[curr] = score(&hole, &nonconvex, curr);
     }
 
-    Ok(Surface {
-        points: wire.points.clone(),
-        tracks: Cow::Owned((0 .. simplices.len() as _).collect()),
-        simplices: Cow::Owned(simplices),
-    })
+    Ok(simplices)
 }
-
 
 
 #[cfg(test)]

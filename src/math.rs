@@ -7,16 +7,16 @@
 pub use vecmat::prelude::*;
 pub use vecmat::{Matrix, Vector};
 
-pub type Index = u32;
 pub type Float = f64;
+pub type Index = u32;
 
 /// numerical precision of floats used (float64 = 14 decimals)
 pub const NUMPREC: Float = 1e-13;
 
 pub type Vec2 = Vector<Float, 2>;
 pub type Vec3 = Vector<Float, 3>;
-pub type IVec2 = Vector<Index, 2>;
-pub type IVec3 = Vector<Index, 3>;
+pub type UVec2 = Vector<Index, 2>;
+pub type UVec3 = Vector<Index, 3>;
 
 /// Component of `vec` along `dir`, equivalent to `dot(vec,dir) / dot(dir,dir) * dir`
 /// The result is not sensitive to the length of `dir`

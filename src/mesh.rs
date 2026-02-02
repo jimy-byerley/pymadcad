@@ -27,6 +27,15 @@ pub struct Mesh<'a, const D: usize, const S: usize> {
     pub tracks: Cow<'a, [Index]>,
 }
 
+/// Surface mesh: 3D points with triangle faces
+pub type Surface<'a> = Mesh<'a, 3, 3>;
+/// Web mesh: 3D points with edges
+pub type Web<'a> = Mesh<'a, 3, 2>;
+/// Wire mesh: 3D points with point indices (curves/paths)
+pub type Wire<'a> = Mesh<'a, 3, 1>;
+
+
+
 impl<'a, const D: usize, const S: usize> Mesh<'a, D, S> {
     /// Convert to an owned mesh with 'static lifetime (consumes and clones borrowed data)
     pub fn into_owned(self) -> Mesh<'static, D, S> {
@@ -67,13 +76,6 @@ impl<'a, const D: usize, const S: usize> Mesh<'a, D, S> {
         self.maxnum() * NUMPREC * (2.0_f64.powi(propag as i32))
     }
 }
-
-/// Surface mesh: 3D points with triangle faces
-pub type Surface<'a> = Mesh<'a, 3, 3>;
-/// Web mesh: 3D points with edges
-pub type Web<'a> = Mesh<'a, 3, 2>;
-/// Wire mesh: 3D points with point indices (curves/paths)
-pub type Wire<'a> = Mesh<'a, 3, 1>;
 
 // Specific implementations for Wire (used by triangulation_outline)
 impl Wire<'_> {
@@ -127,4 +129,3 @@ impl Wire<'_> {
         area.normalize()
     }
 }
-
