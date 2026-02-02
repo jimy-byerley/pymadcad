@@ -16,6 +16,7 @@ pub mod triangulation;
 pub mod hull;
 
 use pyo3::prelude::*;
+use pyo3::marker::Ungil;
 
 use crate::{
     math::*,
@@ -98,7 +99,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 
 /// run the given closure detached from python thread if required, otherwise run it attached
-fn may_detach<'_, F, T>(py: Python<'_>, detach: bool, f: F) -> T
+fn may_detach<F, T>(py: Python<'_>, detach: bool, f: F) -> T
 where 
     F: Ungil + FnOnce() -> T,
     T: Ungil,

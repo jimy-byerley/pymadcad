@@ -11,7 +11,7 @@ name = "core"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.23", features = ["extension-module"] }
+pyo3 = { version = "0.28", features = ["extension-module"] }
 vecmat = "0.7"
 # For spatial hashing
 rustc-hash = "2.0"
