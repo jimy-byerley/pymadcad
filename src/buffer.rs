@@ -13,16 +13,188 @@
 
 use pyo3::prelude::*;
 use pyo3::exceptions::{PyBufferError, PyTypeError};
-use pyo3::ffi;
+use pyo3::types::{PyList, PyDict};
+use pyo3::ffi::PyObject;
 use pyo3::buffer::{PyBuffer, PyUntypedBuffer, Element};
 use pyo3::marker::Ungil;
 use std::ffi::{CString, CStr};
 use std::os::raw::c_int;
+use std::ops::Deref;
 use std::ptr;
 use std::borrow::Cow;
+use std::marker::PhantomData;
 
 use crate::math::*;
 use crate::mesh::*;
+use crate::aabox::*;
+
+
+macro_rules! newtype {
+    ($wrapper:ident, $inner:ty) => {
+        struct $wrapper($inner);
+        
+        impl Deref for $wrapper {
+            type Target = $inner;
+            fn deref(&self) -> &Self::Target {&self.0}
+        }
+        impl From<$inner> for $wrapper {
+            fn from(inner: $inner) -> Self {Self(inner)}
+        }
+    }
+}
+
+
+/// trait mirroring arrex and glm dtype definitions
+pub unsafe trait DType: Copy {
+    fn is_compatible_format(format: &CStr) -> bool;
+}
+
+macro_rules! impl_dtype {
+    ($ty:ident, $format:expr) => {
+        unsafe impl DType for $ty { 
+            fn is_compatible_format(format: &CStr) -> bool { format == $format }
+        }
+    }
+}
+impl_dtype!(Float, c"d");
+impl_dtype!(Vec3, c"ddd");
+impl_dtype!(Index, c"I");
+impl_dtype!(UVec2, c"II");
+impl_dtype!(UVec3, c"III");
+
+pub struct PyVec<T: DType, const N: usize>(Vector<T, N>);
+newtype!(PyVec3_, Vector<Float,3>);
+
+impl<T: DType, const N: usize> PyVec<T, N> {
+    pub fn borrow(&self) -> &Vector<T, N> {
+        &self.0
+    }
+}
+impl<'a, 'py, T: DType, const N: usize> FromPyObject<'a, 'py> for PyVec<T, N> {
+    type Error = PyErr;
+    fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
+        let buffer = PyUntypedBuffer::get(obj.as_any())?;
+        if T::is_compatible_format(buffer.format())
+            {return Err(PyTypeError::new_err("unexpected buffer format"))}
+        if buffer.is_c_contiguous()
+            {return Err(PyTypeError::new_err("buffer should be contiguous"))}
+        if buffer.item_size() != size_of::<T>()
+            {return Err(PyTypeError::new_err("wrong item size"))}
+        if buffer.item_count() != N
+            {return Err(PyTypeError::new_err("wrong vector size"))}
+        Ok(Self (Vector::from_array(unsafe {*(
+            buffer.buf_ptr() as *const [T;N]
+            )})))
+    }
+}
+
+macro_rules! impl_vec {
+    ($ty:ident, $size:expr, $glm:expr) => {
+        impl<'py> IntoPyObject<'py> for PyVec<$ty, $size> {
+            type Target = PyAny;
+            type Output = Bound<'py, Self::Target>;
+            type Error = PyErr;
+            
+            fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+                let vec = py.import("madcad.mathutils")?.getattr($glm)?.call0()?;
+                let buf = (vec.as_ptr() as usize + size_of::<PyObject>()) as *mut [$ty; $size];
+                unsafe {
+                    (*buf) = *self.0.as_array();
+                }
+                Ok(vec)
+            }
+        }
+    }
+}
+impl_vec!(Float, 3, "vec3");
+impl_vec!(Index, 2, "uvec2");
+impl_vec!(Index, 3, "uvec3");
+
+/// struct mirroring typedlist, but ensure buffer hook and type for rust
+pub struct BorrowedBuffer<T: DType> {
+    buffer: PyUntypedBuffer,
+    data: PhantomData<T>,
+}
+impl<T:DType> BorrowedBuffer<T> {
+    pub fn as_slice(&self) -> &[T] {
+        unsafe {core::slice::from_raw_parts(
+            self.buffer.buf_ptr() as *const T, 
+            self.buffer.item_count(),
+            )}
+    }
+    pub fn len(&self) -> usize {
+        self.buffer.item_count()
+    }
+}
+impl<'a, 'py, T:DType> FromPyObject<'a, 'py> for BorrowedBuffer<T> {
+    type Error = PyErr;
+    fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
+        let buffer = PyUntypedBuffer::get(obj.as_any())?;
+        if T::is_compatible_format(buffer.format())
+            {return Err(PyTypeError::new_err("unexpected buffer format"))}
+        if buffer.is_c_contiguous()
+            {return Err(PyTypeError::new_err("buffer should be contiguous"))}
+        if buffer.item_size() != size_of::<T>()
+            {return Err(PyTypeError::new_err("wrong item size"))}
+        Ok(Self {
+            buffer,
+            data: PhantomData,
+        })
+    }
+}
+
+/// struct mirroring madcad.mesh.Mesh, but ensuring buffers hooks and types for rust
+#[derive(FromPyObject)]
+pub struct PySurface {
+    pub points: BorrowedBuffer<Vec3>,
+    pub faces: BorrowedBuffer<UVec3>,
+    pub tracks: BorrowedBuffer<Index>,
+    pub groups: Py<PyList>,
+    pub options: Py<PyDict>,
+}
+impl PySurface {
+    pub fn borrow(&self) -> Surface<'_> {
+        Surface {
+            points: Cow::Borrowed(self.points.as_slice()),
+            simplices: Cow::Borrowed(self.faces.as_slice()),
+            tracks: Cow::Borrowed(self.tracks.as_slice()),
+            }
+    }
+}
+
+#[derive(FromPyObject)]
+pub struct PyBox<const N: usize> {
+    pub min: PyVec<Float, N>,
+    pub max: PyVec<Float, N>,
+}
+impl<const N: usize> PyBox<N> {
+    pub fn from(bounds: AABox<N>) {
+        Self {
+            
+        }
+    }
+    pub fn into(self) -> AABox<N> {
+        AABox{
+            min: self.min.borrow().clone(),
+            max: self.max.borrow().clone(),
+            }
+    }
+}
+impl<'py, const N: usize> IntoPyObject<'py> for PyBox<N>
+where PyVec<Float, N>: IntoPyObject<'py> 
+{
+    type Target = PyAny;
+    type Output = Bound<'py, Self::Target>;
+    type Error = PyErr;
+    
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        py.import("madcad.box")?.getattr("Box")?.call1((
+            self.min,
+            self.max,
+            ))
+    }
+}
+
 
 
 /**
@@ -32,12 +204,12 @@ use crate::mesh::*;
     This allows ownership of data to be passed to python without needing to copy the buffer into python allocated memory
 */
 #[pyclass]
-pub struct Buffer {
+pub struct Bytes {
     /// Raw bytes of the buffer data
     data: Vec<u8>,
 }
 
-impl<T: Copy> From<Vec<T>> for Buffer {
+impl<T: Copy> From<Vec<T>> for Bytes {
     fn from(data: Vec<T>) -> Self {
         unsafe { 
             let (ptr, len, cap) = data.into_raw_parts();
@@ -52,7 +224,7 @@ impl<T: Copy> From<Vec<T>> for Buffer {
 }
 
 // #[pymethods]
-// impl Buffer {
+// impl Bytes {
 //     /// Buffer protocol implementation
 //     unsafe fn __getbuffer__(
 //         slf: Bound<'_, Self>,
@@ -63,7 +235,7 @@ impl<T: Copy> From<Vec<T>> for Buffer {
 // 
 //         // Check flags
 //         if flags & ffi::PyBUF_WRITABLE != 0 {
-//             return Err(PyBufferError::new_err("Buffer is read-only"));
+//             return Err(PyBufferError::new_err("Bytes is read-only"));
 //         }
 // 
 //         // Fill in the buffer info
@@ -90,170 +262,3 @@ impl<T: Copy> From<Vec<T>> for Buffer {
 //     unsafe fn __releasebuffer__(&self, _view: *mut ffi::Py_buffer) {
 //     }
 // }
-
-/*
-pub trait DType: Copy {
-    fn is_compatible_format(format: &CStr) -> bool;
-}
-
-macro_rules! impl_dtype {
-    ($ty:ident, $format:expr) => {
-        unsafe impl Element for $ty { 
-            fn is_compatible_format(format: &CStr) -> bool { format == $format }
-        }
-    }
-}
-impl_dtype!(Vec3, c"ddd");
-impl_dtype!(UVec4, c"IIII");
-impl_dtype!(Index, c"I");
-
-pub struct BorrowedBuffer<T> {
-    buffer: PyUntypedBuffer,
-    data: PhantomData<T>,
-}
-impl BorrowedBuffer<T: DType> {
-    fn as_slice(&self) -> &[T] {
-        core::slice::from_raw_parts(self.buffer.buf_ptr() as *const T, self.buffer.item_count())
-    }
-}
-impl<'a, 'py> FromPyObject<'a, 'py> for BorrowedBuffer {
-    type Error = PyErr;
-    fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
-        let buffer = PyUntypedBuffer::get(obj)?;
-        if T::is_compatible_format(buffer.format())
-            {return Err(PyTypeError::new_err("unexpected buffer format"))}
-        if buffer.is_c_contiguous()
-            {return Err(PyTypeError::new_err("buffer should be contiguous"))}
-        if buffer.item_size() != size_of::<T>()
-            {return Err(PyTypeError::new_err("wrong item size"))}
-        Ok(Self {
-            buffer,
-            data: PhantomData,
-        })
-    }
-}
-
-#[derive(FromPyObject)]
-pub struct PySurface {
-    pub points: BorrowedBuffer<Vec3>,
-    pub faces: BorrowedBuffer<UVec4>,
-    pub tracks: BorrowedBuffer<Index>,
-    pub groups: Py<PyList>,
-    pub options: Py<PyDict>,
-}
-impl From<&PySurface> for Surface<'_> {
-    fn from(surface: &PySurface) -> Surface<'_> {
-        Surface {
-            points: Cow::Borrowed(surface.points.as_slice()),
-            simplices: Cow::Borrowed(surface.faces.as_slice()),
-            tracks: Cow::Borrowed(surface.tracks.as_slice()),
-            }
-    }
-}*/
-
-
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-struct PyVec3 (Vec3);
-unsafe impl Element for PyVec3 {
-    fn is_compatible_format(format: &CStr) -> bool  { format == c"ddd" }
-}
-#[repr(C)]
-#[derive(Copy, Clone)]
-struct PyUVec3 (UVec3);
-unsafe impl Element for PyUVec3 {
-    fn is_compatible_format(format: &CStr) -> bool  { format == c"ddd" }
-}
-
-struct PySurface<'py> {
-    python: Python<'py>,
-    points: PyBuffer<PyVec3>,
-    simplices: PyBuffer<PyUVec3>,
-    tracks: PyBuffer<Index>,
-}
-impl<'a> From<&'a PySurface<'_>> for Surface<'a> {
-    fn from(surface: &'a PySurface<'_>) -> Surface<'a> {
-        Surface {
-            points: Cow::Borrowed(surface.points.as_slice(surface.python)),
-            simplices: Cow::Borrowed(surface.simplices.as_slice(surface.python)),
-            tracks: Cow::Borrowed(surface.tracks.as_slice(surface.python)),
-            }
-    }
-}
-
-
-
-impl<'a, 'py> FromPyObject<'a, 'py> for Surface<'a> {
-    type Error = PyErr;
-    fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
-        Ok(Surface {
-            points: Cow::Borrowed(typedlist_to_vec3(&obj.getattr("points")?)?),
-            simplices: Cow::Owned(typedlist_to_uvec3(&obj.getattr("faces")?)?),
-            tracks: Cow::Borrowed(typedlist_to_index(&obj.getattr("tracks")?)?),
-        })
-    }
-}
-// impl FromPyObject for Web {}
-// impl FromPyObject for Wire {}
-
-// impl IntoPyObject for Surface {
-//     type Target = PyAny;
-//     type Output = Py<PyAny>;
-//     type Error = PyErr;
-//     fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
-//         let mesh = py.import("madcad.mesh.Mesh")?;
-//         mesh.call1((
-//             slice_to_typedlist(self.points),
-//             slice_to_typedlist(self.simplices),
-//             slice_to_typedlist(self.tracks),
-//             ))
-//     }
-// }
-// impl IntoPyObject for Web {}
-// impl IntoPyObject for Wire {}
-
-fn typedlist_to_vec3<'a>(obj: &'a Bound<'_, PyAny>) -> Result<&'a [Vec3], PyErr> {
-    typedlist_to_slice(obj, c"ddd")
-}
-fn typedlist_to_index<'a>(obj: &'a Bound<'_, PyAny>) -> Result<&'a [Index], PyErr> {
-    typedlist_to_slice(obj, c"I")
-}
-fn typedlist_to_uvec2<'a>(obj: &'a Bound<'_, PyAny>) -> Result<&'a [UVec2], PyErr> {
-    typedlist_to_slice(obj, c"II")
-}
-fn typedlist_to_uvec3(obj: &Bound<'_, PyAny>) -> Result<Vec<UVec3>, PyErr> {
-    let aligned = typedlist_to_slice::<Vector<Index, 4>>(obj, c"IIIxxxx");
-    todo!("extract only 3 first components of each item")
-}
-
-fn typedlist_to_slice<'a, T: Copy>(obj: &'a Bound<'_, PyAny>, layout: &CStr) -> Result<&'a [T], PyErr> {
-    let buffer = PyUntypedBuffer::get(obj)?;
-    if buffer.format() != layout
-        {return Err(PyTypeError::new_err("unexpected buffer format"))}
-    if buffer.is_c_contiguous()
-        {return Err(PyTypeError::new_err("buffer should be contiguous"))}
-    if buffer.item_size() != size_of::<T>()
-        {return Err(PyTypeError::new_err("wrong item size"))}
-    Ok(unsafe {std::slice::from_raw_parts(buffer.buf_ptr() as *const T, buffer.item_count())})
-}
-
-
-fn vec3_to_typedlist<'py>(py: Python<'py>, buffer: Vec<Vec3>) -> PyResult<Bound<'py, PyAny>> {
-    let vec3 = py.import("madcad.mathutils")?.getattr("vec3")?;
-    let typedlist = py.import("arrex")?.getattr("typedlist")?;
-    typedlist.call1((Buffer::from(buffer), vec3))
-}
-fn index_to_typedlist<'py>(py: Python<'py>, buffer: Vec<Index>) -> PyResult<Bound<'py, PyAny>> {
-    let typedlist = py.import("arrex")?.getattr("typedlist")?;
-    typedlist.call1((Buffer::from(buffer), "I"))
-}
-
-fn madcad_surface<'py>(
-    points: Bound<'py, PyAny>,
-    simplices: Bound<'py, PyAny>,
-    tracks: Bound<'py, PyAny>,
-    groups: Bound<'py, PyAny>,
-) -> PyResult<Bound<'py, PyAny>> {
-    py.import("madcad.mesh")?.getattr("Mesh")?.call1((points, simplices, tracks, groups))
-}

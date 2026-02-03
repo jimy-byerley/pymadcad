@@ -15,6 +15,7 @@ pub const NUMPREC: Float = 1e-13;
 
 pub type Vec2 = Vector<Float, 2>;
 pub type Vec3 = Vector<Float, 3>;
+pub type Vec4 = Vector<Float, 4>;
 pub type UVec2 = Vector<Index, 2>;
 pub type UVec3 = Vector<Index, 3>;
 

@@ -12,6 +12,7 @@ pub mod buffer;
 pub mod hashing;
 pub mod math;
 pub mod mesh;
+pub mod aabox;
 pub mod triangulation;
 pub mod hull;
 
@@ -27,8 +28,7 @@ use crate::{
 /// Rust core module for pymadcad
 #[pymodule]
 fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    // Register Buffer class for data ownership
-    m.add_class::<Buffer>()?;
+    m.add_class::<Bytes>()?;
 /*
     #[pyfunction]
     fn triangulation_wire(wire: PyAny, normal: PyAny, prec: Float) -> PyAny {
@@ -82,12 +82,12 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
             ));
         madcad_box(result)
     }
+    */
     #[pyfunction]
-    fn surface_box(surface: PyAny) -> PyAny {
-        let buffer = Surface::extract(surface)?;
-        let result = may_detach(py, buffer.simplices.len() > 10_000, || surface.bounds());
-        madcad_box(result)
+    fn surface_box(py: Python<'_>, surface: PySurface) -> Py<PyAny> {
+        PyBox::from(may_detach(py, surface.faces.len() > 10_000, || surface.borrow().bounds()))
     }
+    /*
     #[pyfunction]
     fn web_box(surface: PyAny) -> PyAny {
         let buffer = Web::extract(surface)?;

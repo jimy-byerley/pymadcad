@@ -123,7 +123,7 @@ pub fn triangulation_outline<'a>(
     wire: &Wire<'a>,
     normal: Option<Vec3>,
     prec: Option<Float>,
-) -> Result<Vec<Vec3>, TriangulationError> {
+) -> Result<Vec<UVec3>, TriangulationError> {
     // Get a normal in the right direction for loop winding
     let normal = normal.unwrap_or_else(|| wire.normal());
     let base_prec = prec.unwrap_or_else(|| wire.precision(3));

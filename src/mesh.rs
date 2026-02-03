@@ -11,6 +11,7 @@
 */
 
 use crate::math::*;
+use crate::aabox::*;
 use std::borrow::Cow;
 
 /// Generic mesh structure for D-dimensional space and S-simplex dimension
@@ -74,6 +75,15 @@ impl<'a, const D: usize, const S: usize> Mesh<'a, D, S> {
     /// `propag` is the number of error propagation steps (default 3)
     pub fn precision(&self, propag: u32) -> Float {
         self.maxnum() * NUMPREC * (2.0_f64.powi(propag as i32))
+    }
+    
+    pub fn bounds(&self) -> AABox<D> {
+        AABox::from_iter(self.simplices
+                .iter()
+                .flat_map(|s|  s.iter())
+                .cloned()
+                .map(|i|  self.points[i as usize])
+                )
     }
 }
 
