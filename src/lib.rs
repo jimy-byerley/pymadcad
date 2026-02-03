@@ -29,16 +29,14 @@ use crate::{
 #[pymodule]
 fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Bytes>()?;
-/*
-    #[pyfunction]
-    fn triangulation_wire(wire: PyAny, normal: PyAny, prec: Float) -> PyAny {
-        let wire = Wire::extract(py, wire)?;
-        let normal = glm_to_vec3(normal)?;
-        let result = may_detach(py, wire.simplices.len() > 1_000, || 
-            triangulation::triangulation_wire(wire, normal, prec))?;
-        uvec3_to_typedlist(result.simplices)
-    }
 
+//     #[pyfunction]
+//     fn triangulation_wire(wire: PyWire, normal: PyVec3, prec: Float) -> PyAny {
+//         let result = may_detach(py, wire.simplices.len() > 1_000, || 
+//             triangulation::triangulation_wire(wire.borrow(), *normal, prec).unwrap());
+//         uvec3_to_typedlist(result.simplices)
+//     }
+/*
     #[pyfunction]
     fn pierce_surface_surface(py: Python<'_>, subject: PyAny, tool: PyAny) -> PyAny {
         let buffers_subject = Surface::extract(py, subject)?;
@@ -84,8 +82,8 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     }
     */
     #[pyfunction]
-    fn surface_box(py: Python<'_>, surface: PySurface) -> Py<PyAny> {
-        PyBox::from(may_detach(py, surface.faces.len() > 10_000, || surface.borrow().bounds()))
+    fn surface_box(py: Python<'_>, surface: PySurface) -> PyBox3 {
+        PyBox3::from(may_detach(py, surface.faces.len() > 10_000, || surface.borrow().bounds()))
     }
     /*
     #[pyfunction]

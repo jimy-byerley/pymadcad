@@ -1,16 +1,3 @@
-/*!
-    Buffer: A Python object that owns Rust Vec<T> data and exposes it via the buffer protocol.
-
-    This allows Rust functions to return owned data that Python's arrex.typedlist can view
-    without copying. The typedlist's `owner` attribute will reference this Buffer.
-
-    Usage pattern:
-    1. Rust function produces Vec<T> (e.g., Vec<[f64; 3]> for points)
-    2. Wrap in Buffer and expose to Python
-    3. Create Python typedlist viewing the Buffer's memory
-    4. typedlist.owner points to Buffer, keeping data alive
-*/
-
 use pyo3::prelude::*;
 use pyo3::exceptions::{PyBufferError, PyTypeError};
 use pyo3::types::{PyList, PyDict};
@@ -27,21 +14,6 @@ use std::marker::PhantomData;
 use crate::math::*;
 use crate::mesh::*;
 use crate::aabox::*;
-
-
-macro_rules! newtype {
-    ($wrapper:ident, $inner:ty) => {
-        struct $wrapper($inner);
-        
-        impl Deref for $wrapper {
-            type Target = $inner;
-            fn deref(&self) -> &Self::Target {&self.0}
-        }
-        impl From<$inner> for $wrapper {
-            fn from(inner: $inner) -> Self {Self(inner)}
-        }
-    }
-}
 
 
 /// trait mirroring arrex and glm dtype definitions
@@ -62,55 +34,34 @@ impl_dtype!(Index, c"I");
 impl_dtype!(UVec2, c"II");
 impl_dtype!(UVec3, c"III");
 
-pub struct PyVec<T: DType, const N: usize>(Vector<T, N>);
-newtype!(PyVec3_, Vector<Float,3>);
 
-impl<T: DType, const N: usize> PyVec<T, N> {
-    pub fn borrow(&self) -> &Vector<T, N> {
-        &self.0
-    }
-}
-impl<'a, 'py, T: DType, const N: usize> FromPyObject<'a, 'py> for PyVec<T, N> {
-    type Error = PyErr;
-    fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
-        let buffer = PyUntypedBuffer::get(obj.as_any())?;
-        if T::is_compatible_format(buffer.format())
-            {return Err(PyTypeError::new_err("unexpected buffer format"))}
-        if buffer.is_c_contiguous()
-            {return Err(PyTypeError::new_err("buffer should be contiguous"))}
-        if buffer.item_size() != size_of::<T>()
-            {return Err(PyTypeError::new_err("wrong item size"))}
-        if buffer.item_count() != N
-            {return Err(PyTypeError::new_err("wrong vector size"))}
-        Ok(Self (Vector::from_array(unsafe {*(
-            buffer.buf_ptr() as *const [T;N]
-            )})))
-    }
-}
 
-macro_rules! impl_vec {
-    ($ty:ident, $size:expr, $glm:expr) => {
-        impl<'py> IntoPyObject<'py> for PyVec<$ty, $size> {
-            type Target = PyAny;
-            type Output = Bound<'py, Self::Target>;
-            type Error = PyErr;
-            
-            fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
-                let vec = py.import("madcad.mathutils")?.getattr($glm)?.call0()?;
-                let buf = (vec.as_ptr() as usize + size_of::<PyObject>()) as *mut [$ty; $size];
-                unsafe {
-                    (*buf) = *self.0.as_array();
-                }
-                Ok(vec)
-            }
+/**
+    Buffer that owns Rust data and exposes it via Python's buffer protocol.
+
+    This is designed to work with arrex.typedlist - when you create a typedlist from a Buffer, the typedlist will reference the Buffer as its owner, keeping the data alive as long as the typedlist (or any slice of it) exists.
+    This allows ownership of data to be passed to python without needing to copy the buffer into python allocated memory
+*/
+#[pyclass]
+pub struct Bytes {
+    /// Raw bytes of the buffer data
+    data: Vec<u8>,
+}
+impl<T: Copy> From<Vec<T>> for Bytes {
+    fn from(data: Vec<T>) -> Self {
+        unsafe { 
+            let (ptr, len, cap) = data.into_raw_parts();
+            let data = Vec::from_raw_parts(
+                ptr as *mut u8, 
+                len * core::mem::size_of::<T>(),
+                cap * core::mem::size_of::<T>(),
+                );
+            Self {data}
         }
     }
 }
-impl_vec!(Float, 3, "vec3");
-impl_vec!(Index, 2, "uvec2");
-impl_vec!(Index, 3, "uvec3");
 
-/// struct mirroring typedlist, but ensure buffer hook and type for rust
+/// struct owning a ref to a python buffer and allowing to view into it
 pub struct BorrowedBuffer<T: DType> {
     buffer: PyUntypedBuffer,
     data: PhantomData<T>,
@@ -143,85 +94,218 @@ impl<'a, 'py, T:DType> FromPyObject<'a, 'py> for BorrowedBuffer<T> {
     }
 }
 
-/// struct mirroring madcad.mesh.Mesh, but ensuring buffers hooks and types for rust
-#[derive(FromPyObject)]
-pub struct PySurface {
-    pub points: BorrowedBuffer<Vec3>,
-    pub faces: BorrowedBuffer<UVec3>,
-    pub tracks: BorrowedBuffer<Index>,
-    pub groups: Py<PyList>,
-    pub options: Py<PyDict>,
+/** struct acting like `Cow<[T]>` but with a hook on a python buffer when borrowed
+
+    it stores either:
+        - a ref on a python buffer (borrowed)
+        - a rust buffer (owned)
+*/
+pub enum CowBuffer<T: DType> {
+    Borrowed(BorrowedBuffer<T>),
+    Owned(Vec<T>),
 }
-impl PySurface {
-    pub fn borrow(&self) -> Surface<'_> {
-        Surface {
-            points: Cow::Borrowed(self.points.as_slice()),
-            simplices: Cow::Borrowed(self.faces.as_slice()),
-            tracks: Cow::Borrowed(self.tracks.as_slice()),
-            }
+impl<T: DType> CowBuffer<T> {
+    fn as_slice(&self) -> &[T] {
+        match self {
+            Self::Borrowed(buffer) => buffer.as_slice(),
+            Self::Owned(buffer) => buffer.as_slice(),
+        }
+    }
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Borrowed(buffer) => buffer.len(),
+            Self::Owned(buffer) => buffer.len(),
+        }
+    }
+}
+impl<'a, 'py, T:DType> FromPyObject<'a, 'py> for CowBuffer<T> {
+    type Error = PyErr;
+    fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
+        Ok(Self::Borrowed(obj.extract()?))
+    }
+}
+impl<'py, T:DType> IntoPyObject<'py> for CowBuffer<T> {
+    type Target = PyAny;
+    type Output = Bound<'py, Self::Target>;
+    type Error = PyErr;
+    
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        let data = match self {
+            Self::Borrowed(buffer) => buffer.as_slice().to_owned(),
+            Self::Owned(buffer) => buffer,
+        };
+        py.import("arrex")?.getattr("typedlist")?.call1((
+            Bytes::from(data),
+            py.import("madcad.mathutils")?.getattr("vec3")?,  // TODO allow other types
+            ))
     }
 }
 
-#[derive(FromPyObject)]
-pub struct PyBox<const N: usize> {
-    pub min: PyVec<Float, N>,
-    pub max: PyVec<Float, N>,
-}
-impl<const N: usize> PyBox<N> {
-    pub fn from(bounds: AABox<N>) {
-        Self {
-            
+
+macro_rules! newtype {
+    ($wrapper:ident, $inner:ty) => {
+        pub struct $wrapper($inner);
+        
+        impl Deref for $wrapper {
+            type Target = $inner;
+            fn deref(&self) -> &Self::Target {&self.0}
+        }
+        impl From<$inner> for $wrapper {
+            fn from(inner: $inner) -> Self {Self(inner)}
         }
     }
-    pub fn into(self) -> AABox<N> {
-        AABox{
-            min: self.min.borrow().clone(),
-            max: self.max.borrow().clone(),
+}
+
+macro_rules! newtype_vec {
+    ($name:ident, $dtype:ident, $size:expr, $glm:expr) => {
+        newtype!($name, Vector<$dtype, $size>);
+        
+        impl<'a, 'py> FromPyObject<'a, 'py> for $name {
+            type Error = PyErr;
+            fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
+                let vec = obj.py().import("madcad.mathutils")?.getattr($glm)?;
+                if ! obj.is_instance(&vec)?
+                    {return Err(PyTypeError::new_err("wrong vector type"))}
+                let buf = (obj.as_ptr() as usize + size_of::<PyObject>()) as *mut [$dtype; $size];
+                Ok(Self(unsafe {
+                    Vector::<$dtype, $size>::from(*buf)
+                    }))
             }
+        }
+        impl<'py> IntoPyObject<'py> for $name {
+            type Target = PyAny;
+            type Output = Bound<'py, Self::Target>;
+            type Error = PyErr;
+            
+            fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+                let vec = py.import("madcad.mathutils")?.getattr($glm)?;
+                let obj = vec.call0()?;
+                let buf = (obj.as_ptr() as usize + size_of::<PyObject>()) as *mut [$dtype; $size];
+                unsafe {
+                    (*buf) = *self.0.as_array();
+                }
+                Ok(vec)
+            }
+        }
     }
 }
-impl<'py, const N: usize> IntoPyObject<'py> for PyBox<N>
-where PyVec<Float, N>: IntoPyObject<'py> 
-{
+newtype_vec!(PyVec3, Float, 3, "vec3");
+newtype_vec!(PyUVec2, Index, 2, "uvec2");
+newtype_vec!(PyUVec3, Index, 3, "uvec3");
+
+newtype!(PyBox3, AABox<3>);
+
+impl<'a, 'py> FromPyObject<'a, 'py> for PyBox3 {
+    type Error = PyErr;
+    fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
+        Ok(Self(AABox{
+            min: *obj.getattr("min")?.extract::<PyVec3>()?,
+            max: *obj.getattr("max")?.extract::<PyVec3>()?,
+        }))
+    }
+}
+impl<'py> IntoPyObject<'py> for PyBox3 {
     type Target = PyAny;
     type Output = Bound<'py, Self::Target>;
     type Error = PyErr;
     
     fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
         py.import("madcad.box")?.getattr("Box")?.call1((
-            self.min,
-            self.max,
+            PyVec3::from(self.min),
+            PyVec3::from(self.max),
             ))
     }
 }
 
-
-
-/**
-    Buffer that owns Rust data and exposes it via Python's buffer protocol.
-
-    This is designed to work with arrex.typedlist - when you create a typedlist from a Buffer, the typedlist will reference the Buffer as its owner, keeping the data alive as long as the typedlist (or any slice of it) exists.
-    This allows ownership of data to be passed to python without needing to copy the buffer into python allocated memory
-*/
-#[pyclass]
-pub struct Bytes {
-    /// Raw bytes of the buffer data
-    data: Vec<u8>,
+/// struct mirroring madcad.mesh.Mesh, but ensuring buffers hooks and types for rust
+#[derive(FromPyObject)]
+pub struct PySurface {
+    pub points: CowBuffer<Vec3>,
+    pub faces: CowBuffer<UVec3>,
+    pub tracks: CowBuffer<Index>,
+    pub groups: Py<PyList>,
+    pub options: Py<PyDict>,
 }
-
-impl<T: Copy> From<Vec<T>> for Bytes {
-    fn from(data: Vec<T>) -> Self {
-        unsafe { 
-            let (ptr, len, cap) = data.into_raw_parts();
-            let data = Vec::from_raw_parts(
-                ptr as *mut u8, 
-                len * core::mem::size_of::<T>(),
-                cap * core::mem::size_of::<T>(),
-                );
-            Self {data}
-        }
+impl PySurface {
+    pub fn borrow(&self) -> Surface<'_> {
+        Surface {
+            points: self.points.as_slice().into(),
+            simplices: self.faces.as_slice().into(),
+            tracks: self.tracks.as_slice().into(),
+            }
     }
 }
+impl<'py> IntoPyObject<'py> for PySurface {
+    type Target = PyAny;
+    type Output = Bound<'py, Self::Target>;
+    type Error = PyErr;
+    
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        py.import("madcad.mesh")?.getattr("Mesh")?.call1((
+            self.points, self.faces, self.tracks, self.groups, self.options))
+    }
+}
+
+/// struct mirroring madcad.mesh.Mesh, but ensuring buffers hooks and types for rust
+#[derive(FromPyObject)]
+pub struct PyWeb {
+    pub points: CowBuffer<Vec3>,
+    pub faces: CowBuffer<UVec2>,
+    pub tracks: CowBuffer<Index>,
+    pub groups: Py<PyList>,
+    pub options: Py<PyDict>,
+}
+impl PyWeb {
+    pub fn borrow(&self) -> Web<'_> {
+        Web {
+            points: self.points.as_slice().into(),
+            simplices: self.faces.as_slice().into(),
+            tracks: self.tracks.as_slice().into(),
+            }
+    }
+}
+impl<'py> IntoPyObject<'py> for PyWeb {
+    type Target = PyAny;
+    type Output = Bound<'py, Self::Target>;
+    type Error = PyErr;
+    
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        py.import("madcad.mesh")?.getattr("Web")?.call1((
+            self.points, self.faces, self.tracks, self.groups, self.options))
+    }
+}
+
+/// struct mirroring madcad.mesh.Mesh, but ensuring buffers hooks and types for rust
+#[derive(FromPyObject)]
+pub struct PyWire {
+    pub points: CowBuffer<Vec3>,
+    pub indices: CowBuffer<Index>,
+    pub tracks: CowBuffer<Index>,
+    pub groups: Py<PyList>,
+    pub options: Py<PyDict>,
+}
+// impl PyWire {
+//     pub fn borrow(&self) -> Wire<'_> {
+//         Wire {
+//             points: self.points.as_slice().into(),
+//             simplices: self.indices.as_slice().into(),
+//             tracks: self.tracks.as_slice().into(),
+//             }
+//     }
+// }
+impl<'py> IntoPyObject<'py> for PyWire {
+    type Target = PyAny;
+    type Output = Bound<'py, Self::Target>;
+    type Error = PyErr;
+    
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        py.import("madcad.mesh")?.getattr("Wire")?.call1((
+            self.points, self.indices, self.tracks, self.groups, self.options))
+    }
+}
+
+
+
 
 // #[pymethods]
 // impl Bytes {
