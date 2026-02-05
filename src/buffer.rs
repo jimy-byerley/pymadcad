@@ -35,6 +35,12 @@ unsafe impl DType for Index {
         PyString::new(py, "I").into_any()
     }
 }
+unsafe impl DType for Vec2 { 
+    fn py_format() -> &'static CStr   {c"dd"}
+    fn py_dtype(py: Python<'_>) -> Bound<'_, PyAny>  {
+        py.import("madcad.mathutils").unwrap().getattr("vec2").unwrap()
+    }
+}
 unsafe impl DType for Vec3 { 
     fn py_format() -> &'static CStr   {c"ddd"}
     fn py_dtype(py: Python<'_>) -> Bound<'_, PyAny>  {
@@ -80,56 +86,6 @@ impl<T: DType> From<Vec<T>> for Bytes {
         }
     }
 }
-/*
-pub struct PyTypedList<T: DType + 'static> {
-    source: Py<PyAny>,
-    owner: Py<PyAny>,
-    data: &'static [T],
-}
-impl<T: DType> PyTypedList<T> {
-    fn new(py: Python<'_>, owned: Vec<T>) -> PyResult<Self> {
-        let owner = Bytes::from(owned);
-        let dtype = T::py_dtype(py);
-        Ok(Self {
-            source: py.import("arrex")?.getattr("typedlist")?.call1((owner, dtype))?.unbind(),
-            data: unsafe{core::slice::from_raw_parts(
-                owner.data.as_ptr() as *const T,
-                owner.data.len() / core::mem::size_of::<T>(),
-                )},
-            owner: owner.into_pyobject(py)?.unbind().into_any(),
-            })
-    }
-}
-impl<'a, 'py, T:DType> FromPyObject<'a, 'py> for PyTypedList<T> {
-    type Error = PyErr;
-    fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
-        let buffer = PyUntypedBuffer::get(obj.as_any())?;
-        if T::py_format() != buffer.format()
-            {return Err(PyTypeError::new_err("unexpected buffer format"))}
-        if buffer.is_c_contiguous()
-            {return Err(PyTypeError::new_err("buffer should be contiguous"))}
-        if buffer.item_size() != size_of::<T>()
-            {return Err(PyTypeError::new_err("wrong item size"))}
-        Ok(Self {
-            source: obj.unbind(),
-            data: unsafe {core::slice::from_raw_parts(
-                buffer.buf_ptr() as *const T, 
-                buffer.item_count(),
-                )},
-            owner: buffer.obj,
-        })
-    }
-}
-impl<'py, T:DType> IntoPyObject<'py> for PyTypedList<T> {
-    type Target = Py<PyAny>;
-    type Output = Bound<'py, Self::Target>;
-    type Error = PyErr;
-    
-    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
-        Ok(self.source)
-    }
-}*/
-
 
 pub struct PyTypedList<T: DType + 'static> {
     source: Py<PyAny>,

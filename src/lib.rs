@@ -17,25 +17,41 @@ pub mod triangulation;
 pub mod hull;
 
 use pyo3::prelude::*;
-use pyo3::marker::Ungil;
+use pyo3::create_exception;
+use pyo3::exceptions::PyException;
+use pyo3::marker::Ungil;    
 
-use crate::{
-    math::*,
-    mesh::*,
-    buffer::*,
-    };
+create_exception!(core, TriangulationError, PyException);
 
 /// Rust core module for pymadcad
 #[pymodule]
-fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<Bytes>()?;
+mod core {
+    use super::*;
+    use crate::{
+        math::*,
+        mesh::*,
+        buffer::*,
+        };
 
-//     #[pyfunction]
-//     fn triangulation_wire(wire: PyWire, normal: PyVec3, prec: Float) -> PyAny {
-//         let result = may_detach(py, wire.simplices.len() > 1_000, || 
-//             triangulation::triangulation_wire(wire.borrow(), *normal, prec).unwrap());
-//         uvec3_to_typedlist(result.simplices)
-//     }
+    #[pymodule_export]
+    use super::buffer::Bytes;
+    
+    #[pymodule_export]
+    use super::TriangulationError;
+    
+    #[pyfunction]
+    fn triangulation_loop_d2(
+        py: Python<'_>,
+        points: PyTypedList<Vec2>, 
+        indices: PyTypedList<Index>, 
+        normal: PyVec3, 
+        prec: Float,
+    ) -> PyResult<PyTypedList<UVec3>> {
+        let simplices = may_detach(py, indices.len() > 1_000, ||
+            super::triangulation::triangulation_loop_d2(points.as_slice(), indices.as_slice(), *normal, prec))
+            .map_err(|remains|  TriangulationError::new_err(format!("triangulation failed, remaining outline: {:?}", remains)))?;
+        PyTypedList::new(py, simplices)
+    }
 /*
     #[pyfunction]
     fn pierce_surface_surface(py: Python<'_>, subject: PyAny, tool: PyAny) -> PyAny {
@@ -81,10 +97,10 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
         madcad_box(result)
     }
     */
-    #[pyfunction]
-    fn surface_box(py: Python<'_>, surface: PySurface) -> PyBox3 {
-        PyBox3::from(may_detach(py, surface.faces.len() > 10_000, || surface.borrow().bounds()))
-    }
+//     #[pyfunction]
+//     fn surface_box(py: Python<'_>, points: PyTypedList<Vec3>, simplices: PyTypedList<UVec3>) -> PyBox3 {
+//         PyBox3::from(may_detach(py, simplices.len() > 10_000, || surface.borrow().bounds()))
+//     }
     /*
     #[pyfunction]
     fn web_box(surface: PyAny) -> PyAny {
@@ -92,8 +108,6 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
         let result = may_detach(py, buffer.simpliced.len() > 10_000, || surface.bounds());
         madcad_box(result)
     }*/
-
-    Ok(())
 }
 
 /// run the given closure detached from python thread if required, otherwise run it attached

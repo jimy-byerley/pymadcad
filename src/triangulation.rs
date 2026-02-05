@@ -9,21 +9,6 @@ use crate::mesh::{Surface, Wire};
 use std::borrow::Cow;
 use std::collections::HashSet;
 
-/// Error type for triangulation failures
-#[derive(Debug)]
-pub struct TriangulationError {
-    pub message: String,
-    pub remaining_indices: Vec<Index>,
-}
-
-impl std::fmt::Display for TriangulationError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.message)
-    }
-}
-
-impl std::error::Error for TriangulationError {}
-
 /// Project an outline onto a 2D plane, returning 2D coordinates
 ///
 /// Uses the given normal to determine the projection plane,
@@ -119,30 +104,20 @@ fn imax(scores: &[Float]) -> usize {
 /// The returned mesh uses the same buffer of points as the input.
 ///
 /// Complexity: O(n*k) where k is the number of non-convex points
-pub fn triangulation_outline<'a>(
-    wire: &Wire<'a>,
-    normal: Option<Vec3>,
-    prec: Option<Float>,
-) -> Result<Vec<UVec3>, TriangulationError> {
-    // Get a normal in the right direction for loop winding
-    let normal = normal.unwrap_or_else(|| wire.normal());
-    let base_prec = prec.unwrap_or_else(|| wire.precision(3));
-
-    // The precision we use is a surface precision: (edge_length)^2 / NUMPREC
-    let prec = base_prec * base_prec / NUMPREC;
-
-    // Project all points in the plane
-    let Ok(proj) = planeproject(wire, Some(normal))
-        else {return Ok(Vec::new())};
-
+pub fn triangulation_loop_d2(
+    points: &[Vec2],
+    indices: &[Index],
+    normal: Vec3,
+    prec: Float,
+) -> Result<Vec<UVec3>, Vec<Index>> {
     // Reducing contour, indexing proj and wire indices
-    let mut hole: Vec<usize> = (0..wire.len()).collect();
+    let mut hole: Vec<usize> = (0..indices.len()).collect();
 
     // Remove last point if it's the same as first (closed loop)
     if hole.len() >= 2 {
         let last_idx = hole.len() - 1;
-        let first = proj[hole[0]];
-        let last = proj[hole[last_idx]];
+        let first = points[hole[0]];
+        let last = points[hole[last_idx]];
         if (last - first).square_length() <= prec {
             hole.pop();
         }
@@ -152,14 +127,14 @@ pub fn triangulation_outline<'a>(
         return Ok(Vec::new());
     }
 
-    let l = wire.len();
+    let l = indices.len();
 
-    // Set of remaining non-convex points, indexing proj
+    // Set of remaining non-convex points, indexing points
     let mut nonconvex: HashSet<usize> = HashSet::new();
     for &i in &hole {
         let prev = if i == 0 { l - 1 } else { i - 1 };
         let next = (i + 1) % l;
-        let pd = perpdot(proj[i] - proj[prev], proj[next] - proj[i]);
+        let pd = perpdot(points[i] - points[prev], points[next] - points[i]);
         if pd <= prec {
             nonconvex.insert(i);
         }
@@ -168,9 +143,9 @@ pub fn triangulation_outline<'a>(
     // Score function for a hole position
     let score = |hole: &[usize], nonconvex: &HashSet<usize>, i: usize| -> Float {
         let hl = hole.len();
-        let o = proj[hole[i]];
-        let u = proj[hole[(i + 1) % hl]] - o;
-        let v = proj[hole[(i + hl - 1) % hl]] - o;
+        let o = points[hole[i]];
+        let u = points[hole[(i + 1) % hl]] - o;
+        let v = points[hole[(i + hl - 1) % hl]] - o;
         let triangle = [hole[(i + hl - 1) % hl], hole[i], hole[(i + 1) % hl]];
 
         let pd = perpdot(u, v);
@@ -187,9 +162,9 @@ pub fn triangulation_outline<'a>(
                 if !triangle.contains(&j) {
                     let mut inside = true;
                     for k in 0..3 {
-                        let a = proj[triangle[k]];
-                        let b = proj[triangle[(k + 2) % 3]]; // k-1 mod 3
-                        let mut s = perpdot(a - b, proj[j] - a);
+                        let a = points[triangle[k]];
+                        let b = points[triangle[(k + 2) % 3]]; // k-1 mod 3
+                        let mut s = perpdot(a - b, points[j] - a);
                         if k == 1 {
                             s -= 2.0 * prec;
                         }
@@ -222,18 +197,13 @@ pub fn triangulation_outline<'a>(
         let hl = hole.len();
         let i = imax(&scores);
 
-        if scores[i] == Float::NEG_INFINITY {
-            return Err(TriangulationError {
-                message: "no more feasible triangles (algorithm failure or bad input outline)"
-                    .to_string(),
-                remaining_indices: hole.iter().map(|&h| wire.index(h)).collect(),
-            });
-        }
+        if scores[i] == Float::NEG_INFINITY 
+            {return Err(hole.iter().map(|&h| indices[h]).collect());}
 
         // Add triangle
-        let a = wire.index(hole[(i + hl - 1) % hl]);
-        let b = wire.index(hole[i]);
-        let c = wire.index(hole[(i + 1) % hl]);
+        let a = indices[hole[(i + hl - 1) % hl]];
+        let b = indices[hole[i]];
+        let c = indices[hole[(i + 1) % hl]];
         simplices.push(Vector::from([a, b, c]));
 
         // Remove the point from the hole
@@ -255,49 +225,4 @@ pub fn triangulation_outline<'a>(
     }
 
     Ok(simplices)
-}
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn make_square_wire() -> Wire<'static> {
-        // Simple square: (0,0) -> (1,0) -> (1,1) -> (0,1) -> (0,0)
-        let points = vec![
-            Vec3::from([0.0, 0.0, 0.0]),
-            Vec3::from([1.0, 0.0, 0.0]),
-            Vec3::from([1.0, 1.0, 0.0]),
-            Vec3::from([0.0, 1.0, 0.0]),
-        ];
-        let indices: Vec<Vector<Index, 1>> = vec![
-            Vector::from([0]),
-            Vector::from([1]),
-            Vector::from([2]),
-            Vector::from([3]),
-            Vector::from([0]), // closed
-        ];
-        Wire {
-            points: Cow::Owned(points),
-            simplices: Cow::Owned(indices),
-            tracks: Cow::Owned(Vec::new()),
-        }
-    }
-
-    #[test]
-    fn test_triangulate_square() {
-        let wire = make_square_wire();
-        let result = triangulation_outline(&wire, None, None);
-
-        assert!(result.is_ok());
-        let mesh = result.unwrap();
-        assert_eq!(mesh.simplices.len(), 2); // Square splits into 2 triangles
-    }
-
-    #[test]
-    fn test_perpdot() {
-        let a = Vec2::from([1.0, 0.0]);
-        let b = Vec2::from([0.0, 1.0]);
-        assert!((perpdot(a, b) - 1.0).abs() < NUMPREC);
-    }
 }

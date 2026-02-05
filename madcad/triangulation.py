@@ -202,7 +202,7 @@ def triangulation_outline(outline: Wire, normal=None, prec=None) -> Mesh:
 		triangle = (hole[(i-1)%l], hole[i], hole[(i+1)%l])
 		
 		# check for badly oriented triangle
-		if perpdot(u,v) < -prec:		
+		if perpdot(u,v) < -prec:
 			return -inf
 		# check for intersection with the rest
 		elif perpdot(u,v) > prec:
