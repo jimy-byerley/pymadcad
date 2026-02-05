@@ -35,9 +35,6 @@ in pkgs.mkShell rec {
   postVenvCreation = ''
     unset SOURCE_DATE_EPOCH
 
-    # requirements
-    pip install Cython
-
     # devtools
     pip install pytest
     

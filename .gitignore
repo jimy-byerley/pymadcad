@@ -1,6 +1,3 @@
-# Cython outputs (legacy)
-madcad/core.c
-
 # Rust build artifacts
 /target/
 Cargo.lock
@@ -160,9 +157,6 @@ dmypy.json
 
 # pytype static type analyzer
 .pytype/
-
-# Cython debug symbols
-cython_debug/
 
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can

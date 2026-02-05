@@ -237,9 +237,7 @@ pub fn intersect_triangles(
         ));
     }
 
-    // unexpected case - should not be reachable
-    debug_assert!(false, "unexpected case in intersect_triangles");
-    None
+    unreachable!("unexpected case in intersect_triangles");
 }
 
 
