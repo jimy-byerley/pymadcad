@@ -14,13 +14,14 @@ pub mod math;
 pub mod mesh;
 pub mod aabox;
 pub mod triangulation;
+pub mod rasterize;
 pub mod hull;
 pub mod test;
 
 use pyo3::prelude::*;
 use pyo3::create_exception;
-use pyo3::exceptions::PyException;
-use pyo3::marker::Ungil;    
+use pyo3::exceptions::{PyException, PyValueError};
+use pyo3::marker::Ungil;
 
 create_exception!(core, TriangulationError, PyException);
 
@@ -32,6 +33,9 @@ mod core {
         math::*,
         buffer::*,
         };
+        
+    #[pymodule_export]
+    use crate::test::test;
 
     #[pymodule_export]
     use super::buffer::Bytes;
@@ -53,8 +57,38 @@ mod core {
         PyTypedList::new(py, padded)
     }
 
-    #[pymodule_export]
-    use crate::test::test;
+    #[pyfunction]
+    fn rasterize_segment(
+        space: (PyVec3, PyVec3),
+        cell: Float,
+    ) -> PyResult<Vec<(i64, i64, i64)>> {
+        super::rasterize::rasterize_segment(&[*space.0, *space.1], cell)
+            .map_err(|e| PyValueError::new_err(e))
+    }
+
+    #[pyfunction]
+    fn rasterize_triangle(
+        space: (PyVec3, PyVec3, PyVec3),
+        cell: Float,
+    ) -> PyResult<Vec<(i64, i64, i64)>> {
+        super::rasterize::rasterize_triangle(&[*space.0, *space.1, *space.2], cell)
+            .map_err(|e| PyValueError::new_err(e))
+    }
+
+    #[pyfunction]
+    fn intersect_triangles(
+        f0: (PyVec3, PyVec3, PyVec3),
+        f1: (PyVec3, PyVec3, PyVec3),
+        precision: Float,
+    ) -> Option<((usize, usize, PyVec3), (usize, usize, PyVec3))> {
+        let fa = [*f0.0, *f0.1, *f0.2];
+        let fb = [*f1.0, *f1.1, *f1.2];
+        super::boolean::intersect_triangles(&fa, &fb, precision)
+            .map(|(a, b)| (
+                (a.face, a.edge, PyVec3::from(a.point)),
+                (b.face, b.edge, PyVec3::from(b.point)),
+            ))
+    }
 
 /*
     #[pyfunction]
