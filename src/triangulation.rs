@@ -7,16 +7,6 @@
 use crate::math::*;
 use std::collections::HashSet;
 
-/// Priority criterion for 2D triangles, depending on shape quality
-#[inline]
-fn priority(u: Vec2, v: Vec2) -> Float {
-    let uv = u.length() * v.length();
-    if uv == 0.0 {
-        0.0
-    } else {
-        (u.dot(v) + uv) / (uv * uv)
-    }
-}
 
 /// Triangulate a wire outline into a surface mesh
 ///
@@ -57,6 +47,16 @@ pub fn triangulation_loop_d2(
             nonconvex.insert(i);
         }
     }
+    
+    // Priority criterion for 2D triangles, depending on shape quality
+    let priority = |u: Vec2, v: Vec2| -> Float {
+        let uv = u.length() * v.length();
+        if uv == 0.0 {
+            0.0
+        } else {
+            (u.dot(v) + uv) / (uv * uv)
+        }
+    };
 
     // Score function for a hole position
     let score = |hole: &[usize], nonconvex: &HashSet<usize>, i: usize| -> Float {

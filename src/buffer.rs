@@ -348,9 +348,42 @@ impl<'py> IntoPyObject<'py> for PyWire {
     type Target = PyAny;
     type Output = Bound<'py, Self::Target>;
     type Error = PyErr;
-    
+
     fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
         py.import("madcad.mesh")?.getattr("Wire")?.call1((
             self.points, self.indices, self.tracks, self.groups, self.options))
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_uvec3_padded_roundtrip() {
+        let original = UVec3::from([10, 20, 30]);
+        let padded: PaddedUVec3 = original.into();
+        let recovered: UVec3 = padded.into();
+        assert_eq!(*original.as_array(), *recovered.as_array());
+    }
+
+    #[test]
+    fn test_vec_uvec3_to_vec_padded_roundtrip() {
+        let originals = vec![
+            UVec3::from([1, 2, 3]),
+            UVec3::from([4, 5, 6]),
+            UVec3::from([7, 8, 9]),
+        ];
+        let padded: Vec<PaddedUVec3> = originals.iter().map(|&v| v.into()).collect();
+        let recovered: Vec<UVec3> = padded.into_iter().map(|p| p.into()).collect();
+
+        for (orig, rec) in originals.iter().zip(recovered.iter()) {
+            assert_eq!(orig.as_array(), rec.as_array());
+        }
+    }
+}
+
+
+// Python interop tests are in tests/test_buffer.py since cdylib + auto-initialize
+// causes linker issues. Run with: pytest tests/test_buffer.py
