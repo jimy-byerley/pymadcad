@@ -1,30 +1,51 @@
 /*!
     Spatial rasterization for hash-based proximity queries
 
-    Port of rasterize_segment and rasterize_triangle from madcad/core.pyx
+    Port of the rasterization functions from madcad/hashing.py keysfor
 */
 
 use crate::math::*;
 
-/// Python-like modulo for floats (always non-negative result)
-fn pmod(l: Float, r: Float) -> Float {
-    let m = l % r;
-    if m < 0.0 { m + r } else { m }
+pub type IVec3 = Vector<i64, 3>;
+pub type HashKey = IVec3;
+
+/// Hashing key for a 3d position
+fn key3(p: Vec3, cell: Float) -> HashKey {
+    (p / cell).map(|x| x.floor() as i64)
 }
 
-/// Hashing key for a float coordinate
-fn key(f: Float, cell: Float) -> i64 {
-    (f / cell).floor() as i64
+/// Snap a float down to grid boundary
+fn snap_down(v: Float, cell: Float) -> Float {
+    v - v.rem_euclid(cell)
 }
 
-/// Infinity norm of a Vec3 (max absolute component)
-fn norminf(v: Vec3) -> Float {
-    v[0].abs().max(v[1].abs()).max(v[2].abs())
+/// Snap a Vec3 down to grid boundary (element-wise)
+fn snap_down3(v: Vec3, cell: Float) -> Vec3 {
+    v - (v % cell).map(|x| x.rem_euclid(cell))
 }
 
-pub type HashKey = (i64, i64, i64);
+/// Element-wise min of two Vec3
+fn vmin(a: Vec3, b: Vec3) -> Vec3 {  // TODO use Vector::vmin instead
+    a.zip(b).map(|(a, b)| a.min(b))
+}
 
-/// Permutation of coordinates to align the dominant axis to Z
+/// Element-wise max of two Vec3
+fn vmax(a: Vec3, b: Vec3) -> Vec3 {
+    a.zip(b).map(|(a, b)| a.max(b))
+}
+
+/// Element-wise absolute value
+fn vabs(v: Vec3) -> Vec3 {
+    v.map(Float::abs)
+}
+
+/// Number of cells spanning [min, max], at least 1
+fn ncells(min: Float, max: Float, cell: Float) -> usize {
+    ((max - min) / cell).ceil().max(1.0) as usize
+}
+
+/// Permutation of coordinates to align the dominant axis with Z.
+/// Returns (order, reorder) permutation indices.
 fn coordinate_order(n: Vec3) -> ([usize; 3], [usize; 3]) {
     if n[1] >= n[0] && n[1] >= n[2] {
         ([2, 0, 1], [1, 2, 0])
@@ -37,84 +58,78 @@ fn coordinate_order(n: Vec3) -> ([usize; 3], [usize; 3]) {
 
 /// Apply coordinate permutation to a Vec3
 fn permute(v: Vec3, order: &[usize; 3]) -> Vec3 {
-    Vec3::from([v[order[0]], v[order[1]], v[order[2]]])
+    Vec3::from(order.map(|i| v[i]))
 }
 
-/// Return a list of hashing keys for an edge (segment between two 3D points)
+/// Unpermute a hashing key back to original coordinate order
+fn unpermute_key(pk: HashKey, reorder: &[usize; 3]) -> HashKey {
+    HashKey::from(reorder.map(|i| pk[i]))
+}
+
+
+/// Return a list of hashing keys for a segment between two 3D points.
+///
+/// The algorithm permutes coordinates so Z is the dominant direction,
+/// then sweeps Z → Y → X computing the parametric line intersection
+/// with each grid band.
 pub fn rasterize_segment(space: &[Vec3; 2], cell: Float) -> Result<Vec<HashKey>, &'static str> {
     if !(cell > 0.0) {
         return Err("cell must be strictly positive");
     }
-    if !space[0].as_array().iter().all(|x| x.is_finite())
-    || !space[1].as_array().iter().all(|x| x.is_finite()) {
+    if !space.iter().all(|p| p.as_array().iter().all(|x| x.is_finite())) {
         return Err("cannot rasterize non finite space");
     }
 
     let mut result = Vec::new();
-    let prec = NUMPREC * norminf(space[0]).max(norminf(space[1]));
+    let prec = NUMPREC * space.iter().map(|p| vabs(*p).max()).fold(0.0_f64, Float::max);
 
-    // direction absolute values
-    let n = Vec3::from([
-        (space[1][0] - space[0][0]).abs(),
-        (space[1][1] - space[0][1]).abs(),
-        (space[1][2] - space[0][2]).abs(),
-    ]);
-    if n[0].max(n[1]).max(n[2]) < prec {
+    // direction absolute values, degenerate if shorter than precision
+    let n = vabs(space[1] - space[0]);
+    if n.max() < prec {
         return Ok(result);
     }
 
-    // permutation of coordinates to get the direction closest to Z
+    // permute coordinates so Z is the dominant direction
     let (order, reorder) = coordinate_order(n);
     let s = [permute(space[0], &order), permute(space[1], &order)];
 
-    // prepare variables
     let v = s[1] - s[0];
     let cell2 = cell / 2.0;
-    let dy = v[1] / v[2];
-    let dx = v[0] / v[2];
     let o = s[0];
+    // parametric line: at height z, x = fx(z), y = fy(z)
+    let dx = v[0] / v[2];
+    let dy = v[1] / v[2];
+    let fx = |z: Float| o[0] + dx * (z - o[2]);
+    let fy = |z: Float| o[1] + dy * (z - o[2]);
 
-    // z selection
-    let (mut zmin, mut zmax) = (s[0][2], s[1][2]);
-    if v[2] < 0.0 { std::mem::swap(&mut zmin, &mut zmax); }
+    // z sweep
+    let (mut zmin, mut zmax) = if v[2] >= 0.0 { (s[0][2], s[1][2]) } else { (s[1][2], s[0][2]) };
     zmin -= prec;
     zmax += prec;
-    zmin -= pmod(zmin, cell);
-    let nz = ((zmax - zmin) / cell).ceil().max(1.0) as usize;
+    zmin = snap_down(zmin, cell);
 
-    for i in 0..nz {
+    for i in 0..ncells(zmin, zmax, cell) {
         let z = zmin + cell * i as Float + cell2;
 
-        // y selection
-        let (mut ymin, mut ymax) = (
-            o[1] + dx * (z - cell2 - o[2]),
-            o[1] + dx * (z + cell2 - o[2]),
-        );
-        if dy < 0.0 { std::mem::swap(&mut ymin, &mut ymax); }
+        // y range at this z band
+        let (mut ymin, mut ymax) = sort2(fy(z - cell2), fy(z + cell2));
         ymin -= prec;
         ymax += prec;
-        ymin -= pmod(ymin, cell);
-        let ny = ((ymax - ymin) / cell).ceil().max(1.0) as usize;
+        ymin = snap_down(ymin, cell);
 
-        for j in 0..ny {
+        for j in 0..ncells(ymin, ymax, cell) {
             let y = ymin + j as Float * cell + cell2;
 
-            // x selection
-            let (mut xmin, mut xmax) = (
-                o[0] + dx * (z - cell2 - o[2]),
-                o[0] + dx * (z + cell2 - o[2]),
-            );
-            if dx < 0.0 { std::mem::swap(&mut xmin, &mut xmax); }
+            // x range at this z band
+            let (mut xmin, mut xmax) = sort2(fx(z - cell2), fx(z + cell2));
             xmin -= prec;
             xmax += prec;
-            xmin -= pmod(xmin, cell);
-            let nx = ((xmax - xmin) / cell).ceil().max(1.0) as usize;
+            xmin = snap_down(xmin, cell);
 
-            for k in 0..nx {
+            for k in 0..ncells(xmin, xmax, cell) {
                 let x = xmin + k as Float * cell + cell2;
-
-                let pk = [key(x, cell), key(y, cell), key(z, cell)];
-                result.push((pk[reorder[0]], pk[reorder[1]], pk[reorder[2]]));
+                let pk = key3(Vec3::from([x, y, z]), cell);
+                result.push(unpermute_key(pk, &reorder));
             }
         }
     }
@@ -122,128 +137,100 @@ pub fn rasterize_segment(space: &[Vec3; 2], cell: Float) -> Result<Vec<HashKey>,
     Ok(result)
 }
 
-/// Return a list of hashing keys for a triangle (three 3D points)
+/// Sort two floats into (min, max)
+fn sort2(a: Float, b: Float) -> (Float, Float) {
+    if a <= b { (a, b) } else { (b, a) }
+}
+
+
+/// Return a list of hashing keys for a triangle (three 3D points).
+///
+/// The algorithm permutes coordinates so Z aligns with the face normal,
+/// then sweeps X → Y computing edge intersections, and Z from the plane equation.
 pub fn rasterize_triangle(space: &[Vec3; 3], cell: Float) -> Result<Vec<HashKey>, &'static str> {
     if !(cell > 0.0) {
         return Err("cell must be strictly positive");
     }
-    if !space[0].as_array().iter().all(|x| x.is_finite())
-    || !space[1].as_array().iter().all(|x| x.is_finite())
-    || !space[2].as_array().iter().all(|x| x.is_finite()) {
+    if !space.iter().all(|p| p.as_array().iter().all(|x| x.is_finite())) {
         return Err("cannot rasterize non finite space");
     }
 
     let mut result = Vec::new();
-    let prec = NUMPREC * norminf(space[0]).max(norminf(space[1])).max(norminf(space[2]));
+    let prec = NUMPREC * space.iter().map(|p| vabs(*p).max()).fold(0.0_f64, Float::max);
 
-    // permutation of coordinates to get the normal closest to Z
-    let normal = {
-        let e1 = space[1] - space[0];
-        let e2 = space[2] - space[0];
-        let c = e1.cross(e2);
-        Vec3::from([c[0].abs(), c[1].abs(), c[2].abs()])
-    };
-    if normal[0].max(normal[1]).max(normal[2]) < prec {
+    // permute coordinates so Z aligns with the dominant normal component
+    let normal = (space[1] - space[0]).cross(space[2] - space[0]).abs();
+    if normal.max() < prec {
         return Ok(result);
     }
 
     let (order, reorder) = coordinate_order(normal);
-    let s = [
-        permute(space[0], &order),
-        permute(space[1], &order),
-        permute(space[2], &order),
-    ];
+    let s: [Vec3; 3] = std::array::from_fn(|i| permute(space[i], &order));
 
-    // edge vectors: v[i] = s[i] - s[(i+1)%3]
-    let v = [s[0] - s[1], s[1] - s[2], s[2] - s[0]];
+    // edge vectors: v[i] goes from s[i] to s[i-1]  (i.e. s[i] - s[(i+1)%3])
+    let v: [Vec3; 3] = std::array::from_fn(|i| s[i] - s[(i + 1) % 3]);
     let n = v[0].cross(v[1]);
-    let dx = -n[0] / n[2];
-    let dy = -n[1] / n[2];
     let o = s[0];
     let cell2 = cell / 2.0;
+    // plane equation:  z = fz(x, y) = o.z + dx*(x-o.x) + dy*(y-o.y)
+    let dx = -n[0] / n[2];
+    let dy = -n[1] / n[2];
+    let fz = |x: Float, y: Float| o[2] + dx * (x - o[0]) + dy * (y - o[1]);
 
-    // bounding box
-    let mut pmin = Vec3::from([
-        s[0][0].min(s[1][0]).min(s[2][0]),
-        s[0][1].min(s[1][1]).min(s[2][1]),
-        s[0][2].min(s[1][2]).min(s[2][2]),
-    ]);
-    let mut pmax = Vec3::from([
-        s[0][0].max(s[1][0]).max(s[2][0]),
-        s[0][1].max(s[1][1]).max(s[2][1]),
-        s[0][2].max(s[1][2]).max(s[2][2]),
-    ]);
-    let xmin_orig = pmin[0];
-    let xmax_orig = pmax[0];
-    // snap bounding box to grid
-    for i in 0..3 {
-        pmin[i] -= pmod(pmin[i], cell);
-        pmax[i] += cell - pmod(pmax[i], cell);
-    }
+    // bounding box, snapped to grid
+    let pmin_raw = s.iter().copied().fold(s[0], |a, b| vmin(a, b));
+    let pmax_raw = s.iter().copied().fold(s[0], |a, b| vmax(a, b));
+    let pmin = snap_down3(pmin_raw, cell);
+    let pmax = pmax_raw.map(|c| c + cell - c.rem_euclid(cell));
 
-    // x selection
-    let mut xmin = xmin_orig - prec;
-    let xmax = xmax_orig + prec;
-    xmin -= pmod(xmin, cell);
-    let nx = ((xmax - xmin) / cell).ceil().max(1.0) as usize;
+    // x sweep
+    let xmin = snap_down(pmin_raw[0] - prec, cell);
+    let xmax = pmax_raw[0] + prec;
 
-    for xi in 0..nx {
+    for xi in 0..ncells(xmin, xmax, cell) {
         let x = xmin + cell * xi as Float + cell2;
 
-        // y selection - find y range from triangle edge intersections
-        let mut candy = [0.0_f64; 6];
-        let mut candylen = 0usize;
-
-        for ei in 0..3usize {
-            let next = (ei + 1) % 3;
-            // check if edge crosses the x-band [x-cell2, x+cell2]
-            if (s[next][0] - x + cell2) * (s[ei][0] - x - cell2) <= 0.0
-            || (s[next][0] - x - cell2) * (s[ei][0] - x + cell2) <= 0.0
+        // y range: find where triangle edges cross the x-band [x-cell2, x+cell2]
+        let mut candy = Vec::with_capacity(6); // TODO use heapless::Vec as a new dependency
+        for i in 0..3 {
+            let next = (i + 1) % 3;
+            if (s[next][0] - x + cell2) * (s[i][0] - x - cell2) <= 0.0
+            || (s[next][0] - x - cell2) * (s[i][0] - x + cell2) <= 0.0
             {
-                let d_ratio = v[ei][1] / if v[ei][0] != 0.0 { v[ei][0] } else { Float::INFINITY };
-                candy[candylen]     = s[ei][1] + d_ratio * (x - cell2 - s[ei][0]);
-                candy[candylen + 1] = s[ei][1] + d_ratio * (x + cell2 - s[ei][0]);
-                candylen += 2;
+                let slope = v[i][1] / if v[i][0] != 0.0 { v[i][0] } else { Float::INFINITY };
+                candy.push(s[i][1] + slope * (x - cell2 - s[i][0]));
+                candy.push(s[i][1] + slope * (x + cell2 - s[i][0]));
             }
         }
+        if candy.is_empty() { continue; }
 
-        if candylen == 0 { continue; }
-
-        let candy_min = candy[..candylen].iter().copied().fold(Float::INFINITY, Float::min);
-        let candy_max = candy[..candylen].iter().copied().fold(Float::NEG_INFINITY, Float::max);
-        let mut ymin = candy_min.max(pmin[1]) - prec;
-        let ymax = candy_max.min(pmax[1]) + prec;
-        ymin -= pmod(ymin, cell);
+        let mut ymin = candy.iter().copied().fold(Float::INFINITY, Float::min).max(pmin[1]) - prec;
+        let ymax = candy.iter().copied().fold(Float::NEG_INFINITY, Float::max).min(pmax[1]) + prec;
+        ymin = snap_down(ymin, cell);
         if ymax <= ymin { continue; }
-        let ny = ((ymax - ymin) / cell).ceil().max(1.0) as usize;
 
-        for yj in 0..ny {
+        for yj in 0..ncells(ymin, ymax, cell) {
             let y = ymin + cell * yj as Float + cell2;
 
-            // z selection from plane equation
-            let candz = [
-                o[2] + dx * (x - cell2 - o[0]) + dy * (y - cell2 - o[1]),
-                o[2] + dx * (x + cell2 - o[0]) + dy * (y - cell2 - o[1]),
-                o[2] + dx * (x - cell2 - o[0]) + dy * (y + cell2 - o[1]),
-                o[2] + dx * (x + cell2 - o[0]) + dy * (y + cell2 - o[1]),
+            // z range from the 4 corners of the xy cell projected onto the plane
+            let z_corners = [
+                fz(x - cell2, y - cell2),
+                fz(x + cell2, y - cell2),
+                fz(x - cell2, y + cell2),
+                fz(x + cell2, y + cell2),
             ];
-            let candz_min = candz.iter().copied().fold(Float::INFINITY, Float::min);
-            let candz_max = candz.iter().copied().fold(Float::NEG_INFINITY, Float::max);
-            let mut zmin = candz_min.max(pmin[2]) - prec;
-            let zmax = candz_max.min(pmax[2]) + prec;
-            zmin -= pmod(zmin, cell);
+            let mut zmin = z_corners.iter().copied().fold(Float::INFINITY, Float::min).max(pmin[2]) - prec;
+            let zmax = z_corners.iter().copied().fold(Float::NEG_INFINITY, Float::max).min(pmax[2]) + prec;
+            zmin = snap_down(zmin, cell);
             if zmax <= zmin { continue; }
-            let nz = ((zmax - zmin) / cell).ceil().max(1.0) as usize;
 
-            for zk in 0..nz {
+            for zk in 0..ncells(zmin, zmax, cell) {
                 let z = zmin + cell * zk as Float + cell2;
+                let p = Vec3::from([x, y, z]);
 
-                // remove box corners that go out of the bounding area
-                if pmin[0] < x && pmin[1] < y && pmin[2] < z
-                && x < pmax[0] && y < pmax[1] && z < pmax[2]
-                {
-                    let pk = [key(x, cell), key(y, cell), key(z, cell)];
-                    result.push((pk[reorder[0]], pk[reorder[1]], pk[reorder[2]]));
+                // remove corner cells that extend beyond the bounding area
+                if (0..3).all(|i| pmin[i] < p[i] && p[i] < pmax[i]) {
+                    result.push(unpermute_key(key3(p, cell), &reorder));
                 }
             }
         }
@@ -258,17 +245,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_pmod() {
-        assert_eq!(pmod(5.0, 3.0), 2.0);
-        assert_eq!(pmod(-1.0, 3.0), 2.0);
-        assert_eq!(pmod(0.0, 3.0), 0.0);
+    fn test_snap_down() {
+        assert_eq!(snap_down(5.3, 1.0), 5.0);
+        assert_eq!(snap_down(-0.3, 1.0), -1.0);
+        assert_eq!(snap_down(0.0, 1.0), 0.0);
     }
 
     #[test]
-    fn test_key() {
-        assert_eq!(key(0.5, 1.0), 0);
-        assert_eq!(key(1.5, 1.0), 1);
-        assert_eq!(key(-0.5, 1.0), -1);
+    fn test_key3() {
+        let k = key3(Vec3::from([0.5, 1.5, -0.5]), 1.0);
+        assert_eq!(*k.as_array(), [0, 1, -1]);
     }
 
     #[test]
@@ -279,9 +265,8 @@ mod tests {
         ];
         let result = rasterize_segment(&space, 1.0).unwrap();
         assert!(!result.is_empty());
-        // segment along Z from 0 to 2 with cell=1 should hit cells at z=0 and z=1
-        assert!(result.contains(&(0, 0, 0)));
-        assert!(result.contains(&(0, 0, 1)));
+        assert!(result.contains(&HashKey::from([0, 0, 0])));
+        assert!(result.contains(&HashKey::from([0, 0, 1])));
     }
 
     #[test]
@@ -314,7 +299,6 @@ mod tests {
 
     #[test]
     fn test_rasterize_triangle_degenerate() {
-        // collinear points → zero-area triangle
         let space = [
             Vec3::from([0.0, 0.0, 0.0]),
             Vec3::from([1.0, 0.0, 0.0]),

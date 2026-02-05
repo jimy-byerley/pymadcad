@@ -63,6 +63,7 @@ mod core {
         cell: Float,
     ) -> PyResult<Vec<(i64, i64, i64)>> {
         super::rasterize::rasterize_segment(&[*space.0, *space.1], cell)
+            .map(|keys| keys.into_iter().map(|k| (k[0], k[1], k[2])).collect())
             .map_err(|e| PyValueError::new_err(e))
     }
 
@@ -72,6 +73,7 @@ mod core {
         cell: Float,
     ) -> PyResult<Vec<(i64, i64, i64)>> {
         super::rasterize::rasterize_triangle(&[*space.0, *space.1, *space.2], cell)
+            .map(|keys| keys.into_iter().map(|k| (k[0], k[1], k[2])).collect())
             .map_err(|e| PyValueError::new_err(e))
     }
 
