@@ -15,6 +15,7 @@ pub mod mesh;
 pub mod aabox;
 pub mod triangulation;
 pub mod hull;
+pub mod test;
 
 use pyo3::prelude::*;
 use pyo3::create_exception;
@@ -51,6 +52,10 @@ mod core {
         let padded: Vec<PaddedUVec3> = simplices.into_iter().map(|v| v.into()).collect();
         PyTypedList::new(py, padded)
     }
+
+    #[pymodule_export]
+    use crate::test::test;
+
 /*
     #[pyfunction]
     fn pierce_surface_surface(py: Python<'_>, subject: PyAny, tool: PyAny) -> PyAny {

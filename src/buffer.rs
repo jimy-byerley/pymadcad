@@ -234,7 +234,7 @@ macro_rules! newtype_vec {
                 unsafe {
                     (*buf) = *self.0.as_array();
                 }
-                Ok(vec)
+                Ok(obj)
             }
         }
     }
