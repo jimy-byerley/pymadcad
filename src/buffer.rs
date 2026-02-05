@@ -116,8 +116,9 @@ impl Bytes {
             return Err(PyBufferError::new_err("Bytes is read-only"));
         }
         
-        // Fill in the buffer info
-        (*view).buf = buffer.data.as_ptr() as *mut _;
+        // Fill in the buffer info (null buf is valid for empty buffers per PEP 3118)
+        (*view).buf = if buffer.data.is_empty() { ptr::null_mut() } 
+                      else { buffer.data.as_ptr() as *mut _ };
         (*view).len = buffer.data.len() as isize;
         (*view).itemsize = 1;
         (*view).readonly = 1;
@@ -149,9 +150,13 @@ pub struct PyTypedList<T: DType + 'static> {
 }
 impl<T:DType> PyTypedList<T> {
     pub fn as_slice(&self) -> &[T] {
+        let len = self.buffer.item_count();
+        if len == 0 {
+            return &[];
+        }
         unsafe {core::slice::from_raw_parts(
-            self.buffer.buf_ptr() as *const T, 
-            self.buffer.item_count(),
+            self.buffer.buf_ptr() as *const T,
+            len,
             )}
     }
     pub fn len(&self) -> usize {

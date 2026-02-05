@@ -86,9 +86,9 @@ def test_passthrough_typedlist_vec3():
 		assert r[i] == data[i]
 
 def test_passthrough_typedlist_vec3_empty():
-	"""empty typedlist roundtrip - currently crashes in Bytes buffer protocol on zero-length data"""
-	import pytest
-	pytest.skip("empty buffer causes abort in Bytes::new / buffer protocol")
+	data = typedlist(dtype=vec3)
+	r = test.passthrough_typedlist_vec3(data)
+	assert len(r) == 0
 
 def test_passthrough_typedlist_vec2():
 	data = typedlist([vec2(1.5, 2.5), vec2(3.5, 4.5)])
@@ -112,9 +112,9 @@ def test_passthrough_typedlist_uvec3():
 		assert r[i] == data[i]
 
 def test_passthrough_typedlist_uvec3_empty():
-	"""empty typedlist roundtrip - currently crashes in Bytes buffer protocol on zero-length data"""
-	import pytest
-	pytest.skip("empty buffer causes abort in Bytes::new / buffer protocol")
+	data = typedlist(dtype=uvec3)
+	r = test.passthrough_typedlist_uvec3(data)
+	assert len(r) == 0
 
 def test_passthrough_typedlist_index():
 	data = typedlist([10, 20, 30, 40], dtype='I')
@@ -144,9 +144,8 @@ def test_sequence_typedlist_vec3():
 		assert v.z == float(i) + 0.25
 
 def test_sequence_typedlist_vec3_empty():
-	"""empty sequence generation - currently crashes in Bytes buffer protocol on zero-length data"""
-	import pytest
-	pytest.skip("empty buffer causes abort in Bytes::new / buffer protocol")
+	r = test.sequence_typedlist_vec3(0)
+	assert len(r) == 0
 
 def test_sequence_typedlist_uvec3():
 	r = test.sequence_typedlist_uvec3(5)
