@@ -5,74 +5,7 @@
 */
 
 use crate::math::*;
-use crate::mesh::{Surface, Wire};
-use std::borrow::Cow;
 use std::collections::HashSet;
-
-/// Project an outline onto a 2D plane, returning 2D coordinates
-///
-/// Uses the given normal to determine the projection plane,
-/// or computes one from the points if not provided.
-fn planeproject(wire: &Wire<'_>, normal: Option<Vec3>) -> Result<Vec<Vec2>, &'static str> {
-    let (x, y, _z) = guessbase(wire, normal)?;
-
-    let proj: Vec<Vec2> = (0..wire.len())
-        .map(|i| {
-            let p = wire.point(i);
-            Vec2::from([p.dot(x), p.dot(y)])
-        })
-        .collect();
-
-    Ok(proj)
-}
-
-/// Build a base in which the points will be in plane XY
-fn guessbase(wire: &Wire<'_>, normal: Option<Vec3>) -> Result<(Vec3, Vec3, Vec3), &'static str> {
-    if let Some(n) = normal {
-        return Ok(dirbase(n, None));
-    }
-
-    let thres = 10.0 * NUMPREC;
-
-    if wire.len() < 2 {
-        return Err("unable to extract 2 directions");
-    }
-
-    let o = wire.point(0);
-    let ol = o[0].abs().max(o[1].abs()).max(o[2].abs());
-
-    // Find first direction
-    let mut x = Vec3::zero();
-    let mut xl = 0.0;
-    let mut i = 1;
-    while xl <= thres && i < wire.len() {
-        let p = wire.point(i);
-        x = p - o;
-        let pl = p[0].abs().max(p[1].abs()).max(p[2].abs());
-        xl = x.square_length() / pl.max(ol);
-        i += 1;
-    }
-    if xl <= thres {
-        return Err("unable to extract 2 directions");
-    }
-    x = x.normalize();
-
-    // Find second direction
-    let mut y;
-    let mut zl;
-    while i < wire.len() {
-        let p = wire.point(i);
-        y = p - o;
-        zl = x.cross(y).length();
-        if zl > thres {
-            y = noproject(y, x).normalize();
-            return Ok((x, y, x.cross(y)));
-        }
-        i += 1;
-    }
-
-    Err("unable to extract 2 directions")
-}
 
 /// Priority criterion for 2D triangles, depending on shape quality
 #[inline]
@@ -85,33 +18,20 @@ fn priority(u: Vec2, v: Vec2) -> Float {
     }
 }
 
-/// Find index of maximum value in slice
-fn imax(scores: &[Float]) -> usize {
-    let mut best = 0;
-    let mut best_score = Float::NEG_INFINITY;
-    for (i, &s) in scores.iter().enumerate() {
-        if s >= best_score {
-            best_score = s;
-            best = i;
-        }
-    }
-    best
-}
-
 /// Triangulate a wire outline into a surface mesh
 ///
 /// Returns a mesh with the triangles formed in the outline.
-/// The returned mesh uses the same buffer of points as the input.
+/// Points are treated as a sequential loop (indices 0, 1, 2, ..., n-1).
 ///
 /// Complexity: O(n*k) where k is the number of non-convex points
 pub fn triangulation_loop_d2(
     points: &[Vec2],
-    indices: &[Index],
-    normal: Vec3,
     prec: Float,
 ) -> Result<Vec<UVec3>, Vec<Index>> {
-    // Reducing contour, indexing proj and wire indices
-    let mut hole: Vec<usize> = (0..indices.len()).collect();
+    let l = points.len();
+
+    // Reducing contour, indexing points directly
+    let mut hole: Vec<usize> = (0..l).collect();
 
     // Remove last point if it's the same as first (closed loop)
     if hole.len() >= 2 {
@@ -126,8 +46,6 @@ pub fn triangulation_loop_d2(
     if hole.len() < 3 {
         return Ok(Vec::new());
     }
-
-    let l = indices.len();
 
     // Set of remaining non-convex points, indexing points
     let mut nonconvex: HashSet<usize> = HashSet::new();
@@ -195,15 +113,20 @@ pub fn triangulation_loop_d2(
 
     while hole.len() > 2 {
         let hl = hole.len();
-        let i = imax(&scores);
+        let (i, &best_score) = scores.iter()
+            .enumerate()
+            .fold((0, &Float::NEG_INFINITY), |(best_i, best_s), (i, s)| {
+                if s >= best_s { (i, s) } else { (best_i, best_s) }
+            });
 
-        if scores[i] == Float::NEG_INFINITY 
-            {return Err(hole.iter().map(|&h| indices[h]).collect());}
+        if best_score == Float::NEG_INFINITY {
+            return Err(hole.iter().map(|&h| h as Index).collect());
+        }
 
-        // Add triangle
-        let a = indices[hole[(i + hl - 1) % hl]];
-        let b = indices[hole[i]];
-        let c = indices[hole[(i + 1) % hl]];
+        // Add triangle (hole indices are the point indices directly)
+        let a = hole[(i + hl - 1) % hl] as Index;
+        let b = hole[i] as Index;
+        let c = hole[(i + 1) % hl] as Index;
         simplices.push(Vector::from([a, b, c]));
 
         // Remove the point from the hole

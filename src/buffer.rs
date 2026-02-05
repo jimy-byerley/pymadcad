@@ -1,15 +1,12 @@
 use pyo3::prelude::*;
 use pyo3::PyTypeInfo;
 use pyo3::exceptions::{PyBufferError, PyTypeError};
-use pyo3::types::{PyType, PyList, PyDict, PyString, PyFloat};
+use pyo3::types::{PyList, PyDict, PyString, PyFloat};
 use pyo3::ffi::PyObject;
-use pyo3::buffer::{PyBuffer, PyUntypedBuffer, Element};
-use pyo3::marker::Ungil;
-use std::ffi::{CString, CStr};
-use std::os::raw::c_int;
+use pyo3::buffer::PyUntypedBuffer;
+use std::ffi::CStr;
 use std::ops::Deref;
 use std::ptr;
-use std::borrow::Cow;
 use std::marker::PhantomData;
 
 use crate::math::*;
@@ -53,8 +50,25 @@ unsafe impl DType for UVec2 {
         py.import("madcad.mathutils").unwrap().getattr("uvec2").unwrap()
     }
 }
-unsafe impl DType for UVec3 { 
-    fn py_format() -> &'static CStr   {c"III"}
+/// Padded UVec3 for Python buffer compatibility (uvec3 has 4 bytes padding to 16 bytes)
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct PaddedUVec3 {
+    pub data: [Index; 3],
+    _padding: Index,
+}
+impl From<UVec3> for PaddedUVec3 {
+    fn from(v: UVec3) -> Self {
+        Self { data: *v.as_array(), _padding: 0 }
+    }
+}
+impl From<PaddedUVec3> for UVec3 {
+    fn from(v: PaddedUVec3) -> Self {
+        Vector::from(v.data)
+    }
+}
+unsafe impl DType for PaddedUVec3 {
+    fn py_format() -> &'static CStr   {c"IIIxxxx"}
     fn py_dtype(py: Python<'_>) -> Bound<'_, PyAny>  {
         py.import("madcad.mathutils").unwrap().getattr("uvec3").unwrap()
     }
@@ -73,17 +87,58 @@ pub struct Bytes {
     /// Raw bytes of the buffer data
     data: Vec<u8>,
 }
-impl<T: DType> From<Vec<T>> for Bytes {
-    fn from(data: Vec<T>) -> Self {
-        unsafe { 
+impl Bytes {
+    pub fn new<T: DType>(data: Vec<T>) -> Self {
+        let itemsize = core::mem::size_of::<T>();
+        unsafe {
             let (ptr, len, cap) = data.into_raw_parts();
             let data = Vec::from_raw_parts(
-                ptr as *mut u8, 
-                len * core::mem::size_of::<T>(),
-                cap * core::mem::size_of::<T>(),
+                ptr as *mut u8,
+                len * itemsize,
+                cap * itemsize,
                 );
-            Self {data}
+            Self { data }
         }
+    }
+}
+#[pymethods]
+impl Bytes {
+    unsafe fn __getbuffer__(
+        slf: Bound<'_, Self>,
+        view: *mut pyo3::ffi::Py_buffer,
+        flags: std::os::raw::c_int,
+    ) -> PyResult<()> {
+        let buffer = slf.borrow();
+        let format = c"B";
+
+        // Check flags - we are read-only
+        if flags & pyo3::ffi::PyBUF_WRITABLE != 0 {
+            return Err(PyBufferError::new_err("Bytes is read-only"));
+        }
+        
+        // Fill in the buffer info
+        (*view).buf = buffer.data.as_ptr() as *mut _;
+        (*view).len = buffer.data.len() as isize;
+        (*view).itemsize = 1;
+        (*view).readonly = 1;
+        (*view).ndim = 1;
+        (*view).format = format.as_ptr() as *mut _;
+
+        // Shape and strides for 1D buffer
+        (*view).shape = ptr::null_mut();
+        (*view).strides = ptr::null_mut();
+        (*view).suboffsets = ptr::null_mut();
+        (*view).internal = ptr::null_mut();
+
+        // Set the object reference to keep the buffer alive
+        (*view).obj = slf.as_ptr();
+        pyo3::ffi::Py_INCREF((*view).obj);
+
+        Ok(())
+    }
+
+    unsafe fn __releasebuffer__(&self, _view: *mut pyo3::ffi::Py_buffer) {
+        // Nothing to do - data is owned by self
     }
 }
 
@@ -103,7 +158,7 @@ impl<T:DType> PyTypedList<T> {
         self.buffer.item_count()
     }
     pub fn new(py: Python<'_>, owned: Vec<T>) -> PyResult<Self> {
-        let owner = Bytes::from(owned); // give memory to a python object, without copy
+        let owner = Bytes::new(owned); // give memory to a python object, without copy
         let dtype = T::py_dtype(py); // get the dtype python must see
         let new = py.import("arrex")?.getattr("typedlist")?.call1((owner, dtype))?;
         Self::extract(new.as_borrowed())
@@ -115,7 +170,7 @@ impl<'a, 'py, T:DType> FromPyObject<'a, 'py> for PyTypedList<T> {
         let buffer = PyUntypedBuffer::get(obj.as_any())?;
         if T::py_format() != buffer.format()
             {return Err(PyTypeError::new_err("unexpected buffer format"))}
-        if buffer.is_c_contiguous()
+        if !buffer.is_c_contiguous()
             {return Err(PyTypeError::new_err("buffer should be contiguous"))}
         if buffer.item_size() != size_of::<T>()
             {return Err(PyTypeError::new_err("wrong item size"))}
@@ -216,18 +271,19 @@ impl<'py> IntoPyObject<'py> for PyBox3 {
 #[derive(FromPyObject)]
 pub struct PySurface {
     pub points: PyTypedList<Vec3>,
-    pub faces: PyTypedList<UVec3>,
+    pub faces: PyTypedList<PaddedUVec3>,
     pub tracks: PyTypedList<Index>,
     pub groups: Py<PyList>,
     pub options: Py<PyDict>,
 }
 impl PySurface {
+    /// Convert to a borrowed Surface (requires copying faces due to padding)
     pub fn borrow(&self) -> Surface<'_> {
         Surface {
             points: self.points.as_slice().into(),
-            simplices: self.faces.as_slice().into(),
+            simplices: self.faces.as_slice().iter().map(|&f| f.into()).collect::<Vec<_>>().into(),
             tracks: self.tracks.as_slice().into(),
-            }
+        }
     }
 }
 impl<'py> IntoPyObject<'py> for PySurface {
@@ -298,46 +354,3 @@ impl<'py> IntoPyObject<'py> for PyWire {
             self.points, self.indices, self.tracks, self.groups, self.options))
     }
 }
-
-
-
-
-// #[pymethods]
-// impl Bytes {
-//     /// Buffer protocol implementation
-//     unsafe fn __getbuffer__(
-//         slf: Bound<'_, Self>,
-//         view: *mut ffi::Py_buffer,
-//         flags: c_int,
-//     ) -> PyResult<()> {
-//         let buffer = slf.borrow();
-// 
-//         // Check flags
-//         if flags & ffi::PyBUF_WRITABLE != 0 {
-//             return Err(PyBufferError::new_err("Bytes is read-only"));
-//         }
-// 
-//         // Fill in the buffer info
-//         (*view).buf = buffer.data.as_ptr() as *mut _;
-//         (*view).len = buffer.data.len() as isize;
-//         (*view).itemsize = 1;
-//         (*view).readonly = 1;
-//         (*view).ndim = 1;
-//         (*view).format = buffer.format.as_ptr() as *mut _;
-// 
-//         // Shape and strides for 1D buffer
-//         (*view).shape = ptr::null_mut();
-//         (*view).strides = ptr::null_mut();
-//         (*view).suboffsets = ptr::null_mut();
-//         (*view).internal = ptr::null_mut();
-// 
-//         // Set the object reference to keep the buffer alive
-//         (*view).obj = slf.as_ptr();
-//         ffi::Py_INCREF((*view).obj);
-// 
-//         Ok(())
-//     }
-// 
-//     unsafe fn __releasebuffer__(&self, _view: *mut ffi::Py_buffer) {
-//     }
-// }

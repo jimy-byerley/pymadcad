@@ -17,143 +17,6 @@ def triangulation(outline, normal=None, prec=NUMPREC):
 	return triangulation_closest(outline, normal)
 	
 	
-	
-
-'''
-	skeleting funtions and skeleting triangulations
-	does not work yet on very non convex cases
-'''
-
-def skeleting(outline: Wire, skeleting: callable, prec=NUMPREC) -> [vec2]:
-	''' skeleting procedure for the given wire
-		at each step, the skeleting function is called
-		created points will be added to the wire point buffer and this buffer is returned (ROI)
-		
-		NOTE: yet it only works with near-convex outlines
-	'''
-	l = len(outline)
-	pts = outline.points
-	
-	# edge normals
-	enormals = [perp(normalize(outline[i]-outline[i-1]))	for i in range(l)]
-	# compute half axis starting from each point
-	haxis = []
-	for i in range(l):
-		haxis.append((outline.indices[i], i, (i+1)%l))
-	
-	# create the intersections to update
-	intersect = [(0,0)] * l	# intersection for each edge
-	dist = [-1] * l	# min distance for each edge
-	def eval_intersect(i):
-		o1,a1,b1 = haxis[i-1]
-		o2,a2,b2 = haxis[i]
-		# compute normals to points
-		v1 = enormals[a1]+enormals[b1]
-		v2 = enormals[a2]+enormals[b2]
-		if norminf(v1) < prec:	v1 =  perp(enormals[b1])	# if edges are parallel, take the direction to the shape
-		if norminf(v2) < prec:	v2 = -perp(enormals[b2])
-		# compute the intersection
-		x1,x2 = inverse(dmat2(v1,-v2)) * dvec2(-pts[o1] + pts[o2])
-		if x1 >= -NUMPREC and x2 >= -NUMPREC:
-			intersect[i] = pts[o2] + x2*v2
-			dist[i] = min(x1*length(v1), x2*length(v2))
-		elif isnan(x1) or isnan(x2):
-			intersect[i] = pts[o2]
-			dist[i] = 0
-		else:
-			intersect[i] = None
-			dist[i] = inf
-	for i in range(l):
-		eval_intersect(i)
-	
-	# build skeleton
-	while len(haxis) > 1:
-		print(dist)
-		i = min(range(len(haxis)), key=lambda i:dist[i])
-		assert dist[i] != inf, "no more intersection found (algorithm failure)"
-		o1,a1,b1 = haxis[i-1]
-		o2,a2,b2 = haxis[i]
-		# add the intersection point
-		ip = len(pts)
-		pts.append(intersect[i])
-		# extend skeleton
-		skeleting(haxis, i, ip)
-		# create the new half axis
-		haxis.pop(i)
-		dist.pop(i)
-		intersect.pop(i)
-		haxis[i-1] = (ip, a1, b2)
-		eval_intersect((i-2) % len(haxis))
-		eval_intersect((i-1) % len(haxis))
-		eval_intersect(i % len(haxis))
-		eval_intersect((i+1) % len(haxis))
-		eval_intersect((i+2) % len(haxis))
-	
-	return pts
-
-def skeleton(outline: Wire, prec=NUMPREC) -> Web:
-	''' return a Web that constitute the skeleton of the outline
-		the returned Web uses the same point buffer than the input Wire.
-		created points will be added into it
-		
-		https://en.wikipedia.org/wiki/Straight_skeleton
-		
-		NOTE: yet it only works with near-convex outlines
-	'''
-	skeleton = []
-	#def sk(ip, o1,o2, a1,b1, a2,b2):
-		#skeleton.append((o1,ip))
-		#skeleton.append((o2,ip))
-	def sk(haxis, i, ip):
-		skeleton.append((haxis[i-1][0], ip))
-		skeleton.append((haxis[i][0], ip))
-	pts = skeleting(outline, sk, prec)
-	return Web(pts, skeleton)
-
-def triangulation_skeleton(outline: Wire, prec=NUMPREC) -> Mesh:
-	''' return a Mesh with triangles filling the surface of the outline 
-		the returned Mesh uses the same point buffer than the input Wire
-		
-		NOTE: yet it only works with near-convex outlines
-	'''
-	triangles = []
-	skeleton = []
-	pts = outline.points
-	original = len(pts)
-	minbone = [inf]
-	def sk(haxis, i, ip):
-		triangles.append((haxis[i-2][0], haxis[i-1][0], ip))
-		triangles.append((haxis[i-1][0], haxis[i][0], ip))
-		triangles.append((haxis[i][0], haxis[(i+1)%len(haxis)][0], ip))
-		if   haxis[i-1][0] < original:
-			d = distance(pts[haxis[i-1][0]], pts[ip])
-			if d < minbone[0]:	minbone[0] = d
-		else:
-			skeleton.append((haxis[i-1][0], ip))
-		if haxis[i][0] < original:
-			d = distance(pts[haxis[i][0]], pts[ip])
-			if d < minbone[0]:	minbone[0] = d
-		else:
-			skeleton.append((haxis[i][0], ip))
-	pts = skeleting(outline, sk, prec)
-	m = Mesh(pts, triangles)
-	# merge points from short internal edges
-	minbone = 0.5*minbone[0]
-	merges = {}
-	for a,b in skeleton:
-		if distance(pts[a], pts[b]) < minbone:
-			if   a not in merges:	merges[a] = merges.get(b,b)
-			elif b not in merges:	merges[b] = merges.get(a,a)
-	for k,v in merges.items():
-		while v in merges and merges[v] != v:	
-			if distance(pts[k], pts[v]) > minbone:
-				merges[k] = k
-				merges[v] = v
-				break
-			merges[k] = v = merges[v]
-	m.mergepoints(merges)
-	return m
-
 
 	
 '''
@@ -165,82 +28,29 @@ def triangulation_skeleton(outline: Wire, prec=NUMPREC) -> Mesh:
 def triangulation_outline(outline: Wire, normal=None, prec=None) -> Mesh:
 	''' return a mesh with the triangles formed in the outline
 		the returned mesh uses the same buffer of points than the input
-		
+
 		complexity:  O(n*k)  where k is the number of non convex points
 	'''
 	# get a normal in the right direction for loop winding
 	if not normal:		normal = outline.normal()
 	if prec is None:	prec = outline.precision()
 	# the precision we will use in this function is a surface precision:  maximum edge length * minimum edge length
-	prec = prec**2/NUMPREC 
+	prec = prec**2/NUMPREC
 	# project all points in the plane
 	try:				proj = planeproject(outline, normal)
 	except ValueError:	return Mesh()
-	# reducing contour, indexing proj and outlines.indices
-	hole = list(range(len(outline.indices)))
-	if length2(outline[-1]-outline[0]) <= prec:		hole.pop()
-	
-	# set of remaining non-convexity points, indexing proj
-	l = len(outline.indices)
-	nonconvex = { i
-					for i in hole
-					if perpdot(proj[i]-proj[i-1], proj[(i+1)%l]-proj[i]) <= prec
-					}
-	
-	def priority(u,v):
-		''' priority criterion for 2D triangles, depending on its shape
-		'''
-		uv = length(u)*length(v)
-		if not uv:	return 0
-		return (dot(u,v) + uv) / uv**2
-	
-	def score(i):
-		l = len(hole)
-		o = proj[hole[ i ]]
-		u = proj[hole[ (i+1)%l ]] - o
-		v = proj[hole[ (i-1)%l ]] - o
-		triangle = (hole[(i-1)%l], hole[i], hole[(i+1)%l])
-		
-		# check for badly oriented triangle
-		if perpdot(u,v) < -prec:
-			return -inf
-		# check for intersection with the rest
-		elif perpdot(u,v) > prec:
-			# check that there is not point of the outline inside the triangle
-			for j in nonconvex:
-				if j not in triangle:
-					for k in range(3):
-						a,b = proj[triangle[k]], proj[triangle[k-1]]
-						s = perpdot(a-b, proj[j]-a)
-						if k == 1:	s -= 2*prec
-						if s <= -prec:
-							break
-					else:
-						return -inf
-		# flat triangles that change direction are forbidden, it must be considered as a +360° angle and not a 0° angle
-		elif dot(u,v) >= prec:
-			return -inf
-		return priority(u,v)
-	scores = [score(i) for i in range(len(hole))]
-	
-	triangles = typedlist(dtype=uvec3)
-	while len(hole) > 2:
-		l = len(hole)
-		i = imax(scores)
-		if scores[i] == -inf:
-			raise TriangulationError("no more feasible triangles (algorithm failure or bad input outline)", [outline.indices[i] for i in hole])
-		
-		triangles.append(uvec3(
-			outline.indices[hole[(i-1)%l]], 
-			outline.indices[hole[i]], 
-			outline.indices[hole[(i+1)%l]],
-			))
-		nonconvex.discard(hole.pop(i))
-		scores.pop(i)
-		l -= 1
-		scores[(i-1)%l] = score((i-1)%l)
-		scores[i%l] = score(i%l)
-	
+
+	# use rust implementation
+	from . import core
+	try:
+		triangles_raw = core.triangulation_loop_d2(proj, prec)
+	except core.TriangulationError as e:
+		raise TriangulationError("no more feasible triangles (algorithm failure or bad input outline)", e.args[0])
+
+	# map indices from proj space back to outline.indices
+	indices = outline.indices
+	triangles = typedlist((uvec3(indices[t[0]], indices[t[1]], indices[t[2]]) for t in triangles_raw), dtype=uvec3)
+
 	return Mesh(outline.points, triangles)
 
 def planeproject(pts, normal=None):

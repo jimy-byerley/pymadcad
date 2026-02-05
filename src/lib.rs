@@ -29,7 +29,6 @@ mod core {
     use super::*;
     use crate::{
         math::*,
-        mesh::*,
         buffer::*,
         };
 
@@ -38,19 +37,19 @@ mod core {
     
     #[pymodule_export]
     use super::TriangulationError;
-    
+
     #[pyfunction]
     fn triangulation_loop_d2(
         py: Python<'_>,
-        points: PyTypedList<Vec2>, 
-        indices: PyTypedList<Index>, 
-        normal: PyVec3, 
+        points: PyTypedList<Vec2>,
         prec: Float,
-    ) -> PyResult<PyTypedList<UVec3>> {
-        let simplices = may_detach(py, indices.len() > 1_000, ||
-            super::triangulation::triangulation_loop_d2(points.as_slice(), indices.as_slice(), *normal, prec))
+    ) -> PyResult<PyTypedList<PaddedUVec3>> {
+        let simplices = may_detach(py, points.len() > 1_000, ||
+            super::triangulation::triangulation_loop_d2(points.as_slice(), prec))
             .map_err(|remains|  TriangulationError::new_err(format!("triangulation failed, remaining outline: {:?}", remains)))?;
-        PyTypedList::new(py, simplices)
+        // Convert to padded format for Python compatibility
+        let padded: Vec<PaddedUVec3> = simplices.into_iter().map(|v| v.into()).collect();
+        PyTypedList::new(py, padded)
     }
 /*
     #[pyfunction]
