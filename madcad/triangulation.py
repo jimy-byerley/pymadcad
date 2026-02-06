@@ -4,9 +4,11 @@ from math import inf
 from .mathutils import *
 from .mesh import Mesh, Web, Wire, MeshError, web
 from .hashing import *
+from . import core
 
 from copy import copy
 from operator import itemgetter
+
 
 
 class TriangulationError(Exception):	pass
@@ -41,15 +43,14 @@ def triangulation_outline(outline: Wire, normal=None, prec=None) -> Mesh:
 	except ValueError:	return Mesh()
 
 	# use rust implementation
-	from . import core
 	try:
-		triangles_raw = core.triangulation_loop_d2(proj, prec)
+		simplices = core.triangulation_loop_d2(proj, prec)
 	except core.TriangulationError as e:
-		raise TriangulationError("no more feasible triangles (algorithm failure or bad input outline)", e.args[0])
+		raise TriangulationError("no more feasible triangles (algorithm failure or bad input outline)", e.args[0]) from e
 
 	# map indices from proj space back to outline.indices
 	indices = outline.indices
-	triangles = typedlist((uvec3(indices[t[0]], indices[t[1]], indices[t[2]]) for t in triangles_raw), dtype=uvec3)
+	triangles = typedlist((uvec3(indices[t[0]], indices[t[1]], indices[t[2]]) for t in simplices), dtype=uvec3)
 
 	return Mesh(outline.points, triangles)
 
