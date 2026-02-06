@@ -28,7 +28,8 @@ pub fn triangulation_loop_d2(
         let last_idx = hole.len() - 1;
         let first = points[hole[0]];
         let last = points[hole[last_idx]];
-        if (last - first).square_length() <= prec {
+        // inverted condition to handle possible nan
+        if ! ((last - first).square_length() > prec) {
             hole.pop();
         }
     }
