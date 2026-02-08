@@ -6,11 +6,18 @@
 
 use crate::math::*;
 use crate::hashing::{Asso, connpe};
+use crate::mesh::simplex_flip;
 
 use std::collections::HashSet;
 use std::f64::consts::PI;
 use rustc_hash::{FxHashMap, FxHashSet};
 use multiversion::multiversion;
+use ghx_constrained_delaunay::{
+    constrained_triangulation_from_2d_vertices,
+    constrained_triangulation::ConstrainedTriangulationConfiguration,
+    types::Edge as CdtEdge,
+    glam::DVec2 as CdtVec,
+};
 
 
 /// Triangulate a wire outline into a surface mesh
@@ -482,54 +489,106 @@ pub fn flat_loops(
 
 /// Triangulate a web of edges (possibly with multiple disconnected loops/holes).
 ///
-/// Takes raw points and edges, finds bridges between disconnected components,
-/// extracts oriented loops, projects each loop to 2D, and triangulates.
+/// Uses constrained Delaunay triangulation to handle disconnected components
+/// and holes natively, without needing bridge edges or loop extraction.
 ///
 /// Returns triangle indices into the original `points` array.
+#[multiversion(targets = "simd")]
 pub fn triangulation_closest(
+    points: &[Vec3],
+    edges: &[UVec2],
+    normal: Vec3,
+    _prec: Float,
+) -> Result<Vec<UVec3>, String> {
+    if edges.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let (x, y, _) = dirbase(normal, None);
+
+    // collect unique point indices referenced by edges, preserving order
+    let mut local_to_global: Vec<Index> = Vec::with_capacity(edges.len()*2);
+    let mut global_to_local: FxHashMap<Index, u32> = FxHashMap::default();
+    global_to_local.reserve(edges.len()*2);
+    for e in edges {
+        for &i in e.as_array() {
+            if !global_to_local.contains_key(&i) {
+                global_to_local.insert(i, local_to_global.len() as u32);
+                local_to_global.push(i);
+            }
+        }
+    }
+
+    if local_to_global.len() < 3 {
+        return Ok(Vec::new());
+    }
+
+    // project points to 2D
+    let vertices = local_to_global
+        .iter()
+        .map(|&i|  points[i as usize])
+        .map(|p| CdtVec::new(p.dot(x), p.dot(y)))
+        .collect::<Vec<_>>();
+
+    // deduplicate bidirectional edges (keep only one direction) to avoid confusing the filter, but keep winding for non duplicate edges
+    let mut constraints = FxHashSet::default();
+    constraints.reserve(edges.len());
+    for edge in edges.iter() {
+        if ! constraints.contains(&simplex_flip(*edge.as_array())) {
+            constraints.insert(*edge.as_array());
+        }
+    }
+    // convert to GHX edges, and flip to follow its clockwise winding convention
+    let constraints = constraints.iter()
+        .map(|&e| simplex_flip(e))
+        .map(|e| CdtEdge::new(global_to_local[&e[0]], global_to_local[&e[1]]))
+        .collect::<Vec<_>>();
+    
+    // build constrained Delaunay triangulation
+    match constrained_triangulation_from_2d_vertices(
+        &vertices,
+        &constraints,
+        ConstrainedTriangulationConfiguration::default(),
+    ) {
+        Ok(triangulation) => {
+            // map local indices back to global, reversing winding (ghx produces CW, madcad uses CCW)
+            Ok(triangulation.triangles
+                .iter()
+                .map(|tri| Vector::from(simplex_flip(tri.map(|i| local_to_global[i as usize]))))
+                .collect())
+        }
+        Err(_) => {
+            // fallback to line_bridges + flat_loops + ear-clipping for degenerate inputs
+            // TODO find a way to handle this case in the first scope, without ear clipping algorithm
+            triangulation_closest_fallback(points, edges, normal, _prec)
+        }
+    }
+}
+
+/// Fallback triangulation using line_bridges + flat_loops + ear-clipping.
+/// Used when CDT fails (e.g. crossing constraint edges from repeated boolean ops).
+fn triangulation_closest_fallback(
     points: &[Vec3],
     edges: &[UVec2],
     normal: Vec3,
     prec: Float,
 ) -> Result<Vec<UVec3>, String> {
     let (x, y, _) = dirbase(normal, None);
-
-    // find bridge edges to connect disconnected components
     let bridges = line_bridges(points, edges);
-
-    // combine original edges with bridges
     let mut all_edges: Vec<UVec2> = edges.to_vec();
     all_edges.extend_from_slice(&bridges);
-
-    // extract flat oriented loops
     let loops = flat_loops(points, &all_edges, normal)?;
-
-    // surface precision for triangulation_loop_d2
     let surface_prec = prec * prec / NUMPREC;
-
     let mut result = Vec::new();
-
     for loop_indices in &loops {
-        if loop_indices.len() < 3 {
-            continue;
-        }
-
-        // project loop points to 2D
-        let proj: Vec<Vec2> = loop_indices
-            .iter()
-            .map(|&idx| {
-                let p = points[idx as usize];
-                Vec2::from([p.dot(x), p.dot(y)])
-            })
+        if loop_indices.len() < 3 { continue; }
+        let proj: Vec<Vec2> = loop_indices.iter()
+            .map(|&i| { let p = points[i as usize]; Vec2::from([p.dot(x), p.dot(y)]) })
             .collect();
-
-        // triangulate and map local indices back to original point indices
         let simplices = triangulation_loop_d2(&proj, surface_prec)
             .map_err(|_| format!("triangulation failed for loop of {} points", loop_indices.len()))?;
-        result.extend(simplices.iter()
-            .map(|simplex| simplex.map(|i| loop_indices[i as usize])));
+        result.extend(simplices.iter().map(|simplex| simplex.map(|i| loop_indices[i as usize])));
     }
-
     Ok(result)
 }
 

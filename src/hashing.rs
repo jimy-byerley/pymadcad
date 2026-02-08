@@ -463,12 +463,8 @@ impl PointSet {
 // ---- Connectivity Helpers ----
 
 /// Return a key for a non-directional edge (sorted pair)
-pub fn edgekey(a: Index, b: Index) -> [Index; 2] {
-    if a < b {
-        [a, b]
-    } else {
-        [b, a]
-    }
+pub fn edgekey<T: PartialOrd + Copy>(e: [T; 2]) -> [T; 2] {
+    if e[0] <= e[1] { e } else { [e[1], e[0]] }
 }
 
 /// Point to point connectivity.
@@ -825,8 +821,8 @@ mod tests {
 
     #[test]
     fn test_edgekey() {
-        assert_eq!(edgekey(3, 1), [1, 3]);
-        assert_eq!(edgekey(1, 3), [1, 3]);
+        assert_eq!(edgekey([3, 1]), [1, 3]);
+        assert_eq!(edgekey([1, 3]), [1, 3]);
     }
 
     #[test]

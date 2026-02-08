@@ -5,6 +5,7 @@
 */
 
 use crate::math::*;
+use crate::hashing::edgekey;
 
 use heapless::Vec as SVec;
 // use multiversion::multiversion;
@@ -109,7 +110,7 @@ pub fn rasterize_segment(space: &[Vec3; 2], cell: Float) -> Result<Vec<IVec3>, &
         let z = zmin + cell * i as Float + cell2;
 
         // y range at this z band
-        let (mut ymin, mut ymax) = sort2(fy(z - cell2), fy(z + cell2));
+        let [mut ymin, mut ymax] = edgekey([fy(z - cell2), fy(z + cell2)]);
         ymin -= prec;
         ymax += prec;
         ymin = snap_down(ymin, cell);
@@ -118,7 +119,7 @@ pub fn rasterize_segment(space: &[Vec3; 2], cell: Float) -> Result<Vec<IVec3>, &
             let y = ymin + j as Float * cell + cell2;
 
             // x range at this z band
-            let (mut xmin, mut xmax) = sort2(fx(z - cell2), fx(z + cell2));
+            let [mut xmin, mut xmax] = edgekey([fx(z - cell2), fx(z + cell2)]);
             xmin -= prec;
             xmax += prec;
             xmin = snap_down(xmin, cell);
@@ -134,10 +135,6 @@ pub fn rasterize_segment(space: &[Vec3; 2], cell: Float) -> Result<Vec<IVec3>, &
     Ok(result)
 }
 
-/// Sort two floats into (min, max)
-fn sort2(a: Float, b: Float) -> (Float, Float) {
-    if a <= b { (a, b) } else { (b, a) }
-}
 
 
 /// Return a list of hashing keys for a triangle (three 3D points).

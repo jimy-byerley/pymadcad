@@ -395,7 +395,7 @@ pub fn cut_surface(
 
         // Flood-fill flat coplanar region
         currentgrp += 1;
-        let mut surf: Vec<usize> = Vec::new();
+        let mut surf: Vec<usize> = Vec::with_capacity(2); // in majority we will have a triangle or quad
         let mut front = vec![i];
 
         while let Some(fi) = front.pop() {
@@ -417,6 +417,7 @@ pub fn cut_surface(
 
         // Get oriented outline: boundary edges of the flat region
         let mut outline: FxHashSet<[Index; 2]> = FxHashSet::default();
+        outline.reserve(surf.len());
         for &f1 in &surf {
             let f = *m1.simplices[f1].as_array();
             for rolled in simplex_roll(f) {
@@ -490,8 +491,8 @@ pub fn cut_surface(
         }
 
         // Build intersection edge/track vectors
-        let mut segt_edges: Vec<UVec2> = Vec::new();
-        let mut segt_tracks: Vec<Index> = Vec::new();
+        let mut segt_edges: Vec<UVec2> = Vec::with_capacity(segts.len());
+        let mut segt_tracks: Vec<Index> = Vec::with_capacity(segts.len());
         for (&seg, &f2) in &segts {
             segt_edges.push(UVec2::from(seg));
             segt_tracks.push(f2 as Index);
@@ -506,7 +507,7 @@ pub fn cut_surface(
         frontier_tracks.extend_from_slice(&segt_tracks);
 
         // Build edges for triangulation: intersection (both dirs) + outline
-        let mut tri_edges: Vec<UVec2> = Vec::new();
+        let mut tri_edges: Vec<UVec2> = Vec::with_capacity(segt_edges.len()*2 + outline.len());
         for e in &segt_edges {
             tri_edges.push(*e);
             tri_edges.push(UVec2::from([e[1], e[0]]));
@@ -571,7 +572,7 @@ pub fn pierce_surface(
     let mut conn1 = connef(&faces_raw);
 
     let stops: FxHashSet<[Index; 2]> = frontier.simplices.iter()
-        .map(|e| edgekey(e[0], e[1]))
+        .map(|e| edgekey([e[0], e[1]]))
         .collect();
 
     let mut used: Vec<i32> = vec![0; cut.simplices.len()];
@@ -622,7 +623,7 @@ pub fn pierce_surface(
     }
 
     // Filter front: remove edges on the frontier stops
-    front.retain(|e| !stops.contains(&edgekey(e[0], e[1])));
+    front.retain(|e| !stops.contains(&edgekey(*e)));
 
     // Propagation
     while !front.is_empty() {
@@ -649,7 +650,7 @@ pub fn pierce_surface(
 
                     let f = *cut.simplices[fi].as_array();
                     for rolled in simplex_roll(f) {
-                        if !stops.contains(&edgekey(rolled[2], rolled[0])) {
+                        if !stops.contains(&edgekey([rolled[2], rolled[0]])) {
                             conn1.insert([rolled[2], rolled[0]], fi);
                             newfront.push([rolled[0], rolled[2]]);
                         }

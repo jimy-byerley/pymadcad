@@ -170,8 +170,8 @@ pub fn simplex_roll<T: Copy, const N: usize>(simplex: [T; N]) -> [[T; N]; N] {
     std::array::from_fn(|i| std::array::from_fn(|j| simplex[(i + j) % N]))
 }
 
-/// revert the simplex orientation (direction for edge, normal for triangle)
-pub fn simplex_revert<T: Copy, const N: usize>(mut simplex: [T; N]) -> [T; N] {
+/// flip the simplex orientation (direction for edge, normal for triangle)
+pub fn simplex_flip<T: Copy, const N: usize>(mut simplex: [T; N]) -> [T; N] {
     (simplex[1], simplex[0]) = (simplex[0], simplex[1]);
     simplex
 }
