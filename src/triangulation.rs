@@ -161,7 +161,7 @@ fn is_finite_vec(v: Vec3) -> bool {
 }
 
 /// Point-to-edge segment distance
-fn distance_pe(pt: Vec3, edge: &[Vec3; 2]) -> Float {
+pub fn distance_pe(pt: Vec3, edge: &[Vec3; 2]) -> Float {
     let dir = edge[1] - edge[0];
     let l = dir.square_length();
     if l == 0.0 {

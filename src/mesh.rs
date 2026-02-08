@@ -85,6 +85,20 @@ impl<'a, const D: usize, const S: usize> Mesh<'a, D, S> {
                 .map(|i|  self.points[i as usize])
                 )
     }
+
+    /// Get the D-dimensional points of simplex `si`
+    pub fn simplexpoints(&self, si: usize) -> [Vector<Float, D>; S] {
+        self.simplices[si].as_array().map(|i|  self.points[i as usize])
+    }
+}
+
+// Specific implementations for Surface
+impl Surface<'_> {
+    /// Get the unit normal of face `fi`
+    pub fn facenormal(&self, fi: usize) -> Vec3 {
+        let [a, b, c] = self.simplexpoints(fi);
+        (b - a).cross(c - a).normalize()
+    }
 }
 
 // Specific implementations for Wire (used by triangulation_outline)
