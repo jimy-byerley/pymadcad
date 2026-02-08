@@ -500,6 +500,7 @@ pub fn connpp(ngons: &[impl AsRef<[Index]>]) -> FxHashMap<Index, Vec<Index>> {
 /// that contains it. Later faces overwrite earlier ones for the same edge.
 pub fn connef(faces: &[[Index; 3]]) -> FxHashMap<[Index; 2], usize> {
     let mut conn = FxHashMap::default();
+    conn.reserve(faces.len()*3);
     for (i, f) in faces.iter().enumerate() {
         for rolled in simplex_roll(*f) {
             conn.insert([rolled[0], rolled[1]], i);

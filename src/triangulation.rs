@@ -481,6 +481,38 @@ pub fn flat_loops(
 }
 
 
+/// Classify faces of a CDT as outside (reachable from the outer face without crossing constraints).
+///
+/// Returns a Vec<bool> indexed by face index, where `true` means outside.
+fn classify_outer(cdt: &ConstrainedDelaunayTriangulation<Point2<Float>>) -> Vec<bool> {
+    let mut outside = vec![false; cdt.all_faces().count()];
+    let mut queue = std::collections::VecDeque::new();
+    let outer_idx = cdt.outer_face().fix().index();
+    outside[outer_idx] = true;
+    queue.push_back(cdt.outer_face().fix());
+
+    while let Some(face_fixed) = queue.pop_front() {
+        let face = cdt.face(face_fixed);
+        let edges = if let Some(e0) = face.adjacent_edge() {
+            [Some(e0), Some(e0.next()), Some(e0.prev())]
+        } else {
+            [None, None, None]
+        };
+        for edge in edges.into_iter().flatten() {
+            if edge.as_undirected().is_constraint_edge() {
+                continue;
+            }
+            let neighbor_idx = edge.rev().face().fix().index();
+            if !outside[neighbor_idx] {
+                outside[neighbor_idx] = true;
+                queue.push_back(edge.rev().face().fix());
+            }
+        }
+    }
+    outside
+}
+
+
 /// Triangulate a web of edges (possibly with multiple disconnected loops/holes).
 ///
 /// Uses constrained Delaunay triangulation: all edges are inserted as constraints,
@@ -503,26 +535,27 @@ pub fn triangulation_closest(
     let (x, y, _) = dirbase(normal, None);
 
     // collect unique point indices referenced by edges, preserving order
-    let mut global_indices: Vec<Index> = Vec::new();
+    let mut local_to_global: Vec<Index> = Vec::with_capacity(edges.len()*2);
     let mut global_to_local: FxHashMap<Index, usize> = FxHashMap::default();
+    global_to_local.reserve(edges.len()*2);
     for e in edges {
-        for &idx in e.as_array() {
-            if !global_to_local.contains_key(&idx) {
-                global_to_local.insert(idx, global_indices.len());
-                global_indices.push(idx);
+        for &i in e.as_array() {
+            if !global_to_local.contains_key(&i) {
+                global_to_local.insert(i, local_to_global.len());
+                local_to_global.push(i);
             }
         }
     }
 
-    if global_indices.len() < 3 {
+    if local_to_global.len() < 3 {
         return Ok(Vec::new());
     }
 
     // project points to 2D and convert to spade Point2
-    let vertices: Vec<Point2<Float>> = global_indices
+    let vertices: Vec<Point2<Float>> = local_to_global
         .iter()
-        .map(|&idx| {
-            let p = points[idx as usize];
+        .map(|&i| {
+            let p = points[i as usize];
             Point2::new(p.dot(x), p.dot(y))
         })
         .collect();
@@ -539,47 +572,13 @@ pub fn triangulation_closest(
         constraint_edges,
     ).map_err(|e| format!("CDT construction failed: {:?}", e))?;
 
-    // flood-fill from outer face to find faces outside the constrained boundary
-    let num_faces = cdt.all_faces().count();
-    let mut outside = vec![false; num_faces];
-
-    // BFS from the outer face
-    let mut queue = std::collections::VecDeque::new();
-    let outer_idx = cdt.outer_face().fix().index();
-    outside[outer_idx] = true;
-    queue.push_back(cdt.outer_face().fix());
-
-    while let Some(face_fixed) = queue.pop_front() {
-        let face = cdt.face(face_fixed);
-        // iterate the 3 edges of this face via adjacent_edge + next + prev
-        let edges_of_face = if let Some(e0) = face.adjacent_edge() {
-            let e1 = e0.next();
-            let e2 = e0.prev();
-            vec![e0, e1, e2]
-        } else {
-            vec![]
-        };
-        for edge in edges_of_face {
-            if edge.as_undirected().is_constraint_edge() {
-                continue; // don't cross constraint edges
-            }
-            let neighbor = edge.rev().face();
-            let neighbor_idx = neighbor.fix().index();
-            if !outside[neighbor_idx] {
-                outside[neighbor_idx] = true;
-                queue.push_back(neighbor.fix());
-            }
-        }
-    }
+    let outside = classify_outer(&cdt);
 
     // collect inner faces that are inside the boundary
-    let mut result = Vec::new();
-    for face in cdt.inner_faces() {
-        if outside[face.fix().index()] {
-            continue;
-        }
-        result.push(Vector::from(face.vertices().map(|v| global_indices[v.fix().index()])));
-    }
+    let result = cdt.inner_faces()
+        .filter(|face| !outside[face.fix().index()])
+        .map(|face| Vector::from(face.vertices().map(|v| local_to_global[v.fix().index()])))
+        .collect::<Vec<_>>();
 
     Ok(result)
 }
