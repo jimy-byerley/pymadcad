@@ -5,6 +5,7 @@
 */
 
 use crate::math::*;
+use crate::mesh::simplex_roll;
 use crate::rasterize::{self, IVec3};
 use rustc_hash::FxHashMap;
 
@@ -462,43 +463,23 @@ impl PointSet {
 // ---- Connectivity Helpers ----
 
 /// Return a key for a non-directional edge (sorted pair)
-pub fn edgekey(a: Index, b: Index) -> (Index, Index) {
+pub fn edgekey(a: Index, b: Index) -> [Index; 2] {
     if a < b {
-        (a, b)
+        [a, b]
     } else {
-        (b, a)
+        [b, a]
     }
 }
 
 /// Return a key for an oriented face (rotated so smallest index is first,
 /// preserving cyclic order)
-pub fn facekeyo(a: Index, b: Index, c: Index) -> (Index, Index, Index) {
+pub fn facekeyo(a: Index, b: Index, c: Index) -> [Index; 3] {
     if a < b && b < c {
-        (a, b, c)
+        [a, b, c]
     } else if a < b {
-        (c, a, b)
+        [c, a, b]
     } else {
-        (b, c, a)
-    }
-}
-
-/// Return the face indices rotated so `p` is the first index (if `p` is in the face)
-pub fn arrangeface(f: [Index; 3], p: Index) -> [Index; 3] {
-    if p == f[1] {
-        [f[1], f[2], f[0]]
-    } else if p == f[2] {
-        [f[2], f[0], f[1]]
-    } else {
-        f
-    }
-}
-
-/// Return the edge indices rotated so `p` is the first index (if `p` is in the edge)
-pub fn arrangeedge(e: [Index; 2], p: Index) -> [Index; 2] {
-    if p == e[1] {
-        [e[1], e[0]]
-    } else {
-        e
+        [b, c, a]
     }
 }
 
@@ -529,12 +510,12 @@ pub fn connpp(ngons: &[impl AsRef<[Index]>]) -> FxHashMap<Index, Vec<Index>> {
 ///
 /// Maps each directed edge (as a pair of vertex indices) to the face index
 /// that contains it. Later faces overwrite earlier ones for the same edge.
-pub fn connef(faces: &[[Index; 3]]) -> FxHashMap<(Index, Index), usize> {
+pub fn connef(faces: &[[Index; 3]]) -> FxHashMap<[Index; 2], usize> {
     let mut conn = FxHashMap::default();
     for (i, f) in faces.iter().enumerate() {
-        conn.insert((f[0], f[1]), i);
-        conn.insert((f[1], f[2]), i);
-        conn.insert((f[2], f[0]), i);
+        for rolled in simplex_roll(*f) {
+            conn.insert([rolled[0], rolled[1]], i);
+        }
     }
     conn
 }
@@ -852,28 +833,15 @@ mod tests {
 
     #[test]
     fn test_edgekey() {
-        assert_eq!(edgekey(3, 1), (1, 3));
-        assert_eq!(edgekey(1, 3), (1, 3));
+        assert_eq!(edgekey(3, 1), [1, 3]);
+        assert_eq!(edgekey(1, 3), [1, 3]);
     }
 
     #[test]
     fn test_facekeyo() {
-        assert_eq!(facekeyo(0, 1, 2), (0, 1, 2));
-        assert_eq!(facekeyo(1, 2, 0), (0, 1, 2));
-        assert_eq!(facekeyo(2, 0, 1), (0, 1, 2));
-    }
-
-    #[test]
-    fn test_arrangeface() {
-        assert_eq!(arrangeface([0, 1, 2], 0), [0, 1, 2]);
-        assert_eq!(arrangeface([0, 1, 2], 1), [1, 2, 0]);
-        assert_eq!(arrangeface([0, 1, 2], 2), [2, 0, 1]);
-    }
-
-    #[test]
-    fn test_arrangeedge() {
-        assert_eq!(arrangeedge([0, 1], 0), [0, 1]);
-        assert_eq!(arrangeedge([0, 1], 1), [1, 0]);
+        assert_eq!(facekeyo(0, 1, 2), [0, 1, 2]);
+        assert_eq!(facekeyo(1, 2, 0), [0, 1, 2]);
+        assert_eq!(facekeyo(2, 0, 1), [0, 1, 2]);
     }
 
     #[test]
@@ -891,9 +859,9 @@ mod tests {
     fn test_connef() {
         let faces = vec![[0u32, 1, 2]];
         let conn = connef(&faces);
-        assert_eq!(conn[&(0, 1)], 0);
-        assert_eq!(conn[&(1, 2)], 0);
-        assert_eq!(conn[&(2, 0)], 0);
+        assert_eq!(conn[&[0, 1]], 0);
+        assert_eq!(conn[&[1, 2]], 0);
+        assert_eq!(conn[&[2, 0]], 0);
     }
 
     #[test]

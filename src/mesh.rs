@@ -153,3 +153,60 @@ impl Wire<'_> {
         area.normalize()
     }
 }
+
+
+/// Roll the simplex so that the given item is first
+pub fn simplex_phase<T: Copy + PartialEq, const N: usize>(simplex: [T; N], first: T) -> [T; N] {
+    for i in 0..N {
+        if simplex[i] == first {
+            return std::array::from_fn(|j| simplex[(j + i) % N]);
+        }
+    }
+    panic!("requested first item not in simplex");
+}
+
+/// Return all possible rolls of the simplex
+pub fn simplex_roll<T: Copy, const N: usize>(simplex: [T; N]) -> [[T; N]; N] {
+    std::array::from_fn(|i| std::array::from_fn(|j| simplex[(i + j) % N]))
+}
+
+/// revert the simplex orientation (direction for edge, normal for triangle)
+pub fn simplex_revert<T: Copy, const N: usize>(mut simplex: [T; N]) -> [T; N] {
+    (simplex[1], simplex[0]) = (simplex[0], simplex[1]);
+    simplex
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_simplex_phase_face() {
+        assert_eq!(simplex_phase([0, 1, 2], 0), [0, 1, 2]);
+        assert_eq!(simplex_phase([0, 1, 2], 1), [1, 2, 0]);
+        assert_eq!(simplex_phase([0, 1, 2], 2), [2, 0, 1]);
+    }
+
+    #[test]
+    fn test_simplex_phase_edge() {
+        assert_eq!(simplex_phase([0, 1], 0), [0, 1]);
+        assert_eq!(simplex_phase([0, 1], 1), [1, 0]);
+    }
+
+    #[test]
+    fn test_simplex_roll_face() {
+        assert_eq!(
+            simplex_roll([0, 1, 2]),
+            [[0, 1, 2], [1, 2, 0], [2, 0, 1]],
+        );
+    }
+
+    #[test]
+    fn test_simplex_roll_edge() {
+        assert_eq!(
+            simplex_roll([0, 1]),
+            [[0, 1], [1, 0]],
+        );
+    }
+}

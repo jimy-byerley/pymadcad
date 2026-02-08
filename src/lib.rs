@@ -8,7 +8,7 @@
 // modules mirroring python ones
 pub mod bevel;
 pub mod boolean;
-pub mod buffer;
+pub mod wrapping;
 pub mod hashing;
 pub mod math;
 pub mod mesh;
@@ -32,14 +32,14 @@ mod core {
     use super::*;
     use crate::{
         math::*,
-        buffer::*,
+        wrapping::*,
         };
         
     #[pymodule_export]
     use crate::test::test;
 
     #[pymodule_export]
-    use super::buffer::Bytes;
+    use super::wrapping::Bytes;
     
     #[pymodule_export]
     use super::TriangulationError;

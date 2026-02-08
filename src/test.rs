@@ -3,7 +3,7 @@
 
 use pyo3::prelude::*;
 use crate::math::*;
-use crate::buffer::*;
+use crate::wrapping::*;
 
 #[pymodule]
 pub mod test {

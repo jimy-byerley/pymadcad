@@ -161,7 +161,7 @@ fn is_finite_vec(v: Vec3) -> bool {
 }
 
 /// Point-to-edge segment distance
-pub fn distance_pe(pt: Vec3, edge: &[Vec3; 2]) -> Float {
+pub fn distance_pe(pt: Vec3, edge: [Vec3; 2]) -> Float {
     let dir = edge[1] - edge[0];
     let l = dir.square_length();
     if l == 0.0 {
@@ -267,7 +267,7 @@ pub fn line_bridges(points: &[Vec3], edges: &[UVec2]) -> Vec<UVec2> {
                         points[edges[ma][0] as usize],
                         points[edges[ma][1] as usize],
                     ];
-                    let d = distance_pe(points[s as usize], &ep);
+                    let d = distance_pe(points[s as usize], ep);
                     if d < best_score {
                         let e = edges[ma];
                         best_score = d;
@@ -297,7 +297,7 @@ pub fn line_bridges(points: &[Vec3], edges: &[UVec2]) -> Vec<UVec2> {
                     points[edges[e_idx][1] as usize],
                 ];
                 for &ma in &remain_points {
-                    let d = distance_pe(points[ma as usize], &ep);
+                    let d = distance_pe(points[ma as usize], ep);
                     if d < best_score {
                         let e = edges[e_idx];
                         best_score = d;
@@ -547,7 +547,7 @@ mod tests {
             Vec3::from([2.0, 0.0, 0.0]),
         ];
         // point directly above middle of segment
-        let d = distance_pe(Vec3::from([1.0, 1.0, 0.0]), &edge);
+        let d = distance_pe(Vec3::from([1.0, 1.0, 0.0]), edge);
         assert!((d - 1.0).abs() < 1e-10);
     }
 
@@ -558,7 +558,7 @@ mod tests {
             Vec3::from([2.0, 0.0, 0.0]),
         ];
         // point behind start of segment
-        let d = distance_pe(Vec3::from([-1.0, 0.0, 0.0]), &edge);
+        let d = distance_pe(Vec3::from([-1.0, 0.0, 0.0]), edge);
         assert!((d - 1.0).abs() < 1e-10);
     }
 
@@ -569,7 +569,7 @@ mod tests {
             Vec3::from([2.0, 0.0, 0.0]),
         ];
         // point beyond end of segment
-        let d = distance_pe(Vec3::from([3.0, 0.0, 0.0]), &edge);
+        let d = distance_pe(Vec3::from([3.0, 0.0, 0.0]), edge);
         assert!((d - 1.0).abs() < 1e-10);
     }
 

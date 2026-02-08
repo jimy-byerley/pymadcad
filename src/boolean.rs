@@ -270,7 +270,7 @@ fn line_simplification(
             let height = noproject(
                 points[c as usize] - points[b as usize],
                 points[c as usize] - points[a as usize],
-            ).square_length().sqrt();
+            ).length();
 
             if height > prec {
                 s = b;
@@ -287,7 +287,7 @@ fn line_simplification(
             let height = noproject(
                 points[c as usize] - points[b as usize],
                 points[c as usize] - points[a as usize],
-            ).square_length().sqrt();
+            ).length();
             if height <= prec {
                 merges.insert(b, a);
             }
@@ -334,53 +334,6 @@ fn apply_merges(
     }
 }
 
-
-/// Orient edges to form consistent loops.
-///
-/// After line_simplification + apply_merges, some edges may be reversed due to
-/// non-deterministic chain traversal order in suites. This function fixes the
-/// orientation by traversing the undirected graph and making each edge follow
-/// the previous one's direction.
-///
-/// Assumes edges form one or more simple loops (each vertex has degree 2).
-fn orient_edges(edges: &mut [UVec2]) {
-    if edges.len() < 2 { return; }
-
-    // Build undirected adjacency: point → list of (edge_index, other_point)
-    let mut adj: FxHashMap<Index, Vec<(usize, Index)>> = FxHashMap::default();
-    for (i, e) in edges.iter().enumerate() {
-        adj.entry(e[0]).or_default().push((i, e[1]));
-        adj.entry(e[1]).or_default().push((i, e[0]));
-    }
-
-    let mut visited = vec![false; edges.len()];
-
-    for start_idx in 0..edges.len() {
-        if visited[start_idx] { continue; }
-        visited[start_idx] = true;
-
-        // Follow the chain from the end of the start edge
-        let mut current = edges[start_idx][1];
-
-        loop {
-            // Find unvisited neighbor of current
-            let next = adj.get(&current)
-                .and_then(|neighbors| neighbors.iter().find(|(ei, _)| !visited[*ei]));
-
-            match next {
-                Some(&(ei, other)) => {
-                    // Orient: current should be the source
-                    if edges[ei][0] != current {
-                        edges[ei] = UVec2::from([edges[ei][1], edges[ei][0]]);
-                    }
-                    visited[ei] = true;
-                    current = other;
-                }
-                None => break,
-            }
-        }
-    }
-}
 
 
 // ---- cut_surface ----
@@ -455,30 +408,31 @@ pub fn cut_surface(
             surf.push(fi);
             grp[fi] = currentgrp;
 
-            let f = m1.simplices[fi];
-            for &(a, b) in &[(f[1], f[0]), (f[2], f[1]), (f[0], f[2])] {
-                if let Some(&next) = conn.get(&(a, b)) {
+            for rolled in simplex_roll(*m1.simplices[fi].as_array()) {
+                let e = [rolled[1], rolled[0]];
+                if let Some(&next) = conn.get(&e) {
                     front.push(next);
                 }
             }
         }
 
         // Get oriented outline: boundary edges of the flat region
-        let mut outline: FxHashSet<(Index, Index)> = FxHashSet::default();
+        let mut outline: FxHashSet<[Index; 2]> = FxHashSet::default();
         for &f1 in &surf {
-            let f = m1.simplices[f1];
-            for &(a, b) in &[(f[1], f[0]), (f[2], f[1]), (f[0], f[2])] {
-                if outline.contains(&(a, b)) {
-                    outline.remove(&(a, b));
+            let f = *m1.simplices[f1].as_array();
+            for rolled in simplex_roll(f) {
+                let e = [rolled[1], rolled[0]];
+                if outline.contains(&e) {
+                    outline.remove(&e);
                 } else {
-                    outline.insert((b, a));
+                    outline.insert([rolled[0], rolled[1]]);
                 }
             }
         }
-        let original: FxHashSet<(Index, Index)> = outline.clone();
+        let original: FxHashSet<[Index; 2]> = outline.clone();
 
         // Find triangle-triangle intersections
-        let mut segts: FxHashMap<(Index, Index), usize> = FxHashMap::default();
+        let mut segts: FxHashMap<[Index; 2], usize> = FxHashMap::default();
 
         for &f1 in &surf {
             let f = m1.simplices[f1];
@@ -496,17 +450,13 @@ pub fn cut_surface(
                 let ia = iv_a.point;
                 let ib = iv_b.point;
                 if (ia - ib).square_length() <= prec * prec { continue; }
-
-                let ia_idx = points.add(ia);
-                let ib_idx = points.add(ib);
-                let seg = (ia_idx, ib_idx);
+                let seg = [points.add(ia), points.add(ib)];
 
                 if segts.contains_key(&seg) { continue; }
                 segts.insert(seg, f2);
 
                 // Cut outline edges where intersection points land on boundary
                 let ivs = [&iv_a, &iv_b];
-                let seg_indices = [ia_idx, ib_idx];
                 let seg_positions = [ia, ib];
 
                 for idx in 0..2 {
@@ -514,32 +464,26 @@ pub fn cut_surface(
                     if iv.face != 0 { continue; } // must be on m1's face
 
                     // edge on m1's face: vertex edge → vertex (edge+1)%3
-                    let o = (f[iv.edge], f[(iv.edge + 1) % 3]);
+                    let o = [f[iv.edge], f[(iv.edge + 1) % 3]];
                     if !original.contains(&o) { continue; }
 
                     let p = seg_positions[idx];
-                    let pt_idx = seg_indices[idx];
+                    let pt_idx = seg[idx];
 
                     // Find closest outline edge to point p
                     let closest = outline.iter()
-                        .min_by(|&&e1, &&e2| {
-                            let d1 = distance_pe(p, &[
-                                points.points()[e1.0 as usize],
-                                points.points()[e1.1 as usize],
-                            ]);
-                            let d2 = distance_pe(p, &[
-                                points.points()[e2.0 as usize],
-                                points.points()[e2.1 as usize],
-                            ]);
+                        .cloned()
+                        .min_by(|&e1, &e2| {
+                            let d1 = distance_pe(p, e1.map(|i| points.points()[i as usize]));
+                            let d2 = distance_pe(p, e2.map(|i| points.points()[i as usize]));
                             d1.partial_cmp(&d2).unwrap_or(std::cmp::Ordering::Equal)
-                        })
-                        .copied();
+                        });
 
                     if let Some(e) = closest {
-                        if pt_idx != e.0 && pt_idx != e.1 {
+                        if pt_idx != e[0] && pt_idx != e[1] {
                             outline.remove(&e);
-                            outline.insert((e.0, pt_idx));
-                            outline.insert((pt_idx, e.1));
+                            outline.insert([e[0], pt_idx]);
+                            outline.insert([pt_idx, e[1]]);
                         }
                     }
                 }
@@ -549,8 +493,8 @@ pub fn cut_surface(
         // Build intersection edge/track vectors
         let mut segt_edges: Vec<UVec2> = Vec::new();
         let mut segt_tracks: Vec<Index> = Vec::new();
-        for (&(a, b), &f2) in &segts {
-            segt_edges.push(UVec2::from([a, b]));
+        for (&seg, &f2) in &segts {
+            segt_edges.push(UVec2::from(seg));
             segt_tracks.push(f2 as Index);
         }
 
@@ -568,8 +512,8 @@ pub fn cut_surface(
             tri_edges.push(*e);
             tri_edges.push(UVec2::from([e[1], e[0]]));
         }
-        for &(a, b) in &outline {
-            tri_edges.push(UVec2::from([a, b]));
+        for &e in &outline {
+            tri_edges.push(UVec2::from(e));
         }
 
         // Triangulate and add results
@@ -588,9 +532,6 @@ pub fn cut_surface(
             result_tracks.push(t);
         }
     }
-
-    // Orient frontier edges to form consistent loops
-    orient_edges(&mut frontier_edges);
 
     let final_points = points.unwrap();
 
@@ -629,44 +570,41 @@ pub fn pierce_surface(
     let faces_raw: Vec<[Index; 3]> = cut.simplices.iter().map(|f| *f.as_array()).collect();
     let mut conn1 = connef(&faces_raw);
 
-    let stops: FxHashSet<(Index, Index)> = frontier.simplices.iter()
+    let stops: FxHashSet<[Index; 2]> = frontier.simplices.iter()
         .map(|e| edgekey(e[0], e[1]))
         .collect();
 
     let mut used: Vec<i32> = vec![0; cut.simplices.len()];
-    let mut front: Vec<(Index, Index)> = Vec::new();
+    let mut front: Vec<[Index; 2]> = Vec::new();
 
     // Seed propagation from frontier faces
     for (e, &f2_track) in frontier.simplices.iter().zip(frontier.tracks.iter()) {
         let f2 = f2_track as usize;
-        for &edge in &[(e[0], e[1]), (e[1], e[0])] {
+        for edge in simplex_roll(*e.as_array()) {
             if let Some(&fi) = conn1.get(&edge) {
-                let f = cut.simplices[fi];
-                for i in 0..3usize {
-                    let fi_pt = f[i];
-                    if fi_pt != edge.0 && fi_pt != edge.1 {
-                        // fi_pt is the vertex opposite to the frontier edge
-                        let prev = f[(i + 2) % 3]; // f[i-1] in Python
-                        let next_v = f[(i + 1) % 3]; // f[i-2] in Python
-                        let m2_normal = m2.facenormal(f2);
-                        let proj = (cut.points[fi_pt as usize] - cut.points[prev as usize])
-                            .dot(m2_normal)
-                            * if side { -1.0 } else { 1.0 };
+                let f = *cut.simplices[fi].as_array();
+                // Find the vertex opposite to the frontier edge
+                if let Some(fi_pt) = f.iter().cloned().find(|&v| v != edge[0] && v != edge[1]) {
+                    let rolled = simplex_phase(f, fi_pt);
+                    let next_v = rolled[1];
+                    let prev = rolled[2];
+                    let m2_normal = m2.facenormal(f2);
+                    let proj = (cut.points[fi_pt as usize] - cut.points[prev as usize])
+                        .dot(m2_normal)
+                        * if side { -1.0 } else { 1.0 };
 
-                        if proj > prec {
-                            used[fi] = 1;
-                        } else if proj < -prec {
-                            used[fi] = -1;
-                        } else {
-                            break;
-                        }
-
-                        conn1.insert((prev, fi_pt), fi);
-                        conn1.insert((fi_pt, next_v), fi);
-                        front.push((fi_pt, prev));
-                        front.push((next_v, fi_pt));
-                        break;
+                    if proj > prec {
+                        used[fi] = 1;
+                    } else if proj < -prec {
+                        used[fi] = -1;
+                    } else {
+                        continue;
                     }
+
+                    conn1.insert([prev, fi_pt], fi);
+                    conn1.insert([fi_pt, next_v], fi);
+                    front.push([fi_pt, prev]);
+                    front.push([next_v, fi_pt]);
                 }
             }
         }
@@ -684,15 +622,15 @@ pub fn pierce_surface(
     }
 
     // Filter front: remove edges on the frontier stops
-    front.retain(|e| !stops.contains(&edgekey(e.0, e.1)));
+    front.retain(|e| !stops.contains(&edgekey(e[0], e[1])));
 
     // Propagation
     while !front.is_empty() {
-        let mut newfront: Vec<(Index, Index)> = Vec::new();
+        let mut newfront: Vec<[Index; 2]> = Vec::new();
 
         for &edge in &front {
             if let Some(&fi) = conn1.get(&edge) {
-                let reverse = (edge.1, edge.0);
+                let reverse = [edge[1], edge[0]];
                 let source = match conn1.get(&reverse) {
                     Some(&s) => s,
                     None => continue,
@@ -709,13 +647,11 @@ pub fn pierce_surface(
                     }
                     used[fi] = used[source] + if used[source] > 0 { 1 } else { -1 };
 
-                    let f = cut.simplices[fi];
-                    for i in 0..3usize {
-                        let prev = f[(i + 2) % 3]; // f[i-1]
-                        let curr = f[i];
-                        if !stops.contains(&edgekey(prev, curr)) {
-                            conn1.insert((prev, curr), fi);
-                            newfront.push((curr, prev));
+                    let f = *cut.simplices[fi].as_array();
+                    for rolled in simplex_roll(f) {
+                        if !stops.contains(&edgekey(rolled[2], rolled[0])) {
+                            conn1.insert([rolled[2], rolled[0]], fi);
+                            newfront.push([rolled[0], rolled[2]]);
                         }
                     }
                 }
