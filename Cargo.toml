@@ -1,6 +1,6 @@
 [package]
 name = "madcad-core"
-version = "0.19.1"
+# version = "0.20.0"
 edition = "2021"
 license = "LGPL-3.0"
 description = "Rust core for pymadcad - CAD library"
@@ -17,6 +17,9 @@ vecmat = "0.7"
 rustc-hash = "2.0"
 # For small stack-allocated collections
 heapless = "0.8"
+multiversion = "0.8.0"
+# For constrained Delaunay triangulation
+spade = "2"
 
 [profile.release]
 lto = true

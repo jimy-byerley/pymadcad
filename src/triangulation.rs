@@ -11,6 +11,7 @@ use std::collections::HashSet;
 use std::f64::consts::PI;
 use rustc_hash::{FxHashMap, FxHashSet};
 use multiversion::multiversion;
+use spade::{ConstrainedDelaunayTriangulation, Point2, Triangulation};
 
 
 /// Triangulate a wire outline into a surface mesh
@@ -482,52 +483,102 @@ pub fn flat_loops(
 
 /// Triangulate a web of edges (possibly with multiple disconnected loops/holes).
 ///
-/// Takes raw points and edges, finds bridges between disconnected components,
-/// extracts oriented loops, projects each loop to 2D, and triangulates.
+/// Uses constrained Delaunay triangulation: all edges are inserted as constraints,
+/// then faces outside the boundary are discarded via flood-fill from the outer face.
+/// This replaces the old approach of bridge-finding + loop extraction + ear-clipping.
 ///
 /// Returns triangle indices into the original `points` array.
+///
+/// Complexity: O(n log n)
 pub fn triangulation_closest(
     points: &[Vec3],
     edges: &[UVec2],
     normal: Vec3,
-    prec: Float,
+    _prec: Float,
 ) -> Result<Vec<UVec3>, String> {
+    if edges.is_empty() {
+        return Ok(Vec::new());
+    }
+
     let (x, y, _) = dirbase(normal, None);
 
-    // find bridge edges to connect disconnected components
-    let bridges = line_bridges(points, edges);
+    // collect unique point indices referenced by edges, preserving order
+    let mut global_indices: Vec<Index> = Vec::new();
+    let mut global_to_local: FxHashMap<Index, usize> = FxHashMap::default();
+    for e in edges {
+        for &idx in e.as_array() {
+            if !global_to_local.contains_key(&idx) {
+                global_to_local.insert(idx, global_indices.len());
+                global_indices.push(idx);
+            }
+        }
+    }
 
-    // combine original edges with bridges
-    let mut all_edges: Vec<UVec2> = edges.to_vec();
-    all_edges.extend_from_slice(&bridges);
+    if global_indices.len() < 3 {
+        return Ok(Vec::new());
+    }
 
-    // extract flat oriented loops
-    let loops = flat_loops(points, &all_edges, normal)?;
+    // project points to 2D and convert to spade Point2
+    let vertices: Vec<Point2<Float>> = global_indices
+        .iter()
+        .map(|&idx| {
+            let p = points[idx as usize];
+            Point2::new(p.dot(x), p.dot(y))
+        })
+        .collect();
 
-    // surface precision for triangulation_loop_d2
-    let surface_prec = prec * prec / NUMPREC;
+    // remap edges to local indices
+    let constraint_edges: Vec<[usize; 2]> = edges
+        .iter()
+        .map(|e| [global_to_local[&e[0]], global_to_local[&e[1]]])
+        .collect();
 
+    // build constrained Delaunay triangulation
+    let cdt = ConstrainedDelaunayTriangulation::<Point2<Float>>::bulk_load_cdt(
+        vertices,
+        constraint_edges,
+    ).map_err(|e| format!("CDT construction failed: {:?}", e))?;
+
+    // flood-fill from outer face to find faces outside the constrained boundary
+    let num_faces = cdt.all_faces().count();
+    let mut outside = vec![false; num_faces];
+
+    // BFS from the outer face
+    let mut queue = std::collections::VecDeque::new();
+    let outer_idx = cdt.outer_face().fix().index();
+    outside[outer_idx] = true;
+    queue.push_back(cdt.outer_face().fix());
+
+    while let Some(face_fixed) = queue.pop_front() {
+        let face = cdt.face(face_fixed);
+        // iterate the 3 edges of this face via adjacent_edge + next + prev
+        let edges_of_face = if let Some(e0) = face.adjacent_edge() {
+            let e1 = e0.next();
+            let e2 = e0.prev();
+            vec![e0, e1, e2]
+        } else {
+            vec![]
+        };
+        for edge in edges_of_face {
+            if edge.as_undirected().is_constraint_edge() {
+                continue; // don't cross constraint edges
+            }
+            let neighbor = edge.rev().face();
+            let neighbor_idx = neighbor.fix().index();
+            if !outside[neighbor_idx] {
+                outside[neighbor_idx] = true;
+                queue.push_back(neighbor.fix());
+            }
+        }
+    }
+
+    // collect inner faces that are inside the boundary
     let mut result = Vec::new();
-
-    for loop_indices in &loops {
-        if loop_indices.len() < 3 {
+    for face in cdt.inner_faces() {
+        if outside[face.fix().index()] {
             continue;
         }
-
-        // project loop points to 2D
-        let proj: Vec<Vec2> = loop_indices
-            .iter()
-            .map(|&idx| {
-                let p = points[idx as usize];
-                Vec2::from([p.dot(x), p.dot(y)])
-            })
-            .collect();
-
-        // triangulate and map local indices back to original point indices
-        let simplices = triangulation_loop_d2(&proj, surface_prec)
-            .map_err(|_| format!("triangulation failed for loop of {} points", loop_indices.len()))?;
-        result.extend(simplices.iter()
-            .map(|simplex| simplex.map(|i| loop_indices[i as usize])));
+        result.push(Vector::from(face.vertices().map(|v| global_indices[v.fix().index()])));
     }
 
     Ok(result)
