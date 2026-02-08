@@ -5,6 +5,7 @@
 */
 
 use crate::math::*;
+use heapless::Vec as SVec;
 
 pub type IVec3 = Vector<i64, 3>;
 
@@ -24,7 +25,7 @@ fn snap_down3(v: Vec3, cell: Float) -> Vec3 {
 }
 
 /// Element-wise min of two Vec3
-fn vmin(a: Vec3, b: Vec3) -> Vec3 {  // TODO use Vector::vmin instead
+fn vmin(a: Vec3, b: Vec3) -> Vec3 {
     a.zip(b).map(|(a, b)| a.min(b))
 }
 
@@ -55,16 +56,10 @@ fn coordinate_order(n: Vec3) -> ([usize; 3], [usize; 3]) {
     }
 }
 
-/// Apply coordinate permutation to a Vec3
-fn permute(v: Vec3, order: &[usize; 3]) -> Vec3 {
-    Vec3::from(order.map(|i| v[i]))
+/// Apply index permutation to a vector's components
+fn permute<T: Copy, const N: usize>(v: Vector<T, N>, order: &[usize; N]) -> Vector<T, N> {
+    Vector::from(order.map(|i| v[i]))
 }
-
-/// Unpermute a hashing key back to original coordinate order
-fn unpermute(pk: IVec3, reorder: &[usize; 3]) -> IVec3 {
-    IVec3::from(reorder.map(|i| pk[i]))
-}
-
 
 /// Return a list of hashing keys for a segment between two 3D points.
 ///
@@ -128,7 +123,7 @@ pub fn rasterize_segment(space: &[Vec3; 2], cell: Float) -> Result<Vec<IVec3>, &
             for k in 0..ncells(xmin, xmax, cell) {
                 let x = xmin + k as Float * cell + cell2;
                 let pk = key3(Vec3::from([x, y, z]), cell);
-                result.push(unpermute(pk, &reorder));
+                result.push(permute(pk, &reorder));
             }
         }
     }
@@ -190,15 +185,15 @@ pub fn rasterize_triangle(space: &[Vec3; 3], cell: Float) -> Result<Vec<IVec3>, 
         let x = xmin + cell * xi as Float + cell2;
 
         // y range: find where triangle edges cross the x-band [x-cell2, x+cell2]
-        let mut candy = Vec::with_capacity(6); // TODO use heapless::Vec as a new dependency
+        let mut candy = SVec::<Float, 6>::new();
         for i in 0..3 {
             let next = (i + 1) % 3;
             if (s[next][0] - x + cell2) * (s[i][0] - x - cell2) <= 0.0
             || (s[next][0] - x - cell2) * (s[i][0] - x + cell2) <= 0.0
             {
                 let slope = v[i][1] / if v[i][0] != 0.0 { v[i][0] } else { Float::INFINITY };
-                candy.push(s[i][1] + slope * (x - cell2 - s[i][0]));
-                candy.push(s[i][1] + slope * (x + cell2 - s[i][0]));
+                let _ = candy.push(s[i][1] + slope * (x - cell2 - s[i][0]));
+                let _ = candy.push(s[i][1] + slope * (x + cell2 - s[i][0]));
             }
         }
         if candy.is_empty() { continue; }
@@ -229,7 +224,7 @@ pub fn rasterize_triangle(space: &[Vec3; 3], cell: Float) -> Result<Vec<IVec3>, 
 
                 // remove corner cells that extend beyond the bounding area
                 if (0..3).all(|i| pmin[i] < p[i] && p[i] < pmax[i]) {
-                    result.push(unpermute(key3(p, cell), &reorder));
+                    result.push(permute(key3(p, cell), &reorder));
                 }
             }
         }

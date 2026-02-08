@@ -1,11 +1,14 @@
 /*!
     Triangulation algorithms for polygon outlines
 
-    Port of madcad.triangulation focusing on triangulation_outline
+    Port of madcad.triangulation
 */
 
 use crate::math::*;
+use crate::hashing::{Asso, connpe};
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::HashSet;
+use std::f64::consts::PI;
 
 
 /// Triangulate a wire outline into a surface mesh
@@ -149,4 +152,543 @@ pub fn triangulation_loop_d2(
     }
 
     Ok(simplices)
+}
+
+
+/// Check if all components of a Vec3 are finite
+fn is_finite_vec(v: Vec3) -> bool {
+    v.as_array().iter().all(|x| x.is_finite())
+}
+
+/// Point-to-edge segment distance
+fn distance_pe(pt: Vec3, edge: &[Vec3; 2]) -> Float {
+    let dir = edge[1] - edge[0];
+    let l = dir.square_length();
+    if l == 0.0 {
+        return 0.0;
+    }
+    let x = (pt - edge[0]).dot(dir) / l;
+    if x < 0.0 {
+        (pt - edge[0]).square_length().sqrt()
+    } else if x > 1.0 {
+        (pt - edge[1]).square_length().sqrt()
+    } else {
+        noproject(pt - edge[0], dir).square_length().sqrt()
+    }
+}
+
+
+/// Compute the area-weighted convex normal from points and edges
+pub fn convex_normal(points: &[Vec3], edges: &[UVec2]) -> Vec3 {
+    let mut area = Vec3::zero();
+    let c = points[edges[0][0] as usize];
+    for e in edges {
+        let p0 = points[e[0] as usize];
+        let p1 = points[e[1] as usize];
+        area += (p1 - p0).cross(c - p0);
+    }
+    area.normalize()
+}
+
+
+/// BFS flood-fill from a start point through edge connectivity
+fn propagate(
+    start: Index,
+    edges: &[UVec2],
+    conn: &Asso<Index, usize>,
+    reached_points: &mut FxHashMap<Index, (Float, UVec2)>,
+    reached_edges: &mut FxHashMap<usize, (Float, UVec2)>,
+    remain_points: &mut FxHashSet<Index>,
+    remain_edges: &mut FxHashSet<usize>,
+) {
+    let mut front = vec![start];
+    while let Some(s) = front.pop() {
+        if reached_points.contains_key(&s) {
+            continue;
+        }
+        reached_points.insert(s, (Float::INFINITY, UVec2::from([s, s])));
+        remain_points.remove(&s);
+        for &e in conn.get(&s) {
+            if reached_edges.contains_key(&e) {
+                continue;
+            }
+            reached_edges.insert(e, (Float::INFINITY, UVec2::from([s, s])));
+            remain_edges.remove(&e);
+            front.push(edges[e][0]);
+            front.push(edges[e][1]);
+        }
+    }
+}
+
+/// Find bridge edges to connect all disconnected components of a web.
+///
+/// Returns pairs of point indices forming the bridge edges
+/// (each bridge added in both directions).
+///
+/// Complexity: O(n^2 + n*k)
+pub fn line_bridges(points: &[Vec3], edges: &[UVec2]) -> Vec<UVec2> {
+    if edges.is_empty() {
+        return Vec::new();
+    }
+
+    // connpe expects &[[Index; 2]], convert at boundary
+    let raw_edges: Vec<[Index; 2]> = edges.iter().map(|e| *e.as_array()).collect();
+    let conn = connpe(&raw_edges);
+    let mut bridges: Vec<UVec2> = Vec::new();
+
+    let mut reached_points: FxHashMap<Index, (Float, UVec2)> = FxHashMap::default();
+    let mut reached_edges: FxHashMap<usize, (Float, UVec2)> = FxHashMap::default();
+    let mut remain_points: FxHashSet<Index> =
+        edges.iter().flat_map(|e| [e[0], e[1]]).collect();
+    let mut remain_edges: FxHashSet<usize> = (0..edges.len()).collect();
+
+    // initial propagation from the first edge's start point
+    propagate(
+        edges[0][0],
+        edges,
+        &conn,
+        &mut reached_points,
+        &mut reached_edges,
+        &mut remain_points,
+        &mut remain_edges,
+    );
+
+    while !remain_edges.is_empty() {
+        // update closest for reached_points
+        let pt_keys: Vec<Index> = reached_points.keys().copied().collect();
+        for s in pt_keys {
+            let (_, best) = reached_points[&s];
+            if reached_points.contains_key(&best[0]) {
+                // find_closest_point: nearest remaining edge to reached point s
+                let mut best_score = Float::INFINITY;
+                let mut best_bridge = UVec2::from([s, s]);
+                for &ma in &remain_edges {
+                    let ep = [
+                        points[edges[ma][0] as usize],
+                        points[edges[ma][1] as usize],
+                    ];
+                    let d = distance_pe(points[s as usize], &ep);
+                    if d < best_score {
+                        let e = edges[ma];
+                        best_score = d;
+                        if (points[s as usize] - points[e[0] as usize]).square_length()
+                            < (points[s as usize] - points[e[1] as usize]).square_length()
+                        {
+                            best_bridge = UVec2::from([e[0], s]);
+                        } else {
+                            best_bridge = UVec2::from([e[1], s]);
+                        }
+                    }
+                }
+                reached_points.insert(s, (best_score, best_bridge));
+            }
+        }
+
+        // update closest for reached_edges
+        let edge_keys: Vec<usize> = reached_edges.keys().copied().collect();
+        for e_idx in edge_keys {
+            let (_, best) = reached_edges[&e_idx];
+            if reached_points.contains_key(&best[0]) {
+                // find_closest_edge: nearest remaining point to reached edge e_idx
+                let mut best_score = Float::INFINITY;
+                let mut best_bridge = UVec2::from([0, 0]);
+                let ep = [
+                    points[edges[e_idx][0] as usize],
+                    points[edges[e_idx][1] as usize],
+                ];
+                for &ma in &remain_points {
+                    let d = distance_pe(points[ma as usize], &ep);
+                    if d < best_score {
+                        let e = edges[e_idx];
+                        best_score = d;
+                        if (points[ma as usize] - points[e[0] as usize]).square_length()
+                            < (points[ma as usize] - points[e[1] as usize]).square_length()
+                        {
+                            best_bridge = UVec2::from([ma, e[0]]);
+                        } else {
+                            best_bridge = UVec2::from([ma, e[1]]);
+                        }
+                    }
+                }
+                reached_edges.insert(e_idx, (best_score, best_bridge));
+            }
+        }
+
+        // find minimum across both reached_points and reached_edges
+        let min_point = reached_points
+            .values()
+            .min_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+        let min_edge = reached_edges
+            .values()
+            .min_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+
+        let closest = match (min_point, min_edge) {
+            (Some(p), Some(e)) => {
+                if p.0 <= e.0 {
+                    p.1
+                } else {
+                    e.1
+                }
+            }
+            (Some(p), None) => p.1,
+            (None, Some(e)) => e.1,
+            (None, None) => break,
+        };
+
+        bridges.push(closest);
+        bridges.push(UVec2::from([closest[1], closest[0]]));
+
+        propagate(
+            closest[0],
+            edges,
+            &conn,
+            &mut reached_points,
+            &mut reached_edges,
+            &mut remain_points,
+            &mut remain_edges,
+        );
+    }
+
+    bridges
+}
+
+
+/// Extract closed oriented loops from a web of edges.
+///
+/// Each returned loop is a sequence of point indices forming a closed polygon.
+/// Loops are oriented so that the most inward-turning edges are followed first.
+pub fn flat_loops(
+    points: &[Vec3],
+    edges: &[UVec2],
+    normal: Vec3,
+) -> Result<Vec<Vec<Index>>, String> {
+    if edges.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let (_, _, z) = dirbase(normal, None);
+
+    // connectivity: start point of each edge -> edge index
+    let mut conn: Asso<Index, usize> = Asso::new();
+    for (i, e) in edges.iter().enumerate() {
+        conn.add(e[0], i);
+    }
+
+    let mut used = vec![false; edges.len()];
+
+    // classify edges as doubled (has reverse edge) or not
+    let mut doubled = Vec::new();
+    let mut nondoubled = Vec::new();
+    for (i, e) in edges.iter().enumerate() {
+        let mut double = false;
+        for &j in conn.get(&e[1]) {
+            if edges[j][1] == e[0] {
+                double = true;
+                break;
+            }
+        }
+        if double {
+            doubled.push(i);
+        } else {
+            nondoubled.push(i);
+        }
+    }
+
+    // candidates: nondoubled first, then doubled
+    let candidates: Vec<usize> = nondoubled.into_iter().chain(doubled).collect();
+    let mut choice_idx = 0;
+
+    let mut loops = Vec::new();
+
+    loop {
+        // find next unused edge
+        let end = loop {
+            if choice_idx >= candidates.len() {
+                return Ok(loops);
+            }
+            let i = candidates[choice_idx];
+            choice_idx += 1;
+            if !used[i] {
+                break i;
+            }
+        };
+
+        // start a loop with the two endpoints of the starting edge
+        let mut lp: Vec<Index> = vec![edges[end][0], edges[end][1]];
+
+        loop {
+            let last = *lp.last().unwrap();
+            let prev_pt = lp[lp.len() - 2];
+            let prev_dir = (points[last as usize] - points[prev_pt as usize]).normalize();
+
+            // find the most inward-turning next edge
+            let mut best: Option<usize> = None;
+            let mut best_score = Float::NEG_INFINITY;
+
+            for &edge_idx in conn.get(&last) {
+                if used[edge_idx] {
+                    continue;
+                }
+                let e = edges[edge_idx];
+                let dir = (points[e[1] as usize] - points[e[0] as usize]).normalize();
+
+                let mut angle = if is_finite_vec(dir) && is_finite_vec(prev_dir) {
+                    prev_dir.cross(dir).dot(z).atan2(prev_dir.dot(dir))
+                } else {
+                    -PI
+                };
+
+                // angles very close to pi wrap around to avoid ambiguity
+                if PI - angle <= PI * NUMPREC {
+                    angle -= 2.0 * PI;
+                }
+
+                if angle > best_score {
+                    best_score = angle;
+                    best = Some(edge_idx);
+                }
+            }
+
+            let best = match best {
+                Some(b) => b,
+                None => return Err(format!("no continuation found for loop at point {}", last)),
+            };
+
+            used[best] = true;
+
+            if best == end {
+                break; // loop closed
+            }
+
+            lp.push(edges[best][1]);
+
+            // detect premature loop closure (straight-line return to start)
+            if lp[0] == *lp.last().unwrap() {
+                let prev_dir =
+                    (points[lp[lp.len() - 2] as usize] - points[lp[lp.len() - 1] as usize])
+                        .normalize();
+                let start_dir =
+                    (points[lp[1] as usize] - points[lp[0] as usize]).normalize();
+                let cos_val = prev_dir.dot(start_dir).clamp(-1.0, 1.0);
+                if cos_val.acos() <= PI * NUMPREC {
+                    used[end] = true;
+                    break;
+                }
+            }
+        }
+
+        loops.push(lp);
+    }
+}
+
+
+/// Triangulate a web of edges (possibly with multiple disconnected loops/holes).
+///
+/// Takes raw points and edges, finds bridges between disconnected components,
+/// extracts oriented loops, projects each loop to 2D, and triangulates.
+///
+/// Returns triangle indices into the original `points` array.
+pub fn triangulation_closest(
+    points: &[Vec3],
+    edges: &[UVec2],
+    normal: Vec3,
+    prec: Float,
+) -> Result<Vec<UVec3>, String> {
+    let (x, y, _) = dirbase(normal, None);
+
+    // find bridge edges to connect disconnected components
+    let bridges = line_bridges(points, edges);
+
+    // combine original edges with bridges
+    let mut all_edges: Vec<UVec2> = edges.to_vec();
+    all_edges.extend_from_slice(&bridges);
+
+    // extract flat oriented loops
+    let loops = flat_loops(points, &all_edges, normal)?;
+
+    // surface precision for triangulation_loop_d2
+    let surface_prec = prec * prec / NUMPREC;
+
+    let mut result = Vec::new();
+
+    for loop_indices in &loops {
+        if loop_indices.len() < 3 {
+            continue;
+        }
+
+        // project loop points to 2D
+        let proj: Vec<Vec2> = loop_indices
+            .iter()
+            .map(|&idx| {
+                let p = points[idx as usize];
+                Vec2::from([p.dot(x), p.dot(y)])
+            })
+            .collect();
+
+        // triangulate and map local indices back to original point indices
+        let simplices = triangulation_loop_d2(&proj, surface_prec)
+            .map_err(|_| format!("triangulation failed for loop of {} points", loop_indices.len()))?;
+        result.extend(simplices.iter()
+            .map(|simplex| simplex.map(|i| loop_indices[i as usize])));
+    }
+
+    Ok(result)
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_distance_pe_on_segment() {
+        let edge = [
+            Vec3::from([0.0, 0.0, 0.0]),
+            Vec3::from([2.0, 0.0, 0.0]),
+        ];
+        // point directly above middle of segment
+        let d = distance_pe(Vec3::from([1.0, 1.0, 0.0]), &edge);
+        assert!((d - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_distance_pe_before_segment() {
+        let edge = [
+            Vec3::from([0.0, 0.0, 0.0]),
+            Vec3::from([2.0, 0.0, 0.0]),
+        ];
+        // point behind start of segment
+        let d = distance_pe(Vec3::from([-1.0, 0.0, 0.0]), &edge);
+        assert!((d - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_distance_pe_after_segment() {
+        let edge = [
+            Vec3::from([0.0, 0.0, 0.0]),
+            Vec3::from([2.0, 0.0, 0.0]),
+        ];
+        // point beyond end of segment
+        let d = distance_pe(Vec3::from([3.0, 0.0, 0.0]), &edge);
+        assert!((d - 1.0).abs() < 1e-10);
+    }
+
+    fn e(a: Index, b: Index) -> UVec2 { UVec2::from([a, b]) }
+
+    #[test]
+    fn test_convex_normal_triangle() {
+        let points = vec![
+            Vec3::from([0.0, 0.0, 0.0]),
+            Vec3::from([1.0, 0.0, 0.0]),
+            Vec3::from([0.0, 1.0, 0.0]),
+        ];
+        let edges = vec![e(0, 1), e(1, 2), e(2, 0)];
+        let n = convex_normal(&points, &edges);
+        // normal should point in +z or -z direction
+        assert!(n[2].abs() > 0.99);
+    }
+
+    #[test]
+    fn test_line_bridges_single_component() {
+        // triangle: already connected, no bridges needed
+        let points = vec![
+            Vec3::from([0.0, 0.0, 0.0]),
+            Vec3::from([1.0, 0.0, 0.0]),
+            Vec3::from([0.0, 1.0, 0.0]),
+        ];
+        let edges = vec![e(0, 1), e(1, 2), e(2, 0)];
+        let bridges = line_bridges(&points, &edges);
+        assert!(bridges.is_empty());
+    }
+
+    #[test]
+    fn test_line_bridges_two_components() {
+        // two separate triangles
+        let points = vec![
+            Vec3::from([0.0, 0.0, 0.0]),
+            Vec3::from([1.0, 0.0, 0.0]),
+            Vec3::from([0.0, 1.0, 0.0]),
+            Vec3::from([10.0, 0.0, 0.0]),
+            Vec3::from([11.0, 0.0, 0.0]),
+            Vec3::from([10.0, 1.0, 0.0]),
+        ];
+        let edges = vec![e(0, 1), e(1, 2), e(2, 0), e(3, 4), e(4, 5), e(5, 3)];
+        let bridges = line_bridges(&points, &edges);
+        // should have 2 bridge edges (one in each direction)
+        assert_eq!(bridges.len(), 2);
+        // bridges should connect the two components
+        let b = bridges[0];
+        let comp1: FxHashSet<Index> = [0, 1, 2].into_iter().collect();
+        let comp2: FxHashSet<Index> = [3, 4, 5].into_iter().collect();
+        assert!(
+            (comp1.contains(&b[0]) && comp2.contains(&b[1]))
+                || (comp2.contains(&b[0]) && comp1.contains(&b[1]))
+        );
+    }
+
+    #[test]
+    fn test_flat_loops_triangle() {
+        let points = vec![
+            Vec3::from([0.0, 0.0, 0.0]),
+            Vec3::from([1.0, 0.0, 0.0]),
+            Vec3::from([0.0, 1.0, 0.0]),
+        ];
+        let edges = vec![e(0, 1), e(1, 2), e(2, 0)];
+        let normal = Vec3::from([0.0, 0.0, 1.0]);
+        let loops = flat_loops(&points, &edges, normal).unwrap();
+        assert_eq!(loops.len(), 1);
+        // loop includes closing duplicate: [0, 1, 2, 0]
+        assert_eq!(loops[0].len(), 4);
+        assert_eq!(loops[0].first(), loops[0].last());
+    }
+
+    #[test]
+    fn test_flat_loops_square() {
+        let points = vec![
+            Vec3::from([0.0, 0.0, 0.0]),
+            Vec3::from([1.0, 0.0, 0.0]),
+            Vec3::from([1.0, 1.0, 0.0]),
+            Vec3::from([0.0, 1.0, 0.0]),
+        ];
+        let edges = vec![e(0, 1), e(1, 2), e(2, 3), e(3, 0)];
+        let normal = Vec3::from([0.0, 0.0, 1.0]);
+        let loops = flat_loops(&points, &edges, normal).unwrap();
+        assert_eq!(loops.len(), 1);
+        // loop includes closing duplicate: [0, 1, 2, 3, 0]
+        assert_eq!(loops[0].len(), 5);
+        assert_eq!(loops[0].first(), loops[0].last());
+    }
+
+    #[test]
+    fn test_triangulation_closest_triangle() {
+        let points = vec![
+            Vec3::from([0.0, 0.0, 0.0]),
+            Vec3::from([1.0, 0.0, 0.0]),
+            Vec3::from([0.0, 1.0, 0.0]),
+        ];
+        let edges = vec![e(0, 1), e(1, 2), e(2, 0)];
+        let normal = Vec3::from([0.0, 0.0, 1.0]);
+        let result = triangulation_closest(&points, &edges, normal, 1e-6).unwrap();
+        assert_eq!(result.len(), 1);
+        // all three point indices should be present in the triangle
+        let tri = result[0];
+        let mut indices: Vec<Index> = vec![tri[0], tri[1], tri[2]];
+        indices.sort();
+        assert_eq!(indices, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn test_triangulation_closest_square() {
+        let points = vec![
+            Vec3::from([0.0, 0.0, 0.0]),
+            Vec3::from([1.0, 0.0, 0.0]),
+            Vec3::from([1.0, 1.0, 0.0]),
+            Vec3::from([0.0, 1.0, 0.0]),
+        ];
+        let edges = vec![e(0, 1), e(1, 2), e(2, 3), e(3, 0)];
+        let normal = Vec3::from([0.0, 0.0, 1.0]);
+        let result = triangulation_closest(&points, &edges, normal, 1e-6).unwrap();
+        // square should produce 2 triangles
+        assert_eq!(result.len(), 2);
+    }
 }

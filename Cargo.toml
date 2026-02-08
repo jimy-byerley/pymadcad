@@ -15,6 +15,8 @@ pyo3 = { version = "0.28", features = ["extension-module"] }
 vecmat = "0.7"
 # For spatial hashing
 rustc-hash = "2.0"
+# For small stack-allocated collections
+heapless = "0.8"
 
 [profile.release]
 lto = true
