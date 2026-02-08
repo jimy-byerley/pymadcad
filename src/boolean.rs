@@ -255,7 +255,7 @@ fn line_simplification(
     prec: Float,
 ) -> FxHashMap<Index, Index> {
     let edges_raw: Vec<[Index; 2]> = edges.iter().map(|e| *e.as_array()).collect();
-    let chains = suites(&edges_raw, false, false, false);
+    let chains = suites(&edges_raw, false, true, false);
 
     let mut merges: FxHashMap<Index, Index> = FxHashMap::default();
 
@@ -330,6 +330,54 @@ fn apply_merges(
             tracks.swap_remove(i);
         } else {
             i += 1;
+        }
+    }
+}
+
+
+/// Orient edges to form consistent loops.
+///
+/// After line_simplification + apply_merges, some edges may be reversed due to
+/// non-deterministic chain traversal order in suites. This function fixes the
+/// orientation by traversing the undirected graph and making each edge follow
+/// the previous one's direction.
+///
+/// Assumes edges form one or more simple loops (each vertex has degree 2).
+fn orient_edges(edges: &mut [UVec2]) {
+    if edges.len() < 2 { return; }
+
+    // Build undirected adjacency: point → list of (edge_index, other_point)
+    let mut adj: FxHashMap<Index, Vec<(usize, Index)>> = FxHashMap::default();
+    for (i, e) in edges.iter().enumerate() {
+        adj.entry(e[0]).or_default().push((i, e[1]));
+        adj.entry(e[1]).or_default().push((i, e[0]));
+    }
+
+    let mut visited = vec![false; edges.len()];
+
+    for start_idx in 0..edges.len() {
+        if visited[start_idx] { continue; }
+        visited[start_idx] = true;
+
+        // Follow the chain from the end of the start edge
+        let mut current = edges[start_idx][1];
+
+        loop {
+            // Find unvisited neighbor of current
+            let next = adj.get(&current)
+                .and_then(|neighbors| neighbors.iter().find(|(ei, _)| !visited[*ei]));
+
+            match next {
+                Some(&(ei, other)) => {
+                    // Orient: current should be the source
+                    if edges[ei][0] != current {
+                        edges[ei] = UVec2::from([edges[ei][1], edges[ei][0]]);
+                    }
+                    visited[ei] = true;
+                    current = other;
+                }
+                None => break,
+            }
         }
     }
 }
@@ -540,6 +588,9 @@ pub fn cut_surface(
             result_tracks.push(t);
         }
     }
+
+    // Orient frontier edges to form consistent loops
+    orient_edges(&mut frontier_edges);
 
     let final_points = points.unwrap();
 

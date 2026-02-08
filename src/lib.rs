@@ -22,6 +22,7 @@ use pyo3::prelude::*;
 use pyo3::create_exception;
 use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::marker::Ungil;
+use pyo3::types::{PyList, PyDict};
 
 create_exception!(core, TriangulationError, PyException);
 
@@ -90,6 +91,69 @@ mod core {
                 (a.face, a.edge, PyVec3::from(a.point)),
                 (b.face, b.edge, PyVec3::from(b.point)),
             ))
+    }
+
+    #[pyfunction]
+    fn cut_surface(
+        py: Python<'_>,
+        m1: PySurface,
+        m2: PySurface,
+        prec: Float,
+    ) -> PyResult<(PySurface, PyWeb)> {
+        let s1 = m1.borrow();
+        let s2 = m2.borrow();
+        let nfaces = s1.simplices.len();
+
+        let (cut, frontier) = may_detach(py, nfaces > 1_000, ||
+            super::boolean::cut_surface(&s1, &s2, prec));
+
+        let cut_faces: Vec<PaddedUVec3> = cut.simplices.into_owned().into_iter().map(|v| v.into()).collect();
+        let front_edges = frontier.simplices.into_owned();
+
+        Ok((
+            PySurface {
+                points: PyTypedList::new(py, cut.points.into_owned())?,
+                faces: PyTypedList::new(py, cut_faces)?,
+                tracks: PyTypedList::new(py, cut.tracks.into_owned())?,
+                groups: m1.groups.clone_ref(py),
+                options: PyDict::new(py).unbind(),
+            },
+            PyWeb {
+                points: PyTypedList::new(py, frontier.points.into_owned())?,
+                faces: PyTypedList::new(py, front_edges)?,
+                tracks: PyTypedList::new(py, frontier.tracks.into_owned())?,
+                groups: PyList::empty(py).unbind(),
+                options: PyDict::new(py).unbind(),
+            },
+        ))
+    }
+
+    #[pyfunction]
+    fn pierce_surface(
+        py: Python<'_>,
+        m1: PySurface,
+        m2: PySurface,
+        side: bool,
+        prec: Float,
+        strict: bool,
+    ) -> PyResult<PySurface> {
+        let s1 = m1.borrow();
+        let s2 = m2.borrow();
+        let nfaces = s1.simplices.len();
+
+        let result = may_detach(py, nfaces > 1_000, ||
+            super::boolean::pierce_surface(&s1, &s2, side, prec, strict))
+            .map_err(|e| PyValueError::new_err(e))?;
+
+        let result_faces: Vec<PaddedUVec3> = result.simplices.into_owned().into_iter().map(|v| v.into()).collect();
+
+        Ok(PySurface {
+            points: PyTypedList::new(py, result.points.into_owned())?,
+            faces: PyTypedList::new(py, result_faces)?,
+            tracks: PyTypedList::new(py, result.tracks.into_owned())?,
+            groups: m1.groups.clone_ref(py),
+            options: PyDict::new(py).unbind(),
+        })
     }
 
 /*

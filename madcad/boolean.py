@@ -49,211 +49,29 @@ __all__ = ['pierce', 'boolean', 'intersection', 'union', 'difference']
 
 
 def cut_mesh(m1, m2, prec=None) -> '(Mesh, Web)':
-	''' Cut m1 faces at their intersections with m2. 
-		
-		Return:	
-			
+	''' Cut m1 faces at their intersections with m2.
+
+		Return:
+
 			`(cutted, frontier)`
-			
+
 				:cutted(Mesh):	is `m1` with the faces cutted, but representing the same surface as before
 				:frontier(Web): is a Web where edges are the intersection edges, and whose groups are the causing faces in `m2`
-		
+
 		Returning the intersection edges in m1 and associated m2 faces.
 		The algorithm is using ngon intersections and retriangulation, in order to avoid infinite loops and intermediate triangles.
 	'''
 	if not prec:	prec = m1.precision()
-	frontier = Web(m1.points, groups=m2.faces)	# cut points for each face from m2
-	
-	# topology informations for optimization
-	points = PointSet(prec, manage=m1.points)
-	prox2 = PositionMap(max(meshcellsize(m2), meshcellsize(m1)))
-	for f2 in range(len(m2.faces)):
-		prox2.add(m2.facepoints(f2), f2)
-	conn = connef(m1.faces)
-	
-	mn = Mesh(m1.points, groups=m1.groups)	# resulting mesh
-	grp = [-1]*len(m1.faces)	# flat region id
-	currentgrp = -1
-	for i in range(len(m1.faces)):
-		# process the flat surface starting here, if the m1's triangle hits m2
-		if grp[i] == -1 and m1.facepoints(i) in prox2:
-			
-			# a triangle cutted by an other will split it into 5 triangles, and each will be divided in 5 more if the cutting is stupidly incrmental
-			# here we collect all the planar triangles and cut it as one n-gon to reduce the complexity
-			# get the flat region - aka the n-gon to be processed
-			currentgrp += 1
-			surf = []
-			front = [i]
-			normal = m1.facenormal(i)
-			if not isfinite(normal):	continue
-			track = m1.tracks[i]
-			while front:
-				fi = front.pop()
-				if grp[fi] == -1 and m1.tracks[fi] == track and distance2(m1.facenormal(fi), normal) <= NUMPREC:
-					surf.append(fi)
-					grp[fi] = currentgrp
-					f = m1.faces[fi]
-					for edge in ((f[1],f[0]), (f[2],f[1]), (f[0],f[2])):
-						if edge in conn:	front.append(conn[edge])
-			
-			# get region ORIENTED outlines - aka the outline of the n-gon
-			outline = set()
-			for f1 in surf:
-				f = m1.faces[f1]
-				for edge in ((f[1],f[0]), (f[2],f[1]), (f[0],f[2])):
-					if edge in outline:	outline.remove(edge)
-					else:				outline.add((edge[1], edge[0]))
-			original = set(outline)
-			
-			# process all ngon triangles
-			# enrich outlines with intersections
-			segts = {}
-			for f1 in surf:
-				f = m1.faces[f1]
-				for f2 in set( prox2.get(m1.facepoints(f1)) ):
-					intersect = core.intersect_triangles(m1.facepoints(f1), m2.facepoints(f2), 8*prec)
-					if intersect:
-						ia, ib = intersect[0][2], intersect[1][2]
-						if distance2(ia, ib) <= prec**2:	continue
-						# insert intersection points
-						seg = (points.add(ia), points.add(ib))
-						# associate the intersection edge with the m2's face
-						if seg in segts:	continue
-						segts[seg] = f2
-						
-						# cut the outline if needed
-						for i in range(2):
-							ii = intersect[i]
-							if ii[0] != 0:	continue
-							o = f[ii[1]], f[ii[1]-2]
-							if o not in original:	continue
-							# find the place where the outline is cutted
-							p = m1.points[seg[i]]
-							e = min(outline, key=lambda e: distance_pe(p, (m1.points[e[0]], m1.points[e[1]])))  # this perfect minimul should not be needed as the first below the precision should be unique, but for precision robustness ...
-							if seg[i] not in e:
-								#print('  cross', i, e)
-								outline.remove(e)
-								outline.add((e[0],seg[i]))
-								outline.add((seg[i],e[1]))
-										
-			# simplify the intersection lines
-			segts = Web(m1.points, segts.keys(), segts.values(), frontier.groups)
-			segts.mergepoints(line_simplification(segts, prec))
-			frontier += segts
-			
-			# retriangulate the cutted surface
-			segts.edges.extend(uvec2(b,a) for a,b in segts.edges[:])
-			segts.edges.extend(outline)
-			flat = triangulation.triangulation_closest(segts, normal, prec)
-			# append the triangulated face, in association with the original track
-			flat.tracks = typedlist.full(track, len(flat.faces), 'I')
-			flat.groups = m1.groups
-			
-			mn += flat
-	
-	# append non-intersected faces
-	for f,t,grp in zip(m1.faces, m1.tracks, grp):
-		if grp == -1:
-			mn.faces.append(f)
-			mn.tracks.append(t)
-	
+	mn, frontier = core.cut_surface(m1, m2, prec)
+	frontier.groups = m2.faces
 	return mn, frontier
 
 
 def pierce_mesh(m1, m2, side=False, prec=None, strict=False) -> Mesh:
 
 	if not prec:	prec = m1.precision()
-	m1, frontier = cut_mesh(m1, m2, prec)
-	
-	conn1 = connef(m1.faces)		# connectivity for propagation
-	stops = set(edgekey(*e) for e in frontier.edges)  # propagation stop points
-	
-	used = [0] * len(m1.faces)	# whether to keep the matching faces
-	front = []
-	
-	# get front and mark frontier faces as used
-	for e,f2 in zip(frontier.edges, frontier.tracks):
-		for edge in ((e[0],e[1]), (e[1],e[0])):
-			if edge in conn1:
-				fi = conn1[edge]
-				f = m1.faces[fi]
-				# find from which side to propagate
-				for i in range(3):
-					if f[i] not in edge:
-						proj = dot(m1.points[f[i]] - m1.points[f[i-1]], m2.facenormal(f2))  * (-1 if side else 1)
-						if proj > prec:
-							used[fi] = 1
-							conn1[(f[i-1], f[i])] = fi
-							conn1[(f[i], f[i-2])] = fi
-							front.append((f[i], f[i-1]))
-							front.append((f[i-2], f[i]))
-						elif proj < -prec:
-							used[fi] = -1
-							conn1[(f[i-1], f[i])] = fi
-							conn1[(f[i], f[i-2])] = fi
-							front.append((f[i], f[i-1]))
-							front.append((f[i-2], f[i]))
-						break
-	
-	if not front:
-		if side:
-			m1.faces = typedlist(dtype=uvec3)
-			m1.tracks = typedlist(dtype='I')
-		return m1
-	
-	## display frontier
-	#if debug_propagation:
-		#from . import text
-		#for edge in stops:
-			#p = (m1.points[edge[0]] + m1.points[edge[1]]) /2
-			#scn3D.append(text.Text(p, str(edge), 9, (1, 1, 0)))
-		#from .mesh import Web
-		#w = Web([1.01*p for p in m1.points], frontier.edges)
-		#w.options['color'] = (1,0.9,0.2)
-		#scn3D.append(w)
-		#scn3D.append([text.Text(p, str(i))  for i,p in enumerate(m1.points)])
-	
-	# propagation
-	front = [e for e in front if edgekey(*e) not in stops]
-	while front:
-		newfront = []
-		for edge in front:
-			if edge in conn1:
-				source = conn1[(edge[1], edge[0])]
-				assert used[source]
-				fi = conn1[edge]
+	return core.pierce_surface(m1, m2, side, prec, strict)
 
-				if not used[fi] or (used[source]*used[fi] < 0 and abs(used[fi]) > abs(used[source])):
-					assert not (strict and used[fi]), "the pierced surface is both side of the piercing surface"
-					used[fi] = used[source] + (1 if used[source]>0 else -1)
-					f = m1.faces[fi]
-					for i in range(3):
-						if edgekey(f[i-1],f[i]) not in stops:
-							# the connectivity might have a different face for this edge in case of empty triangles, so avoid pushing an orphan edge, lets correct the connectivity
-							conn1[(f[i-1], f[i])] = fi
-							assert used[fi]
-							newfront.append((f[i],f[i-1]))
-		front = newfront
-	
-	## selection of faces
-	#if debug_propagation:
-		#from . import text
-		#for i,u in enumerate(used):
-			#if u:
-				#p = m1.facepoints(i)
-				#scn3D.append(text.Text((p[0]+p[1]+p[2])/3, str(u), 9, (1,0,1), align=('center', 'center')))
-	
-	# filter mesh content to keep
-	return Mesh(
-			m1.points,
-			(f for u,f in zip(used, m1.faces) if u > 0),
-			(t for u,t in zip(used, m1.tracks) if u > 0),
-			m1.groups,
-			)
-
-#debug_propagation = True
-#scn3D = []
-			
 def boolean_mesh(m1, m2, sides=(False,True), prec=None) -> Mesh:
 
 	if not prec:	prec = max(m1.precision(), m2.precision())
