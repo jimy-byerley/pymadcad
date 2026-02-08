@@ -39,7 +39,7 @@ pub fn triangulation_loop_d2(
     }
 
     // Set of remaining non-convex points, indexing points
-    let mut nonconvex: HashSet<usize> = HashSet::new();
+    let mut nonconvex: HashSet<usize> = HashSet::with_capacity(l);
     for &i in &hole {
         let prev = if i == 0 { l - 1 } else { i - 1 };
         let next = (i + 1) % l;

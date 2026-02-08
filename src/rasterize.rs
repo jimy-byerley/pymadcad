@@ -7,10 +7,9 @@
 use crate::math::*;
 
 pub type IVec3 = Vector<i64, 3>;
-pub type HashKey = IVec3;
 
 /// Hashing key for a 3d position
-fn key3(p: Vec3, cell: Float) -> HashKey {
+fn key3(p: Vec3, cell: Float) -> IVec3 {
     (p / cell).map(|x| x.floor() as i64)
 }
 
@@ -62,8 +61,8 @@ fn permute(v: Vec3, order: &[usize; 3]) -> Vec3 {
 }
 
 /// Unpermute a hashing key back to original coordinate order
-fn unpermute_key(pk: HashKey, reorder: &[usize; 3]) -> HashKey {
-    HashKey::from(reorder.map(|i| pk[i]))
+fn unpermute(pk: IVec3, reorder: &[usize; 3]) -> IVec3 {
+    IVec3::from(reorder.map(|i| pk[i]))
 }
 
 
@@ -72,7 +71,7 @@ fn unpermute_key(pk: HashKey, reorder: &[usize; 3]) -> HashKey {
 /// The algorithm permutes coordinates so Z is the dominant direction,
 /// then sweeps Z → Y → X computing the parametric line intersection
 /// with each grid band.
-pub fn rasterize_segment(space: &[Vec3; 2], cell: Float) -> Result<Vec<HashKey>, &'static str> {
+pub fn rasterize_segment(space: &[Vec3; 2], cell: Float) -> Result<Vec<IVec3>, &'static str> {
     if !(cell > 0.0) {
         return Err("cell must be strictly positive");
     }
@@ -129,7 +128,7 @@ pub fn rasterize_segment(space: &[Vec3; 2], cell: Float) -> Result<Vec<HashKey>,
             for k in 0..ncells(xmin, xmax, cell) {
                 let x = xmin + k as Float * cell + cell2;
                 let pk = key3(Vec3::from([x, y, z]), cell);
-                result.push(unpermute_key(pk, &reorder));
+                result.push(unpermute(pk, &reorder));
             }
         }
     }
@@ -147,7 +146,7 @@ fn sort2(a: Float, b: Float) -> (Float, Float) {
 ///
 /// The algorithm permutes coordinates so Z aligns with the face normal,
 /// then sweeps X → Y computing edge intersections, and Z from the plane equation.
-pub fn rasterize_triangle(space: &[Vec3; 3], cell: Float) -> Result<Vec<HashKey>, &'static str> {
+pub fn rasterize_triangle(space: &[Vec3; 3], cell: Float) -> Result<Vec<IVec3>, &'static str> {
     if !(cell > 0.0) {
         return Err("cell must be strictly positive");
     }
@@ -230,7 +229,7 @@ pub fn rasterize_triangle(space: &[Vec3; 3], cell: Float) -> Result<Vec<HashKey>
 
                 // remove corner cells that extend beyond the bounding area
                 if (0..3).all(|i| pmin[i] < p[i] && p[i] < pmax[i]) {
-                    result.push(unpermute_key(key3(p, cell), &reorder));
+                    result.push(unpermute(key3(p, cell), &reorder));
                 }
             }
         }
@@ -265,8 +264,8 @@ mod tests {
         ];
         let result = rasterize_segment(&space, 1.0).unwrap();
         assert!(!result.is_empty());
-        assert!(result.contains(&HashKey::from([0, 0, 0])));
-        assert!(result.contains(&HashKey::from([0, 0, 1])));
+        assert!(result.contains(&IVec3::from([0, 0, 0])));
+        assert!(result.contains(&IVec3::from([0, 0, 1])));
     }
 
     #[test]
