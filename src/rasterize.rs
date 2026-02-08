@@ -5,7 +5,9 @@
 */
 
 use crate::math::*;
+
 use heapless::Vec as SVec;
+// use multiversion::multiversion;
 
 pub type IVec3 = Vector<i64, 3>;
 
@@ -21,7 +23,7 @@ fn snap_down(v: Float, cell: Float) -> Float {
 
 /// Snap a Vec3 down to grid boundary (element-wise)
 fn snap_down3(v: Vec3, cell: Float) -> Vec3 {
-    v - (v % cell).map(|x| x.rem_euclid(cell))
+    v.map(|x| snap_down(x, cell))
 }
 
 /// Element-wise min of two Vec3
@@ -66,6 +68,7 @@ fn permute<T: Copy, const N: usize>(v: Vector<T, N>, order: &[usize; N]) -> Vect
 /// The algorithm permutes coordinates so Z is the dominant direction,
 /// then sweeps Z → Y → X computing the parametric line intersection
 /// with each grid band.
+// #[multiversion(targets = "simd")]
 pub fn rasterize_segment(space: &[Vec3; 2], cell: Float) -> Result<Vec<IVec3>, &'static str> {
     if !(cell > 0.0) {
         return Err("cell must be strictly positive");
@@ -141,6 +144,7 @@ fn sort2(a: Float, b: Float) -> (Float, Float) {
 ///
 /// The algorithm permutes coordinates so Z aligns with the face normal,
 /// then sweeps X → Y computing edge intersections, and Z from the plane equation.
+// #[multiversion(targets = "simd")]
 pub fn rasterize_triangle(space: &[Vec3; 3], cell: Float) -> Result<Vec<IVec3>, &'static str> {
     if !(cell > 0.0) {
         return Err("cell must be strictly positive");

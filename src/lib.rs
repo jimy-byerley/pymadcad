@@ -102,9 +102,8 @@ mod core {
     ) -> PyResult<(PySurface, PyWeb)> {
         let s1 = m1.borrow();
         let s2 = m2.borrow();
-        let nfaces = s1.simplices.len();
 
-        let (cut, frontier) = may_detach(py, nfaces > 1_000, ||
+        let (cut, frontier) = may_detach(py, s1.simplices.len() + s2.simplices.len() > 100, ||
             super::boolean::cut_surface(&s1, &s2, prec));
 
         let cut_faces: Vec<PaddedUVec3> = cut.simplices.into_owned().into_iter().map(|v| v.into()).collect();
@@ -139,9 +138,8 @@ mod core {
     ) -> PyResult<PySurface> {
         let s1 = m1.borrow();
         let s2 = m2.borrow();
-        let nfaces = s1.simplices.len();
 
-        let result = may_detach(py, nfaces > 1_000, ||
+        let result = may_detach(py, s1.simplices.len() + s2.simplices.len() > 100, ||
             super::boolean::pierce_surface(&s1, &s2, side, prec, strict))
             .map_err(|e| PyValueError::new_err(e))?;
 
@@ -155,63 +153,6 @@ mod core {
             options: PyDict::new(py).unbind(),
         })
     }
-
-/*
-    #[pyfunction]
-    fn pierce_surface_surface(py: Python<'_>, subject: PyAny, tool: PyAny) -> PyAny {
-        let buffers_subject = Surface::extract(py, subject)?;
-        let buffers_tool = Surface::extract(py, tool)?;
-        let result = py.detach(|| boolean::pierce_surface_surface(buffers_subject, buffers_tool))?;
-        madcad_surface(
-            vec3_to_typedlist(result.points)?,
-            uvec3_to_typedlist(result.simplices)?, 
-            index_to_typedlist(result.tracks)?,
-            subject.getattr("groups")? + tool.getattr("groups")?,
-            )
-    }
-    #[pyfunction]
-    fn pierce_web_surface(subject: PyAny, tool: PyAny) -> PyAny {
-        let buffers_subject = Web::extract(py, subject)?;
-        let buffers_tool = Surface::extract(py, tool)?;
-        let result = py.detach(|| boolean::pierce_web_surface(buffers_subject, buffers_tool))?;
-        madcad_web(
-            vec3_to_typedlist(result.points)?,
-            uvec2_to_typedlist(result.simplices)?, 
-            index_to_typedlist(result.tracks)?,
-            subject.getattr("groups")? + tool.getattr("groups")?,
-            )
-    }
-
-    #[pyfunction]
-    fn transform_points_affine(points: PyAny, transform: PyAny) -> PyAny {
-        let buffer = typedlist_to_vec3(points)?;
-        let transform = glm_to_affine(transform)?;
-        let result = may_detach(py, buffer.len() > 5_000, || 
-            buffer.iter().map(|p|  transform * p).collect::<Vec<_>>());
-        vec3_to_typedlist(result)
-    }
-
-    #[pyfunction]
-    fn points_box(points: PyAny) -> PyAny {
-        let buffer = typedlist_to_vec3(points)?;
-        let result = may_detach(py, buffer.len() > 10_000, || (
-            buffer.iter().fold(Vector::max),
-            buffer.iter().fold(Vector::min),
-            ));
-        madcad_box(result)
-    }
-    */
-//     #[pyfunction]
-//     fn surface_box(py: Python<'_>, points: PyTypedList<Vec3>, simplices: PyTypedList<UVec3>) -> PyBox3 {
-//         PyBox3::from(may_detach(py, simplices.len() > 10_000, || surface.borrow().bounds()))
-//     }
-    /*
-    #[pyfunction]
-    fn web_box(surface: PyAny) -> PyAny {
-        let buffer = Web::extract(surface)?;
-        let result = may_detach(py, buffer.simpliced.len() > 10_000, || surface.bounds());
-        madcad_box(result)
-    }*/
 }
 
 /// run the given closure detached from python thread if required, otherwise run it attached

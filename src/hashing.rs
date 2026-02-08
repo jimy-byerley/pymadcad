@@ -400,7 +400,7 @@ impl PointSet {
         }
         let idx = self.points.len() as Index;
         self.dict.insert(self.keyfor(pt), idx);
-        self.points.append(&mut vec![pt]);
+        self.points.push(pt);
         idx
     }
 
@@ -468,18 +468,6 @@ pub fn edgekey(a: Index, b: Index) -> [Index; 2] {
         [a, b]
     } else {
         [b, a]
-    }
-}
-
-/// Return a key for an oriented face (rotated so smallest index is first,
-/// preserving cyclic order)
-pub fn facekeyo(a: Index, b: Index, c: Index) -> [Index; 3] {
-    if a < b && b < c {
-        [a, b, c]
-    } else if a < b {
-        [c, a, b]
-    } else {
-        [b, c, a]
     }
 }
 
@@ -557,11 +545,15 @@ pub fn suites(
     cut: bool,
     do_loop: bool,
 ) -> Vec<Vec<Index>> {
+    use std::collections::VecDeque;
+
     let mut lines: Vec<[Index; 2]> = lines.to_vec();
     let mut result: Vec<Vec<Index>> = Vec::new();
 
     while let Some(edge) = lines.pop() {
-        let mut suite = vec![edge[0], edge[1]];
+        let mut suite = VecDeque::with_capacity(lines.len());
+        suite.push_back(edge[0]);
+        suite.push_back(edge[1]);
 
         let mut found = true;
         while found {
@@ -570,35 +562,35 @@ pub fn suites(
                 let e = lines[i];
                 if e[1] == suite[0] {
                     // prepend: edge[-1] == suite[0]
-                    suite.insert(0, e[0]);
+                    suite.push_front(e[0]);
                     lines.swap_remove(i);
                     found = true;
                     break;
-                } else if e[0] == *suite.last().unwrap() {
+                } else if e[0] == *suite.back().unwrap() {
                     // append: edge[0] == suite[-1]
-                    suite.push(e[1]);
+                    suite.push_back(e[1]);
                     lines.swap_remove(i);
                     found = true;
                     break;
                 } else if !oriented && e[0] == suite[0] {
                     // prepend reversed
-                    suite.insert(0, e[1]);
+                    suite.push_front(e[1]);
                     lines.swap_remove(i);
                     found = true;
                     break;
-                } else if !oriented && e[1] == *suite.last().unwrap() {
+                } else if !oriented && e[1] == *suite.back().unwrap() {
                     // append reversed
-                    suite.push(e[0]);
+                    suite.push_back(e[0]);
                     lines.swap_remove(i);
                     found = true;
                     break;
                 }
             }
-            if do_loop && *suite.last().unwrap() == suite[0] {
+            if do_loop && *suite.back().unwrap() == suite[0] {
                 break;
             }
         }
-        result.push(suite);
+        result.push(suite.into());
     }
 
     // Cut at suite intersections
@@ -835,13 +827,6 @@ mod tests {
     fn test_edgekey() {
         assert_eq!(edgekey(3, 1), [1, 3]);
         assert_eq!(edgekey(1, 3), [1, 3]);
-    }
-
-    #[test]
-    fn test_facekeyo() {
-        assert_eq!(facekeyo(0, 1, 2), [0, 1, 2]);
-        assert_eq!(facekeyo(1, 2, 0), [0, 1, 2]);
-        assert_eq!(facekeyo(2, 0, 1), [0, 1, 2]);
     }
 
     #[test]

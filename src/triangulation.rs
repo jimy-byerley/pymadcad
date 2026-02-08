@@ -6,9 +6,11 @@
 
 use crate::math::*;
 use crate::hashing::{Asso, connpe};
-use rustc_hash::{FxHashMap, FxHashSet};
+
 use std::collections::HashSet;
 use std::f64::consts::PI;
+use rustc_hash::{FxHashMap, FxHashSet};
+use multiversion::multiversion;
 
 
 /// Triangulate a wire outline into a surface mesh
@@ -17,6 +19,7 @@ use std::f64::consts::PI;
 /// Points are treated as a sequential loop (indices 0, 1, 2, ..., n-1).
 ///
 /// Complexity: O(n*k) where k is the number of non-convex points
+#[multiversion(targets = "simd")]
 pub fn triangulation_loop_d2(
     points: &[Vec2],
     prec: Float,
@@ -155,11 +158,6 @@ pub fn triangulation_loop_d2(
 }
 
 
-/// Check if all components of a Vec3 are finite
-fn is_finite_vec(v: Vec3) -> bool {
-    v.as_array().iter().all(|x| x.is_finite())
-}
-
 /// Point-to-edge segment distance
 pub fn distance_pe(pt: Vec3, edge: [Vec3; 2]) -> Float {
     let dir = edge[1] - edge[0];
@@ -169,11 +167,11 @@ pub fn distance_pe(pt: Vec3, edge: [Vec3; 2]) -> Float {
     }
     let x = (pt - edge[0]).dot(dir) / l;
     if x < 0.0 {
-        (pt - edge[0]).square_length().sqrt()
+        (pt - edge[0]).length()
     } else if x > 1.0 {
-        (pt - edge[1]).square_length().sqrt()
+        (pt - edge[1]).length()
     } else {
-        noproject(pt - edge[0], dir).square_length().sqrt()
+        noproject(pt - edge[0], dir).length()
     }
 }
 

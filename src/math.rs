@@ -56,6 +56,11 @@ pub fn unproject<const N: usize>(v: Vector<Float, N>, dir: Vector<Float, N>) -> 
     }
 }
 
+/// Check if all components of a Vec3 are finite
+pub fn is_finite_vec(v: Vec3) -> bool {
+    v.as_array().iter().all(|x| x.is_finite())
+}
+
 /// Perpendicular vector to the given 2D vector
 pub fn perp(v: Vec2) -> Vec2 {
     Vec2::from([-v[1], v[0]])

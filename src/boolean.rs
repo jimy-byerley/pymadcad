@@ -8,8 +8,10 @@ use crate::math::*;
 use crate::mesh::*;
 use crate::hashing::*;
 use crate::triangulation::{triangulation_closest, distance_pe};
-use rustc_hash::{FxHashMap, FxHashSet};
+
 use std::borrow::Cow;
+use rustc_hash::{FxHashMap, FxHashSet};
+use multiversion::multiversion;
 
 /// Result vertex from triangle-triangle intersection
 pub struct IntersectionVertex {
@@ -28,11 +30,6 @@ fn dsign(v: Float) -> i32 {
     else { 0 }
 }
 
-/// Check if all components of a Vec3 are finite
-fn is_finite_vec3(v: Vec3) -> bool {
-    v.as_array().iter().all(|x| x.is_finite())
-}
-
 /// Intersect two triangles and output intersection vertices
 ///
 /// fa = first face (3 vertices in clockwise orientation)
@@ -44,6 +41,7 @@ fn is_finite_vec3(v: Vec3) -> bool {
 ///     fi, fk = face id (0 or 1)
 ///     ej, em = edge id on face (0-2)
 ///     xj, xm = intersection point
+#[multiversion(targets = "simd")]
 pub fn intersect_triangles(
     fa: &[Vec3; 3],
     fb: &[Vec3; 3],
@@ -60,7 +58,7 @@ pub fn intersect_triangles(
 
     // intersection line direction between the two planes
     let d1 = n_a.cross(n_b);
-    let ld1 = d1.square_length().sqrt();
+    let ld1 = d1.length();
     if ld1 <= prec {
         // coplanar or parallel faces
         return None;
@@ -345,6 +343,7 @@ fn apply_merges(
 /// - `frontier` is a Web whose edges are intersection edges, tracks are the causing m2 face indices
 ///
 /// Port of madcad.boolean.cut_surface
+// #[multiversion(targets = "simd")]
 pub fn cut_surface(
     m1: &Surface,
     m2: &Surface,
@@ -391,7 +390,7 @@ pub fn cut_surface(
         if !prox2.contains(&face_keys) { continue; }
 
         let normal = m1.facenormal(i);
-        if !is_finite_vec3(normal) { continue; }
+        if !is_finite_vec(normal) { continue; }
         let track = m1.tracks[i];
 
         // Flood-fill flat coplanar region
@@ -429,7 +428,7 @@ pub fn cut_surface(
                 }
             }
         }
-        let original: FxHashSet<[Index; 2]> = outline.clone();
+        let original = outline.clone();
 
         // Find triangle-triangle intersections
         let mut segts: FxHashMap<[Index; 2], usize> = FxHashMap::default();
@@ -558,6 +557,7 @@ pub fn cut_surface(
 /// - `strict`: if true, error when a face is on both sides of the piercing surface
 ///
 /// Port of madcad.boolean.pierce_surface
+// #[multiversion(targets = "simd")]
 pub fn pierce_surface(
     m1: &Surface,
     m2: &Surface,
