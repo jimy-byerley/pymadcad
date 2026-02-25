@@ -11,7 +11,7 @@ from time import time
 from glm import smoothstep
 
 from ..mathutils import *
-from ..rendering import Scene, Group, writeproperty
+from ..rendering import Scene, Group, writeproperty, receiver
 from . import Solid, explode_offsets, SolidBox
 try:
 	from ..qt import Qt, QEvent, QTimer

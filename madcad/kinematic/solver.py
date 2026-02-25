@@ -140,7 +140,7 @@ class Joint:
 							state))
 		return state
 	
-	def grad(self, state, delta=1e-6) -> '[mat4]':
+	def grad(self, state, delta=1e-4) -> '[mat4]':
 		''' compute the gradient of the direct kinematic 
 		
 			The default implementation is using a finite differentiation. For precision it is better to implement an exact solution in every joint
