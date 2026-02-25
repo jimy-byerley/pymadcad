@@ -25,9 +25,14 @@ else:
         try:
             use(lib)
         except ImportError as e:
-            # print(e)
             pass
         else:
             break
     else:
-        raise ImportError('no Qt wrapper found: PySide6, PyQt5, PyQt6')
+        raise ImportError(
+            'no Qt wrapper found: PySide6, PyQt5, PyQt6. \n'
+            'Please install pyqt5 or pyqt6 or pyside6 by running one of these commands: \n'
+            'pip install pyqt5\n'
+            'pip install pyqt6\n'
+            'pip install pyside6'
+        )
