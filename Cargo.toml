@@ -1,7 +1,6 @@
 [package]
 name = "madcad-core"
-version = "0.19.1"
-edition = "2021"
+edition = "2024"
 license = "LGPL-3.0"
 description = "Rust core for pymadcad - CAD library"
 authors = ["jimy-byerley <jimy.byerley@gmail.com>"]
@@ -17,6 +16,8 @@ vecmat = "0.7"
 rustc-hash = "2.0"
 # For small stack-allocated collections
 heapless = "0.8"
+
+multiversion = "0.8"
 
 [profile.release]
 lto = true

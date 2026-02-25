@@ -111,29 +111,31 @@ impl Bytes {
         let buffer = slf.borrow();
         let format = c"B";
 
-        // Check flags - we are read-only
-        if flags & pyo3::ffi::PyBUF_WRITABLE != 0 {
-            return Err(PyBufferError::new_err("Bytes is read-only"));
+        unsafe {
+            // Check flags - we are read-only
+            if flags & pyo3::ffi::PyBUF_WRITABLE != 0 {
+                return Err(PyBufferError::new_err("Bytes is read-only"));
+            }
+            
+            // Fill in the buffer info (null buf is valid for empty buffers per PEP 3118)
+            (*view).buf = if buffer.data.is_empty() { ptr::null_mut() } 
+                        else { buffer.data.as_ptr() as *mut _ };
+            (*view).len = buffer.data.len() as isize;
+            (*view).itemsize = 1;
+            (*view).readonly = 1;
+            (*view).ndim = 1;
+            (*view).format = format.as_ptr() as *mut _;
+
+            // Shape and strides for 1D buffer
+            (*view).shape = ptr::null_mut();
+            (*view).strides = ptr::null_mut();
+            (*view).suboffsets = ptr::null_mut();
+            (*view).internal = ptr::null_mut();
+
+            // Set the object reference to keep the buffer alive
+            (*view).obj = slf.as_ptr();
+            pyo3::ffi::Py_INCREF((*view).obj);
         }
-        
-        // Fill in the buffer info (null buf is valid for empty buffers per PEP 3118)
-        (*view).buf = if buffer.data.is_empty() { ptr::null_mut() } 
-                      else { buffer.data.as_ptr() as *mut _ };
-        (*view).len = buffer.data.len() as isize;
-        (*view).itemsize = 1;
-        (*view).readonly = 1;
-        (*view).ndim = 1;
-        (*view).format = format.as_ptr() as *mut _;
-
-        // Shape and strides for 1D buffer
-        (*view).shape = ptr::null_mut();
-        (*view).strides = ptr::null_mut();
-        (*view).suboffsets = ptr::null_mut();
-        (*view).internal = ptr::null_mut();
-
-        // Set the object reference to keep the buffer alive
-        (*view).obj = slf.as_ptr();
-        pyo3::ffi::Py_INCREF((*view).obj);
 
         Ok(())
     }
