@@ -1,13 +1,12 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
-from math import inf
-from .mathutils import *
-from .mesh import Mesh, Web, Wire, MeshError, web
-from .hashing import *
-from . import core
-
 from copy import copy
 from operator import itemgetter
+from math import inf, atan
+
+from . import settings
+from .mesh import Mesh, Web, Wire, web
+from .mathutils import NUMPREC, vec2
 
 
 
@@ -556,8 +555,6 @@ def retriangulate(mesh):
 		update_scures((a,c))
 		update_scores((c,d))
 
-from .mathutils import atan, mix
-from . import settings
 	
 def discretise_refine(curve: '[(x, f(x))]', func: 'f(float) -> float', resolution=None, simplify=True):
 	''' improve discretisation to reach a certain resolution '''

@@ -17,22 +17,47 @@
 '''
 
 import moderngl as mgl
-import glm
-from operator import itemgetter
 from collections import deque
 from dataclasses import dataclass
+from copy import deepcopy
+from math import inf, pi, sin, cos
 import numpy.linalg
 import numpy as np
+from arrex import typedlist
+from pyglm.glm import (
+	affineInverse,
+	cross,
+	distance2,
+	dmat3,
+	dmat4,
+	dot,
+	dquat,
+	fmat3,
+	fmat4,
+	fquat,
+	fvec3,
+	fvec4,
+	length,
+	length2,
+	mix,
+	normalize,
+	scale,
+	translate,
+	u8vec4,
+	transpose,
+	distance,
+)
 
-from .mathutils import *
+from .mathutils import vec3, isfinite, dirbase, isaxis, Z, Axis, linrange, mat2, mat3, mat4, vec4, NUMPREC, project, noproject, anglebt
+from .primitives import Circle, ArcCentered
+from .box import boundingbox, Box
 from .rendering import Display
 from .common import resourcedir
 from .mesh import Mesh, Web, Wire, web, wire, mesh_distance
-from .hashing import connef, connpe, connpp, edgekey, arrangeface, arrangeedge
+from .hashing import connpp
 from .rendering import Scene, Displayable, writeproperty
 from .text import textsize
 from .text.displays import TextDisplay
-from .primitives import *
 from . import mathutils
 from . import generation as gt
 from . import settings
@@ -412,7 +437,7 @@ class SchemeInstance:
 	class display(Scheme.display):
 		def __init__(self, scene, instance):
 			self.instance = instance
-			disp = scene.share(id(instance.scheme), lambda: inst.scheme.display(scene, instance.scheme))
+			disp = scene.share(id(instance.scheme), lambda: instance.scheme.display(scene, instance.scheme))
 			vars(self).update(vars(disp))
 			self.spaces = deepcopy(disp.spaces)
 			
@@ -463,7 +488,7 @@ def world(view):
 class halo_world:
 	position: fvec3
 	def __call__(self, view):
-		center = view.uniforms['view'] * (view.uniforms['world'] * fvec4(position,1))
+		center = view.uniforms['view'] * (view.uniforms['world'] * fvec4(self.position,1))
 		m = fmat4(1)
 		m[3] = center
 		return m
@@ -1043,17 +1068,17 @@ def note_angle_edge(part, edge, offset=0, d=None, tol=None, text=None, unit='deg
 			offset, d, tol, text, unit)
 	
 def note_absciss(axis, pts):
-	indev
+	raise NotImplementedError("In development")
 	
 def note_diameter(mesh, direction=None, offset=None, d=None, tol=None, text=None):
 	assert direction is not None
 	for f in mesh.faces:
 		for p in f:
 			if dot(mesh.points[p], direction):
-				indev
+				raise NotImplementedError("In development")
 
 def note_surface(placement, offset=None, roughness=None, method=None):
-	indev
+	raise NotImplementedError("In development")
 	
 def note_label(placement, offset=None, text='!', style='rect'):
 	''' Place a text label upon an object
@@ -1102,7 +1127,7 @@ def note_label(placement, offset=None, text='!', style='rect'):
 	
 
 def note_iso(p, offset, type, text, refs=(), label=None):
-	indev
+	raise NotImplementedError("In development")
 
 
 

@@ -1,12 +1,17 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
+import json
 import numpy as np
-import numpy.lib.recfunctions as rfn
-import os, tempfile
+import os
+import tempfile
+from arrex import typedlist
 from functools import wraps
+from math import inf
 from hashlib import md5
 
-from .mathutils import vec3, glm, inf, typedlist
+from pyglm.glm import quat, uvec3
+
+from .mathutils import vec2, vec3, vec4, mat2, mat3, mat4
 from .mesh import Mesh, Wire
 
 class FileFormatError(Exception):	pass
@@ -216,8 +221,6 @@ else:
 	always using the official json specifications
 	it can store many object types, not only shapes
 '''
-import json
-
 class JSONEncoder(json.JSONEncoder):
 	def default(self, obj):
 		if isinstance(obj, (vec2,vec3,vec4,mat2,mat3,mat4,quat)):
@@ -247,7 +250,7 @@ def jsondecode(obj):
 	return obj
 	
 def json_read(file, **opts):
-	return json.load(open(file, 'r'), cls=JSONDecoder, **opts)
+	return json.load(open(file, 'r'), cls=json.JSONDecoder, **opts)
 
 def json_write(objs, file, **opts):
 	return json.dump(open(file, 'w'), object_hook=jsondecode, **opts)

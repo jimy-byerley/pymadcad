@@ -1,10 +1,27 @@
 from __future__ import annotations
+
+from typing import Generic, TypeVar
 from copy import copy
+from math import inf
 
-from .mathutils import *
+import numpy as np
+from pyglm import glm
+from pyglm.glm import (
+    dvec3,
+    fmat2,
+    fmat3,
+    fmat4,
+    fvec1,
+    fvec2,
+    fvec3,
+    vec1,
+)
 
+from .mathutils import vec3, vec2, mat2, mat3, mat4
 
-class Box:
+T = TypeVar("T")
+
+class Box(Generic[T]):
     ''' This class describes a box always orthogonal to the base axis, used as convex for area delimitations 
     
         box can be created either by poviding:
@@ -32,7 +49,7 @@ class Box:
         else:					self.min, self.max = center-alignment*size, center+(1-alignment)*size
         
     @staticmethod
-    def from_iter(it) -> Self:
+    def from_iter(it) -> Box:
         ''' create a box bounding the positions given by the input iterable '''
         it = iter(it)
         first = next(it)
@@ -44,13 +61,13 @@ class Box:
     @staticmethod
     def from_torch(array: tuple) -> Box[vec2]:
         ''' create from a tuple `(xmin, ymin, xmax, ymax)` which is the pytorch convention '''
-        return box(vec2(array[0:2]), vec2(array[2:4]))
+        return Box(vec2(array[0:2]), vec2(array[2:4]))
     
     @staticmethod
     def from_cv(array: tuple) -> Box[vec2]:
         ''' create from a tuple `(xmin, ymax, width, height)` which is the opencv convention '''
         min = vec2(array[0:2])
-        return box(min, min + vec2(array[2:4]))
+        return Box(min, min + vec2(array[2:4]))
     
     @staticmethod
     def from_matrix(matrix:mat4, centered=False) -> Box:
@@ -147,14 +164,14 @@ class Box:
         
     def contains(self, other:Box|vec3) -> bool:
         ''' return True if the given point is inside or on the surface of the box '''
-        if isinstance(other, box):
+        if isinstance(other, Box):
             return all((self.min <= other.min) * (other.max <= self.max))
         else:
             return all((self.min <= other) * (other <= self.max))
         
     def inside(self, other:Box|vec3) -> bool:
         ''' return True if the given point is strictly inside the box '''
-        if isinstance(other, box):
+        if isinstance(other, Box):
             return all((self.min < other.min) * (other.max < self.max))
         else:
             return all((self.min < other) * (other < self.max))
@@ -234,7 +251,7 @@ class Box:
                 Box(vec2(1,-4), vec2(2,8))
         
         '''
-        if isinstance(other, box):
+        if isinstance(other, Box):
             return Box(	glm.min(self.min, other.min),
                         glm.max(self.max, other.max))
         else:

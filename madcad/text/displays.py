@@ -2,8 +2,8 @@
 from PIL import Image, ImageFont, ImageDraw
 import numpy.core as np
 import moderngl as mgl
+from pyglm.glm import fvec3, fvec4
 
-from ..mathutils import fvec3, fvec4
 from ..rendering import Display, highlight_color
 from ..common import resourcedir
 from .. import settings
