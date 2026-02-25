@@ -8,7 +8,7 @@ dictionaries:
 '''
 
 from math import pi, ceil, floor, sqrt
-from glm import fvec3, fvec4, normalize
+from pyglm.glm import fvec3, fvec4, normalize
 import sys, os, yaml
 from os.path import dirname, exists
 

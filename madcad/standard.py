@@ -11,21 +11,28 @@
 	
 		>>> screw(8, 16, head='button', drive='slot')
 '''
-
+import re
 from operator import itemgetter
 from itertools import accumulate
+from math import floor, log, ceil, sin, cos, tan, radians, pi, sqrt
 
-from .mathutils import *
-from .primitives import *
+from pyglm.glm import cross, translate, scale, sign, quat, normalize, distance, dot, angleAxis, reflect, mix
+
+from . import settings
+from .kinematic import Chain, Kinematic
+from .mathutils import NUMPREC, isfinite, vec3, O, X, Y, Z, Axis, rotatearound, bisect, scaledir, dirbase, mat4, linrange, mat3, project, distance_pa
+from .offseting import thicken, inflate
+from .bevel import chamfer, filet
+from .blending import blendloop
+from .generation import revolution, extrusion, regon, extrans, cylinder, repeataround, tube, flatsurface, icosphere, repeat
+from .primitives import TangentEllipsis, Circle, ArcCentered, ArcThrough, Segment
 from .assembly import Solid
-from .joints import Revolute
+from .selection import select, stopangle
+from .joints import Revolute, Ball, Prismatic
 from .mesh import Mesh, Web, Wire, web, wire
-from .generation import *
-from .offseting import *
-from .blending import *
-from .boolean import pierce, union, difference, intersection
-from .bevel import *
+from .boolean import pierce, intersection
 from .io import cachefunc
+from .box import boundingbox
 
 #cachefunc = lambda x:x	# debug purpose
 
@@ -159,7 +166,7 @@ def screw(d, length, filet_length=None, head='SH', drive=None, detail=False):
 	return Solid(part=screw, axis=axis)
 
 def screwdrive_torx(d):
-	indev
+	raise NotImplementedError("In development")
 	
 def screwdrive_hex(d):
 	base = regon((-0.3*d*Z, -Z), 0.5*d, 6)
@@ -168,7 +175,7 @@ def screwdrive_hex(d):
 	return socket
 	
 def screwdrive_cross(d):
-	indev
+	raise NotImplementedError("In development")
 	
 def screwdrive_slot(d):
 	w = 0.15*d
@@ -254,7 +261,7 @@ def screwhead_flat(d):
 		]) .segmented() ).finish()
 	
 def screwhead_none(d):
-	indev
+	raise NotImplementedError("In development")
 
 	
 '''
@@ -905,13 +912,13 @@ def bearing(dint, dext=None, h=None,
 def bearing_spec(code):
 	# iso code
 	if ' ' in code:
-		indev
+		raise NotImplementedError("In development")
 	# simple code
 	elif re.match(r'[\d\.]+x[\d\.]+x[\d\.]+', code):
 		return tuple(float(d) for d in re.split('x'))
 		
 		
-def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False) -> Solid:
+def bearing_ball(dint, dext, h, sealing=False, detail=False) -> Solid:
 	# convenient variables
 	rint = dint/2
 	rext = dext/2
@@ -1195,8 +1202,6 @@ standard_bearing_ball_straight = [
 	]
 
 
-
-from .selection import *
 
 @cachefunc
 def slidebearing(dint, h=None, thickness=None, shoulder=None, opened=False) -> Solid:
@@ -1544,9 +1549,6 @@ def grooves(radius, height, repetitions:int=16, alignment=0.5, angle=radians(40)
 				])
 	
 
-from .kinematic import Chain, Kinematic
-from .joints import *
-	
 def scara(backarm:float, forearm:float) -> Kinematic:
 	'''
 	kinematic of a classical *scara* robot arm
@@ -1621,9 +1623,9 @@ def delta3(base:float, tool:float, backarm:float, forearm:float, forearm_width:f
 	return kin
 
 # def delta4(backarm, forearm) -> Kinematic:
-# 	indev
+# 	raise NotImplementedError("In development")
 # def delta6(backarm, forearm) -> Kinematic:
-# 	indev
+# 	raise NotImplementedError("In development")
 	
 # def stewart(base, tool, shaft, gap=None):
 # 	if gap is None:	gap = base*0.1

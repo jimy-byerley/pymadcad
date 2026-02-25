@@ -1,5 +1,8 @@
-from .container import *
+from arrex import typedlist
+from pyglm.glm import uvec2
 
+from .container import NMesh, ensure_typedlist
+from ..mathutils import vec3
 
 class Wire(NMesh):
 	''' This class defines a mesh of points, used for two purposes:

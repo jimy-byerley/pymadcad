@@ -4,16 +4,48 @@
 	The functions here may eventually be complex but will always feel predictable and simple from a human perspective.
 '''
 
-from .mathutils import *
-from .mesh import Mesh, Web, Wire, MeshError, web, wire, mkquad, mktri
-from .hashing import edgekey, facekeyo, suites
+import itertools
+from copy import copy
+from math import pi, sin, cos, atan2, sqrt, inf, tan
+
+from arrex import typedlist
+from pyglm.glm import (
+    angleAxis,
+    cross,
+    distance,
+    dot,
+    length,
+    mat3_cast,
+    normalize,
+    quat,
+    translate,
+    uvec2,
+    uvec3,
+)
+
 from . import triangulation
 from . import settings
 from . import primitives
-
-import itertools
-from copy import copy
-
+from .mathutils import (
+    Axis,
+    NUMPREC,
+    O,
+    Z,
+    anglebt,
+    arclength,
+    dirbase,
+    intri_sphere,
+    linrange,
+    mat4,
+    noproject,
+    rotatearound,
+    scaledir,
+    transform,
+    vec3,
+    vec4,
+)
+from .mesh import Mesh, Web, Wire, web, wire, mkquad
+from .box import Box
 
 __all__ = [
 	'extrans', 'extrusion', 'revolution', 'helix', 'screw', 'saddle', 'tube', 
@@ -26,7 +58,7 @@ __all__ = [
 # --- extrusion things ---
 
 
-def extrusion(shape, trans:transform, alignment:float=0) -> Mesh:
+def extrusion(shape, trans, alignment:float=0) -> Mesh:
 	''' Create a surface by extruding the given outline by a transformation
 		
 		Parameters:

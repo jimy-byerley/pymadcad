@@ -2,10 +2,10 @@
 import numpy as np
 import moderngl as mgl
 from PIL import Image
+from pyglm.glm import fvec3, fmat4, normalize, dot, length, fvec4
 
 from .. import settings
 from ..common import resourcedir
-from ..mathutils import *
 from ..rendering import Display
 from ..rendering.d3 import npboundingbox, load_shader_wire, load_shader_subident
 

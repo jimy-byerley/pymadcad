@@ -38,14 +38,18 @@
 
 '''
 
-from math import sqrt
-from .mathutils import *
+import numpy._core as np
+from arrex import typedlist
+from math import sqrt, sin, cos, pi, atan2
+from pyglm.glm import length, normalize, cross, length2, dot, mix, distance
+from .mathutils import anglebt, interpol2, linrange, project, Axis, vec3, dirbase, unproject
+from .box import boundingbox
 from .mesh.container import typedlist_to_numpy
+from .mesh.wire import Wire
 from . import settings
 from . import mesh
 
 __all__ = [
-	'Axis', 'Vector', 'Point', 'isaxis',
 	'Segment', 'ArcThrough', 'ArcCentered', 'ArcTangent', 'TangentEllipsis', 'Circle', 'Ellipsis', 
 	'Interpolated', 'Softened',
 	] 
@@ -366,7 +370,6 @@ class Ellipsis(object):
 	def display(self, scene):
 		return self.mesh().display(scene)
 		
-import numpy.core as np
 def glmarray(array, dtype='f4'):
 	''' Create a numpy array from a list of glm vec '''
 	buff = np.empty((len(array), len(array[0])), dtype=dtype)

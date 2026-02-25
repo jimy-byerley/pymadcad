@@ -15,10 +15,17 @@ import os
 import sys
 from dataclasses import dataclass
 
+from pyglm.glm import fvec2
+
+from ..box import Box
 from ..common import resourcedir
-from ..mathutils import (Box, vec3, fvec3, fvec4, vec2, fvec2, fmat4, 
-						ceil, sqrt, distance, anglebt, linrange,
-						)
+from ..mathutils import (
+	anglebt,
+	distance,
+	linrange,
+	vec2,
+	vec3,
+)
 from ..triangulation import triangulation
 from ..primitives import Segment
 from ..mesh import Wire, Web, Mesh, web
@@ -173,7 +180,7 @@ class BezierCubic:
 	def mesh(self, resolution=None):
 		div = settings.curve_resolution(
 			distance(self.a, self.b) + distance(self.b, self.c) + distance(self.c, self.d),
-			anglebt(self.b-self.a, self.c-self.b) + angletbt(self.c-self.b, self.d-self.c),
+			anglebt(self.b-self.a, self.c-self.b) + anglebt(self.c-self.b, self.d-self.c),
 			resolution)
 		return Wire(self(t)  for t in linrange(0, 1, div=div))
 		

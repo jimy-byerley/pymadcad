@@ -1,8 +1,14 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
-from .mathutils import *
+from math import pi, inf, atan2, sin, cos, atan
+
+from pyglm.glm import affineInverse, rotate, translate, normalize, dmat4x3, dot, length2, transpose, fvec3, cross, isnan
+from pyglm import glm
+
+from .scheme import Scheme
 from .kinematic.solver import Joint
-from .mesh import Mesh, Wire, wire, web, Web
+from .mesh import Wire, web, Web
+from .mathutils import mat4, Axis, Screw, vec3, vec2, quat, O, X, Y, Z, project, isfinite, noproject, dirbase, isaxis
 from . import generation as gt
 from . import generation, primitives, settings
 
@@ -890,7 +896,7 @@ class ConstantVelocity(Joint):
 class Project(Joint):
 	''' not implemented yet '''
 	def __init__(self, solids, projection:mat4, target:mat4):
-		indev
+		raise NotImplementedError("In development")
 
 	
 class Rack(Joint):
@@ -1048,10 +1054,10 @@ class Helicoid(Joint):
 		self.position = position or (self.bases[0][0], self.bases[1][0])
 	
 	def direct(self, depth):
-		indev
+		raise NotImplementedError("In development")
 		
 	def inverse(self, matrix, close=None):
-		indev
+		raise NotImplementedError("In development")
 	
 	
 	def scheme(self, solid, size, junc):

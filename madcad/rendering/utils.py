@@ -3,9 +3,9 @@ from __future__ import annotations
 import moderngl as mgl
 from numpy import ndarray
 import numpy as np
+from pyglm.glm import ivec2, uvec2, fvec4, mix
 
 from .. import settings
-from ..mathutils import ivec2, uvec2, fvec4, mix
 
 
 def writeproperty(func):
@@ -73,7 +73,7 @@ class Rc:
 	def __init__(self, other):
 		if isinstance(other, Weak):
 			self.weak = other
-		elif isisntance(other, Rc):
+		elif isinstance(other, Rc):
 			self.weak = other.weak
 		else:
 			self.weak = Weak(other)
