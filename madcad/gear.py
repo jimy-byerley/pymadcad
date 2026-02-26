@@ -32,24 +32,23 @@
 		>>> gearprofile(step=3, teeth=12)
 '''
 
-from .mathutils import *
+from pyglm.glm import mat4x4, mat2, inverse, angleAxis, mat4, quat, length, scale, rotate, cross, normalize, dot, mat3, distance2, mix, translate, length2
+from .mathutils import vec2, vec3, interpol1, O, X, Y, Z, rotatearound, Axis, anglebt, linrange, transform, scaledir
 from .mesh import Web, Wire, Mesh, web, wire
-from .blending import junction, blendpair
+from .blending import junction
 from .generation import extrusion, revolution, repeat, repeataround, extrans
 from .primitives import Circle, ArcCentered, Segment
 from .triangulation import triangulation
-from .selection import *
-from .rendering import show
 from .bevel import filet, chamfer
 from .boolean import intersection
+from .selection import select
 from .io import cachefunc
 from . import settings
 
-from math import *
-from functools import reduce, partial
+from math import radians, tan, pi, atan, cos, sin, sqrt, atan2, acos, log, asin, inf
+from functools import reduce
 from operator import add
-from copy import copy
-from madcad.mathutils import COMPREC
+from madcad.mathutils import COMPREC, NUMPREC
 
 
 

@@ -1,8 +1,12 @@
+from __future__ import annotations
 from arrex import typedlist
-from pyglm.glm import uvec2
+from pyglm.glm import uvec2, isnan, dot, normalize, cross, length, distance, distance2
+from pyglm import glm
+from copy import deepcopy
 
-from .container import NMesh, ensure_typedlist
-from ..mathutils import vec3
+from .container import NMesh, ensure_typedlist, reprarray, MeshError
+from ..mathutils import vec3, noproject, distance_pe
+from numbers import Integral
 
 class Wire(NMesh):
 	''' This class defines a mesh of points, used for two purposes:
@@ -117,7 +121,7 @@ class Wire(NMesh):
 			self.points.pop()
 			self.indices[-1] = 0
 	
-	def mergepoints(self, merges) -> 'self':
+	def mergepoints(self, merges) -> Wire:
 		''' merge points with the merge dictionnary {src index: dst index}
 			merged points are not removed from the buffer.
 		'''
@@ -338,7 +342,7 @@ class Wire(NMesh):
 			tracks = None
 		return Wire(self.points, indices, tracks, self.groups, self.options)
 		
-	def close(self) -> 'self':
+	def close(self) -> Wire:
 		''' make a loop of the wire by appending its first point to its end '''
 		if not self.isclosed():
 			self.indices.append(self.indices[0])
@@ -346,7 +350,7 @@ class Wire(NMesh):
 				self.tracks.append(self.tracks[0])
 		return self
 		
-	def unclose(self) -> 'Self':
+	def unclose(self) -> Wire:
 		''' if this wire is a loop, create a new Wire slicing this one's indices except the last index so the loop is opened
 			if this wire is not a loop, return it immediately
 		'''
@@ -366,7 +370,7 @@ class Wire(NMesh):
 					self.options,
 					)
 	
-	def subdivide(self, div=1) -> 'Self':
+	def subdivide(self, div=1) -> Wire:
 		''' Subdivide all faces by the number of cuts '''
 		n = div+2
 		pts = typedlist(dtype=vec3)

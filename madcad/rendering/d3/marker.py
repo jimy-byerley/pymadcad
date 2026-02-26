@@ -1,15 +1,17 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
-import numpy.core as np
+from math import exp, log, floor
+
+import numpy._core as np
 import moderngl as mgl
 from PIL import Image
+from pyglm.glm import fvec3, fvec4, dvec3
 
-from ... import settings, primitives
-from ...mathutils import *
-from ...mesh import typedlist_to_numpy
+from ... import settings
 from ...common import resourcedir
-from ...qt import Qt, QEvent
-from .. import Display, Scene, writeproperty, highlight_color
-from . import npboundingbox, load_shader_ident, load_shader_subident, load_shader_wire, load_shader_uniformcolor
+from ...box import Box
+from ...mathutils import isaxis
+from .. import Display, Scene, highlight_color
+from . import npboundingbox, load_shader_ident, load_shader_uniformcolor
 
 __all__ = ['PointDisplay', 'AxisDisplay', 'BoxDisplay', 'SplineDisplay', 'GridDisplay']
 
@@ -358,7 +360,7 @@ class GridDisplay(Display):
 
 
 def tupledisplay(scene: Scene, t:tuple) -> Display:
-	if primitives.isaxis(t):	return AxisDisplay(scene, t)
+	if isaxis(t):	return AxisDisplay(scene, t)
 	# if not found: empty display
 	return Display()
 

@@ -1,6 +1,10 @@
 import moderngl as mgl
 
-from ...mathutils import *
+import numpy as np
+from pyglm.glm import fvec4, fmat4
+from arrex import typedlist
+
+from ...mathutils import vec3
 from ...common import resourcedir
 from ...mesh import typedlist_to_numpy
 from .. import Display
@@ -46,7 +50,7 @@ class VoxelsDisplay(Display):
 				(fvec4(1,1,1,1), fvec4(1,1,1,1))     # white-white
 				```
 	'''
-	def __init__(self, scene, voxel: 'ndarray', space: 'fmat4', 
+	def __init__(self, scene, voxel: np.ndarray, space: fmat4, 
 				value=(0, 1), 
 				color=(fvec4(0,0,1,1), fvec4(0,1,0,1))):
 		

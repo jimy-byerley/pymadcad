@@ -2,11 +2,17 @@
 
 from copy import copy
 from operator import itemgetter
-from math import inf, atan
+from math import inf, atan, atan2, pi, acos
+from arrex import typedlist
+from pyglm.glm import normalize, inverse, dmat2, dvec2, distance2, dot, cross, mix, distance, isnan, length, length2, uvec3
+from pyglm import glm
 
 from . import settings
 from .mesh import Mesh, Web, Wire, web
-from .mathutils import NUMPREC, vec2
+from .blending import convexhull
+from .hashing import suites, connef
+from .mathutils import NUMPREC, vec3, vec2, perp, norminf, distance_pe, isfinite, noproject, perpdot, dirbase, imax
+from .hashing import connpe, Asso
 
 
 class TriangulationError(Exception):	pass
@@ -706,6 +712,7 @@ def triangulation_closest(outline, normal=None, prec=None):
 
 def retriangulate(mesh):
 	''' switch diagonals to improve the surface smoothness '''
+	from .bevel import registerface, arrangeface # circular import
 	pts = mesh.points
 	faces = mesh.faces
 	# second pass:	improve triangles by switching quand diagonals
@@ -738,12 +745,12 @@ def retriangulate(mesh):
 		registerface(conn, fc)
 		registerface(conn, fd)
 		# update scores
-		update_scores((d,a))
-		update_scures((a,c))
-		update_scores((c,d))
-		update_scores((d,a))
-		update_scures((a,c))
-		update_scores((c,d))
+		update_score((d,a))
+		update_score((a,c))
+		update_score((c,d))
+		update_score((d,a))
+		update_score((a,c))
+		update_score((c,d))
 
 	
 def discretise_refine(curve: '[(x, f(x))]', func: 'f(float) -> float', resolution=None, simplify=True):
@@ -808,7 +815,7 @@ def loop_closer(lines: Web, ending=0) -> 'Web':
 		:ending:	the thickness along normals, for exterior geometries
 	'''
 	# the lines are simple lines, no junction at all
-	if not line.isline():
+	if not lines.isline():
 		raise ValueError("the given web is not only made of lines, there is junctions")
 	
 	pts = lines.pts

@@ -5,6 +5,7 @@
 from __future__ import annotations
 from collections.abc import Callable
 
+import arrex.glm # noqa: F401
 from pyglm import glm
 from pyglm.glm import (
 	affineInverse,
@@ -25,9 +26,16 @@ from pyglm.glm import (
 	normalize,
 	length2,
 	cross,
+	fquat,
+	mat3_cast,
+	angleAxis,
+	translate,
+	fvec3,
+	fmat3,
+	fmat4,
 )
 
-from math import inf, nan, isfinite as _isfinite
+from math import inf, nan, sqrt, isfinite as _isfinite
 
 __all__ = [
 	"O",
@@ -81,6 +89,8 @@ __all__ = [
 	"unskew",
 	"Axis",
 	"Screw",
+	"Vector",
+	"Point",
 ]
 
 # alias definitions
@@ -91,6 +101,9 @@ mat3 = dmat3
 vec4 = dvec4
 mat4 = dmat4
 quat = dquat
+
+# aliases, for those who like them
+Vector = Point = vec3
 
 # norm L1  ie.  `abs(x) + abs(y) + abs(z)`
 norm1 = l1Norm
@@ -458,10 +471,6 @@ def linrange(start, stop=None, step=None, div=0, end=True):
 	while (stop-t)*step >= 0:
 		yield t
 		t += step
-
-
-# aliases, for those who like them
-Vector = Point = vec3
 
 
 class Axis(object):

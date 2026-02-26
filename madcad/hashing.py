@@ -5,7 +5,10 @@
 	The complexity and therefore the cost of those operations are most of the time close to the hashmap complexity O(1). It means data is found in time independently of the actual size of the mesh or whatever storage it is.
 '''
 
-from .mathutils import *
+from arrex import typedlist
+from pyglm import glm
+from pyglm.glm import cross, i64vec3, length
+from .mathutils import vec3, NUMPREC
 from . import core
 from . import mesh
 from functools import reduce
@@ -270,7 +273,7 @@ class PositionMap:
 		'''
 		# point
 		if isinstance(space, vec3):
-			return tuple(i64vec3(glm.floor(space/cell))),
+			return tuple(i64vec3(glm.floor(space/self.cellsize))),
 		# segment
 		elif isinstance(space, tuple) and len(space) == 2:
 			return core.rasterize_segment(space, self.cellsize)
@@ -448,14 +451,14 @@ class PointSet:
 	__iadd__ = update
 	__isub__ = difference_update
 	def __add__(self, iterable):
-		s = PositionSet()
-		s.union(self.points)
-		s.union(iterable)
+		s = PointSet(self.cellsize)
+		s.update(self.points)
+		s.update(iterable)
 		return s
 	def __sub__(self, iterable):
-		s = PositionSet()
-		s.union(self.points)
-		s.difference(iterable)
+		s = PointSet(self.cellsize)
+		s.update(self.points)
+		s.difference_update(iterable)
 		return s
 
 
