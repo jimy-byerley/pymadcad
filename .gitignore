@@ -175,3 +175,6 @@ uv.lock
 
 # Fuzzy finder
 .ignore
+
+# Test snapshots
+tests/__snapshot__/
