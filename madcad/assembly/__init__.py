@@ -4,11 +4,13 @@
 
 from __future__ import annotations
 
-from itertools import chain
-from pnprint import nprint
 from dataclasses import dataclass
+from pyglm.glm import mat4, affineInverse, dot, mix
+from pyglm import glm
+from math import inf
 
-from ..mathutils import *
+from ..mathutils import vec3, transform, isfinite, X, Y, Z, Axis
+from ..box import boundingbox, Box
 
 # This file is part of pymadcad,  distributed under license LGPL v3
 __all__ = ['Solid', 'placement', 'explode', 'explode_offsets', 'SolidBox']
@@ -55,8 +57,8 @@ class Solid(dict):
 	def loc(self, *args) -> object:
 		''' chain transforms in the given key path '''
 		obj, transform = self._unroll(args)
-		return transfrom
-
+		return transform
+	
 	def deloc(self, *args) -> object:
 		''' return the object at the given key path with the chain of transforms applied to it '''
 		obj, transform = self._unroll(args)
@@ -143,7 +145,8 @@ def placement(*pairs, precision=1e-3):
 		...		)
 	'''
 	from ..reverse import guessjoint
-
+	from ..kinematic import Kinematic # circular import
+	
 	joints = []
 	for pair in pairs:
 		if len(pair) == 2:		joints.append(guessjoint((0, 1), *pair, precision*0.25))

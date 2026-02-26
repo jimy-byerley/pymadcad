@@ -4,21 +4,17 @@ import warnings
 from dataclasses import dataclass
 import numpy as np
 import numpy.linalg as la
-import moderngl as mgl
-from time import time
-from glm import smoothstep
+from math import nan, inf, cos, sin, pi
+from pyglm.glm import fmat4, fvec3, affineInverse, mat3, mat4, dot, length2, distance, fvec4, scale, translate, normalize, dmat3x2
 
-from ..common import resourcedir
-from ..mathutils import *
-from ..mesh import Mesh, Web, Wire, striplist, distance2_pm, typedlist_to_numpy
+from ..mathutils import vec2, vec3, vec4, X, Y, Axis, linrange
 from .. import settings
-from .. import rendering
 from .. import scheme
-from ..rendering import Group, writeproperty, receiver
+from ..rendering import Group, receiver
 from ..scheme import Scheme, halo_screen
 from ..generation import revolution
 from ..mesh import web
-from .solver import Chain, Kinematic, KinematicError, regularize_grad, structure_state, flatten_state
+from .solver import Kinematic, KinematicError, regularize_grad, structure_state, flatten_state
 try:
 	from ..qt import Qt, QEvent, QTimer
 except ImportError:

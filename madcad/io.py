@@ -176,7 +176,6 @@ try:
 except ImportError:	pass
 else:
 
-	from .mathutils import *
 	from .mesh import numpy_to_typedlist, typedlist_to_numpy
 	def stl_read(file, **opts):
 		stlmesh = stl.mesh.Mesh.from_file(file, calculate_normals=False)

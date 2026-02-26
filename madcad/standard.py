@@ -44,7 +44,7 @@ from .box import boundingbox
 __all__ = [	'nut', 'screw', 'washer', 'bolt',
 			'coilspring_compression', 'coilspring_tension', 'coilspring_torsion',
 			'bearing', 'slidebearing',
-			'section_s', 'section_w', 'section_c', 'section_l', 'section_tslot', 'grooves',
+			'section_s', 'section_w', 'section_c', 'section_l', 'section_tslot',
 			'screw_slot', 'bolt_slot', 'bearing_slot_exterior', 'bearing_slot_interior',
 			'circular_screwing',
 			'grooves_profile', 'grooves',

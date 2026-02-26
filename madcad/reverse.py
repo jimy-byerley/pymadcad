@@ -1,10 +1,12 @@
-from .mathutils import *
+from math import inf
+from pyglm.glm import cross, dot, length, length2, distance, sign, quat, normalize
+from .mathutils import anglebt, vec3, noproject, project
 from .mesh import Mesh
 from .hashing import connef, edgekey
 from .constraints import SolveError
 
 import numpy as np
-from scipy.optimize import minimize, least_squares
+from scipy.optimize import least_squares
 
 __all__ = [	'segmentation',
 			'guessjoint', 'guesssurface',

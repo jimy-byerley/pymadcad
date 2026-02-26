@@ -17,14 +17,14 @@
 				...
 '''
 
-from collections import Counter
-
+from math import sqrt, degrees, inf, atan2
 import numpy as np
+from pyglm.glm import cross, dot, length2, distance2, length, distance, mix
 from scipy.optimize import least_squares
 from arrex import typedlist
 
-from .mathutils import *
-from . import primitives, settings
+from .mathutils import vec3, dirbase, noproject
+from . import scheme
 
 __all__ = ['SolveError', 'Constraint', 'isconstraint', 
 	'Tangent', 'Distance', 'Angle', 'Parallel', 'Radius', 'OnPlane', 'PointOn',
@@ -74,9 +74,9 @@ class Distance(Constraint):
 	def fit(self):
 		if isinstance(self.p1, vec3) and isinstance(self.p2, vec3):
 			if self.along:
-				if isinstance(along, vec3):	a = along
-				else:						a = along.direction
-				return (dot(self.p1-self.p2, a) - d) ** 2,
+				if isinstance(self.along, vec3):	a = self.along
+				else:						a = self.along.direction
+				return (dot(self.p1-self.p2, a) - self.d) ** 2,
 			else:
 				return (distance(self.p1, self.p2) - self.d) **2,
 		elif isinstance(self.p1, vec3):
@@ -92,7 +92,6 @@ class Distance(Constraint):
 	#def fitgrad(self):
 		#return derived.compose(dot, Derived(self.p1), Derived(self.p2))
 	def display(self, scene):
-		from . import sceme
 		if isinstance(self.p1, vec3) and isinstance(self.p2, vec3):
 			return scene.display(scheme.note_distance(
 					self.p1, self.p2, 
