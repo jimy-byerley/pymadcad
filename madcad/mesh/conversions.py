@@ -5,6 +5,7 @@ from .mesh import Mesh
 from .web import Web
 from .wire import Wire
 
+__all__ = ['mesh', 'web', 'wire']
 
 def mesh(*arg, resolution=None) -> Mesh:
 	''' Build a Mesh object from supported objects:

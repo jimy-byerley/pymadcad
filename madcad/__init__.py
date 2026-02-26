@@ -125,7 +125,8 @@ That's it ! The primitive list can now be converted to Wire or Web with the good
 	(vec3(...), vec3(...), vec3(...))
 
 '''
-version = '0.19.0'
+
+import importlib.metadata
 
 # computation
 from . import (
@@ -141,15 +142,33 @@ from . import (
 	)
 
 # the most common tools, imported to access it directly from madcad
-from .mathutils import *
+from .mathutils import (
+		O, X, Y, Z, NUMPREC, COMPREC, vec2, mat2, vec3, mat3, vec4, mat4, quat,
+		norm1, norm2, isfinite, norminf, anglebt, arclength, project,
+		noproject, unproject, perpdot, perp, dirbase, scaledir, rotatearound,
+		transform, transformer, interpol1, interpol2, intri_flat, intri_sphere,
+		intri_smooth, intri_parabolic, distance_pa, distance_pe, distance_aa,
+		distance_ae, distance_pt, fbisect, bisect, find, imax, linstep,
+		linrange, comoment, skew, unskew, Axis, Screw, Vector, Point,
+	)
 from .mesh import Mesh, Web, Wire, MeshError, web, wire
 from .boolean import pierce, difference, union, intersection
 from .bevel import chamfer, filet, edgecut, planeoffsets
-from .generation import *
-from .offseting import *
+from .generation import (
+		extrans, extrusion, revolution, helix, screw, saddle, tube, repeat,
+		repeataround, flatsurface, icosurface, square, brick, parallelogram,
+		cylinder, cone, pyramid, icosahedron, icosphere, uvsphere, regon, 
+	)
+from .offseting import thicken, inflate, inflate_offsets, expand
 from .blending import junction, multijunction, blend, blendloop, blendpair, blenditer
-from .primitives import isprimitive, Segment, ArcThrough, ArcCentered, ArcTangent, TangentEllipsis, Ellipsis, Circle, Interpolated, Softened
-from .constraints import isconstraint, SolveError, Tangent, Distance, Angle, Parallel, Radius, PointOn, OnPlane, solve
+from .primitives import (
+		isprimitive, Segment, ArcThrough, ArcCentered, ArcTangent,
+		TangentEllipsis, Ellipsis, Circle, Interpolated, Softened
+	)
+from .constraints import (
+	isconstraint, SolveError, Tangent, Distance, Angle, Parallel, Radius,
+	PointOn, OnPlane, solve
+)
 from .kinematic import KinematicError, Joint, Chain, Kinematic
 from .assembly import Solid
 from .reverse import segmentation
@@ -158,9 +177,67 @@ from .io import read, write, cache, cachefunc
 from .triangulation import TriangulationError
 from .hull import convexhull, convexoutline, horizon
 from .hashing import suites
+from .standard import (
+		nut, screw, washer, bolt, coilspring_compression, coilspring_tension,
+		coilspring_torsion, bearing, slidebearing, section_s, section_w,
+		section_c, section_l, section_tslot, screw_slot, bolt_slot,
+		bearing_slot_exterior, bearing_slot_interior, circular_screwing,
+		grooves_profile, grooves, stfloor, stceil
+	)
 
-from .standard import *
+# math most used functions and constants
+from math import (
+		acos, asin, atan, atan2, ceil, copysign, cos, degrees, dist, e, exp,
+		floor, gcd, hypot, inf, isclose, isinf, isnan, log, nan, pi, pow,
+		radians, sin, sqrt, tan,
+	)
 
+__all__ = [
+		"settings",
+		"mathutils", "mesh", 
+		"generation", "text", "boolean", "bevel", "primitives", "constraints", "kinematic", "joints",
+		"io", "hashing", "triangulation",
+		"standard",
+		"O", "X", "Y", "Z", "NUMPREC", "COMPREC", "vec2", "mat2", "vec3", "mat3", "vec4", "mat4", "quat",
+		"norm1", "norm2", "isfinite", "norminf", "anglebt", "arclength", "project",
+		"noproject", "unproject", "perpdot", "perp", "dirbase", "scaledir", "rotatearound",
+		"transform", "transformer", "interpol1", "interpol2", "intri_flat", "intri_sphere",
+		"intri_smooth", "intri_parabolic", "distance_pa", "distance_pe", "distance_aa",
+		"distance_ae", "distance_pt", "fbisect", "bisect", "find", "imax", "linstep",
+		"linrange", "comoment", "skew", "unskew", "Axis", "Screw", "Vector", "Point",
+		"Mesh", "Web", "Wire", "MeshError", "web", "wire",
+		"pierce", "difference", "union", "intersection",
+		"chamfer", "filet", "edgecut", "planeoffsets",
+		"extrans", "extrusion", "revolution", "helix", "screw", "saddle", "tube", "repeat",
+		"repeataround", "flatsurface", "icosurface", "square", "brick", "parallelogram",
+		"cylinder", "cone", "pyramid", "icosahedron", "icosphere", "uvsphere", "regon", 
+		"thicken", "inflate", "inflate_offsets", "expand",
+		"junction", "multijunction", "blend", "blendloop", "blendpair", "blenditer",
+		"isprimitive", "Segment", "ArcThrough", "ArcCentered", "ArcTangent",
+		"TangentEllipsis", "Ellipsis", "Circle", "Interpolated", "Softened",
+		"isconstraint", "SolveError", "Tangent", "Distance", "Angle",
+		"Parallel", "Radius", "PointOn", "OnPlane", "solve",
+		"KinematicError", "Joint", "Chain", "Kinematic",
+		"Solid",
+		"segmentation",
+		"select",
+		"read", "write", "cache", "cachefunc",
+		"TriangulationError",
+		"convexhull", "convexoutline", "horizon",
+		"suites",
+		"nut", "screw", "washer", "bolt", "coilspring_compression", "coilspring_tension",
+		"coilspring_torsion", "bearing", "slidebearing", "section_s", "section_w",
+		"section_c", "section_l", "section_tslot", "screw_slot", "bolt_slot",
+		"bearing_slot_exterior", "bearing_slot_interior", "circular_screwing",
+		"grooves_profile", "grooves", "stfloor", "stceil",
+		"acos", "asin", "atan", "atan2", "ceil", "copysign", "cos", "degrees", "dist", "e", "exp",
+		"floor", "gcd", "hypot", "inf", "isclose", "isinf", "isnan", "log", "nan", "pi", "pow",
+		"radians", "sin", "sqrt", "tan",
+		"show", "render",
+		]
+
+# Get version from pyproject.toml
+# __version__ = importlib.metadata.version(__package__)
 
 def show(*args, **kwargs):
 	''' shorthand to `rendering.show`,

@@ -48,7 +48,7 @@ from pyglm.glm import (
 	distance,
 )
 
-from .mathutils import vec3, isfinite, dirbase, isaxis, Z, Axis, linrange, mat2, mat3, mat4, vec4, NUMPREC, project, noproject, anglebt
+from .mathutils import vec3, isfinite, dirbase, isaxis, Z, Axis, linrange, mat2, mat3, mat4, vec4, NUMPREC, project, noproject, anglebt, unproject
 from .primitives import Circle, ArcCentered
 from .box import boundingbox, Box
 from .rendering import Display

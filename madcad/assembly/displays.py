@@ -1,16 +1,12 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 from __future__ import annotations
-import warnings
 import random
-from dataclasses import dataclass
-import numpy as np
-import numpy.linalg as la
-import moderngl as mgl
-from functools import partial
 from time import time
-from glm import smoothstep
+from pyglm.glm import smoothstep, fmat4, fvec3, slerp, mix, fquat, translate, fmat3, transpose, inverse, mat4
+from math import inf
 
-from ..mathutils import *
+from ..box import boundingbox, Box
+from ..mathutils import vec3
 from ..rendering import Scene, Group, writeproperty, receiver
 from . import Solid, explode_offsets, SolidBox
 try:
@@ -19,7 +15,7 @@ except ImportError:
 	# it not found, assume the event-handlers will not be called
 	pass
 
-__all__ = ['ChainManip', 'KinematicManip', 'scale_solid', 'world_solid']
+__all__ = ["ExplodableGroup", "SolidDisplay", "Animator", "Animation"]
 
 
 

@@ -19,11 +19,63 @@
 '''
 from __future__ import annotations
 
+import numpy as np
+from pyglm.glm import fmat4, uvec2
+
+from ..box import Box
 from .. import settings
-from .utils import *
-from .base import *
-from .d3.view import *
+from .utils import (
+	writeproperty,
+	forwardproperty,
+	sceneshare,
+	receiver,
+	Weak,
+	Rc,
+	CheapMap,
+	snail,
+	snailaround,
+	glsize,
+	highlight_color,
+	vec_to_qpoint,
+	qpoint_to_vec,
+	vec_to_qsize,
+	qsize_to_vec,
+)
+from .base import Scene, Step, Display, Group, Displayable
+from .d3.view import GLView3D, Offscreen3D, QView3D, Orbit, Turntable, Perspective, Orthographic
 # from .d2.view import *
+
+__all__ = [
+	"CheapMap",
+	"Display",
+	"Displayable",
+	"GLView3D",
+	"Group",
+	"Offscreen3D",
+	"Orbit",
+	"Orthographic",
+	"Perspective",
+	"QView3D",
+	"Rc",
+	"Scene",
+	"Step",
+	"Turntable",
+	"Weak",
+	"forwardproperty",
+	"glsize",
+	"highlight_color",
+	"qpoint_to_vec",
+	"qsize_to_vec",
+	"receiver",
+	"sceneshare",
+	"snail",
+	"snailaround",
+	"vec_to_qpoint",
+	"vec_to_qsize",
+	"writeproperty",
+	"show",
+	"render",
+]
 
 try:
 	from ..qt import QApplication
@@ -83,7 +135,7 @@ else:
 				print('error: Qt exited with code', err)
 
 
-def render(scene:Scene|dict|list, size=uvec2(400, 400), view:fmat4=None, proj:fmat4=None, interest:Box=None, alpha=False, **options) -> ndarray:
+def render(scene:Scene|dict|list, size=uvec2(400, 400), view:fmat4=None, proj:fmat4=None, interest:Box=None, alpha=False, **options) -> np.ndarray:
 	'''
 	render the given scene to an image
 

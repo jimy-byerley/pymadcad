@@ -28,13 +28,11 @@
 		To solve ambiguities of interior and exterior, the most outer part of first mesh argument is always considered to belong to the exterior. And the information is propagated through the web.
 '''
 
-from copy import copy, deepcopy
+from arrex import typedlist
+from pyglm.glm import dot, cross, normalize, distance2, uvec2, uvec3
+from .hashing import connef, connpe, PointSet, PositionMap, meshcellsize, edgekey
+from .mathutils import vec3, NUMPREC, distance_pe, isfinite, noproject
 from operator import itemgetter
-from functools import singledispatch
-from time import time
-from math import inf
-from .mathutils import *
-from .hashing import *
 from . import core
 from .mesh import Mesh, Web, Wire, web, line_simplification
 from . import triangulation

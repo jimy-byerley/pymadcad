@@ -55,26 +55,28 @@
 	See `Mesh.qualify()` for more details
 '''
 
-from ..mathutils import *
-
-
-__all__ = [
-		'Mesh', 'Web', 'Wire', 'MeshError', 'web', 'wire', 
-		'line_simplification', 'mesh_distance', 'striplist',
-		'typedlist_to_numpy', 'numpy_to_typedlist', 'ensure_typedlist',
-		]
-
+from math import sqrt, inf
+from pyglm.glm import length, cross, dot, length2, distance2
+from ..hashing import suites
+from ..mathutils import vec3, noproject
 
 # submodules content exposed
 from .mesh import Mesh, mkquad, mktri
 from .web import Web
 from .wire import Wire
-from .conversions import *
 from .container import (
-	MeshError, NMesh,
+	MeshError,
 	striplist,
 	typedlist_to_numpy, numpy_to_typedlist, ensure_typedlist,
 	)
+from .conversions import web, mesh, wire
+
+__all__ = [
+		'Mesh', 'Web', 'Wire', 'MeshError', 'web', 'wire', 'mesh',
+		'line_simplification', 'mesh_distance', 'striplist',
+		'typedlist_to_numpy', 'numpy_to_typedlist', 'ensure_typedlist',
+		'mkquad', 'mktri',
+		]
 
 # topological genericity definitions
 Mesh0 = Wire

@@ -8,10 +8,13 @@
 '''
 
 from __future__ import annotations
+from arrex import typedlist
 import scipy.spatial
-from .mathutils import *
+from pyglm.glm import uvec3, uvec2, transpose, dmat2x3, dot, length2, cross, normalize, isnan
+from pyglm import glm
+from .mathutils import vec3, vec2, dirbase, noproject, NUMPREC
 from .mesh import Mesh, Web, Wire, numpy_to_typedlist, typedlist_to_numpy
-from .hashing import Asso, edgekey, facekeyo, arrangeface, connef, connpe
+from .hashing import Asso, edgekey, facekeyo
 
 from copy import copy
 from collections import Counter
