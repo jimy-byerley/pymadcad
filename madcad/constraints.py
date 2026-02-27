@@ -17,13 +17,13 @@
 				...
 '''
 
-from math import sqrt, degrees, inf, atan2
 import numpy as np
-from pyglm.glm import cross, dot, length2, distance2, length, distance, mix
 from scipy.optimize import least_squares
-from arrex import typedlist
 
-from .mathutils import vec3, dirbase, noproject
+from .mathutils import (
+		vec3, dirbase, noproject, cross, dot, length2, distance2, length,
+		distance, mix, sqrt, degrees, inf, atan2, typedlist
+	)
 from . import scheme
 
 __all__ = ['SolveError', 'Constraint', 'isconstraint', 

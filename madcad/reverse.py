@@ -1,6 +1,7 @@
-from math import inf
-from pyglm.glm import cross, dot, length, length2, distance, sign, quat, normalize
-from .mathutils import anglebt, vec3, noproject, project
+from .mathutils import (
+		anglebt, vec3, noproject, project, cross, dot, length, length2,
+		distance, sign, quat, normalize, inf
+	)
 from .mesh import Mesh
 from .hashing import connef, edgekey
 from .constraints import SolveError

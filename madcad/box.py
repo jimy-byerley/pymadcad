@@ -2,22 +2,12 @@ from __future__ import annotations
 
 from typing import Generic, TypeVar
 from copy import copy
-from math import inf
 
 import numpy as np
-from pyglm import glm
-from pyglm.glm import (
-    dvec3,
-    fmat2,
-    fmat3,
-    fmat4,
-    fvec1,
-    fvec2,
-    fvec3,
-    vec1,
-)
-
-from .mathutils import vec3, vec2, mat2, mat3, mat4
+from .mathutils import (
+        dvec3, fmat2, fmat3, fmat4, fvec1, fvec2, fvec3, vec1, vec3, vec2,
+        mat2, mat3, mat4, inf, glm
+    )
 
 T = TypeVar("T")
 

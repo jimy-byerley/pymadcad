@@ -1,11 +1,11 @@
 from __future__ import annotations
-from arrex import typedlist
-from pyglm.glm import uvec2, isnan, dot, normalize, cross, length, distance, distance2
-from pyglm import glm
 from copy import deepcopy
 
 from .container import NMesh, ensure_typedlist, reprarray, MeshError
-from ..mathutils import vec3, noproject, distance_pe
+from ..mathutils import (
+		vec3, noproject, distance_pe, uvec2, isnan, dot, normalize, cross,
+		length, distance, distance2, glm, typedlist
+	)
 from numbers import Integral
 
 class Wire(NMesh):

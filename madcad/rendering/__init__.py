@@ -20,26 +20,14 @@
 from __future__ import annotations
 
 import numpy as np
-from pyglm.glm import fmat4, uvec2
 
 from ..box import Box
 from .. import settings
+from ..mathutils import fmat4, uvec2
 from .utils import (
-	writeproperty,
-	forwardproperty,
-	sceneshare,
-	receiver,
-	Weak,
-	Rc,
-	CheapMap,
-	snail,
-	snailaround,
-	glsize,
-	highlight_color,
-	vec_to_qpoint,
-	qpoint_to_vec,
-	vec_to_qsize,
-	qsize_to_vec,
+	writeproperty, forwardproperty, sceneshare, receiver, Weak, Rc, CheapMap,
+	snail, snailaround, glsize, highlight_color, vec_to_qpoint, qpoint_to_vec,
+	vec_to_qsize, qsize_to_vec,
 )
 from .base import Scene, Step, Display, Group, Displayable
 from .d3.view import GLView3D, Offscreen3D, QView3D, Orbit, Turntable, Perspective, Orthographic

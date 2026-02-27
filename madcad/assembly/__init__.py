@@ -5,11 +5,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pyglm.glm import mat4, affineInverse, dot, mix
-from pyglm import glm
-from math import inf
 
-from ..mathutils import vec3, transform, isfinite, X, Y, Z, Axis
+from ..mathutils import (
+		vec3, transform, isfinite, X, Y, Z, Axis, mat4, affineInverse, dot,
+		mix, glm, inf
+	)
 from ..box import boundingbox, Box
 
 # This file is part of pymadcad,  distributed under license LGPL v3
