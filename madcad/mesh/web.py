@@ -1,13 +1,13 @@
 from __future__ import annotations
-from math import inf
 from numbers import Integral
 from collections import OrderedDict
-from arrex import typedlist
-from pyglm.glm import uvec2, cross, length2, distance, length, dot, normalize
 
 from .container import ensure_typedlist, NMesh, typedlist_to_numpy, reprarray, MeshError, striplist
 from ..hashing import Asso, edgekey, suites, connpe
-from ..mathutils import vec3, distance_pe
+from ..mathutils import (
+		vec3, distance_pe, uvec2, cross, length2, distance, length, dot,
+		normalize, typedlist, inf
+	)
 from .wire import Wire
 
 

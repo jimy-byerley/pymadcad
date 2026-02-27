@@ -3,14 +3,15 @@ from math import inf, cos
 from copy import deepcopy, copy
 from numbers import Integral
 from collections import OrderedDict
-from arrex import typedlist
-from pyglm.glm import uvec2, cross, length2, length, dot, normalize, uvec3, distance2, mix, clamp
-from pyglm import glm
 
 from .. import settings
 from .container import ensure_typedlist, NMesh, typedlist_to_numpy, reprarray, MeshError, striplist
 from ..hashing import Asso, edgekey, suites, arrangeface, connef
-from ..mathutils import vec3, isfinite, anglebt, NUMPREC, mat3, distance_pt
+from ..mathutils import (
+		vec3, isfinite, anglebt, NUMPREC, mat3, distance_pt, uvec2, cross,
+		length2, length, dot, normalize, uvec3, distance2, mix, clamp, glm,
+		typedlist
+	)
 from .web import Web
 
 

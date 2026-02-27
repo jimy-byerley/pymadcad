@@ -14,13 +14,15 @@
 import re
 from operator import itemgetter
 from itertools import accumulate
-from math import floor, log, ceil, sin, cos, tan, radians, pi, sqrt
-
-from pyglm.glm import cross, translate, scale, sign, quat, normalize, distance, dot, angleAxis, reflect, mix
 
 from . import settings
 from .kinematic import Chain, Kinematic
-from .mathutils import NUMPREC, isfinite, vec3, O, X, Y, Z, Axis, rotatearound, bisect, scaledir, dirbase, mat4, linrange, mat3, project, distance_pa
+from .mathutils import (
+		NUMPREC, isfinite, vec3, O, X, Y, Z, Axis, rotatearound, bisect,
+		scaledir, dirbase, mat4, linrange, mat3, project, distance_pa, cross,
+		translate, scale, sign, quat, normalize, distance, dot, angleAxis,
+		reflect, mix, floor, log, ceil, sin, cos, tan, radians, pi, sqrt
+	)
 from .offseting import thicken, inflate
 from .bevel import chamfer, filet
 from .blending import blendloop

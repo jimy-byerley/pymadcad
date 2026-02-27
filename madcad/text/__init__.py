@@ -15,17 +15,9 @@ import os
 import sys
 from dataclasses import dataclass
 
-from pyglm.glm import fvec2
-
 from ..box import Box
 from ..common import resourcedir
-from ..mathutils import (
-	anglebt,
-	distance,
-	linrange,
-	vec2,
-	vec3,
-)
+from ..mathutils import anglebt, distance, linrange, vec2, vec3, fvec2
 from ..triangulation import triangulation
 from ..primitives import Segment
 from ..mesh import Wire, Web, Mesh, web

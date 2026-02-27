@@ -6,44 +6,17 @@
 
 import itertools
 from copy import copy
-from math import pi, sin, cos, atan2, sqrt, inf, tan
-
-from arrex import typedlist
-from pyglm.glm import (
-    angleAxis,
-    cross,
-    distance,
-    dot,
-    length,
-    mat3_cast,
-    normalize,
-    quat,
-    translate,
-    uvec2,
-    uvec3,
-)
 
 from . import triangulation
 from . import settings
 from . import primitives
 from .mathutils import (
-    Axis,
-    NUMPREC,
-    O,
-    Z,
-    anglebt,
-    arclength,
-    dirbase,
-    intri_sphere,
-    linrange,
-    mat4,
-    noproject,
-    rotatearound,
-    scaledir,
-    transform,
-    vec3,
-    vec4,
-)
+		angleAxis, cross, distance, dot, length, mat3_cast, normalize, quat,
+		translate, uvec2, uvec3, Axis, NUMPREC, O, Z, anglebt, arclength,
+		dirbase, intri_sphere, linrange, mat4, noproject, rotatearound,
+		scaledir, transform, vec3, vec4, typedlist, pi, sin, cos, atan2, sqrt,
+		inf, tan 
+	)
 from .mesh import Mesh, Web, Wire, web, wire, mkquad
 from .box import Box
 

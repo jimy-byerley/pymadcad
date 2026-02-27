@@ -1,15 +1,13 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
-from math import exp, log, floor
 
 import numpy._core as np
 import moderngl as mgl
 from PIL import Image
-from pyglm.glm import fvec3, fvec4, dvec3
 
 from ... import settings
 from ...common import resourcedir
 from ...box import Box
-from ...mathutils import isaxis
+from ...mathutils import isaxis, fvec3, fvec4, dvec3, exp, log, floor
 from .. import Display, Scene, highlight_color
 from . import npboundingbox, load_shader_ident, load_shader_uniformcolor
 

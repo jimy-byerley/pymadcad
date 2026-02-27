@@ -3,9 +3,9 @@ from __future__ import annotations
 import moderngl as mgl
 from numpy import ndarray
 import numpy as np
-from pyglm.glm import ivec2, uvec2, fvec4, mix
 
 from .. import settings
+from ..mathutils import ivec2, uvec2, fvec4, mix
 
 __all__ = [
 	"writeproperty",

@@ -2,10 +2,10 @@
 from PIL import Image, ImageFont, ImageDraw
 import numpy._core as np
 import moderngl as mgl
-from pyglm.glm import fvec3, fvec4
 
 from ..rendering import Display, highlight_color
 from ..common import resourcedir
+from ..mathutils import fvec3, fvec4
 from .. import settings
 from . import font_path, processalign
 

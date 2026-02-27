@@ -8,11 +8,11 @@
 '''
 
 from __future__ import annotations
-from arrex import typedlist
 import scipy.spatial
-from pyglm.glm import uvec3, uvec2, transpose, dmat2x3, dot, length2, cross, normalize, isnan
-from pyglm import glm
-from .mathutils import vec3, vec2, dirbase, noproject, NUMPREC
+from .mathutils import (
+		vec3, vec2, dirbase, noproject, NUMPREC, uvec3, uvec2, transpose,
+		dmat2x3, dot, length2, cross, normalize, isnan, glm, typedlist
+	)
 from .mesh import Mesh, Web, Wire, numpy_to_typedlist, typedlist_to_numpy
 from .hashing import Asso, edgekey, facekeyo
 

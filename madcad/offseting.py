@@ -7,10 +7,10 @@
 '''
 
 from copy import deepcopy
-from arrex import typedlist
-from math import inf
-from pyglm.glm import normalize, cross, length, smoothstep, dot, length2, mix
-from .mathutils import vec3, project, isfinite, NUMPREC, Axis, unproject, noproject
+from .mathutils import (
+		vec3, project, isfinite, NUMPREC, Axis, unproject, noproject,
+		normalize, cross, length, smoothstep, dot, length2, mix, inf, typedlist
+		)
 from .mesh import Mesh, mkquad, mktri
 from .hashing import suites
 

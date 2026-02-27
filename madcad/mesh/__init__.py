@@ -55,19 +55,18 @@
 	See `Mesh.qualify()` for more details
 '''
 
-from math import sqrt, inf
-from pyglm.glm import length, cross, dot, length2, distance2
 from ..hashing import suites
-from ..mathutils import vec3, noproject
+from ..mathutils import (
+		vec3, noproject, length, cross, dot, length2, distance2, sqrt, inf
+	)
 
 # submodules content exposed
 from .mesh import Mesh, mkquad, mktri
 from .web import Web
 from .wire import Wire
 from .container import (
-	MeshError,
-	striplist,
-	typedlist_to_numpy, numpy_to_typedlist, ensure_typedlist,
+	MeshError, striplist, typedlist_to_numpy, numpy_to_typedlist,
+	ensure_typedlist,
 	)
 from .conversions import web, mesh, wire
 

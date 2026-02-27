@@ -2,29 +2,17 @@
 from __future__ import annotations
 
 from copy import copy, deepcopy
-from arrex import typedlist
-from pyglm.glm import distance
 import numpy as np
 import numpy.lib.recfunctions as rfn
 
 from ..box import Box
 from ..hashing import PointSet
-from ..mathutils import (
-	NUMPREC,
-	isfinite,
-	vec3,
-	transformer,
-)
+from ..mathutils import NUMPREC, isfinite, vec3, transformer, typedlist, distance
 
 __all__ = [
-	"MeshError",
-	"NMesh",
-	"numpy_to_typedlist",
-	"typedlist_to_numpy",
-	"ensure_typedlist",
-	"reprarray",
-	"striplist",
-]
+		"MeshError", "NMesh", "numpy_to_typedlist", "typedlist_to_numpy",
+		"ensure_typedlist", "reprarray", "striplist",
+	]
 
 class MeshError(Exception):	
 	''' Inconsistent data in mesh '''

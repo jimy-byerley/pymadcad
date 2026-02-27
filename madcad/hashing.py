@@ -6,13 +6,10 @@
 '''
 
 from arrex import typedlist
-from pyglm import glm
-from pyglm.glm import cross, i64vec3, length
-from .mathutils import vec3, NUMPREC
+from .mathutils import vec3, NUMPREC, floor, ceil, sqrt, inf, cross, i64vec3, length, glm
 from . import core
 from . import mesh
 from functools import reduce
-from math import floor, ceil, sqrt, inf
 
 
 # ------ connectivity tools -------

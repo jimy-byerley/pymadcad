@@ -3,33 +3,18 @@
 	implementation of views and displays for 3D
 '''
 import numpy as np
-from pyglm.glm import fvec3
 from .view import (
-	GLView3D,
-	Offscreen3D,
-	QView3D,
-	Orbit,
-	Turntable,
-	Perspective,
-	Orthographic
+	GLView3D, Offscreen3D, QView3D, Orbit, Turntable, Perspective, Orthographic
 )
 
+from ...mathutils import fvec3
 from ...common import resourcedir
 from ...box import Box
 
 __all__ = [
-	'GLView3D',
-	'Offscreen3D',
-	'QView3D',
-	'Orbit',
-	'Turntable',
-	'Perspective',
-	'Orthographic',
-	"load_shader_ident",
-	"load_shader_subident",
-	"load_shader_wire",
-	"load_shader_uniformcolor",
-	"npboundingbox",
+	'GLView3D', 'Offscreen3D', 'QView3D', 'Orbit', 'Turntable', 'Perspective',
+	'Orthographic', "load_shader_ident", "load_shader_subident",
+	"load_shader_wire", "load_shader_uniformcolor", "npboundingbox",
 ]
 
 def load_shader_ident(scene):

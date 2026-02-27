@@ -4,14 +4,11 @@ import json
 import numpy as np
 import os
 import tempfile
-from arrex import typedlist
 from functools import wraps
 from math import inf
 from hashlib import md5
 
-from pyglm.glm import quat, uvec3
-
-from .mathutils import vec2, vec3, vec4, mat2, mat3, mat4
+from .mathutils import vec2, vec3, vec4, mat2, mat3, mat4, quat, uvec3, typedlist
 from .mesh import Mesh, Wire
 
 class FileFormatError(Exception):	pass

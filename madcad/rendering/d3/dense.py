@@ -1,10 +1,8 @@
 import moderngl as mgl
 
 import numpy as np
-from pyglm.glm import fvec4, fmat4
-from arrex import typedlist
 
-from ...mathutils import vec3
+from ...mathutils import vec3, typedlist, fvec4, fmat4
 from ...common import resourcedir
 from ...mesh import typedlist_to_numpy
 from .. import Display

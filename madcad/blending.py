@@ -51,10 +51,12 @@ To come in a next version
 	... )
 '''
 
-from pyglm.glm import length2, dot, length, normalize, distance, uvec3, distance2
 from .mesh import Mesh, Wire, Web, mkquad, numpy_to_typedlist, typedlist_to_numpy
 from .hashing import connef, suites
-from .mathutils import vec3, imax, noproject, interpol2, intri_smooth, interpol1, isfinite, anglebt
+from .mathutils import (
+        vec3, imax, noproject, interpol2, intri_smooth, interpol1, isfinite,
+        anglebt, length2, dot, length, normalize, distance, uvec3, distance2
+    )
 from .mesh import mktri
 from . import settings
 from . import generation

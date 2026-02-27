@@ -7,9 +7,10 @@ dictionaries:
 	:controls:	preferences for the controls of the Scene widget
 '''
 
-from math import pi, ceil, floor, sqrt
-from pyglm.glm import fvec3, fvec4, normalize
-import sys, os, yaml
+import sys
+import os
+import yaml
+from .mathutils import fvec3, fvec4, normalize, pi, ceil, floor, sqrt
 from os.path import dirname, exists
 
 # settings for all Display objects and for the scene rendering

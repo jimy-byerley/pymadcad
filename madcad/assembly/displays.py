@@ -2,12 +2,13 @@
 from __future__ import annotations
 import random
 from time import time
-from pyglm.glm import smoothstep, fmat4, fvec3, slerp, mix, fquat, translate, fmat3, transpose, inverse, mat4
-from math import inf
 
 from ..box import boundingbox, Box
-from ..mathutils import vec3
 from ..rendering import Scene, Group, writeproperty, receiver
+from ..mathutils import (
+		vec3, smoothstep, fmat4, fvec3, slerp, mix, fquat, translate, fmat3,
+		transpose, inverse, mat4, inf
+	)
 from . import Solid, explode_offsets, SolidBox
 try:
 	from ..qt import Qt, QEvent, QTimer

@@ -4,20 +4,20 @@
 '''
 from __future__ import annotations
 
-from math import tan, pi, atan2, exp
-
 import numpy as np
 import moderngl as mgl
 from pnprint import nprint
-from pyglm.glm import fmat4, uvec2, fvec3, fquat, inverse, fmat3, transpose, fvec2, length, length2, affineInverse, translate, quat, fvec4, perspective, ivec2
-from pyglm import glm
 
 from ..base import Scene, empty
 from ..utils import glsize, forwardproperty, qpoint_to_vec, CheapMap, receiver, snailaround, vec_to_qpoint
 from ... import settings
 from ...qt import QPoint
 from ...box import Box
-from ...mathutils import vec3, vec2, isfinite, noproject, bisect
+from ...mathutils import (
+		vec3, vec2, isfinite, noproject, bisect, fmat4, uvec2, fvec3, fquat,
+		inverse, fmat3, transpose, fvec2, length, length2, affineInverse,
+		translate, quat, fvec4, perspective, ivec2, glm, tan, pi, atan2, exp
+		)
 
 __all__ = ['GLView3D', 'Offscreen3D', 'QView3D', 'Orbit', 'Turntable', 'Perspective', 'Orthographic']
 

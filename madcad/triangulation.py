@@ -2,16 +2,18 @@
 
 from copy import copy
 from operator import itemgetter
-from math import inf, atan, atan2, pi, acos
-from arrex import typedlist
-from pyglm.glm import normalize, inverse, dmat2, dvec2, distance2, dot, cross, mix, distance, isnan, length, length2, uvec3
-from pyglm import glm
+from math import inf, atan, atan2, pi
 
 from . import settings
 from .mesh import Mesh, Web, Wire, web
 from .blending import convexhull
 from .hashing import suites, connef
-from .mathutils import NUMPREC, vec3, vec2, perp, norminf, distance_pe, isfinite, noproject, perpdot, dirbase, imax
+from .mathutils import (
+		NUMPREC, vec3, vec2, perp, norminf, distance_pe, isfinite, noproject,
+		perpdot, dirbase, imax, normalize, inverse, dmat2, dvec2, distance2,
+		dot, cross, mix, distance, isnan, length, length2, uvec3, acos, glm,
+		typedlist
+		)
 from .hashing import connpe, Asso
 
 

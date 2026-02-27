@@ -1,8 +1,6 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
-import math
-from pyglm.glm import uvec2
-from .mathutils import vec3, anglebt, dot, distance_pe, distance_ae
+from .mathutils import vec3, anglebt, dot, distance_pe, distance_ae, uvec2, inf
 from .mesh import Mesh, Web
 from .hashing import connpp, connef
 
@@ -139,7 +137,7 @@ def edgenear(web, obj):
 		raise TypeError("obj must be a point or an axis")
 	if isinstance(web, Mesh):	web = web.groupoutlines()
 	best = None
-	score = math.inf
+	score = inf
 	for edge in web.edges:
 		d = dist((web.points[edge[0]], web.points[edge[1]]))
 		if d < score:

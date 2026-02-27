@@ -4,14 +4,13 @@ import traceback
 from dataclasses import dataclass
 from copy import deepcopy, copy
 from operator import attrgetter
-from math import inf
 
 import moderngl as mgl
-from pyglm.glm import fvec3
 
 from .. import settings
 from ..box import Box, boundingbox
 from .utils import writeproperty
+from ..mathutils import fvec3, inf
 
 __all__ = ['Scene', 'Step', 'Display', 'Group', 'Displayable']
 

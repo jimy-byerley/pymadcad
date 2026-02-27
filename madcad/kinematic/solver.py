@@ -16,11 +16,12 @@ import itertools
 
 import numpy as np
 import numpy.linalg as la
-from arrex import typedlist
-from pyglm.glm import dmat4x3, mat4, fmat4, translate, affineInverse, normalize, quat, vec1
 
 from ..assembly import Solid
-from ..mathutils import vec3, Screw, mat3, vec4, vec2
+from ..mathutils import (
+		vec3, Screw, mat3, vec4, vec2, dmat4x3, mat4, fmat4, translate,
+		affineInverse, normalize, quat, vec1, typedlist
+		)
 from ..scheme import Scheme
 
 __all__ = [

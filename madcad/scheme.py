@@ -23,32 +23,14 @@ from copy import deepcopy
 from math import inf, pi, sin, cos
 import numpy.linalg
 import numpy as np
-from arrex import typedlist
-from pyglm.glm import (
-	affineInverse,
-	cross,
-	distance2,
-	dmat3,
-	dmat4,
-	dot,
-	dquat,
-	fmat3,
-	fmat4,
-	fquat,
-	fvec3,
-	fvec4,
-	length,
-	length2,
-	mix,
-	normalize,
-	scale,
-	translate,
-	u8vec4,
-	transpose,
-	distance,
-)
 
-from .mathutils import vec3, isfinite, dirbase, isaxis, Z, Axis, linrange, mat2, mat3, mat4, vec4, NUMPREC, project, noproject, anglebt, unproject
+from .mathutils import (
+		vec3, isfinite, dirbase, isaxis, Z, Axis, linrange, mat2, mat3, mat4,
+		vec4, NUMPREC, project, noproject, anglebt, unproject, affineInverse,
+		cross, distance2, dmat3, dmat4, dot, dquat, fmat3, fmat4, fquat, fvec3,
+		fvec4, length, length2, mix, normalize, scale, translate, u8vec4,
+		transpose, distance, typedlist
+		)
 from .primitives import Circle, ArcCentered
 from .box import boundingbox, Box
 from .rendering import Display
@@ -58,7 +40,6 @@ from .hashing import connpp
 from .rendering import Scene, Displayable, writeproperty
 from .text import textsize
 from .text.displays import TextDisplay
-from . import mathutils
 from . import generation as gt
 from . import settings
 
@@ -651,7 +632,7 @@ def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None, sid
 	z = project if side else -project
 	if not isinstance(offset, vec3):
 		offset = offset * x
-	shift = 0.5 * mathutils.project(b-a, x)	if length2(x) else 0
+	shift = 0.5 * project(b-a, x)	if length2(x) else 0
 	ao = a + offset + shift
 	bo = b + offset - shift
 	# create scheme
