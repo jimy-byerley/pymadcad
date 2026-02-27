@@ -241,7 +241,7 @@ __all__ = [
 	]
 
 # Get version from pyproject.toml
-# __version__ = importlib.metadata.version(__package__)
+__version__ = importlib.metadata.version(__package__)
 
 def show(*args, **kwargs):
 	''' shorthand to `rendering.show`,

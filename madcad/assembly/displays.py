@@ -10,11 +10,7 @@ from ..mathutils import (
 		transpose, inverse, mat4, inf
 	)
 from . import Solid, explode_offsets, SolidBox
-try:
-	from ..qt import Qt, QEvent, QTimer
-except ImportError:
-	# it not found, assume the event-handlers will not be called
-	pass
+from ..qt import Qt, QEvent, QTimer
 
 __all__ = ["ExplodableGroup", "SolidDisplay", "Animator", "Animation"]
 
