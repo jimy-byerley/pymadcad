@@ -160,6 +160,7 @@ from .mathutils import (
 		translate, transpose, typedlist, u8vec4, unproject, unskew, uvec2,
 		uvec3, vec1, vec2, vec3, vec4,
 	)
+from .box import Box
 from .mesh import Mesh, Web, Wire, MeshError, web, wire
 from .boolean import pierce, difference, union, intersection
 from .bevel import chamfer, filet, edgecut, planeoffsets
@@ -195,10 +196,10 @@ from .standard import (
 	)
 
 __all__ = [
-		"Angle", "ArcCentered", "ArcTangent", "ArcThrough", "Axis", "COMPREC",
-		"Chain", "Circle", "Distance", "Ellipsis", "Interpolated", "Joint",
-		"Kinematic", "KinematicError", "Mesh", "MeshError", "NUMPREC", "O",
-		"OnPlane", "Parallel", "Point", "PointOn", "Radius", "Screw",
+		"Angle", "ArcCentered", "ArcTangent", "ArcThrough", "Axis", "Box",
+		"COMPREC", "Chain", "Circle", "Distance", "Ellipsis", "Interpolated",
+		"Joint", "Kinematic", "KinematicError", "Mesh", "MeshError", "NUMPREC",
+		"O", "OnPlane", "Parallel", "Point", "PointOn", "Radius", "Screw",
 		"Segment", "Softened", "Solid", "SolveError", "Tangent",
 		"TangentEllipsis", "TriangulationError", "Vector", "Web", "Wire", "X",
 		"Y", "Z", "acos", "affineInverse", "angleAxis", "anglebt", "arclength",

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import os, inspect, pickle
+import pickle
+from collections.abc import Callable
 from os import mkdir
 from os.path import abspath, exists
-from functools import wraps, reduce
-from operator import xor
+from functools import wraps
 
 from pnprint import nformat
 
@@ -16,7 +16,7 @@ if _visualcheck_enabled:
 else:
 	from madcad.rendering import Scene
 
-def visualcheck(test:Callable) -> Callable:
+def visualcheck(test: Callable) -> Callable:
     ''' decorator for non-regression tests, providing snapshot caching and visual inspection '''
     if _visualcheck_enabled:
         @wraps(test)

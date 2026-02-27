@@ -1,6 +1,5 @@
-from madcad import *
-from madcad.kinematic import *
-from madcad.joints import *
+from madcad import Axis, O, X, Y, Z, translate, rotate, pi, render
+from madcad.joints import Revolute, Planar, Ball, Prismatic, Cylindrical, PointSlider, EdgeSlider, Gear, Rack
 from . import visualcheck, Hidden
 
 @visualcheck

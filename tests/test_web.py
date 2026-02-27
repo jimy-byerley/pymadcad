@@ -1,9 +1,8 @@
-from pnprint import nprint
-
-from random import random, seed as random_seed
-from madcad import *
-from madcad.mesh import *
-from . import visualcheck
+from random import random
+from arrex import typedlist
+from pyglm.glm import uvec2
+from madcad import vec3, Axis, Circle, brick
+from madcad.mesh import Web, web
 
 def test_extremities():
 	w = Web(
