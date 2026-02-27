@@ -24,6 +24,7 @@ from math import inf, pi, sin, cos
 import numpy.linalg
 import numpy as np
 
+from . import mathutils
 from .mathutils import (
 		vec3, isfinite, dirbase, isaxis, Z, Axis, linrange, mat2, mat3, mat4,
 		vec4, NUMPREC, project, noproject, anglebt, unproject, affineInverse,
@@ -632,7 +633,7 @@ def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None, sid
 	z = project if side else -project
 	if not isinstance(offset, vec3):
 		offset = offset * x
-	shift = 0.5 * project(b-a, x)	if length2(x) else 0
+	shift = 0.5 * mathutils.project(b-a, x)	if length2(x) else 0
 	ao = a + offset + shift
 	bo = b + offset - shift
 	# create scheme

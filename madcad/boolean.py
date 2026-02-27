@@ -31,7 +31,7 @@
 from .hashing import connef, connpe, PointSet, PositionMap, meshcellsize, edgekey
 from .mathutils import (
 		vec3, NUMPREC, distance_pe, isfinite, noproject, dot, cross, normalize,
-		distance2, uvec2, uvec3, typedlist
+		distance2, uvec2, uvec3, typedlist, unproject
 		)
 from operator import itemgetter
 from . import core
