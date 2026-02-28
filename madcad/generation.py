@@ -28,7 +28,9 @@ __all__ = [
 
 def extrusion(shape, trans:transform, alignment:float=0) -> Mesh:
 	''' Create a surface by extruding the given outline by a transformation
-		
+
+	![extrusion result](../screenshots/generation-extrusion.png)
+
 		Parameters:
 			shape:         a line (Web or Wire) or a surface (Mesh) to extrude
 			trans:        any transformation object accepted by `mathutils.transform`
@@ -51,7 +53,9 @@ def extrusion(shape, trans:transform, alignment:float=0) -> Mesh:
 def revolution(shape, axis=Axis(O,Z), angle:float=2*pi, alignment:float=0, resolution=None) -> Mesh:
 	''' Create a revolution surface by extruding the given outline
 		`steps` is the number of steps between the start and the end of the extrusion
-		
+
+	![revolution result](../screenshots/generation-revolution.png)
+
 		Parameters:
 			shape:    the shape to extrude (Web, Wire, or Mesh), ideally a section
 			angle:    angle of rotation between the given profile and the final produced profile
@@ -87,9 +91,11 @@ def revolution(shape, axis=Axis(O,Z), angle:float=2*pi, alignment:float=0, resol
 
 def helix(shape, height:float, angle:float, radius:float=1., axis=Axis(O,Z), alignment:float=0., resolution=None) -> Mesh:
 	''' Extrude the given shape by rotating and translating along an axis
-		
+
+	![helix result](../screenshots/generation-helix.png)
+
 		This variant expects the input shape to be close to orthogonal to the axis direction and is used to produce an screw/helix from its section
-		
+
 		Parameters:
 			shape:    the shape to extrude (Web, Wire, or Mesh), ideally a section
 			height:   the maximum translation in the `axis` direction
@@ -118,9 +124,11 @@ def helix(shape, height:float, angle:float, radius:float=1., axis=Axis(O,Z), ali
 
 def screw(shape, turns:float=1., axis=Axis(O,Z), step:float=None, alignment:float=0., resolution=None):
 	''' Extrude the given shape by rotating and translating along an axis
-	
+
+	![screw result](../screenshots/generation-screw.png)
+
 		This variant expexts the input shape to be close to coplanar to the axis direction and is used to produce a screw/helix from its profile
-	
+
 		Parameters:
 			shape:    the shape to extrude (Web, Wire, or Mesh), ideally a profile
 			turns:    number of complete rotations of the profile
@@ -162,7 +170,9 @@ def screw(shape, turns:float=1., axis=Axis(O,Z), step:float=None, alignment:floa
 
 def saddle(a, b:Web) -> Mesh:
 	''' Create a surface by extruding outine1 translating each instance to the next point of outline2
-		
+
+	![saddle result](../screenshots/generation-saddle.png)
+
 		Example:
 		
 		>>> saddle(
@@ -181,7 +191,9 @@ def saddle(a, b:Web) -> Mesh:
 
 def tube(shape, path:Wire, end=True, section=True) -> Mesh:
 	''' Create a tube surface by extruding the shape along the path if `section` is True, there is a correction of the segments to keep the section rigid by the curve
-	
+
+	![tube result](../screenshots/generation-tube.png)
+
 		Example:
 			
 		>>> tube(
@@ -229,7 +241,9 @@ def tube(shape, path:Wire, end=True, section=True) -> Mesh:
 
 def extrans(section, transformations:iter, links=None) -> Mesh:
 	''' Create a surface by extruding and transforming the given outline.
-		
+
+	![extrans result](../screenshots/generation-extrans.png)
+
 		Parameters:
 			section:           a `Web` or a `Mesh`
 			transformations:   iterable of mat4, one each section
@@ -321,7 +335,9 @@ def extrans(section, transformations:iter, links=None) -> Mesh:
 
 def flatsurface(outline, normal=None) -> 'Mesh':
 	''' Generates a surface for a flat outline using the prefered triangulation method .
-	
+
+	![flatsurface result](../screenshots/generation-flatsurface.png)
+
 		if `normal` is specified, it must be the normal vector to the plane, and will be used to orient the face.
 	'''
 	if isinstance(outline, Wire):
@@ -395,8 +411,10 @@ def dividedtriangle(placement, div=1) -> 'Mesh':
 # --- standard shapes ---
 	
 def brick(*args, **kwargs) -> 'Mesh':
-	''' A simple brick with rectangular axis-aligned sides 
-	
+	''' A simple brick with rectangular axis-aligned sides
+
+	![brick result](../screenshots/generation-brick.png)
+
 		It can be constructed in the following ways:
 		
 			- brick(Box)
@@ -447,7 +465,9 @@ def brick(*args, **kwargs) -> 'Mesh':
 	
 def parallelogram(*directions, origin=vec3(0), alignment=vec3(0), fill=True) -> 'Mesh':
 	''' Create a parallelogram or parallelepiped depending on the number of directions given
-	
+
+	![parallelogram result](../screenshots/generation-parallelogram.png)
+
 		Parameters:
 			
 			directions:	list of 1-3 directions, they must for a right handed base for the face normals to be oriented outward
@@ -516,8 +536,10 @@ def parallelogram(*directions, origin=vec3(0), alignment=vec3(0), fill=True) -> 
 		raise ValueError('wrong number of directions')
 	
 def cylinder(bottom:vec3, top:vec3, radius:float, fill=True, resolution=None) -> 'Mesh':
-	''' Create a revolution cylinder, with the given radius 
-	
+	''' Create a revolution cylinder, with the given radius
+
+	![cylinder result](../screenshots/generation-cylinder.png)
+
 		Parameters:
 		
 			bottom, top (vec3): the cylinder extremities centers
@@ -529,8 +551,10 @@ def cylinder(bottom:vec3, top:vec3, radius:float, fill=True, resolution=None) ->
 	return extrusion(base, direction)
 
 def cone(summit:vec3, base:vec3, radius:float, fill=True, resolution=None) -> 'Mesh':
-	''' Create a revolution cone, with a base of the given radius 
-	
+	''' Create a revolution cone, with a base of the given radius
+
+	![cone result](../screenshots/generation-cone.png)
+
 		Parameters:
 			
 			summit (vec3):  The point at the top of the cone
@@ -542,8 +566,10 @@ def cone(summit:vec3, base:vec3, radius:float, fill=True, resolution=None) -> 'M
 	return pyramid(summit, base)
 		
 def pyramid(summit:vec3, base) -> 'Mesh':
-	''' Create a pyramid with the given summit point and the given base 
-	
+	''' Create a pyramid with the given summit point and the given base
+
+	![pyramid result](../screenshots/generation-pyramid.png)
+
 		Parameters:
 			summit (vec3):   the top (summit) of the cone, not necessarity in the center of the shape
 			base: (Mesh,Web,Wire):  the base shape
@@ -569,6 +595,9 @@ def pyramid(summit:vec3, base) -> 'Mesh':
 
 def square(axis:primitives.Axis, width:float) -> 'Mesh':
 	''' Return a simple square with the given normal axis and square width.
+
+	![square result](../screenshots/generation-square.png)
+
 		Useful to quickly create a cutplane
 	'''
 	x,y,z = dirbase(axis[1])
@@ -579,7 +608,10 @@ def square(axis:primitives.Axis, width:float) -> 'Mesh':
 		)
 
 def icosahedron(center:vec3, radius:float) -> 'Mesh':
-	''' A simple icosahedron (see https://en.wikipedia.org/wiki/Icosahedron) '''
+	''' A simple icosahedron (see https://en.wikipedia.org/wiki/Icosahedron)
+
+	![icosahedron result](../screenshots/generation-icosahedron.png)
+	'''
 	phi = (1+ sqrt(5)) /2	# golden ratio
 	m = Mesh(
 		typedlist([
@@ -610,7 +642,9 @@ def icosahedron(center:vec3, radius:float) -> 'Mesh':
 
 def icosphere(center:vec3, radius:float, resolution=None) -> 'Mesh':
 	''' A simple icosphere with an arbitrary resolution (see https://en.wikipedia.org/wiki/Geodesic_polyhedron).
-	
+
+	![icosphere result](../screenshots/generation-icosphere.png)
+
 		Points are obtained from a subdivided icosahedron and reprojected on the desired radius.
 	'''
 	div = settings.curve_resolution(2/6*pi*radius, 2/6*pi, resolution)
@@ -620,7 +654,10 @@ def icosphere(center:vec3, radius:float, resolution=None) -> 'Mesh':
 	return ico
 
 def uvsphere(center:vec3, radius:float, alignment=vec3(0,0,1), resolution=None) -> 'Mesh':
-	''' A simple uvsphere (simple sphere obtained with a revolution of an arc) '''
+	''' A simple uvsphere (simple sphere obtained with a revolution of an arc)
+
+	![uvsphere result](../screenshots/generation-uvsphere.png)
+	'''
 	x,y,z = dirbase(alignment)
 	mesh = revolution(
 			web(primitives.ArcCentered(
@@ -634,7 +671,10 @@ def uvsphere(center:vec3, radius:float, alignment=vec3(0,0,1), resolution=None) 
 	return mesh
 
 def regon(axis:primitives.Axis, radius, n, alignment=vec3(1,0,0)) -> 'Wire':
-	''' Create a regular n-gon `Wire`, the same way we create a `Circle` '''
+	''' Create a regular n-gon `Wire`, the same way we create a `Circle`
+
+	![regon result](../screenshots/generation-regon.png)
+	'''
 	x,y,z = dirbase(axis[1], alignment)
 	return wire(typedlist(
 		axis[0] + radius*(cos(2*pi*i/n)*x + sin(2*pi*i/n)*y)  

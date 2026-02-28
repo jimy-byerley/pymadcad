@@ -117,8 +117,16 @@ def placement(*pairs, precision=1e-3):
 		
 		Each pair define a joint between the two assumed solids (a solid for the left members of the pairs, and a solid for the right members of the pairs). Placement will return the pose of the first relatively to the second, satisfying the constraints.
 		
+		suppose we have those parts to assemble and it's hard to guess the precise pose transform between them
+
+		![before placement](../screenshots/placement-before.png)
+
+		placement gives the pose for the screw to make the selected surfaces coincide
+
+		![after placement](../screenshots/placement-after.png)
+
 		Example:
-		
+
 			>>> # get the transformation for the pose
 			>>> pose = placement(
 			...		(screw['part'].group(0), other['part'].group(44)),  # two cylinder surfaces: Cylindrical joint
@@ -126,13 +134,13 @@ def placement(*pairs, precision=1e-3):
 			...		)  # solve everything to get solid's pose
 			>>> # apply the transformation to the solid
 			>>> screw.pose = pose
-			
+
 			>>> # or
 			>>> screw.place(
 			...		(screw['part'].group(0), other['part'].group(44)),
 			...		(screw['part'].group(4), other['part'].group(25)),
 			...		)
-			
+
 			>>> screw.place(
 			...		(Revolute, screw['axis'], other['screw_place']),
 			...		)
@@ -157,7 +165,10 @@ def placement(*pairs, precision=1e-3):
 def explode(solids, spacing=1, offsets=None) -> list[Solid]:
 	''' Move the given solids away from each other in the way of an exploded view.
 		It makes easier to seen the details of an assembly . See `explode_offsets` for the algorithm.
-		
+
+		![before explode](../screenshots/explode-before.png)
+		![after explode](../screenshots/explode-after.png)
+
 		Parameters:
 			
 			solids:		a list of solids (copies of each will be made before displacing)

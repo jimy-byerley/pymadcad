@@ -16,9 +16,17 @@ def segmentation(mesh, tolerance=5, sharp=0.2) -> Mesh:
 		This functions splits faces into groups based on curvature proximity.
 		Ideally each resulting group is a set of faces with the same curvature. In practice such is not possible due to the mesh resolution introducing bias in curvature estimation. Thus a `tolerance` is used to decide what is a sufficiently close curvature to belong to the same group.
 		In order to avoid too sharp edges to be considered a very low resolution but smooth surface, `sharp` is the value of the limit edge angle that can be considered in smooth surface.
-		
+
 		This function is particularly usefull when importing geometries from a format that doesn't manage groups (such as STL).
-		
+
+		After importing you generally obtain something like this with all triangles in the same group
+
+	![before segmentation](../screenshots/segmentation-before.png)
+
+		A segmentation will find what to group and give you this
+
+	![after segmentation](../screenshots/segmentation-after.png)
+
 		Parameters:
 		
 			tolerance (float):	maximum difference factor between curvatures of a same group  (1 means +100% curvature is allowed)

@@ -6,7 +6,7 @@
 	Strictly speaking, boolean operations are operations on mathematically defined sets. In a n-dimensinal space it applies to subsets of point of the same dimension (volumes in 3D, surfaces in 2D).
 	Here, volumes are defined by their exterior envelope (a Mesh) and surfaces by their contour (Web). So the boolean operation consist of intersecting the envelopes and contours and decide which cutted parts to keep.
 	
-	.. image:: /schemes/boolean-principle.svg
+	![boolean principle](../schemes/boolean-principle.svg)
 
 	This relies on a new intersection algorithm named syandana. It finds candidates for intersections using a spacial hashing of triangles over a voxel (see madcad.hashing). This is solving the problem of putting triangles in an octree.
 	Also to avoid the increasing complexity of the operation with flat planes divided in multiple parallel triangles, the algorithm is implemented with a detection of ngons.
@@ -582,9 +582,7 @@ def pierce(m, ref, side=False, prec=None):
 	''' Cut a web/mesh and remove its parts considered inside the `ref` shape
 		
 		Overloads:
-		
-		.. code::
-		
+
 			pierce(Mesh, Mesh) -> Mesh
 			pierce(Web, Web) -> Web
 			pierce(Web, Mesh) -> Web
@@ -608,9 +606,7 @@ def boolean(a, b, sides=(False,True), prec=None):
 	''' Cut two web/mesh and keep its interior or exterior parts
 	
 		Overloads:
-		
-		.. code::
-		
+
 			boolean(Mesh, Mesh) -> Mesh
 			boolean(Web, Web) -> Web
 	

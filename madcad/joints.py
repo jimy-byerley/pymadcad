@@ -32,6 +32,8 @@ def _trivial_eq(self, other):
 
 class Revolute(Joint):
 	''' Joint for revolution around an axis
+
+		![revolute joint](../screenshots/joints-revolute.png)
 	'''
 	bounds = (-inf, inf)
 	default = 0
@@ -150,8 +152,10 @@ class Revolute(Joint):
 
 		
 class Planar(Joint):
-	''' Joint for translation in 2 directions and rotation around the third direction 
-		
+	''' Joint for translation in 2 directions and rotation around the third direction
+
+		![planar joint](../screenshots/joints-planar.png)
+
 		Classical definition:	Planar (direction vector)
 		the initial state requires an additional distance between the solids
 		this class holds an axis for each side, the axis origins are constrained to share the same projections on the normal
@@ -251,8 +255,10 @@ class Planar(Joint):
 
 
 class Prismatic(Joint):
-	''' Joint for translation only in a direction 
-		
+	''' Joint for translation only in a direction
+
+		![prismatic joint](../screenshots/joints-prismatic.png)
+
 		Classical definition:  Prismatic (direction vector)
 		the initial state requires more parameters: the relative placements of the solids
 		this class holds a base for each of the solids, bases are (0,X,Y)  where X,Y are constrained to keep the same direction across bases, and the bases origins lays on their common Z axis
@@ -362,6 +368,8 @@ class Prismatic(Joint):
 
 class Cylindrical(Joint):
 	''' Joint with rotation and translation around an axis
+
+		![cylindrical joint](../screenshots/joints-cylindrical.png)
 	'''
 	bounds = (vec2(-inf), vec2(inf))
 	default = vec2(0)
@@ -468,7 +476,9 @@ class Cylindrical(Joint):
 
 class Ball(Joint):
 	''' Joint for rotation all around a point.
-	
+
+		![ball joint](../screenshots/joints-ball.png)
+
 		Classical definition: Ball (point)
 		the initial state doen't require more data
 		the class holds a point for each side
@@ -584,7 +594,9 @@ class Ball(Joint):
 
 class PointSlider(Joint):
 	''' Joint for rotation all around a point belonging to a plane.
-	
+
+		![pointslider joint](../screenshots/joints-pointslider.png)
+
 		Classical definition: Punctiform/Sphere-Plane (axis)
 		The initial state does not require more data
 		The class holds a normal axis for the plane side, and a point for the sphere side (that defaults to the axis' origin)
@@ -593,7 +605,7 @@ class PointSlider(Joint):
 		self.solids = solids
 		self.axis = axis
 		local = local or axis
-		
+
 		if isinstance(axis, mat4):
 			self.post = axis
 			self.pre = affineInverse(local)
@@ -1033,10 +1045,12 @@ class Gear(Joint):
 
 class Helicoid(Joint):
 	''' Screw a solid into an other.
-	
+
+		![helicoid joint](../screenshots/joints-helicoid.png)
+
 		`step` is the translation distance needed for that one solid turn by 2*pi around the other
 		The interaction is symetric.
-		
+
 		not implemented yet
 	'''
 	def __init__(self, s0, s1, step, b0, b1=None, position=None):

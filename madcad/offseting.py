@@ -2,7 +2,7 @@
 '''
 	The functions here allow to move or extrude meshes along their normals
 	
-    .. note::
+    Note:
         Any offseting provided here only rely on the vertex and edge normals of the input meshes, so don't expect a nice result if your mesh is too chaotic to have meaningful normals
 '''
 
@@ -63,6 +63,8 @@ def inflate_offsets(surface: Mesh, offset: float, method='face') -> '[vec3]':
 def inflate(surface:Mesh, offset:float, method='face') -> 'Mesh':
 	''' Move all points of the surface to make a new one at a certain distance of the last one
 
+	![inflate result](../screenshots/offseting-inflate.png)
+
 		Parameters:
 			offset:       the distance from the surface to the offseted surface. its meaning depends on `method`
 			method:       determines if the distance is from the old to the new faces, edges or points
@@ -82,7 +84,9 @@ def inflate(surface:Mesh, offset:float, method='face') -> 'Mesh':
 				surface.groups)
 
 def thicken(surface: Mesh, thickness: float, alignment:float=0, method='face') -> 'Mesh':
-	''' Thicken a surface by extruding it, points displacements are made along normal. 
+	''' Thicken a surface by extruding it, points displacements are made along normal.
+
+	![thicken result](../screenshots/offseting-thicken.png)
 
 		Parameters:
 			thickness:    determines the distance between the two surfaces (can be negative to go the opposite direction to the normal).
@@ -123,7 +127,9 @@ def thicken(surface: Mesh, thickness: float, alignment:float=0, method='face') -
 
 def expand(surface: Mesh, offset: float, collapse=True) -> Mesh:
 	''' Generate a surface expanding the input mesh on the tangent of the ouline neighboring faces
-	
+
+	![expand result](../screenshots/offseting-expand.png)
+
 		Parameters:
 			offset:		distance from the outline point to the expanded outline points
 			collapse:	if True, expanded points leading to crossing edges will collapse into one

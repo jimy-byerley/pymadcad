@@ -248,7 +248,9 @@ else:
 
 	def text(text: str, font:str=None, size:float=1, spacing=vec2(0.05, 0.2), fill=True, align=(0,0), resolution=None):
 		''' return a Mesh/Web containing the given text written using the given font
-		
+
+			![text mesh](../screenshots/text_mesh.png)
+
 			The meshed font is cached so long texts are still fast to mesh
 			
 			Parameters:

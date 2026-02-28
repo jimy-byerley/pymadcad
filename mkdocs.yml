@@ -1,0 +1,85 @@
+site_name: pymadcad
+site_description: Simple yet powerful CAD library, written with Python.
+repo_url: https://github.com/jimy-byerley/pymadcad
+
+theme:
+  name: material
+  logo: docs/logo.png
+  favicon: docs/logo.ico
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.highlight
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [.]
+          load_external_modules: true
+          options:
+            docstring_style: google
+            show_source: true
+            members_order: source
+            show_root_heading: true
+            allow_inspection: true
+            preload_modules:
+              - pyglm
+              - glm
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Concepts: concepts.md
+  - Guide:
+    - guide/index.md
+    - Overview: guide/overview.md
+    - Good Practices: guide/goodpractices.md
+    - Generation: guide/generation.md
+    - Manipulation: guide/manipulation.md
+    - Kinematic: guide/kinematic.md
+    - Display: guide/display.md
+    - Read/Write: guide/io.md
+  - Reference:
+    - reference/index.md
+    - Math Utilities: reference/mathutils.md
+    - Mesh:
+      - reference/mesh/index.md
+      - Mesh: reference/mesh/mesh.md
+      - Web: reference/mesh/web.md
+      - Wire: reference/mesh/wire.md
+    - Kinematic: reference/kinematic.md
+    - Joints: reference/joints.md
+    - Assembly: reference/assembly.md
+    - Primitives: reference/primitives.md
+    - Constraints: reference/constraints.md
+    - Generation: reference/generation.md
+    - Offseting: reference/offseting.md
+    - Blending: reference/blending.md
+    - Bevel: reference/bevel.md
+    - Boolean: reference/boolean.md
+    - Reverse: reference/reverse.md
+    - Hull: reference/hull.md
+    - IO: reference/io.md
+    - Settings: reference/settings.md
+    - Hashing: reference/hashing.md
+    - Rendering: reference/rendering.md
+    - Scheme: reference/scheme.md
+    - Text: reference/text.md
+    - Standard: reference/standard.md
+    - Gear: reference/gear.md
+  - Algorithms: algorithms.md
+  - Development: development.md

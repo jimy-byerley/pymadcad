@@ -34,14 +34,14 @@ class Joint:
 		
 		In this library, relative positioning is provided by transformation matrices which need a start-end convention, so every joint is directed and the order of `self.solids` matters.
 		
-		.. image:: /schemes/kinematic-joint.svg
-		
+		![joint](../schemes/kinematic-joint.svg)
+
 		There is two ways of defining the relative positioning of solids
-		
+
 		- by a joint position :math:`(q_i)`
 		- by a start-end matrix :math:`T_{ab}`
-		
-		.. image:: /schemes/kinematic-direct-inverse.svg
+
+		![direct-inverse](../schemes/kinematic-direct-inverse.svg)
 		
 		we can switch from one representation to the other using the `direct` and `inverse` methods.
 		
@@ -384,7 +384,7 @@ class Reverse(Joint):
 	''' 
 		that joint behaves like its wrapped joint but with swapped start and stop solids 
 	
-		.. image:: /schemes/kinematic-reverse.svg
+		![reverse](../schemes/kinematic-reverse.svg)
 	'''
 	def __init__(self, joint):
 		self.joint = joint
@@ -430,7 +430,7 @@ class Chain(Joint):
 		Kinematic chain, This chain of joints acts like one only joint
 		The new formed joint has as many degrees of freedom as its enclosing joints.
 		
-		.. image:: /schemes/kinematic-chain.svg
+		![chain](../schemes/kinematic-chain.svg)
 		
 		This class is often used instead of `Kinematic` when possible, because having more efficient `inverse()` and `direct()` methods dedicated to kinematics with one only cycle. It also has simpler in/out parameters since a chain has only two ends where a random kinematic may have many
 		
@@ -588,10 +588,9 @@ class Kinematic:
 			... 	], ground=7)
 			
 			defines a kinematic with the following graph
-		
-			.. image::
-				/schemes/kinematic-kinematic.svg
-				
+
+		![kinematic](../schemes/kinematic-kinematic.svg)
+
 			one can also define a kinematic with notions of direct and inverse transformations.
 			The notion of direct and inverse is based on an input/output relation that we define as such: 
 			
@@ -614,10 +613,10 @@ class Kinematic:
 			...	outputs = [4,5,6],
 			...	)
 		
-		.. tip::
+		Tip:
 			If your kinematic is a chain of joints, then prefer using `Chain` to reduce the overhead of the genericity.
-		
-		.. note::
+
+		Note:
 			A `Kinematic` doesn't tolerate modifications of the type of its joints once instanciated. joints positions could eventually be modified at the moment it doesn't affect the hash of the joints (See `Joint`)
 		
 		Attributes:
@@ -1085,7 +1084,7 @@ def shortcycles(conn: '{node: [node]}', costs: '{node: float}', branch=True) -> 
 	'''
 		extract a set of minimal cycles decompsing the graph
 		
-		.. image:: /schemes/kinematic-cycles.svg
+		![cycles](../schemes/kinematic-cycles.svg)
 	'''
 	# TODO: debug this because now it is not producing the shortest cycles
 	# orient the graph in a depth-first way, and search for fusion points
@@ -1153,7 +1152,7 @@ def depthfirst(conn: '{node: [node]}', starts=()) -> '[(parent, child)]':
 	''' 
 		generate a depth-first traversal of the givne graph 
 	
-		.. image:: /schemes/kinematic-depthfirst.svg
+		![depthfirst](../schemes/kinematic-depthfirst.svg)
 	'''
 	edges = set()
 	reached = set()

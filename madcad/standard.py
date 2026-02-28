@@ -104,7 +104,9 @@ def stceil(x, precision=0.1):
 @cachefunc
 def screw(d, length, filet_length=None, head='SH', drive=None, detail=False):
 	''' Create a standard screw using the given drive and head shapes
-	
+
+	![screw](../screenshots/screw.png)
+
 	Parameters:
 		d:             nominal diameter of the screw
 		length:        length from the screw head to the tip of the screw
@@ -336,8 +338,10 @@ def screw_spec(head, drive=None):
 
 @cachefunc
 def nut(d, type='hex', detail=False) -> Mesh:
-	''' Create a standard nut model using the given shape type 
-	
+	''' Create a standard nut model using the given shape type
+
+		![nut](../screenshots/hexnut.png)
+
 		Parameters:
 			d:        nominal diameter of the matching screw
 			type:     the nut shape
@@ -427,8 +431,11 @@ standard_hexnuts = [
 @cachefunc
 def washer(d, e=None, h=None) -> Mesh:
 	''' Create a standard washer.
+
+		![washer](../screenshots/washer.png)
+
 		Washers are useful to offset screws and avoid them to scratch the mount part
-		
+
 		Parameters:
 			d:        the nominal interior diameter (screw or anything else),
 			           the exact washer interior is slightly bigger
@@ -497,6 +504,8 @@ standard_washers	= [
 	
 def section_s(height=1, width=None, flange=None, thickness=None) -> Web:
 	''' Standard S (short flange) section. Very efficient to support flexion efforts.
+
+		![section_s](../screenshots/section_s.png)
 	'''
 	if width is None:	width = 0.4 * height
 	if flange is None:	flange = 0.036 * height
@@ -525,6 +534,8 @@ def section_s(height=1, width=None, flange=None, thickness=None) -> Web:
 
 def section_w(height=1, width=None, flange=None, thickness=None) -> Web:
 	''' Standard W (wide flange) section. It is slightly different than a S section in that the flanges are straight and are usally wider.
+
+		![section_w](../screenshots/section_w.png)
 	'''
 	if width is None:	width = 0.6 * height
 	if flange is None:	flange = 0.036 * height
@@ -545,7 +556,10 @@ def section_w(height=1, width=None, flange=None, thickness=None) -> Web:
 	return section.finish()
 	
 def section_l(a=1, b=None, thickness=None) -> Wire:
-	''' Standard L section '''
+	''' Standard L section
+
+		![section_l](../screenshots/section_l.png)
+	'''
 	if b is None:	b = a
 	if thickness is None:	thickness = 0.05*max(a,b)
 	assert a > 3*thickness and b > 3*thickness
@@ -563,7 +577,10 @@ def section_l(a=1, b=None, thickness=None) -> Wire:
 	return section.finish()
 	
 def section_c(height=1, width=None, thickness=None) -> Web:
-	''' Standard C section '''
+	''' Standard C section
+
+		![section_c](../screenshots/section_c.png)
+	'''
 	if width is None:	width = 0.6*height
 	if thickness is None:	thickness = 0.05*height
 	assert width > 3*thickness
@@ -582,6 +599,8 @@ def section_c(height=1, width=None, thickness=None) -> Web:
 
 def section_tslot(size=1, slot=None, thickness=None, depth=None) -> Web:
 	''' Standard T-Slot section. That section features slots on each side to put nuts at any position.
+
+		![section_tslot](../screenshots/section_tslot.png)
 	'''
 	if slot is None:	slot = 0.3*size
 	if thickness is None:	thickness = 0.08*size
@@ -652,7 +671,9 @@ standard_ipn = [
 @cachefunc
 def coilspring_compression(length, d=None, thickness=None, solid=True):
 	''' Return a Mesh model of a croilspring meant for use in compression
-	
+
+		![coilspring_compression](../screenshots/coilspring-compression.png)
+
 		Parameters:
 			length:     the distance between its two ends
 			d:          the exterior diameter (the coilspring can fit in a cylinder of that diameter)
@@ -704,8 +725,10 @@ def coilspring_compression(length, d=None, thickness=None, solid=True):
 	
 @cachefunc
 def coilspring_tension(length, d=None, thickness=None, solid=True):
-	''' Return a Mesh model of a croilspring meant for use in tension 
-	
+	''' Return a Mesh model of a croilspring meant for use in tension
+
+		![coilspring_tension](../screenshots/coilspring-tension.png)
+
 		Parameters:
 			length:     the distance between its two hooks
 			d:          the exterior diameter (the coilspring can fit in a cylinder of that diameter)
@@ -762,7 +785,9 @@ def coilspring_torsion(arm,
 			hook=None, 
 			solid=True) -> Solid:
 	''' Return a Mesh model of a croilspring meant for use in torsion
-	
+
+		![coilspring_torsion](../screenshots/coilspring-torsion.png)
+
 		Parameters:
 			arm:        the arms length from the coil axis
 			length:     the coil length (and distance between its hooks)
@@ -837,12 +862,15 @@ def bearing(dint, dext=None, h=None,
 			hint=None, hext=None, 
 			sealing=False, 
 			detail=False) -> Solid:
-	''' 
+	'''
 		Circulating bearings rely on rolling elements to avoid friction and widen the part life.
+
+		![bearing](../screenshots/bearing-bounded.png)
+
 		Its friction depends on the rotation speed but not on the current load.
-		
+
 		See bearing specs at https://koyo.jtekt.co.jp/en/support/bearing-knowledge/
-		
+
 		Parameters:
 
 			dint:	interior bore diameter
@@ -1241,8 +1269,10 @@ def slidebearing(dint, h=None, thickness=None, shoulder=None, opened=False) -> S
 
 	
 def bolt(a: vec3, b: vec3, dscrew: float, washera=False, washerb=False, nutb=True) -> Solid:
-	''' convenient function to create a screw, nut and washers assembly 
-	
+	''' convenient function to create a screw, nut and washers assembly
+
+		![bolt](../screenshots/bolt.png)
+
 		Parameters:
 			a:  the screw placement
 			b:  the nut placement
@@ -1276,8 +1306,11 @@ def bolt(a: vec3, b: vec3, dscrew: float, washera=False, washerb=False, nutb=Tru
 
 def screw_slot(axis: Axis, dscrew: float, rslot=None, hole=0., screw=0., expand=True, flat=False) -> Mesh:
 	''' slot shape for a screw
+
+		![screw_slot](../screenshots/screw_slot.png)
+
 		the result can then be used in a boolean operation to reserve set a screw place in an arbitrary shape
-		
+
 		Parameters:
 			axis:  the screw axis placement, z toward the screw head (part exterior)
 			dscrew: the screw diameter
@@ -1316,8 +1349,11 @@ def screw_slot(axis: Axis, dscrew: float, rslot=None, hole=0., screw=0., expand=
 
 def bolt_slot(a: vec3, b: vec3, dscrew: float, rslot=None, hole=True, expanda=True, expandb=True) -> Mesh:
 	''' bolt shape for a screw
+
+		![bolt_slot](../screenshots/bolt_slot.png)
+
 		musch like `screw_slot()` but with two endings
-		
+
 		Parameters:
 			a:  position of screw head
 			b:  position of nut
@@ -1550,6 +1586,8 @@ from .joints import *
 def scara(backarm:float, forearm:float) -> Kinematic:
 	'''
 	kinematic of a classical *scara* robot arm
+
+	![scara](../screenshots/standard-scara.png)
 	'''
 	return Chain([
 		Revolute(('base',1), Axis(O,Z)),
@@ -1559,9 +1597,11 @@ def scara(backarm:float, forearm:float) -> Kinematic:
 		])
 
 def serial6(backarm:float, forearm:float) -> Kinematic:
-	''' 
+	'''
 	kinematic of a classical serial robot arm with 6 degrees of freedom
-	
+
+	![serial6](../screenshots/standard-serial6.png)
+
 	Parameters:
 		backarm:  backarm length
 		forearm:  forearm length
@@ -1576,9 +1616,11 @@ def serial6(backarm:float, forearm:float) -> Kinematic:
 		])
 
 def serial7(backarm:float, forearm:float) -> Kinematic:
-	''' 
+	'''
 	kinematic of a classical serial robot arm with 7 degrees of freedom
-	
+
+	![serial7](../screenshots/standard-serial7.png)
+
 	Parameters:
 		backarm:  backarm length
 		forearm:  forearm length
@@ -1596,7 +1638,9 @@ def serial7(backarm:float, forearm:float) -> Kinematic:
 def delta3(base:float, tool:float, backarm:float, forearm:float, forearm_width:float=None) -> Kinematic:
 	'''
 	kinematic of a classical delta robot with 3 degrees of freedom
-	
+
+	![delta3](../screenshots/standard-delta3.png)
+
 	Parameters:
 		base:   the radius of motors placements
 		tool:   the radius of the tool's ball joints placements

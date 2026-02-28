@@ -62,8 +62,10 @@ norm1 = l1Norm
 norm2 = length
 
 def anglebt(x,y) -> float:
-	''' Angle between two vectors 
-	
+	''' Angle between two vectors
+
+		![anglebt](../schemes/mathutils-anglebt.svg)
+
 		The result is not sensitive to the lengths of x and y
 	'''
 	n = length(x)*length(y)
@@ -77,8 +79,10 @@ def arclength(p1, p2, n1, n2):
 	return sqrt(dot(v,v) / (2-2*c)) * acos(c)
 
 def project(vec, dir) -> vec3:
-	''' Component of `vec` along `dir`, equivalent to :code:`dot(vec,dir) / dot(dir,dir) * dir` 
-	
+	''' Component of `vec` along `dir`, equivalent to :code:`dot(vec,dir) / dot(dir,dir) * dir`
+
+		![project](../schemes/mathutils-project.svg)
+
 		The result is not sensitive to the length of `dir`
 	'''
 	try:	return dot(vec,dir) / dot(dir,dir) * dir
@@ -88,15 +92,19 @@ def project(vec, dir) -> vec3:
 		
 	
 def noproject(vec, dir) -> vec3:
-	''' Components of `vec` not along `dir`, equivalent to :code:`vec - project(vec,dir)` 
-	
+	''' Components of `vec` not along `dir`, equivalent to :code:`vec - project(vec,dir)`
+
+		![noproject](../schemes/mathutils-noproject.svg)
+
 		The result is not sensitive to the length of `dir`
 	'''
 	return vec - project(vec,dir)
 
 def unproject(vec, dir) -> vec3:
-	''' Return the vector in the given direction as if `vec` was its projection on it, equivalent to :code:`dot(vec,vec) / dot(vec,dir) * dir` 
-	
+	''' Return the vector in the given direction as if `vec` was its projection on it, equivalent to :code:`dot(vec,vec) / dot(vec,dir) * dir`
+
+		![unproject](../schemes/mathutils-unproject.svg)
+
 		The result is not sensitive to the length of `dir`
 	'''
 	try:	return dot(vec,vec) / dot(vec,dir) * dir
@@ -109,7 +117,10 @@ def perpdot(a:vec2, b:vec2) -> float:
 	return -a[1]*b[0] + a[0]*b[1]
 
 def perp(v:vec2) -> vec2:
-	''' Perpendicular vector to the given vector '''
+	''' Perpendicular vector to the given vector
+
+		![perp](../schemes/mathutils-perp.svg)
+	'''
 	return vec2(-v[1], v[0])
 	
 def dirbase(dir, align=vec3(1,0,0)):
@@ -126,7 +137,10 @@ def dirbase(dir, align=vec3(1,0,0)):
 	return x,y,dir
 
 def scaledir(dir, factor=None) -> mat3:
-	''' Return a mat3 scaling in the given direction, with the given factor (1 means original scale) 
+	''' Return a mat3 scaling in the given direction, with the given factor (1 means original scale)
+
+		![scaledir](../schemes/mathutils-scaledir.svg)
+
 		If factor is None, the length of dir is used, but it can leads to precision loss on direction when too small.
 	'''
 	if factor is None:
@@ -206,7 +220,10 @@ def interpol1(a, b, x):
 	return (1-x)*a + x*b
 
 def interpol2(a, b, x):
-	''' 3rd order polynomial interpolation 
+	''' 3rd order polynomial interpolation
+
+		![hermite](../schemes/mathutils-hermite.svg)
+
 		a and b are iterable of successive derivatives of a[0] and b[0]
 	'''
 	return (	2*x*(1-x)  * interpol1(a[0],b[0],x)		# linear component
@@ -224,7 +241,7 @@ def intri_flat(pts, a,b):
 def intri_sphere(pts, ptangents, a,b, etangents=None):
 	''' Cubic interpolation over a triangle (2 dimension space), edges are guaranteed to fit an interpol2 curve using the edge tangents
 	
-	.. note::
+	Note:
 		If the tangents lengths are set to the edge lengths, that version gives a result close to a sphere surface
 	'''
 	A,B,C = pts
@@ -241,7 +258,7 @@ def intri_sphere(pts, ptangents, a,b, etangents=None):
 def intri_smooth(pts, ptangents, a,b):
 	''' Cubic interpolation over a triangle, edges are guaranteed to fit an interpol2 curve using the edge tangents
 	
-	.. note::
+	Note:
 		If the tangents lengths are set to the edge lengths, that version gives a result that only blends between the curved edges, a less bulky result than `intri_sphere`
 	'''
 	A,B,C = pts
@@ -361,7 +378,10 @@ def imax(iterable, default=None):
 	return best
 
 def linstep(start, stop, x):
-	''' like smoothstep but with a linear ramp between `start` and `stop` '''
+	''' like smoothstep but with a linear ramp between `start` and `stop`
+
+		![linstep](../schemes/mathutils-step.svg)
+	'''
 	if x <= start:	return 0
 	if x >= stop:	return 1
 	return (x-start)/(stop-start)
@@ -408,11 +428,13 @@ Vector = Point = vec3
 
 class Axis(object):
 	''' A 3D (zeroed) axis with an origin and a direction
-	
+
+		![axis](../screenshots/primitives-axis.png)
+
 		Mathematically speaking, a 3D axis doesn't necessarily have an origin, since any point on it can be its start, but for implementation and convenience reasons this axis has
-		
-		.. note::
-		
+
+		Note:
+
 			in previous madcad versions, axis were often tuples and not instances of this class. This is why this class has a `__getitem__` allowing to be used like a tuple. But this class should be used instead now.
 	'''
 	__slots__ = ('origin', 'direction', 'interval')

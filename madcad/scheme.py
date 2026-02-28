@@ -570,13 +570,18 @@ def mesh_placement(mesh) -> '(pos,normal)':
 
 
 def note_floating(position, text, align=(0,0)):
-	''' place a floating note at given position '''
+	''' place a floating note at given position
+
+		![note_floating](../screenshots/note_floating.png)
+	'''
 	return Displayable(TextDisplay, position, text, align=align, color=settings.colors['annotation'], size=settings.display['view_font_size'])
 
 
 def note_leading(placement, offset=None, text='here'):
 	''' Place a leading note at given position
-	
+
+		![note_leading](../screenshots/note_leading.png)
+
 		`placement` can be any of `Mesh, Web, Wire, axis, vec3`
 	'''
 	origin, normal = mesh_placement(placement)
@@ -608,8 +613,10 @@ def note_leading(placement, offset=None, text='here'):
 	return sch
 
 def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None, side=False):
-	''' Place a distance quotation between 2 points, 
-		the distance can be evaluated along vector `project` if specified 
+	''' Place a distance quotation between 2 points,
+		the distance can be evaluated along vector `project` if specified
+
+		![note_distance](../screenshots/note_distance.png)
 	'''
 	# get text to display
 	if not project:					project = normalize(b-a)
@@ -656,8 +663,10 @@ def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None, sid
 	return sch
 	
 def note_distance_planes(s0, s1, offset=None, d=None, tol=None, text=None):
-	''' Place a distance quotation between 2 meshes 
-		
+	''' Place a distance quotation between 2 meshes
+
+		![note_distance_planes](../screenshots/note_distance_planes.png)
+
 		`s0` and `s1` can be any of `Mesh, Web, Wire`
 	'''
 	p0, n0 = mesh_placement(s0)
@@ -670,8 +679,10 @@ def note_distance_planes(s0, s1, offset=None, d=None, tol=None, text=None):
 	return note_distance(p0, p1, offset, n0, d, tol, text)
 	
 def note_distance_set(s0, s1, offset=0, d=None, tol=None, text=None):
-	''' Place a distance quotation between 2 objects. This is the distance between the closest elements of both sets 
-	
+	''' Place a distance quotation between 2 objects. This is the distance between the closest elements of both sets
+
+		![note_distance_set](../screenshots/note_distance_set.png)
+
 		`s0` and `s1` can be any of `Mesh, Web, Wire, vec3`
 	'''
 	dist, p0, p1 = mesh_distance(s0, s1)
@@ -690,7 +701,10 @@ def note_distance_set(s0, s1, offset=0, d=None, tol=None, text=None):
 		
 
 def note_angle(a0, a1, offset=0, d=None, tol=None, text=None, unit='deg', side=False):
-	''' Place an angle quotation between 2 axis '''
+	''' Place an angle quotation between 2 axis
+
+		![note_angle](../screenshots/note_angle.png)
+	'''
 	o0, d0 = a0
 	o1, d1 = a1
 	z = normalize(cross(d0,d1))
@@ -748,8 +762,10 @@ def note_angle(a0, a1, offset=0, d=None, tol=None, text=None, unit='deg', side=F
 	return sch
 	
 def note_radius(mesh, offset=None, d=None, tol=None, text=None, propagate=2):
-	''' Place a curvature radius quotation. This will be the minimal curvature radius observed in the mesh 
+	''' Place a curvature radius quotation. This will be the minimal curvature radius observed in the mesh
 		As a mesh is generally speaking an approximation of the desired shape, the radius may be approximative as well
+
+		![note_radius](../screenshots/note_radius.png)
 	'''
 	if isinstance(mesh, Mesh):
 		normals = mesh.vertexnormals()
@@ -968,7 +984,10 @@ def mesh_curvatures(mesh, conn=None, normals=None, propagate=2):
 
 
 def note_bounds(obj):
-	''' Create dimension annotations on the boundingbox of an object '''
+	''' Create dimension annotations on the boundingbox of an object
+
+		![note_bounds](../screenshots/note_bounds.png)
+	'''
 	box = boundingbox(obj)
 	size = 0.05 * length(box.size)
 	return [
@@ -1005,7 +1024,10 @@ def note_angle_planes(s0, s1, offset=0, d=None, tol=None, text=None, unit='deg')
 				offset, d, tol, text, unit)
 				
 def note_angle_edge(part, edge, offset=0, d=None, tol=None, text=None, unit='deg'):
-	''' Place an angle quotation around a mesh edge '''
+	''' Place an angle quotation around a mesh edge
+
+		![note_angle_edge](../screenshots/note_angle_edge.png)
+	'''
 	f0 = None
 	f1 = None
 	for face in part.faces:
@@ -1040,8 +1062,10 @@ def note_surface(placement, offset=None, roughness=None, method=None):
 	indev
 	
 def note_label(placement, offset=None, text='!', style='rect'):
-	''' Place a text label upon an object 
-	
+	''' Place a text label upon an object
+
+		![note_label](../screenshots/note_label.png)
+
 		`placement` can be any of `Mesh, Web, Wire, axis, vec3`
 	'''
 	p, normal = mesh_placement(placement)

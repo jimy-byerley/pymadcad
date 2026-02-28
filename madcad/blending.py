@@ -7,8 +7,8 @@ The user has only to define the interface outlines or surfaces to join, and the 
 Formal definitions
 ------------------
 	
-:interface:   a surface or an outline (a loop) with associated exterior normals.
-:node:        a group of interfaces meant to be attached together by a blended surface.
+- **interface**: a surface or an outline (a loop) with associated exterior normals.
+- **node**: a group of interfaces meant to be attached together by a blended surface.
 
 In order to generate envelopes, this module asks for cutting all the surfaces to join into 'nodes'. The algorithm decides how to join shortly all the outlines in a node. Once splited in nodes, you only need to generate node junctions for each, and concatenate the resulting meshes.
 
@@ -21,13 +21,11 @@ The blended surfaces are created between interfaces, linked as the points of a c
 Example
 -------
 
-.. code-block:: python
-
 	>>> x, y, z = vec3(1, 0, 0), vec3(0, 1, 0), vec3(0, 0, 1)
 
-	>>> # 1. A surface can be passed: the surface outlines and 
-	>>> # normals will be used as the generated surface tangents 
-	>>> # 2. Wire or primitives can be passed: the wire loops are used 
+	>>> # 1. A surface can be passed: the surface outlines and
+	>>> # normals will be used as the generated surface tangents
+	>>> # 2. Wire or primitives can be passed: the wire loops are used
 	>>> # and the approximate normal to the  wire plane
 	>>> # 3. More parameters when building directly the interface
 	>>> m = junction(
@@ -39,10 +37,8 @@ Example
 
 To come in a next version
 
-.. code-block:: python
-	
-	>>> # create junction for each iterable of interface, 
-	>>> # if some are not interfaces, they are used 
+	>>> # create junction for each iterable of interface,
+	>>> # if some are not interfaces, they are used
 	>>> # as placeholder objects for auto-determined interfaces
 	>>> multijunction(
 	...		(surf1, surf2, 42, surf5),
@@ -151,7 +147,10 @@ def get_interface(base, tangents, weights, loops):
 
 def junction(*args, center=None, tangents='normal', weight=1., match='length', resolution=None):
 	''' Join several outlines with a blended surface
-		
+
+	![junction preparation](../screenshots/junction-circles-prep.png)
+	![junction result](../screenshots/junction-circles.png)
+
 		tangents:	
 			'straight'	no interpolation, straight lines
 			'normal'	interpolated surface starts normal to the interfaces
@@ -169,7 +168,7 @@ def junction(*args, center=None, tangents='normal', weight=1., match='length', r
 			position of the center of the junction node used to determine connexion between interfaces
 			can be usefull for particularly weird and ambiguous interfaces
 			
-		.. note::
+		Note:
 			match method 'corner' is not yet implemented
 	'''
 	pts, tangents, weights, loops = get_interfaces(args, tangents, weight)
@@ -382,8 +381,10 @@ def blend(interfaces, generate='straight', match='length', resolution=None) -> '
 	indev
 	
 def blendloop(interface, center=None, tangents='tangent', weight=1., resolution=None) -> Mesh:
-	''' Blend inside a loop interface 
-	 
+	''' Blend inside a loop interface
+
+	![blendloop result](../screenshots/blendloop.png)
+
 		see `junction` for the parameters.
 	'''
 	pts, tangents, weights, loops = get_interfaces([interface], tangents, weight)
@@ -408,8 +409,10 @@ def blendloop(interface, center=None, tangents='tangent', weight=1., resolution=
 
 
 def blendpair(*interfaces, match='length', tangents='tangent', weight=1., resolution=None) -> Mesh:
-	''' Blend between a pair of interfaces 
-		
+	''' Blend between a pair of interfaces
+
+	![blendpair result](../screenshots/blendpair.png)
+
 		match:   
 			`'length'`, `'closest'` refer to `match_*` in this module 
 	 

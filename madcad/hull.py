@@ -34,8 +34,10 @@ def simple_convexoutline(points: typedlist[vec2]) -> typedlist[uvec2]:
 	
 
 def convexhull(source: '[vec3]') -> Mesh:
-	''' compute the convex hull of the input container 
-		
+	''' compute the convex hull of the input container
+
+	![convexhull result](../screenshots/hull-convexhull.png)
+
 		Parameters:
 			source (typedlist/Web/Mesh):	the input container, if it is a Web or Mesh, their groups are kept in the output data
 
@@ -58,8 +60,10 @@ def convexhull(source: '[vec3]') -> Mesh:
 	
 
 def convexoutline(source: '[vec3]', normal: vec3=None, flatten: bool=False) -> Web:
-	''' based on `convexhull()` but will extract the loop formed by the edges in the biggest planar projection of the convex hull 
-	
+	''' based on `convexhull()` but will extract the loop formed by the edges in the biggest planar projection of the convex hull
+
+	![convexoutline result](../screenshots/hull-convexoutline.png)
+
 		Parameters:
 			source (typedlist/Web/Mesh):     the input container, if it is a Web or Mesh, their groups are kept in the output data
 			normal:                          the projection normal to retreive the outline using `horizon()`, if None is given it will default to the direction in which the outlien surface is the biggest
@@ -153,8 +157,10 @@ def restore_groups(source, indices) -> Mesh:
 
 		
 def horizon(mesh, direction: vec3) -> Web:
-	''' 
+	'''
 		Return a Web of the ORIENTED edges of the given mesh that lay between triangles that are oriented either sides of `direction`
+
+	![horizon result](../screenshots/hull-horizon.png)
 	'''
 	horizon = Web(points=mesh.points, groups=mesh.groups)
 	signs = {}	# dictionnary for crossing face directions around edges

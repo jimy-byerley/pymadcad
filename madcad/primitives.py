@@ -61,7 +61,10 @@ def _trivial_eq(self, other):
 
 
 class Segment(object):
-	''' Segment from a to b '''
+	''' Segment from a to b
+
+		![segment](../screenshots/primitives-segment.png)
+	'''
 	__slots__ = ('a', 'b')
 	def __init__(self, a, b):
 		self.a, self.b = a,b
@@ -92,8 +95,11 @@ class Segment(object):
 	def display(self, scene):
 		return self.mesh().display(scene)
 
-class ArcThrough(object):	
-	''' Arc from a to c, passing through b '''
+class ArcThrough(object):
+	''' Arc from a to c, passing through b
+
+		![arcthrough](../screenshots/primitives-arcthrough.png)
+	'''
 	__slots__ = ('a', 'b', 'c', 'resolution')
 	
 	def __init__(self, a,b,c, resolution=None):
@@ -140,7 +146,9 @@ class ArcThrough(object):
 
 class ArcCentered(object):
 	''' Arc from a to b, centered around the origin of the axis.
-	
+
+		![arccentered](../screenshots/primitives-arccentered.png)
+
 		An axis is requested instead of a point (that would be more intuitive), to solve the problem when a,b, center are aligned
 	'''
 	__slots__ = ('axis', 'a', 'b', 'resolution')
@@ -182,7 +190,10 @@ class ArcCentered(object):
 		return self.mesh().display(scene)
 		
 class ArcTangent(object):
-	''' An arc always tangent to `Segment(a,b)` and `Segment(c,b)`. The solution is unique.'''
+	''' An arc always tangent to `Segment(a,b)` and `Segment(c,b)`. The solution is unique.
+
+		![arctangent](../screenshots/primitives-arctangent.png)
+	'''
 	__slots = 'a', 'b', 'c'
 	def __init__(self, a, b, c, resolution=None):
 		self.a, self.b, self.c = a,b,c
@@ -244,6 +255,8 @@ def mkarc(axis, start, end, resolution=None):
 
 class TangentEllipsis(object):
 	''' An quater of ellipsis always tangent to `Segment(a,b)` and `Segment(c,b)`. The solution is unique.
+
+		![tangentellipsis](../screenshots/primitives-tangentellipsis.png)
 	'''
 	__slots__ = ('a', 'b', 'c', 'resolution')
 	def __init__(self, a,b,c, resolution=None):
@@ -295,7 +308,10 @@ class TangentEllipsis(object):
 		return self.mesh().display(scene)
 
 class Circle(object):
-	''' Circle centered around the axis origin, with the given radius, in an orthogonal plane to the axis direction '''
+	''' Circle centered around the axis origin, with the given radius, in an orthogonal plane to the axis direction
+
+		![circle](../screenshots/primitives-circle.png)
+	'''
 	__slots__ = ('axis', 'radius', 'alignment', 'resolution')
 	def __init__(self, axis: Axis, radius: float, alignment=vec3(1,0,0), resolution=None):
 		self.axis, self.radius = axis, radius
@@ -376,7 +392,9 @@ def glmarray(array, dtype='f4'):
 
 		
 class Interpolated(object):
-	''' Interpolated curve passing through the given points (3rd degree bezier spline) 
+	''' Interpolated curve passing through the given points (3rd degree bezier spline)
+
+		![interpolated](../screenshots/primitives-spline-interpolated.png)
 
 		The tangent in each point is determined by the direction between adjacent points
 		The point weights is how flattened is the curve close to the point tangents
@@ -433,7 +451,9 @@ class Interpolated(object):
 			
 class Softened(object):
 	''' Interpolated curve tangent to each segment midpoint (3rd degree bezier curve)
-	
+
+		![softened](../screenshots/primitives-spline-softened.png)
+
 		The points weights is the weight in the determination of each midpoint
 	'''
 	__slots__ = 'points', 'weights', 'resolution'
