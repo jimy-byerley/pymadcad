@@ -24,10 +24,10 @@
 	The resolution (subdivision) of curve is done following the following cirterions present in the 'settings' module
 
 	Specification priority order:
-		
-		1. Optional argument `resolution` passed to `primitive.mesh()` or to `web()` or `wire()`
-		2. Optional attribute `resolution` of the primitive object
-		3. Value of `settings.resolution` at bake time.
+
+	1. Optional argument `resolution` passed to `primitive.mesh()` or to `web()` or `wire()`
+	2. Optional attribute `resolution` of the primitive object
+	3. Value of `settings.resolution` at bake time.
 
 	Specification format:
 		

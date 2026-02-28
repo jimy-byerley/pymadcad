@@ -154,7 +154,7 @@ class Parallel(Constraint):
 class Radius(Constraint):
 	''' Gets the given Arc with the given fixed radius 
 		
-		Note: Only ArcCentered are supported yet.
+	Note: Only ArcCentered are supported yet.
 	'''
 	__slots__ = 'arc', 'radius', 'location'
 	slvvars = 'arc',	

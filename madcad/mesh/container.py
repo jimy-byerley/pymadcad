@@ -27,13 +27,12 @@ class NMesh(object):
 	def own(self, **kwargs) -> 'Self':
 		''' Return a copy of the current mesh, which attributes are referencing the original data or duplicates if demanded
 		
-			Example:
-			
-				>>> b = a.own(points=True, faces=False)
-				>>> b.points is a.points
-				False
-				>>> b.faces is a.faces
-				True
+		Examples:
+			>>> b = a.own(points=True, faces=False)
+			>>> b.points is a.points
+			False
+			>>> b.faces is a.faces
+			True
 		'''
 		new = copy(self)
 		for name, required in kwargs.items():
@@ -137,20 +136,19 @@ class NMesh(object):
 	def qualify(self, *quals, select=None, replace=False) -> 'self':
 		''' Set a new qualifier for the given groups 
 		
-			Parameters:
-				quals:				the qualifiers to enable for the selected mesh groups
-				select (iterable):	if specified, only the groups having all those qualifiers will be added the new qualifiers
-				replace (bool):		if True, the qualifiers in select will be removed
+		Parameters:
+			quals:				the qualifiers to enable for the selected mesh groups
+			select (iterable):	if specified, only the groups having all those qualifiers will be added the new qualifiers
+			replace (bool):		if True, the qualifiers in select will be removed
 				
-			Example:
-			
-				>>> pool = meshb.qualify('part-a') + meshb.qualify('part-b')
-				>>> set(meshb.faces) == set(pool.group('part-b').faces)
-				True
+		Examples:
+			>>> pool = meshb.qualify('part-a') + meshb.qualify('part-b')
+			>>> set(meshb.faces) == set(pool.group('part-b').faces)
+			True
 				
-				>>> chamfer(mesh, ...).qualify('my-group', select='chamfer', replace=True)
-				>>> mesh.group('my-group')
-				<Mesh ...>
+			>>> chamfer(mesh, ...).qualify('my-group', select='chamfer', replace=True)
+			>>> mesh.group('my-group')
+			<Mesh ...>
 		'''
 		if select is None:	it = range(len(self.groups))
 		else:				it = self.qualified_groups(select)

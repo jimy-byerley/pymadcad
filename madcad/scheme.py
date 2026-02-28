@@ -53,33 +53,32 @@ __all__ = ['Scheme',
 
 
 class Scheme:
-	''' An object containing schematics. 
-	
-		This is a buffer object, it isnot intended to be useful to modify a scheme.
-		
-		Attributes:
-		
-			spaces (list):       a space is any function giving a mat4 to position a point on the screen (openGL convensions as used)
+	''' An object containing schematics.
+
+	This is a buffer object, it isnot intended to be useful to modify a scheme.
+
+	Attributes:
+		spaces (list):       a space is any function giving a mat4 to position a point on the screen (openGL convensions as used)
 			
-			vertices (list):	    
+		vertices (list):	    
 			
-				a vertex is a tuple
+			a vertex is a tuple
 				
-				`(space id, position, normal, color, layer, track, flags)`
+			`(space id, position, normal, color, layer, track, flags)`
 			
-			primitives (list):   
+		primitives (list):   
 			
-				list of buffers (of point indices, edges, triangles, depending on the exact primitive type), associaded to each supported shader in the scheem
+			list of buffers (of point indices, edges, triangles, depending on the exact primitive type), associaded to each supported shader in the scheem
 				
-				currently supported shaders are:
+			currently supported shaders are:
 				
-				- `'line'`  uniform opaque/transparent lines
-				- `'fill'`  uniform opaque/transparent triangles
-				- `'ghost'` triangles of surface that fade when its normal is close to the view
+			- `'line'`  uniform opaque/transparent lines
+			- `'fill'`  uniform opaque/transparent triangles
+			- `'ghost'` triangles of surface that fade when its normal is close to the view
 			
-			components (list):   objects to display setting their local space to one of the spaces
+		components (list):   objects to display setting their local space to one of the spaces
 			
-			current (dict):     last vertex definition, implicitely reused for convenience
+		current (dict):     last vertex definition, implicitely reused for convenience
 	'''
 	def __init__(self, vertices=None, spaces=None, primitives=None, **kwargs):
 		self.vertices = vertices or [] # list of vertices
@@ -226,10 +225,10 @@ class Scheme:
 	class display(Display):
 		''' Display for schemes
 			
-			Attributes:
-			:spaces:       numpy array of matrices for each space, sent as uniform to the shader
-			:vb_vertices:  vertex buffer for vertices
-			:vas:          vertex array associated to each shader
+		Attributes:
+		:spaces:       numpy array of matrices for each space, sent as uniform to the shader
+		:vb_vertices:  vertex buffer for vertices
+		:vas:          vertex array associated to each shader
 		'''
 		max_spaces = 4096  # this maximum size of the spaces array must match the size in the shader
 		
@@ -803,17 +802,16 @@ def note_radius(mesh, offset=None, d=None, tol=None, text=None, propagate=2):
 	
 def mesh_curvature_radius(mesh, conn=None, normals=None, propagate=2) -> '(distance, point)':
 	''' Find the minimum curvature radius of a mesh.
-	
-		Parameters:
-		
-			mesh:			the surface/line to search
-			conn:			a point-to-point connectivity (computed if not provided)
-			normals:		the vertex normals (computed if not provided)
-			propagate(int):	the maximum propagation rank for points to pick for the regression
-	
-		Return:	`(distance: float, point: int)` where primitives varies according to the input mesh dimension
+
+	Parameters:
+		mesh:			the surface/line to search
+		conn:			a point-to-point connectivity (computed if not provided)
+		normals:		the vertex normals (computed if not provided)
+		propagate(int):	the maximum propagation rank for points to pick for the regression
+
+	Return:	`(distance: float, point: int)` where primitives varies according to the input mesh dimension
 	'''
-		
+
 	def propagate_pp(conn, start, maxrank):
 		front = [(0,s) for s in start]
 		seen = set()
@@ -881,17 +879,16 @@ def mesh_curvature_radius(mesh, conn=None, normals=None, propagate=2) -> '(dista
 	
 def mesh_curvature_radius(mesh, conn=None, normals=None, propagate=2) -> '(distance, point)':
 	''' Find the minimum curvature radius of a mesh.
-	
-		Parameters:
-		
-			mesh:			the surface/line to search
-			conn:			a point-to-point connectivity (computed if not provided)
-			normals:		the vertex normals (computed if not provided)
-			propagate(int):	the maximum propagation rank for points to pick for the regression
-	
-		Return:	`(distance: float, point: int)` where primitives varies according to the input mesh dimension
+
+	Parameters:
+		mesh:			the surface/line to search
+		conn:			a point-to-point connectivity (computed if not provided)
+		normals:		the vertex normals (computed if not provided)
+		propagate(int):	the maximum propagation rank for points to pick for the regression
+
+	Return:	`(distance: float, point: int)` where primitives varies according to the input mesh dimension
 	'''
-		
+
 	curvatures = mesh_curvatures(mesh, conn, normals, propagate)
 	
 	place = min(range(len(mesh.points)),
@@ -901,19 +898,16 @@ def mesh_curvature_radius(mesh, conn=None, normals=None, propagate=2) -> '(dista
 	
 def mesh_curvatures(mesh, conn=None, normals=None, propagate=2):
 	''' Compute the curvature around a point in a mesh/web/wire
-	
-		Parameters:
-		
-			mesh:			the surface/line to search
-			conn:			a point-to-point connectivity (computed if not provided)
-			normals:		the vertex normals (computed if not provided)
-			propagate(int):	the maximum propagation rank for points to pick for the regression
-	
-		Return:	
-			
-			`[(tuple, mat3)]`
-			
-			where the `tuple` contains the curvature in each of the column directions in the `mat3`. The `mat3` has the principal directions of curvature
+
+	Parameters:
+		mesh:			the surface/line to search
+		conn:			a point-to-point connectivity (computed if not provided)
+		normals:		the vertex normals (computed if not provided)
+		propagate(int):	the maximum propagation rank for points to pick for the regression
+
+	Return:
+		`[(tuple, mat3)]`
+		where the `tuple` contains the curvature in each of the column directions in the `mat3`. The `mat3` has the principal directions of curvature
 	'''
 	pts = mesh.points
 		

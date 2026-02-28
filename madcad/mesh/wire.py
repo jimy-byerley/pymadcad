@@ -14,13 +14,13 @@ class Wire(NMesh):
 		- A curve is considered closed (or to be a loop) when its final index is the same as the first.
 		- tracks are matching indices, giving a group each index. But for curves, `track[i]` gives a group for edge `(indices[i], indices[i+1])`
 
-		Attributes:
-			points:	    points buffer
-			indices:	indices of the line's points in the buffer
-			tracks:	    group index for each point in indices
-						it can be used to associate groups to points or to edges (if to edges, then take care to still have as many track as indices)
-			groups:	    data associated to each point (or edge)
-			options:	custom informations for the entire wire
+	Attributes:
+		points:	    points buffer
+		indices:	indices of the line's points in the buffer
+		tracks:	    group index for each point in indices
+					it can be used to associate groups to points or to edges (if to edges, then take care to still have as many track as indices)
+		groups:	    data associated to each point (or edge)
+		options:	custom informations for the entire wire
 	'''
 	__slots__ = 'points', 'indices', 'tracks', 'groups', 'options'
 	
@@ -192,15 +192,14 @@ class Wire(NMesh):
 					This is the best way to designate groups, and is meant to be used in combination with `self.qual()`.
 					This mode selects every group having all the input qualifiers
 					
-			Example:
-			
-				>>> # create a mesh with only the given groups
-				>>> mesh.group({1, 3, 8, 9})   
-				<Mesh ...>
+		Examples:
+			>>> # create a mesh with only the given groups
+			>>> mesh.group({1, 3, 8, 9})   
+			<Mesh ...>
 				
-				>>> # create a mesh with all the groups having the following qualifiers
-				>>> mesh.group(['extrusion', 'arc'])   
-				<Mesh ...>
+			>>> # create a mesh with all the groups having the following qualifiers
+			>>> mesh.group(['extrusion', 'arc'])   
+			<Mesh ...>
 		'''
 		if not self.tracks:
 			return self

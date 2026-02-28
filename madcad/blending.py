@@ -168,8 +168,8 @@ def junction(*args, center=None, tangents='normal', weight=1., match='length', r
 			position of the center of the junction node used to determine connexion between interfaces
 			can be usefull for particularly weird and ambiguous interfaces
 			
-		Note:
-			match method 'corner' is not yet implemented
+	Note:
+		match method 'corner' is not yet implemented
 	'''
 	pts, tangents, weights, loops = get_interfaces(args, tangents, weight)
 	if len(loops) == 0:

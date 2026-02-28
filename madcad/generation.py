@@ -31,16 +31,15 @@ def extrusion(shape, trans:transform, alignment:float=0) -> Mesh:
 
 	![extrusion result](../screenshots/generation-extrusion.png)
 
-		Parameters:
-			shape:         a line (Web or Wire) or a surface (Mesh) to extrude
-			trans:        any transformation object accepted by `mathutils.transform`
-			alignment:  the relative position of the input shape in the resulting mesh
-				- `0` means at the beginning
-				- `1` means at the end
+	Parameters:
+		shape:         a line (Web or Wire) or a surface (Mesh) to extrude
+		trans:        any transformation object accepted by `mathutils.transform`
+		alignment:  the relative position of the input shape in the resulting mesh
+			- `0` means at the beginning
+			- `1` means at the end
 				
-		Example:
-		
-			>>> extrusion(ArcThrough(+Y, Z, -Y), 2*X)
+	Examples:
+		>>> extrusion(ArcThrough(+Y, Z, -Y), 2*X)
 	'''
 	trans = transform(trans)
 	neutral = mat4()
@@ -56,22 +55,21 @@ def revolution(shape, axis=Axis(O,Z), angle:float=2*pi, alignment:float=0, resol
 
 	![revolution result](../screenshots/generation-revolution.png)
 
-		Parameters:
-			shape:    the shape to extrude (Web, Wire, or Mesh), ideally a section
-			angle:    angle of rotation between the given profile and the final produced profile
-			axis:     the axis to rotate around
-			alignment:  the relative position of the input shape in the resulting mesh
-				- `0` means at the beginning
-				- `1` means at the end
-			resolution:   resolution setting for the biggest produced circle, such as for primitives
+	Parameters:
+		shape:    the shape to extrude (Web, Wire, or Mesh), ideally a section
+		angle:    angle of rotation between the given profile and the final produced profile
+		axis:     the axis to rotate around
+		alignment:  the relative position of the input shape in the resulting mesh
+			- `0` means at the beginning
+			- `1` means at the end
+		resolution:   resolution setting for the biggest produced circle, such as for primitives
 			
-		Example:
-			
-			>>> revolution(
-			... 	ArcThrough(4*Z+Y, 6*Z, 4*Z-Y), 
-			... 	Axis(O,Y), 
-			... 	1.5*pi,
-			... 	)
+	Examples:
+		>>> revolution(
+		... 	ArcThrough(4*Z+Y, 6*Z, 4*Z-Y), 
+		... 	Axis(O,Y), 
+		... 	1.5*pi,
+		... 	)
 	'''
 	if not isinstance(shape, (Mesh,Web,Wire)):	
 		shape = web(shape)
@@ -96,24 +94,23 @@ def helix(shape, height:float, angle:float, radius:float=1., axis=Axis(O,Z), ali
 
 		This variant expects the input shape to be close to orthogonal to the axis direction and is used to produce an screw/helix from its section
 
-		Parameters:
-			shape:    the shape to extrude (Web, Wire, or Mesh), ideally a section
-			height:   the maximum translation in the `axis` direction
-			radius:   the radius at which the hexlix `angle` is computed
-			angle:    the helix angle at `radius`
-			axis:     the axis to rotate around and translate along
-			alignment:  the relative position of the input shape in the resulting mesh
-				- `0` means at the beginning
-				- `1` means at the end
-			resolution:   resolution setting for subdivisions
+	Parameters:
+		shape:    the shape to extrude (Web, Wire, or Mesh), ideally a section
+		height:   the maximum translation in the `axis` direction
+		radius:   the radius at which the hexlix `angle` is computed
+		angle:    the helix angle at `radius`
+		axis:     the axis to rotate around and translate along
+		alignment:  the relative position of the input shape in the resulting mesh
+			- `0` means at the beginning
+			- `1` means at the end
+		resolution:   resolution setting for subdivisions
 			
-		Example:
-			
-			>>> helix(
-			... 	regon(Axis(O,Z), 1, 4).subdivide(4), 
-			... 	height=2, 
-			... 	angle=radians(45),
-			... 	)
+	Examples:
+		>>> helix(
+		... 	regon(Axis(O,Z), 1, 4).subdivide(4), 
+		... 	height=2, 
+		... 	angle=radians(45),
+		... 	)
 	'''
 	helix = tan(angle)
 	div = settings.curve_resolution(height*helix, height/radius*helix, resolution)
@@ -129,22 +126,21 @@ def screw(shape, turns:float=1., axis=Axis(O,Z), step:float=None, alignment:floa
 
 		This variant expexts the input shape to be close to coplanar to the axis direction and is used to produce a screw/helix from its profile
 
-		Parameters:
-			shape:    the shape to extrude (Web, Wire, or Mesh), ideally a profile
-			turns:    number of complete rotations of the profile
-			step:     the translation after a complete rotation, if not provided it is automatically adjusted to the profile's height
-			axis:     the axis to rotate around and translate along
-			alignment:  the relative position of the input shape in the resulting mesh
-				- `0` means at the beginning
-				- `1` means at the end
-			resolution:   resolution setting for subdivisions
+	Parameters:
+		shape:    the shape to extrude (Web, Wire, or Mesh), ideally a profile
+		turns:    number of complete rotations of the profile
+		step:     the translation after a complete rotation, if not provided it is automatically adjusted to the profile's height
+		axis:     the axis to rotate around and translate along
+		alignment:  the relative position of the input shape in the resulting mesh
+			- `0` means at the beginning
+			- `1` means at the end
+		resolution:   resolution setting for subdivisions
 			
-		Example:
-			
-			>>> screw(
-			... 	wire([vec3(0,1,1), vec3(0,2,1), vec3(0,1,0)]).segmented(),
-			... 	turns=2,
-			... 	)
+	Examples:
+		>>> screw(
+		... 	wire([vec3(0,1,1), vec3(0,2,1), vec3(0,1,0)]).segmented(),
+		... 	turns=2,
+		... 	)
 	'''
 	if not isinstance(shape, (Mesh,Web,Wire)):	
 		shape = web(shape)
@@ -173,8 +169,7 @@ def saddle(a, b:Web) -> Mesh:
 
 	![saddle result](../screenshots/generation-saddle.png)
 
-		Example:
-		
+	Examples:
 		>>> saddle(
 		... 	ArcThrough(+Y,X,-Y),
 		... 	Softened([0*X, 0*X-2*Z, 4*X-2*Z, 4*X]),
@@ -194,8 +189,7 @@ def tube(shape, path:Wire, end=True, section=True) -> Mesh:
 
 	![tube result](../screenshots/generation-tube.png)
 
-		Example:
-			
+	Examples:
 		>>> tube(
 		... 	ArcThrough(+Y,X,-Y),
 		... 	Softened([0*X, 0*X-2*Z, 4*X-2*Z, 4*X]),
@@ -244,22 +238,21 @@ def extrans(section, transformations:iter, links=None) -> Mesh:
 
 	![extrans result](../screenshots/generation-extrans.png)
 
-		Parameters:
-			section:           a `Web` or a `Mesh`
-			transformations:   iterable of mat4, one each section
-			link:              iterable of tuples (a,b,t)  with:
-									`(a,b)` the sections to link (indices of values returned by `transformation`).
-									`t` the group number of that link, to combine with the section groups		
+	Parameters:
+		section:           a `Web` or a `Mesh`
+		transformations:   iterable of mat4, one each section
+		link:              iterable of tuples (a,b,t)  with:
+								`(a,b)` the sections to link (indices of values returned by `transformation`).
+								`t` the group number of that link, to combine with the section groups		
 									
-									if `links` is not specified, it will link each transformed section to the previous one.
-									This is equivalent to giving links `(i, i+1, 0)`
+								if `links` is not specified, it will link each transformed section to the previous one.
+								This is equivalent to giving links `(i, i+1, 0)`
 	
-		Example:
-			
-			>>> extrans(
-			... 	regon(Axis(O,Z), 1, 4), 
-			... 	[translate(t*Z) * scale(vec3(0.5+t**2))  for t in linrange(-1, 1, div=10)],
-			... 	)
+	Examples:
+		>>> extrans(
+		... 	regon(Axis(O,Z), 1, 4), 
+		... 	[translate(t*Z) * scale(vec3(0.5+t**2))  for t in linrange(-1, 1, div=10)],
+		... 	)
 	'''
 	# prepare
 	if isinstance(section, Mesh):
@@ -421,13 +414,13 @@ def brick(*args, **kwargs) -> 'Mesh':
 			- brick(min, max)
 			- brick(center=vec3(0), size=vec3(-inf), alignment=0.5)
 			
-		Parameters:
+	Parameters:
 			
-			min:	the corner with minimal coordinates
-			max:	the corner with maximal coordinates
-			center: the center of the box
-			size:  the all positive diagonal of the box
-			alignment: where the center is inside the box
+		min:	the corner with minimal coordinates
+		max:	the corner with maximal coordinates
+		center: the center of the box
+		size:  the all positive diagonal of the box
+		alignment: where the center is inside the box
 	'''
 	if len(args) == 1 and not kwargs and isinstance(args[0], Box):		
 		box = args[0]
@@ -468,14 +461,14 @@ def parallelogram(*directions, origin=vec3(0), alignment=vec3(0), fill=True) -> 
 
 	![parallelogram result](../screenshots/generation-parallelogram.png)
 
-		Parameters:
+	Parameters:
 			
-			directions:	list of 1-3 directions, they must for a right handed base for the face normals to be oriented outward
-			origin: origin the resulting shape, the shape will placed relatively to that point
-			alignment: relative position of the origin in the shape: 0 means at start of each direction, 1 means at the tip of each direction
-			fill: 
-				- if True, a mesh will be generated (forming a surface with 2 directions, or an envelope with 3 directions)
-				- if False, a Web will be generated
+		directions:	list of 1-3 directions, they must for a right handed base for the face normals to be oriented outward
+		origin: origin the resulting shape, the shape will placed relatively to that point
+		alignment: relative position of the origin in the shape: 0 means at start of each direction, 1 means at the tip of each direction
+		fill: 
+			- if True, a mesh will be generated (forming a surface with 2 directions, or an envelope with 3 directions)
+			- if False, a Web will be generated
 	'''
 	try:				alignment = iter(alignment)
 	except TypeError:	alignment = itertools.repeat(alignment)
@@ -540,10 +533,10 @@ def cylinder(bottom:vec3, top:vec3, radius:float, fill=True, resolution=None) ->
 
 	![cylinder result](../screenshots/generation-cylinder.png)
 
-		Parameters:
+	Parameters:
 		
-			bottom, top (vec3): the cylinder extremities centers
-			fill (bool):        whether to put faces at both extremities
+		bottom, top (vec3): the cylinder extremities centers
+		fill (bool):        whether to put faces at both extremities
 	'''
 	direction = top-bottom
 	base = wire(primitives.Circle(Axis(bottom,normalize(direction)), radius), resolution=resolution)
@@ -555,11 +548,11 @@ def cone(summit:vec3, base:vec3, radius:float, fill=True, resolution=None) -> 'M
 
 	![cone result](../screenshots/generation-cone.png)
 
-		Parameters:
+	Parameters:
 			
-			summit (vec3):  The point at the top of the cone
-			base (vec3):    the center point of the base
-			fill (bool):    whether to put a face at the base
+		summit (vec3):  The point at the top of the cone
+		base (vec3):    the center point of the base
+		fill (bool):    whether to put a face at the base
 	'''
 	base = wire(primitives.Circle(Axis(base, normalize(summit-base)), radius), resolution=resolution)
 	if fill:	base = flatsurface(base)
@@ -570,9 +563,9 @@ def pyramid(summit:vec3, base) -> 'Mesh':
 
 	![pyramid result](../screenshots/generation-pyramid.png)
 
-		Parameters:
-			summit (vec3):   the top (summit) of the cone, not necessarity in the center of the shape
-			base: (Mesh,Web,Wire):  the base shape
+	Parameters:
+		summit (vec3):   the top (summit) of the cone, not necessarity in the center of the shape
+		base: (Mesh,Web,Wire):  the base shape
 	'''
 	if isinstance(base, Mesh):
 		outline = base.outlines().flip()
@@ -684,12 +677,12 @@ def regon(axis:primitives.Axis, radius, n, alignment=vec3(1,0,0)) -> 'Wire':
 def repeat(pattern, repetitions:int, transform):
 	''' Create a mesh duplicating n times the given pattern, each time applying the given transform.
 		
-		Parameters:
+	Parameters:
 		
-			pattern:   can either be a `Mesh`, `Web` or `Wire`   
-						the return type will depend on the input type
-			repetitions:   the number of repetitions
-			transform:     is the transformation between each duplicate
+		pattern:   can either be a `Mesh`, `Web` or `Wire`   
+					the return type will depend on the input type
+		repetitions:   the number of repetitions
+		transform:     is the transformation between each duplicate
 	'''
 	current = pattern
 	pool = type(pattern)(groups=pattern.groups)

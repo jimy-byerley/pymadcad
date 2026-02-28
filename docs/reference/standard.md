@@ -4,6 +4,11 @@
     options:
       show_root_heading: false
       members: false
+      
+## Numeric helpers
+
+::: madcad.standard.stfloor
+::: madcad.standard.stceil
 
 ## Screw stuff
 
@@ -30,11 +35,6 @@
 ::: madcad.standard.section_w
 ::: madcad.standard.section_l
 ::: madcad.standard.section_c
-
-## Numeric helpers
-
-::: madcad.standard.stfloor
-::: madcad.standard.stceil
 
 ## Convenient shapes to integrate standard parts
 

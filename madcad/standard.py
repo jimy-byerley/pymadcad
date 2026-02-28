@@ -1,15 +1,19 @@
 '''
-	Module exposing many functions to create/visualize standard parts.
-	Those are following the ISO (metric) specifications as often as possible.
-	
-	Most parts are as easy to create as:
-	
-		>>> nut(8)    # nut with nominal diameter 8mm
-		>>> screw(8, 16)   # screw with match diameter 8mm, and length 16mm
-		
-	The parts usually have many optional parameters that default to usual recommended values. You can override this by setting the keyword arguments:
-	
-		>>> screw(8, 16, head='button', drive='slot')
+Module exposing many functions to create/visualize standard parts.
+Those are following the ISO (metric) specifications as often as possible.
+
+Most parts are as easy to create as:
+
+```python
+>>> nut(8)    # nut with nominal diameter 8mm
+>>> screw(8, 16)   # screw with match diameter 8mm, and length 16mm
+```
+
+The parts usually have many optional parameters that default to usual recommended values. You can override this by setting the keyword arguments:
+
+```python
+>>> screw(8, 16, head='button', drive='slot')
+```
 '''
 
 from operator import itemgetter
@@ -40,14 +44,14 @@ __all__ = [	'nut', 'screw', 'washer', 'bolt',
 			'stfloor', 'stceil',
 			]
 
-			
+
 # --------- numeric stuff --------------------
 
 standard_digits = [.0, 1., .5, .4, .6, .8, .2, .25, .75]
 
 def stfloor(x, precision=0.1):
-	''' Return a numeric value fitting x, with lower digits being the under closest digits from `standard_digits` 
-		
+	''' Return a numeric value fitting x, with lower digits being the under closest digits from `standard_digits`
+
 		`precision` gives the relative tolerance interval for the returned number, so we are sure it lays in `[x*(1-precision), x]`
 	'''
 	if hasattr(x, '__getitem__'):
@@ -57,11 +61,11 @@ def stfloor(x, precision=0.1):
 	if not x:
 		return x
 	s, x = sign(x), abs(x)
-	
+
 	base = 10
 	magnitude = base **floor(log(x) / log(base))
 	ratio = x / magnitude
-	
+
 	for j in range(2 + int(ceil(-log(precision) / log(base)))):
 		for st in standard_digits:
 			candidate = floor(ratio) + st
@@ -74,8 +78,8 @@ def stfloor(x, precision=0.1):
 	raise RuntimeError('failed to converge, this is a bug')
 
 def stceil(x, precision=0.1):
-	''' Return a numeric value fitting x, with lower digits being the above closest digits from `standard_digits` 
-		
+	''' Return a numeric value fitting x, with lower digits being the above closest digits from `standard_digits`
+
 		`precision` gives the relative tolerance interval for the returned number, so we are sure it lays in `[x, x*(1+precision)]`
 	'''
 	if hasattr(x, '__getitem__'):
@@ -83,11 +87,11 @@ def stceil(x, precision=0.1):
 	if not isfinite(x):
 		return x
 	s, x = sign(x), abs(x)
-	
+
 	base = 10
 	magnitude = base**ceil(log(x) / log(base))
 	ratio = x / magnitude
-	
+
 	for j in range(2 + int(ceil(-log(precision) / log(base)))):
 		for st in standard_digits:
 			candidate = floor(ratio) + st
@@ -100,7 +104,7 @@ def stceil(x, precision=0.1):
 	raise RuntimeError('failed to converge, this is a bug')
 
 # --------- screw stuff -----------------------
-	
+
 @cachefunc
 def screw(d, length, filet_length=None, head='SH', drive=None, detail=False):
 	''' Create a standard screw using the given drive and head shapes
@@ -111,42 +115,42 @@ def screw(d, length, filet_length=None, head='SH', drive=None, detail=False):
 		d:             nominal diameter of the screw
 		length:        length from the screw head to the tip of the screw
 		filet_length:  length of the filet on the screw (from the tip), defaults to `length`
-		
+
 		head:          name of the screw head shape
 		drive:			name of the screw drive shape
 		detail:   if True, the thread surface will be generated, else it will only be a cylinder
-		
+
 	It's also possible to specify head and drive at once, using their codenames:
-	
+
 		>>> screw(5, 16, head='SHT')   # socket head and torx drive
-		
+
 	Available screw heads:
 		* socket (default)
 		* button
 		* flat (aka. cone)
-		
+
 	Available screw drives:
 		* hex
 		* torx  *(not yet available)*
 		* phillips (cross)  *(not yet available)*
 		* slot
-	
+
 	All possible shapes:
 		* see wikipedia for the [drive types](https://en.wikipedia.org/wiki/List_of_screw_drives)
 		* see [here for a guide of what to use](https://www.homestratosphere.com/types-of-screws/)
 		* see wikipedia for [standard screw thread](https://en.wikipedia.org/wiki/ISO_metric_screw_thread)
-		
-		
+
+
 	'''
 	if filet_length is None:	filet_length = length - 0.05*d
 	elif length < filet_length:	raise ValueError('filet_length must be smaller than length')
-	
+
 	head, drive = screw_spec(head, drive)
 	head = globals()['screwhead_'+head](d)
 	if drive:
 		drive = globals()['screwdrive_'+drive](d) .transform(boundingbox(head).max[2]*Z)
 		head = intersection(head, drive)
-		
+
 	r = 0.5*d
 	axis = Axis(O, Z, interval=(-length,r))
 	top = head.box().min.z
@@ -162,16 +166,16 @@ def screw(d, length, filet_length=None, head='SH', drive=None, detail=False):
 
 def screwdrive_torx(d):
 	indev
-	
+
 def screwdrive_hex(d):
 	base = regon((-0.3*d*Z, -Z), 0.5*d, 6)
 	socket = extrusion(base, d*Z) + blendloop(base, center=-0.6*d*Z, weight=-1)
 	socket.mergeclose()
 	return socket
-	
+
 def screwdrive_cross(d):
 	indev
-	
+
 def screwdrive_slot(d):
 	w = 0.15*d
 	h = 0.3*d
@@ -181,18 +185,18 @@ def screwdrive_slot(d):
 				vec3(-e, w, -h),
 				vec3(-e, -w, -h),
 				vec3(-e, -w, h),
-				]) .segmented(), 
+				]) .segmented(),
 				2*e*X)
 
 def screwhead_socket(d):
 	''' Screw head shape for socket head (SH) '''
 	r = h = 0.7*d
 	c = 0.05*d
-	
+
 	profile = wire([
 			vec3(d/2,	0,	-c),
 			vec3(d/2+c,	0,	0),
-			vec3(r,     0,  0), 
+			vec3(r,     0,  0),
 			vec3(r,     0,  h-c),
 			vec3(r-c,   0,  h),
 			vec3(0,     0,  h),
@@ -200,13 +204,13 @@ def screwhead_socket(d):
 	head = revolution(profile.flip())
 	head.finish()
 	return head
-	
+
 def screwhead_hex(d):
 	''' Screw head shape for hex head (HH) '''
 	r = 0.9*d
 	h = 0.6*d
 	c = 0.05*d
-	
+
 	profile = extrusion(regon((-d*Z,Z), r, 6), 2*d*Z)
 	cone = revolution(web([
 			vec3(0,       0, h),
@@ -219,19 +223,19 @@ def screwhead_hex(d):
 	head = intersection(cone, profile)
 	head.finish()
 	return head
-	
+
 def screwhead_button(d):
 	r = 0.95*d
 	h = 0.5*d
 	c = 0.05*d
-	
+
 	profile = [
 		wire([
-			vec3(0, 0, h), 
+			vec3(0, 0, h),
 			vec3(0, 0.5*d, h),
 			]),
 		TangentEllipsis(
-			vec3(0, 0.5*d, h), 
+			vec3(0, 0.5*d, h),
 			vec3(0, 0.9*r, h),
 			vec3(0, r, 0.1*d)),
 		wire([
@@ -242,56 +246,56 @@ def screwhead_button(d):
 			]) .segmented(),
 		]
 	return revolution(profile)
-	
+
 def screwhead_flat(d):
 	r = d
 	h = 0.5*d
 	e = 0.1*d
-	
+
 	return revolution(web([
 		vec3(0, 0, 0),
 		vec3(0, r, 0),
 		vec3(0, r, -e),
 		vec3(0, 0.5*d, -0.5*d-e),
 		]) .segmented() ).finish()
-	
+
 def screwhead_none(d):
 	indev
 
-	
+
 '''
 	head shapes:
 	Abbreviation 	Expansion 	Comment
-	BH 		button head 
-	FH 		flat head 	
-	OH 		oval head 	
-	PH 		Phillips head 	
-	RH 		round head 		
-	FHP		flat head Phillips 	
-	RHP 	round head Phillips 	
+	BH 		button head
+	FH 		flat head
+	OH 		oval head
+	PH 		Phillips head
+	RH 		round head
+	FHP		flat head Phillips
+	RHP 	round head Phillips
 	SH 		socket head			Although "socket head" could logically refer to almost any female drive, it refers by convention to hex socket head unless further specified.
 	SS 		set screw			The abbreviation "SS" more often means stainless steel. Therefore, "SS cap screw" means "stainless steel cap screw" but "SHSS" means "socket head set screw". As with many abbreviations, users rely on context to diminish the ambiguity, although this reliance does not eliminate it.
 	VH		conic head
-	
-	CS 		cap screw 	
-	MS 		machine screw 	
-	
-	BHCS 	button head cap screw 	
-	BHMS 	button head machine screw 	
-	FHCS 	flat head cap screw 
-	FHSCS 	flat head socket cap screw 	
-	FHPMS 	flat head Phillips machine screw 	
-	FT 		full thread 	
-	HHCS 	hex head cap screw 	
-	HSHCS 	Hexalobular socket head cap screws 	
-	RHMS 	round head machine screw 	
-	RHPMS 	round head Phillips machine screw 	
-	SBHCS 	socket button head cap screw 	
-	SBHMS 	socket button head machine screw 	
-	SHCS 	socket head cap screw 	
+
+	CS 		cap screw
+	MS 		machine screw
+
+	BHCS 	button head cap screw
+	BHMS 	button head machine screw
+	FHCS 	flat head cap screw
+	FHSCS 	flat head socket cap screw
+	FHPMS 	flat head Phillips machine screw
+	FT 		full thread
+	HHCS 	hex head cap screw
+	HSHCS 	Hexalobular socket head cap screws
+	RHMS 	round head machine screw
+	RHPMS 	round head Phillips machine screw
+	SBHCS 	socket button head cap screw
+	SBHMS 	socket button head machine screw
+	SHCS 	socket head cap screw
 	SHSS 	socket head set screw 	Sometimes Socket Head Shoulder Screw.
 	STS 	self-tapping screw
-	
+
 	[standard screw thread](https://en.wikipedia.org/wiki/ISO_metric_screw_thread)
 '''
 
@@ -305,7 +309,7 @@ screwheads_codes = {
 	'SS': 'none',
 	'FT': 'none',
 	}
-	
+
 screwdrives_codes = {
 	'TX': 'torx',
 	'T': 'torx',
@@ -324,13 +328,13 @@ def screw_spec(head, drive=None):
 				if head.endswith(code):
 					head, drive = head[:-len(code)], code
 					break
-	
+
 	head = screwheads_codes.get(head, head)
 	drive = screwdrives_codes.get(drive, drive)
 	# special cases
 	if head != 'hex' and not drive:
 		drive = 'hex'
-		
+
 	return head, drive
 
 
@@ -340,23 +344,23 @@ def screw_spec(head, drive=None):
 def nut(d, type='hex', detail=False) -> Mesh:
 	''' Create a standard nut model using the given shape type
 
-		![nut](../screenshots/hexnut.png)
+	![nut](../screenshots/hexnut.png)
 
-		Parameters:
-			d:        nominal diameter of the matching screw
-			type:     the nut shape
-			detail:   if True, the thread surface will be generated, else it will only be a cylinder
-	
-		If `d` alone is given, the other parameters default to the ISO specs: https://www.engineersedge.com/iso_flat_washer.htm
-		
-		Currently only shape 'hex' is available.
+	Parameters:
+		d:        nominal diameter of the matching screw
+		type:     the nut shape
+		detail:   if True, the thread surface will be generated, else it will only be a cylinder
+
+	If `d` alone is given, the other parameters default to the ISO specs: https://www.engineersedge.com/iso_flat_washer.htm
+
+	Currently only shape 'hex' is available.
 	'''
 	args = standard_hexnuts[bisect(standard_hexnuts, d, key=itemgetter(0))]
 	if args[0] != d:
 		raise ValueError('no standard nut for diameter {}'.format(d))
 	return hexnut(*args)
 
-	
+
 def hexnut(d, w, h):
 	''' Create an hexagon nut with custom dimensions '''
 	# revolution profile
@@ -371,19 +375,19 @@ def hexnut(d, w, h):
 		vec3(0.5*d,	0,	-0.5*h),
 		]) .close() .segmented()
 	base = revolution(web(profile))
-	
+
 	# exterior hexagon shape
 	hexagon = regon((-h*Z,Z),  w/cos(radians(30)), 6)
 	ext = extrusion(hexagon, 2*h*Z)
-	
+
 	# intersect everything
 	nut = intersection(base, ext)
 	chamfer(nut, nut.frontiers(4,5) + nut.frontiers(0,5), width=d*0.1)
 
 	nut.finish().option(color=settings.colors['bolt'])
 	return Solid(
-				part=nut, 
-				bottom=Axis(-0.5*h*Z, -Z, interval=(0,h)), 
+				part=nut,
+				bottom=Axis(-0.5*h*Z, -Z, interval=(0,h)),
 				top=Axis(0.5*h*Z, Z, interval=(0,h)),
 				)
 
@@ -424,25 +428,25 @@ standard_hexnuts = [
 	(60,   90,  48), # non-prefered
 	(64,   95,  51),
 	]
-	
-	
+
+
 # -------------- washer stuff ----------------------
-	
+
 @cachefunc
 def washer(d, e=None, h=None) -> Mesh:
 	''' Create a standard washer.
 
-		![washer](../screenshots/washer.png)
+	![washer](../screenshots/washer.png)
 
-		Washers are useful to offset screws and avoid them to scratch the mount part
+	Washers are useful to offset screws and avoid them to scratch the mount part
 
-		Parameters:
-			d:        the nominal interior diameter (screw or anything else),
-			           the exact washer interior is slightly bigger
-			e:        exterior diameter
-			h:        height/thickness
-			
-		If `d` alone is given, the other parameters default to the ISO specs: https://www.engineersedge.com/iso_flat_washer.htm
+	Parameters:
+		d:        the nominal interior diameter (screw or anything else),
+		           the exact washer interior is slightly bigger
+		e:        exterior diameter
+		h:        height/thickness
+
+	If `d` alone is given, the other parameters default to the ISO specs: https://www.engineersedge.com/iso_flat_washer.htm
 	'''
 	if e is None and h is None:
 		args = standard_washers[bisect(standard_washers, d, key=itemgetter(0))]
@@ -454,10 +458,10 @@ def washer(d, e=None, h=None) -> Mesh:
 		d *= 1.1
 		if e is None:	e = d*2
 		if h is None:	h = d*0.1
-	
+
 	return Solid(
-				part=thicken(revolution(web([e/2*X, d/2*X])), h).option(color=settings.colors['bolt']), 
-				top=Axis(h*Z, Z, interval=(0,h)), 
+				part=thicken(revolution(web([e/2*X, d/2*X])), h).option(color=settings.colors['bolt']),
+				top=Axis(h*Z, Z, interval=(0,h)),
 				bottom=Axis(O, -Z, interval=(0,h)),
 				)
 
@@ -500,8 +504,8 @@ standard_washers	= [
 	(52,  54,  98,  8),
 	(56,  58,  105, 9),
 	]
-	
-	
+
+
 def section_s(height=1, width=None, flange=None, thickness=None) -> Web:
 	''' Standard S (short flange) section. Very efficient to support flexion efforts.
 
@@ -511,7 +515,7 @@ def section_s(height=1, width=None, flange=None, thickness=None) -> Web:
 	if flange is None:	flange = 0.036 * height
 	if thickness is None:	thickness = 0.054 * height
 	assert width > 3*thickness+2*flange and height > 2*flange+2*thickness
-	
+
 	base = wire([
 		vec3(width/2, height/2, 0),
 		vec3(width/2, height/2-flange, 0),
@@ -522,14 +526,14 @@ def section_s(height=1, width=None, flange=None, thickness=None) -> Web:
 	section = web(base.close().segmented())
 	filet(section, section.frontiers(0,5,10,4,6,11), radius=thickness*0.4, resolution=('div',2))
 	filet(section, section.frontiers(1,0,4,3,6,7,10,9), radius=flange, resolution=('div',2))
-	
+
 	#notes = [
 		#note_distance(base.points[0], base.points[0]*vec3(1,-1,1), offset=2*flange*X),
 		#note_distance(base.points[0], base.points[1], offset=flange*X),
 		#note_distance(base.points[0], base.points[0]*vec3(-1,1,1), offset=flange*Y),
 		#note_distance(thickness/2*X, -thickness/2*X),
 		#]
-	
+
 	return section.finish()
 
 def section_w(height=1, width=None, flange=None, thickness=None) -> Web:
@@ -541,7 +545,7 @@ def section_w(height=1, width=None, flange=None, thickness=None) -> Web:
 	if flange is None:	flange = 0.036 * height
 	if thickness is None:	thickness = 0.054 * height
 	assert width > 3*thickness+2*flange and height > 2*flange+2*thickness
-	
+
 	base = wire([
 		vec3(width/2, height/2, 0),
 		vec3(width/2, height/2-flange, 0),
@@ -554,7 +558,7 @@ def section_w(height=1, width=None, flange=None, thickness=None) -> Web:
 	filet(section, section.frontiers(0,5,10,4,6,11), radius=thickness*0.4, resolution=('div',2))
 	filet(section, section.frontiers(1,0,4,3,6,7,10,9), radius=flange*0.5, resolution=('div',2))
 	return section.finish()
-	
+
 def section_l(a=1, b=None, thickness=None) -> Wire:
 	''' Standard L section
 
@@ -575,7 +579,7 @@ def section_l(a=1, b=None, thickness=None) -> Wire:
 
 	filet(section, [2,3,4], radius=thickness*0.8, resolution=('div',2))
 	return section.finish()
-	
+
 def section_c(height=1, width=None, thickness=None) -> Web:
 	''' Standard C section
 
@@ -584,7 +588,7 @@ def section_c(height=1, width=None, thickness=None) -> Web:
 	if width is None:	width = 0.6*height
 	if thickness is None:	thickness = 0.05*height
 	assert width > 3*thickness
-	
+
 	base = wire([
 		vec3(0, height/2, 0),
 		vec3(width, height/2, 0),
@@ -593,7 +597,7 @@ def section_c(height=1, width=None, thickness=None) -> Web:
 		]) .flip()
 	base = base + base.transform(scaledir(Y,-1)).flip()
 	section = web(base.close().segmented())
-	
+
 	filet(section, section.frontiers(0,1,5,7,6), radius=0.8*thickness, resolution=('div',2))
 	return section.finish()
 
@@ -606,7 +610,7 @@ def section_tslot(size=1, slot=None, thickness=None, depth=None) -> Web:
 	if thickness is None:	thickness = 0.08*size
 	if depth is None:	depth = 0.2*size
 	b = depth-thickness
-	
+
 	center = Circle((O,-Z), size/2-depth-2*thickness)
 	base = wire([
 		vec3(size/2, size/2, 0),
@@ -624,16 +628,16 @@ def section_tslot(size=1, slot=None, thickness=None, depth=None) -> Web:
 		base.close().segmented(),
 		])
 	filet(section, section.frontiers(5,7, 41,43, 31,29, 17,19), radius=thickness/2, resolution=('div',2))
-	
+
 	#notes = [
 		#note_distance(base.points[2], base.points[5], offset=-c/2*Y),
 		#note_distance(base.points[1], base.points[2], offset=-c/2*Y, project=X),
 		#note_distance(base.points[2], base.points[2]*vec3(1,-1,1), offset=s*X),
 		#note_distance(base.points[0], base.points[0]*vec3(1,-1,1), offset=2*s*X),
 		#]
-	
+
 	return section.finish()
-	
+
 ''' Standard IPN sections (S sections)
 columns:
 	- h
@@ -665,20 +669,20 @@ standard_ipn = [
 	(600, 215, 21.6, 32.4),
 	]
 
-	
+
 # --------------------- coilspring stuff ------------------------
 
 @cachefunc
 def coilspring_compression(length, d=None, thickness=None, solid=True):
 	''' Return a Mesh model of a croilspring meant for use in compression
 
-		![coilspring_compression](../screenshots/coilspring-compression.png)
+	![coilspring_compression](../screenshots/coilspring-compression.png)
 
-		Parameters:
-			length:     the distance between its two ends
-			d:          the exterior diameter (the coilspring can fit in a cylinder of that diameter)
-			thickness:  the wire diameter of the spring (useless if solid is disabled)
-			solid:      disable it to get only the tube path of the coil, and have a `Wire` as return value
+	Parameters:
+		length:     the distance between its two ends
+		d:          the exterior diameter (the coilspring can fit in a cylinder of that diameter)
+		thickness:  the wire diameter of the spring (useless if solid is disabled)
+		solid:      disable it to get only the tube path of the coil, and have a `Wire` as return value
 	'''
 	if not d:			d = length*0.2
 	if not thickness:	thickness = d*0.1
@@ -686,65 +690,65 @@ def coilspring_compression(length, d=None, thickness=None, solid=True):
 	e = r					# coil step
 	div = settings.curve_resolution(d*pi, 2*pi)
 	step = 2*pi/(div+1)
-	
+
 	t = 0
-	
+
 	t0, z0 = t, -0.5*length
 	top = []
 	for t in linrange(t0, t0 + 4*pi, step):
 		top.append( vec3(r*cos(t), r*sin(t), z0 + (t-t0)/(2*pi) * thickness) )
-	
+
 	t0, z0 = t, -0.5*length + 2*thickness
 	coil = []
 	for t in linrange(t0, t0 + 2*pi * (length-4*thickness) / e, step):
 		coil.append( vec3(r*cos(t), r*sin(t), z0 + (t-t0)/(2*pi) * e) )
-	
+
 	t0, z0 = t, 0.5*length - 2*thickness
 	bot = []
 	for t in linrange(t0, t0 + 4*pi, step):
 		bot.append( vec3(r*cos(t), r*sin(t), z0 + (t-t0)/(2*pi) * thickness) )
-		
+
 	path = Wire(top) + Wire(coil).qualify('spring') + Wire(bot)
-	
+
 	if not solid:
 		return path
-	
+
 	return Solid(
 			part=tube(
 				flatsurface(Circle(
-					(path[0],Y), 
-					thickness/2, 
+					(path[0],Y),
+					thickness/2,
 					resolution=('div',6)
-					)) .flip(), 
+					)) .flip(),
 				path,
 				),
 			axis=Axis(O, Z, interval=(-length/2, length/2)),
 			top=0.5*length*Z,
 			bottom=-0.5*length*Z,
 			)
-	
+
 @cachefunc
 def coilspring_tension(length, d=None, thickness=None, solid=True):
 	''' Return a Mesh model of a croilspring meant for use in tension
 
-		![coilspring_tension](../screenshots/coilspring-tension.png)
+	![coilspring_tension](../screenshots/coilspring-tension.png)
 
-		Parameters:
-			length:     the distance between its two hooks
-			d:          the exterior diameter (the coilspring can fit in a cylinder of that diameter)
-			thickness:  the wire diameter of the spring (useless if solid is disabled)
-			solid:      disable it to get only the tube path of the coil, and have a `Wire` as return value
+	Parameters:
+		length:     the distance between its two hooks
+		d:          the exterior diameter (the coilspring can fit in a cylinder of that diameter)
+		thickness:  the wire diameter of the spring (useless if solid is disabled)
+		solid:      disable it to get only the tube path of the coil, and have a `Wire` as return value
 	'''
 	if not d:			d = length*0.2
 	if not thickness:	thickness = d*0.1
 	r = d/2 - thickness		# coil radius
 	e = r					# coil step
-	
+
 	# separate the coilspring in 3 parts:  the coil and the 2 hooks at both ides
 	spring_length = length - 2*r
 	ncoil = floor(spring_length / thickness) - 0.5
 	hold = 0.5*length - r
-	
+
 	# create coil
 	div = settings.curve_resolution(d*pi, 2*pi)
 	step = 2*pi/(div+1)
@@ -761,40 +765,40 @@ def coilspring_tension(length, d=None, thickness=None, solid=True):
 				])
 	if not solid:
 		return path
-	
+
 	return Solid(
 			part=tube(
 				flatsurface(Circle(
-					(path[0],Z), 
-					thickness/2, 
+					(path[0],Z),
+					thickness/2,
 					resolution=('div',6)
-					)), 
+					)),
 				path,
 				),
 			axis=Axis(O,Z, interval=(-length/2, length/2)),
 			top=0.5*length*Z,
 			bottom=-0.5*length*Z,
 			)
-	
+
 @cachefunc
-def coilspring_torsion(arm, 
-			angle=radians(45), 
-			d=None, 
-			length=None, 
-			thickness=None, 
-			hook=None, 
+def coilspring_torsion(arm,
+			angle=radians(45),
+			d=None,
+			length=None,
+			thickness=None,
+			hook=None,
 			solid=True) -> Solid:
 	''' Return a Mesh model of a croilspring meant for use in torsion
 
-		![coilspring_torsion](../screenshots/coilspring-torsion.png)
+	![coilspring_torsion](../screenshots/coilspring-torsion.png)
 
-		Parameters:
-			arm:        the arms length from the coil axis
-			length:     the coil length (and distance between its hooks)
-			d:          the exterior diameter (the coilspring can fit in a cylinder of that diameter)
-			thickness:  the wire diameter of the spring (useless if solid is disabled)
-			hook:       the length of arm hooks (negative for hooks toward the interior)
-			solid:      disable it to get only the tube path of the coil, and have a `Wire` as return value
+	Parameters:
+		arm:        the arms length from the coil axis
+		length:     the coil length (and distance between its hooks)
+		d:          the exterior diameter (the coilspring can fit in a cylinder of that diameter)
+		thickness:  the wire diameter of the spring (useless if solid is disabled)
+		hook:       the length of arm hooks (negative for hooks toward the interior)
+		solid:      disable it to get only the tube path of the coil, and have a `Wire` as return value
 	'''
 	if not length:		length = arm*0.5
 	if not d:			d = arm
@@ -803,17 +807,17 @@ def coilspring_torsion(arm,
 	r = d/2 - thickness		# coil radius
 	e = r					# coil step
 	angle = pi - angle
-	
+
 	# separate the coilspring in 3 parts:  the coil and the 2 hooks at both ides
 	ncoil = ceil(length / thickness) + angle/(2*pi)
-	
+
 	# create coil
 	div = settings.curve_resolution(d*pi, 2*pi)
 	step = 2*pi/(div+1)
 	z0 = -0.5 * ncoil * thickness
 	coil = Wire([	vec3(-r*sin(t), r*cos(t), z0 + t/(2*pi) * thickness)
 					for t in linrange(0, 2*pi * ncoil, step) ]) .qualify('spring')
-				
+
 	# create hooks
 	c = thickness * sign(hook)
 	if abs(c) > abs(hook):
@@ -824,19 +828,19 @@ def coilspring_torsion(arm,
 			vec3(arm-abs(c), 0, 0),
 			vec3(0),
 			]) .transform(coil[0])
-	bot = (top 
-			.flip() 
-			.transform(scaledir(Z,-1)*scaledir(X,-1)) 
+	bot = (top
+			.flip()
+			.transform(scaledir(Z,-1)*scaledir(X,-1))
 			.transform(angleAxis(angle, Z))
 			)
-	
+
 	# create path
 	path = top + coil + bot
 	path.mergeclose()
-	
+
 	if not solid:
 		return path
-	
+
 	return Solid(
 			part=tube(
 				flatsurface(Circle(
@@ -850,70 +854,69 @@ def coilspring_torsion(arm,
 			top=path[0],
 			bottom=path[-1],
 			)
-		
-		
-		
+
+
+
 # ----------------------- bearing stuff --------------------------
 
 @cachefunc
-def bearing(dint, dext=None, h=None, 
-			circulating='ball', 
-			contact=0, 
-			hint=None, hext=None, 
-			sealing=False, 
+def bearing(dint, dext=None, h=None,
+			circulating='ball',
+			contact=0,
+			hint=None, hext=None,
+			sealing=False,
 			detail=False) -> Solid:
 	'''
-		Circulating bearings rely on rolling elements to avoid friction and widen the part life.
+	Circulating bearings rely on rolling elements to avoid friction and widen the part life.
 
-		![bearing](../screenshots/bearing-bounded.png)
+	![bearing](../screenshots/bearing-bounded.png)
 
-		Its friction depends on the rotation speed but not on the current load.
+	Its friction depends on the rotation speed but not on the current load.
 
-		See bearing specs at https://koyo.jtekt.co.jp/en/support/bearing-knowledge/
+	See bearing specs at https://koyo.jtekt.co.jp/en/support/bearing-knowledge/
 
-		Parameters:
+	Parameters:
+		dint:	interior bore diameter
+		dext:  exterior ring diameter
+		h:     total height of the bearing
 
-			dint:	interior bore diameter
-			dext:  exterior ring diameter
-			h:     total height of the bearing
-			
-			hint:  height of the interior ring. Only for angled roller bearings
-			hext:  height of the exterior ring. Only for angled roller bearings
-		
-			circulating:
-			
-				The type of circulating element in the bearing
-				
-				- ball
-				- roller
-				
-			contact:
-			
-				Contact angle (aka pressure angle).
-				It decided what directions of force the bearing can sustain.
-				
-					- `0` for radial bearing
-					- `pi/2`  for thrust (axial) bearings
-					- `0 < contact < pi/2` for conic bearings
-					
-			sealing:  True if the bearing has a sealing side. Only for balls bearings with `contact = 0`
-					
-			detail:   If True, the returned model will have the circulating elements and cage, if False the returned element is just a bounding representation
+		hint:  height of the interior ring. Only for angled roller bearings
+		hext:  height of the exterior ring. Only for angled roller bearings
+
+		circulating:
+
+			The type of circulating element in the bearing
+
+			- ball
+			- roller
+
+		contact:
+
+			Contact angle (aka pressure angle).
+			It decided what directions of force the bearing can sustain.
+
+			- `0` for radial bearing
+			- `pi/2`  for thrust (axial) bearings
+			- `0 < contact < pi/2` for conic bearings
+
+		sealing:  True if the bearing has a sealing side. Only for balls bearings with `contact = 0`
+
+		detail:   If True, the returned model will have the circulating elements and cage, if False the returned element is just a bounding representation
 	'''
 	if isinstance(dint, str):
 		dint, dext, h = bearing_spec(dint)
 	else:
 		if not dext:	dext = 2*dint
 		if not h:		h = 0.5*dint
-		
+
 	assert 0 < h <= dint < dext
 	assert 0 <= contact
 
 	if circulating == 'roller':
-		if sealing:	
+		if sealing:
 			raise ValueError('sealing must be None for roller bearings')
 		return bearing_roller(dint, dext, h, contact, hint, hext, detail)
-	
+
 	elif circulating == 'ball':
 		if hint or hext:
 			raise ValueError('hint and hext must be None for ball bearings')
@@ -925,11 +928,11 @@ def bearing(dint, dext=None, h=None,
 			return bearing_thrust(dint, dext, h, detail)
 		else:
 			raise ValueError('ball bearings must not be angled')
-			
+
 	else:
 		raise ValueError('unknown circulating element {}'.format(repr(circulating)))
-	
-	
+
+
 def bearing_spec(code):
 	# iso code
 	if ' ' in code:
@@ -937,8 +940,8 @@ def bearing_spec(code):
 	# simple code
 	elif re.match(r'[\d\.]+x[\d\.]+x[\d\.]+', code):
 		return tuple(float(d) for d in re.split('x'))
-		
-		
+
+
 def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False) -> Solid:
 	# convenient variables
 	rint = dint/2
@@ -950,10 +953,10 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False) -> Solid:
 	# outer rings profiles
 	axis = Axis(O,Z, interval=(0,h))
 	interior = Wire([
-		vec3(rint+e, 0,	w), 
+		vec3(rint+e, 0,	w),
 		vec3(rint, 0, w),
 		vec3(rint,	0,	-w),
-		vec3(rint+e, 0,	-w), 
+		vec3(rint+e, 0,	-w),
 		]) .segmented() .flip()
 	filet(interior, [1, 2], radius=c, resolution=('div',1))
 
@@ -978,27 +981,27 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False) -> Solid:
 
 		nb = int(0.7 * pi*rb/rr)	# number of balls that can fit in
 		balls = repeat(icosphere(rb*X, rr), nb, angleAxis(radians(360)/nb, Z)) .option(color=vec3(0,0.1,0.2))
-		
+
 		# balls cage (simplified version)
 		cage_profile = Wire([vec3(
-						rb*cos(t), 
-						rb*sin(t), 
+						rb*cos(t),
+						rb*sin(t),
 						(rr+0.5*c) * (1 - (0.5-0.5*cos(nb*t))**2) + c)
 					for t in linrange(0, 2*pi, div=nb*20-1)])
 		cage_profile.mergeclose()
 
 		surf = extrusion(
-				cage_profile, 
+				cage_profile,
 				mat3(
-					(rb-rr*0.6)/rb, 
-					(rb-rr*0.6)/rb, 
-					1), 
+					(rb-rr*0.6)/rb,
+					(rb-rr*0.6)/rb,
+					1),
 				alignment=0.5)
 
 		cage = thicken(
-				surf + surf.transform(mat3(1,1,-1)) .flip(), 
+				surf + surf.transform(mat3(1,1,-1)) .flip(),
 				c) .option(color=settings.colors['bearing_cage'])
-				
+
 		# asemble
 		return Solid(part=part, cage=cage, balls=balls, axis=axis)
 
@@ -1006,20 +1009,20 @@ def bearing_ball(dint, dext=None, h=None, sealing=False, detail=False) -> Solid:
 		# assemble and close rings profiles
 		interior = (
 			Wire([
-				exterior[-1], 
-				exterior[-1]+c*Z, 
-				interior[0]+c*Z, 
+				exterior[-1],
+				exterior[-1]+c*Z,
+				interior[0]+c*Z,
 				interior[0]]) .segmented()
 			+ interior
 			+ Wire([
-				interior[-1], 
-				interior[-1]-c*Z, 
-				exterior[0]-c*Z, 
+				interior[-1],
+				interior[-1]-c*Z,
+				exterior[0]-c*Z,
 				exterior[0]]) .segmented()
 			)
 		return Solid(
 				part=revolution(web([exterior, interior]), axis)
-						.option(color=settings.colors['bearing']), 
+						.option(color=settings.colors['bearing']),
 				axis=axis)
 
 
@@ -1027,7 +1030,7 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 	# interior and exterior heights (automatically deduced from total height if not specified)
 	if not hint:	hint = h*cos(contact)
 	if not hext:	hext = h*cos(contact) * 0.8 if contact else h
-	
+
 	assert 0 < hint <= h
 	assert 0 < hext <= h
 
@@ -1038,7 +1041,7 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 	w = 0.5*h
 	e = 0.08*(dext-dint)
 	axis = Axis(O,Z, interval=(0,h))
-	
+
 	# cones definition points
 	if contact:
 		# axis on a cone using the given contact angle
@@ -1081,7 +1084,7 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 		]) .segmented()
 	filet(interior, [2,3], radius=c, resolution=('div',1))
 	filet(exterior, [2,3], radius=c, resolution=('div',1))
-	
+
 	# create interior details
 	if detail:
 		# complete rings with their interiors
@@ -1093,10 +1096,10 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 		exterior += Wire([p3])
 
 		part = revolution(web([
-					exterior, 
+					exterior,
 					interior,
 					]).flip(), axis) .option(color=settings.colors['bearing'])
-	
+
 		# create conic rollers
 		roller = revolution(Segment(mix(p1,p3,0.05), mix(p3,p1,0.05)), angled)
 		roller.check()
@@ -1106,7 +1109,7 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 
 		# number of rollers that can fit in
 		nb = int(pi*(rint+rext) / (2.5*distance_pa(p1,angled)))
-		rollers = repeat(roller, nb, rotatearound(2*pi/nb, axis)) 
+		rollers = repeat(roller, nb, rotatearound(2*pi/nb, axis))
 		rollers.option(color=settings.colors['circulating'])
 
 		# roller cage
@@ -1120,10 +1123,10 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 		cage = revolution(cage_profile, axis)
 		cage = pierce(cage, inflate(rollers, 0.5*c), False)
 		cage = thicken(cage, c) .option(color=settings.colors['bearing_cage'])
-		
+
 		# assemble
 		return Solid(part=part, cage=cage, rollers=rollers, axis=axis)
-	
+
 	# simply create a bounding representation
 	else:
 		# assemble and close rings profiles
@@ -1131,9 +1134,9 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 				part=revolution(
 					(exterior + interior) .close() .flip(),
 					axis,
-					) .option(color=settings.colors['bearing']), 
+					) .option(color=settings.colors['bearing']),
 				axis=axis)
-		
+
 
 def bearing_thrust(dint, dext, h, detail=False) -> Solid:
 	# convenient variables
@@ -1146,10 +1149,10 @@ def bearing_thrust(dint, dext, h, detail=False) -> Solid:
 	# rings outlines
 	axis = Axis(O,Z, interval=(0,h))
 	top = Wire([
-		vec3(rext, 0, w-e), 
+		vec3(rext, 0, w-e),
 		vec3(rext, 0, w),
 		vec3(rint, 0, w),
-		vec3(rint, 0, w-e), 
+		vec3(rint, 0, w-e),
 		]) .segmented() .flip()
 	filet(top, [1, 2], radius=c, resolution=('div',1))
 
@@ -1164,7 +1167,7 @@ def bearing_thrust(dint, dext, h, detail=False) -> Solid:
 	if detail:
 		rb = (dint + dext)/4	# balls guide radius
 		rr = 0.75*h/2		# ball radius
-		
+
 		hr = sqrt(rr**2 - (w-e)**2)		# half ball inprint width in the rings
 		# complete the rings with their interior
 		top += wire(ArcCentered((rb*X,-Y), vec3(rb+hr, 0, w-e), vec3(rb-hr, 0, w-e)))
@@ -1172,49 +1175,49 @@ def bearing_thrust(dint, dext, h, detail=False) -> Solid:
 		top.close()
 		bot.close()
 		part = revolution(web([top, bot]), axis) .option(color=settings.colors['bearing'])
-		
+
 		# number of balls to place
 		nb = int(0.8 * pi*rb/rr)
 		balls = repeat(icosphere(rb*X, rr), nb, angleAxis(radians(360)/nb, Z))
 		balls.option(color=settings.colors['circulating'])
-		
+
 		# cage
-		cage_profile = Wire([ 
+		cage_profile = Wire([
 			vec3(rext-c, 0, -w+e+0.1*h),
 			vec3(rext-c, 0, w-e-0.1*h),
 			vec3(rint+c, 0, w-e-0.1*h),
 			vec3(rint+c, 0, -w+e+0.1*h),
 			])
 		filet(cage_profile, [1,2], radius=c, resolution=('div',1))
-		
+
 		cage_surf = revolution(cage_profile, axis)
 		cage_surf = pierce(cage_surf, inflate(balls, 0.2*c), False)
 		cage = thicken(cage_surf, c) .option(color=settings.colors['bearing_cage'])
-		
+
 		# assemble
 		return Solid(part=part, cage=cage, balls=balls, axis=axis)
-		
+
 	else:
 		# assemble and close the profiles
 		top = (
 			Wire([
-				bot[-1], 
-				bot[-1]+c*X, 
-				top[0]+c*X, 
+				bot[-1],
+				bot[-1]+c*X,
+				top[0]+c*X,
 				top[0]]) .segmented()
 			+ top
 			+ Wire([
-				top[-1], 
-				top[-1]-c*X, 
-				bot[0]-c*X, 
+				top[-1],
+				top[-1]-c*X,
+				bot[0]-c*X,
 				bot[0]]) .segmented()
 			)
 
 		return Solid(
-				part=revolution(web([top, bot]), axis) .option(color=settings.colors['bearing']), 
+				part=revolution(web([top, bot]), axis) .option(color=settings.colors['bearing']),
 				axis=axis)
 
-	
+
 '''
 	all existing bearing dimensions according to https://koyo.jtekt.co.jp/en/support/bearing-knowledge/6-3000.html
 '''
@@ -1229,20 +1232,20 @@ from .selection import *
 @cachefunc
 def slidebearing(dint, h=None, thickness=None, shoulder=None, opened=False) -> Solid:
 	'''
-		Slide bearings rely on gliding parts to ensure a good pivot. It's much cheaper than circulating bearings and much more compact. But needs lubricant and has a shorter life than circulating bearings.
-		Its friction depends on the rotation speed and on the load.
-	
-		Parameters:
-			dint:       interior diameter
-			h:          exterior height (under shoulder if there is)
-			thickness:  shell thickness, can be automatically determined
-			shoulder:   distance from bore to shoulder tip, put 0 to disable
-			opened:     enable to have a slight breach that allows a better fitting to the placement hole 
+	Slide bearings rely on gliding parts to ensure a good pivot. It's much cheaper than circulating bearings and much more compact. But needs lubricant and has a shorter life than circulating bearings.
+	Its friction depends on the rotation speed and on the load.
+
+	Parameters:
+		dint:       interior diameter
+		h:          exterior height (under shoulder if there is)
+		thickness:  shell thickness, can be automatically determined
+		shoulder:   distance from bore to shoulder tip, put 0 to disable
+		opened:     enable to have a slight breach that allows a better fitting to the placement hole
 	'''
 	if h is None:			h = 1.2*dint
 	if thickness is None:	thickness = 0.05*dint
 	rint = dint/2
-	
+
 	profile = Wire([
 				vec3(rint,0,-h),
 				vec3(rint,0, 0),
@@ -1254,7 +1257,7 @@ def slidebearing(dint, h=None, thickness=None, shoulder=None, opened=False) -> S
 
 	axis = Axis(O,Z, interval=(-h,0))
 	shape = revolution(profile, axis, 1.98*pi if opened else 2*pi)
-	
+
 	part = thicken(shape, thickness) .option(color=settings.colors['bearing'])
 	line = (  select(part, vec3(-rint,0,-h), stopangle(pi/2))
 			+ select(part, vec3(dint,dint,-h), stopangle(pi/2))
@@ -1263,23 +1266,23 @@ def slidebearing(dint, h=None, thickness=None, shoulder=None, opened=False) -> S
 		line += (  select(part, vec3(-rint,0,0), stopangle(pi/2))
 				 + select(part, vec3(dint,dint,0), stopangle(pi/2))
 				)
-	
+
 	chamfer(part, line, width=0.5*thickness)
 	return Solid(part=part, axis=axis)
 
-	
+
 def bolt(a: vec3, b: vec3, dscrew: float, washera=False, washerb=False, nutb=True) -> Solid:
 	''' convenient function to create a screw, nut and washers assembly
 
-		![bolt](../screenshots/bolt.png)
+	![bolt](../screenshots/bolt.png)
 
-		Parameters:
-			a:  the screw placement
-			b:  the nut placement
-			dscrew:  the screw `d` parameter
-			washera:  if True, place a washer between the screw head at `a`
-			washerb:  if True, place a washer between the nut at `b`
-			butb:    if True, place a nut at `b`
+	Parameters:
+		a:  the screw placement
+		b:  the nut placement
+		dscrew:  the screw `d` parameter
+		washera:  if True, place a washer between the screw head at `a`
+		washerb:  if True, place a washer between the nut at `b`
+		butb:    if True, place a nut at `b`
 	'''
 	dir = normalize(b-a)
 	rwasher = washer(dscrew)
@@ -1293,7 +1296,7 @@ def bolt(a: vec3, b: vec3, dscrew: float, washera=False, washerb=False, nutb=Tru
 			a = a,
 			b = b,
 			dscrew = dscrew,
-			screw = rscrew.place((Revolute, rscrew['axis'], Axis(a-thickness*dir*int(washera), -dir))), 
+			screw = rscrew.place((Revolute, rscrew['axis'], Axis(a-thickness*dir*int(washera), -dir))),
 			)
 	if washera:
 		result['washera'] = rwasher.place((Revolute, rwasher['top'], Axis(a, dir)))
@@ -1307,22 +1310,22 @@ def bolt(a: vec3, b: vec3, dscrew: float, washera=False, washerb=False, nutb=Tru
 def screw_slot(axis: Axis, dscrew: float, rslot=None, hole=0., screw=0., expand=True, flat=False) -> Mesh:
 	''' slot shape for a screw
 
-		![screw_slot](../screenshots/screw_slot.png)
+	![screw_slot](../screenshots/screw_slot.png)
 
-		the result can then be used in a boolean operation to reserve set a screw place in an arbitrary shape
+	the result can then be used in a boolean operation to reserve set a screw place in an arbitrary shape
 
-		Parameters:
-			axis:  the screw axis placement, z toward the screw head (part exterior)
-			dscrew: the screw diameter
-			rslot:  the screw head slot radius
-			hole:   
-				- if `True`, enables a cylindric hole for screw body of length `dscrew*3`
-				- if `float`, it is the screw hole length
-			screw:  if non zero, this is the length of a thiner portion of hole after `hole`, the diameter is adjusted so that the screw can screw in
-			expand: 
-				- if `True`, enables slots sides
-				- if `float`, it is the slot sides height
-			flat:   if True, the slot will be conic do receive a flat head screw
+	Parameters:
+		axis:  the screw axis placement, z toward the screw head (part exterior)
+		dscrew: the screw diameter
+		rslot:  the screw head slot radius
+		hole:
+			- if `True`, enables a cylindric hole for screw body of length `dscrew*3`
+			- if `float`, it is the screw hole length
+		screw:  if non zero, this is the length of a thiner portion of hole after `hole`, the diameter is adjusted so that the screw can screw in
+		expand:
+			- if `True`, enables slots sides
+			- if `float`, it is the slot sides height
+		flat:   if True, the slot will be conic do receive a flat head screw
 	'''
 	if not rslot:	rslot = 1.1*dscrew
 	o = axis[0]
@@ -1350,25 +1353,24 @@ def screw_slot(axis: Axis, dscrew: float, rslot=None, hole=0., screw=0., expand=
 def bolt_slot(a: vec3, b: vec3, dscrew: float, rslot=None, hole=True, expanda=True, expandb=True) -> Mesh:
 	''' bolt shape for a screw
 
-		![bolt_slot](../screenshots/bolt_slot.png)
+	![bolt_slot](../screenshots/bolt_slot.png)
 
-		musch like `screw_slot()` but with two endings
+	musch like `screw_slot()` but with two endings
 
-		Parameters:
-			a:  position of screw head
-			b:  position of nut
-			dscrew:  the screw diameter
-			rslot:   the screw head slot radius
-			hole:    enabled the cylindric hole between the head and nut slots
-			expanda, expandb:
-				- if `True`, enables slot sides on tip `a` or `b`
-				- if `float`, it is the slot side height
-				
-		Example:
-			
-			>>> a, b = vec3(...), vec3(...)
-			>>> bolts = bolt(a, b, 3)
-			>>> part_hole = bolt_slot(a, b, 3)
+	Parameters:
+		a:  position of screw head
+		b:  position of nut
+		dscrew:  the screw diameter
+		rslot:   the screw head slot radius
+		hole:    enabled the cylindric hole between the head and nut slots
+		expanda, expandb:
+			- if `True`, enables slot sides on tip `a` or `b`
+			- if `float`, it is the slot side height
+
+	Examples:
+		>>> a, b = vec3(...), vec3(...)
+		>>> bolts = bolt(a, b, 3)
+		>>> part_hole = bolt_slot(a, b, 3)
 	'''
 	if not rslot:	rslot = 1.3*dscrew
 	x,y,z = dirbase(normalize(a-b))
@@ -1392,20 +1394,20 @@ def bolt_slot(a: vec3, b: vec3, dscrew: float, rslot=None, hole=True, expanda=Tr
 
 def bearing_slot_exterior(axis: Axis, dext: float, height: float, shouldering=True, circlip=False, evade=True, expand=True):
 	''' slot for a bearing exterior ring, such as returned by `bearing()`
-		
-		Parameters:
-			axis:  bearing axis placement
-			dext:  bearing `dext` parameter
-			height: bearing `h` parameter
-			shouldering:  generate a shoulder to support the top side of the bearing's exterior ring
-			circlip: enable a slot for a circlip to support the bottom side of the bearing's exterior ring
-			evade:  set expansion to evasive rather that straight
-			expand:
-			
-				expand the slot with evasive or straight surfaces to ease itnersection with other meshes
-				
-				- `True` enables expansion with a default length
-				- `float` set the expansion distance
+
+	Parameters:
+		axis:  bearing axis placement
+		dext:  bearing `dext` parameter
+		height: bearing `h` parameter
+		shouldering:  generate a shoulder to support the top side of the bearing's exterior ring
+		circlip: enable a slot for a circlip to support the bottom side of the bearing's exterior ring
+		evade:  set expansion to evasive rather that straight
+		expand:
+
+			expand the slot with evasive or straight surfaces to ease itnersection with other meshes
+
+			- `True` enables expansion with a default length
+			- `float` set the expansion distance
 	'''
 	rext = dext/2
 	tol = stceil(rext*1e-2)
@@ -1441,20 +1443,20 @@ def bearing_slot_exterior(axis: Axis, dext: float, height: float, shouldering=Tr
 
 def bearing_slot_interior(axis: Axis, dint: float, height: float, shouldering=True, circlip=False, evade=True, expand=True) -> Mesh:
 	''' slot for a bearing interior ring, such as returned by `bearing()`
-	
-		Parameters:
-			axis:  bearing axis placement
-			dint:  bearing `dint` parameter
-			height:  bearing `h` parameter
-			shouldering:  generate a shoulder to support the top side of the bearing's interior ring
-			circlip:  generate a slot for a circlip to support the bottom side of the bearing's interior ring
-			evade:  set expansion to evasive rather that straight
-			expand: 
-			
-				expand the slot with evasive or straight surfaces to ease itnersection with other meshes
-				
-				- `True` enables expansion with a default length
-				- `float` set the expansion distance
+
+	Parameters:
+		axis:  bearing axis placement
+		dint:  bearing `dint` parameter
+		height:  bearing `h` parameter
+		shouldering:  generate a shoulder to support the top side of the bearing's interior ring
+		circlip:  generate a slot for a circlip to support the bottom side of the bearing's interior ring
+		evade:  set expansion to evasive rather that straight
+		expand:
+
+			expand the slot with evasive or straight surfaces to ease itnersection with other meshes
+
+			- `True` enables expansion with a default length
+			- `float` set the expansion distance
 	'''
 	rint = dint/2
 	tol = stceil(rint*2e-2)
@@ -1491,19 +1493,19 @@ def bearing_slot_interior(axis: Axis, dint: float, height: float, shouldering=Tr
 
 def circular_screwing(axis, radius, height, dscrew, diameters:int=1, div:int=8, hold:float=0) -> '(Mesh, list)':
 	''' holes and bolts to screw a circular perimeter
-	
-		Parameters:
-			axis:  placement of circle around which the screws are placed
-			radius: radius of the perimeter on which to put the screws
-			height: bolts length
-			dscrew: diameter of the biggest screws
-			diameters: each biggest screw is followed by this number-1 of additional smaller diameters
-			div: number of biggest screws distributed uniformly on the perimeter
-			hold: 
-				if non zero, holding screws of the given length are added to help the assembly.
-				if True, the holding screws length is automatically determined.
-				
-		Return: a tuple (holes:Mesh, bolts:list) where the bolts is a list of `Solid`
+
+	Parameters:
+		axis:  placement of circle around which the screws are placed
+		radius: radius of the perimeter on which to put the screws
+		height: bolts length
+		dscrew: diameter of the biggest screws
+		diameters: each biggest screw is followed by this number-1 of additional smaller diameters
+		div: number of biggest screws distributed uniformly on the perimeter
+		hold:
+			if non zero, holding screws of the given length are added to help the assembly.
+			if True, the holding screws length is automatically determined.
+
+	Return: a tuple (holes:Mesh, bolts:list) where the bolts is a list of `Solid`
 	'''
 	holes = Mesh()
 	bolts = []
@@ -1520,9 +1522,9 @@ def circular_screwing(axis, radius, height, dscrew, diameters:int=1, div:int=8, 
 		hole = 1.5*dscrew
 	if hold:
 		angle = 1.7*dscrew/radius
-		holes += repeataround(screw_slot(Axis(a+gap,-z), dscrew, 
-					screw=height-hold, 
-					hole=hold, 
+		holes += repeataround(screw_slot(Axis(a+gap,-z), dscrew,
+					screw=height-hold,
+					hole=hold,
 					flat=True), 2) .transform(rotatearound(-angle, axis))
 		bolts.append(screw(dscrew, height, head='flat')
 			.place((Revolute, Axis(O,Z), Axis(a,-z)))
@@ -1531,21 +1533,20 @@ def circular_screwing(axis, radius, height, dscrew, diameters:int=1, div:int=8, 
 			.place((Revolute, Axis(O,Z), Axis(a,-z)))
 			.transform(rotatearound(pi-angle, axis)))
 	return holes, bolts
-	
+
 
 def grooves_profile(radius, repetitions:int=16, alignment=0.5, angle=radians(40)) -> Wire:
-	''' Coupling grooves profile 
-		
-		- The size of grooves depend on the pressure angle and the number of grooves
-		
-		Parameters:
-		
-			radius: the radius around which the grooves are placed
-			repetitions: the number of grooves to put on the circle perimeter
-			alignemnt: fraction of the grooves height
-				- exterior grooves usually have alignment=1
-				- interior grooves usually have alignemnt=0
-			angle: pressure angle of the grooves
+	''' Coupling grooves profile
+
+	- The size of grooves depend on the pressure angle and the number of grooves
+
+	Parameters:
+		radius: the radius around which the grooves are placed
+		repetitions: the number of grooves to put on the circle perimeter
+		alignemnt: fraction of the grooves height
+			- exterior grooves usually have alignment=1
+			- interior grooves usually have alignemnt=0
+		angle: pressure angle of the grooves
 	'''
 	h = radius/repetitions / tan(angle)
 	def profile(t, min=-1, max=1):
@@ -1555,19 +1556,18 @@ def grooves_profile(radius, repetitions:int=16, alignment=0.5, angle=radians(40)
 
 def grooves(radius, height, repetitions:int=16, alignment=0.5, angle=radians(40)) -> Mesh:
 	''' Coupling grooves surface
-		
-		- The bottom and top bevels direction depend on the alignment
-		- The size of grooves depend on the pressure angle and the number of grooves
-		
-		Parameters:
-		
-			radius: the radius around which the grooves are placed
-			height: the length of the grooves, including transition bevels
-			repetitions: the number of grooves to put on the circle perimeter
-			alignemnt: fraction of the grooves height
-				- exterior grooves usually have alignment=1
-				- interior grooves usually have alignemnt=0
-			angle: pressure angle of the grooves
+
+	- The bottom and top bevels direction depend on the alignment
+	- The size of grooves depend on the pressure angle and the number of grooves
+
+	Parameters:
+		radius: the radius around which the grooves are placed
+		height: the length of the grooves, including transition bevels
+		repetitions: the number of grooves to put on the circle perimeter
+		alignemnt: fraction of the grooves height
+			- exterior grooves usually have alignment=1
+			- interior grooves usually have alignemnt=0
+		angle: pressure angle of the grooves
 	'''
 	h = radius/repetitions / tan(angle)
 	if alignment > 0.5:    s = 1+h/radius
@@ -1578,11 +1578,11 @@ def grooves(radius, height, repetitions:int=16, alignment=0.5, angle=radians(40)
 				translate((height-h)*Z),
 				translate(height*Z) * scale(vec3(s)),
 				])
-	
+
 
 from .kinematic import Chain, Kinematic
 from .joints import *
-	
+
 def scara(backarm:float, forearm:float) -> Kinematic:
 	'''
 	kinematic of a classical *scara* robot arm
@@ -1659,7 +1659,7 @@ def delta3(base:float, tool:float, backarm:float, forearm:float, forearm_width:f
 		joints.append(Ball((f'backarm.{i}', f'forearm.{i}.1'), backarm*Z - forearm_width*X, O))
 		joints.append(Ball(('tool', f'forearm.{i}.0'), p*tool + forearm_width*cross(Z,p), forearm*Z))
 		joints.append(Ball(('tool', f'forearm.{i}.1'), p*tool - forearm_width*cross(Z,p), forearm*Z))
-		
+
 	kin = Kinematic(joints, inputs=motors, outputs=['tool'], ground='base')
 	kin.default = kin.solve({kin.outputs[0]: kin.outputs[0].inverse(translate(-forearm*Z))}, maxiter=1000)
 	return kin
@@ -1668,7 +1668,7 @@ def delta3(base:float, tool:float, backarm:float, forearm:float, forearm_width:f
 # 	indev
 # def delta6(backarm, forearm) -> Kinematic:
 # 	indev
-	
+
 # def stewart(base, tool, shaft, gap=None):
 # 	if gap is None:	gap = base*0.1
 # 	shafts = gt.regon(Axis(O,Z), 1, 3).points
@@ -1678,7 +1678,7 @@ def delta3(base:float, tool:float, backarm:float, forearm:float, forearm_width:f
 # 		motors.append(Cylindrical((f'shaft.{i}.base', f'shaft.{i}.tool'), Axis(0.5*arm*Z, Z)))
 # 		joints.append(UniversalJoint(('base', f'shaft.{i}.base'), Axis(base*directions[i] - gap*cross(Z,directions[i]), directions[i]), Axis(O,X)))
 # 		joints.append(UniversalJoint(('base', f'shaft.{i+1}.base'), Axis(base*directions[i] + gap*cross(Z,directions[i]), directions[i]), Axis(O,X)))
-	
+
 '''
 * profilés
 	+ ipn
@@ -1710,10 +1710,10 @@ def delta3(base:float, tool:float, backarm:float, forearm:float, forearm_width:f
 * anneaux elastiques
 	+ circlip interieur/exterieur
 	+ ressort
-	
+
 * helice
 	+ rotor de ventilateur ...
-	
+
 * vis/ecrou
 	+ a billes
 	+ a profil trapezoidal
@@ -1728,13 +1728,12 @@ def delta3(base:float, tool:float, backarm:float, forearm:float, forearm_width:f
 	+ spiral
 	+ concentrique
 	+ lame
-	
+
 * tuyau
 	+ embouchure
 	+ droit/coude
 	+ le long d'un chemin ?
-	
+
 pour tout:
 	- liste des tailles standard
 '''
-	

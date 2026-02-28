@@ -399,16 +399,15 @@ def linrange(start, stop=None, step=None, div=0, end=True):
 		- if `end` is True, it will stop iterate with value `stop` (or just before)
 		- if `end` is False, it will stop iterating just before `stop` and never with `stop`
 		
-		Example:
-		
-			>>> list(linrange(5, -5, div=1))
-			[5, 0, -5]
+	Examples:
+		>>> list(linrange(5, -5, div=1))
+		[5, 0, -5]
 			
-			>>> list(linrange(5, -5, div=10)
+		>>> list(linrange(5, -5, div=10)
 			
 		
-		NOTE:  
-			If step is given and is not a multiple of `stop-start` then `end` has no influence
+	NOTE:  
+		If step is given and is not a multiple of `stop-start` then `end` has no influence
 	'''
 	if stop is None:	start, stop = 0, start
 	if step is None:	step = (stop-start)/(div+1)
@@ -433,9 +432,9 @@ class Axis(object):
 
 		Mathematically speaking, a 3D axis doesn't necessarily have an origin, since any point on it can be its start, but for implementation and convenience reasons this axis has
 
-		Note:
+	Note:
 
-			in previous madcad versions, axis were often tuples and not instances of this class. This is why this class has a `__getitem__` allowing to be used like a tuple. But this class should be used instead now.
+		in previous madcad versions, axis were often tuples and not instances of this class. This is why this class has a `__getitem__` allowing to be used like a tuple. But this class should be used instead now.
 	'''
 	__slots__ = ('origin', 'direction', 'interval')
 	def __init__(self, origin, direction=None, interval=None):
@@ -535,8 +534,8 @@ class Screw:
 		
 			this changes the resultant and moment vectors, but doesn't change the screw itself
 			
-			Warning:
-				this is different from translating the screw 
+		Warning:
+			this is different from translating the screw 
 		'''
 		return Screw(
 			location,

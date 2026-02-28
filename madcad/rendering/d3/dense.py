@@ -10,41 +10,41 @@ class VoxelsDisplay(Display):
 	''' display a voxel as a scalar field.
 		its opacity is computed using its density as absorbance.
 		
-		Parameters:
+	Parameters:
 			
-			voxel:	a numpy array with dimension 3, no specific value range is required
+		voxel:	a numpy array with dimension 3, no specific value range is required
 			
-		Attributes:
+	Attributes:
 		
-			space:	transformation matrix from voxel normalized coordinates (position in the array as range 0-1) to local coordinates
-			world:	transformation matrix from local to world coordinates
-			value_range:	
+		space:	transformation matrix from voxel normalized coordinates (position in the array as range 0-1) to local coordinates
+		world:	transformation matrix from local to world coordinates
+		value_range:	
 				
-				tuple `(min, max)`  giving the min and max values to display
-				- values below min will be transparent
-				- values above max will be fully opaq
+			tuple `(min, max)`  giving the min and max values to display
+			- values below min will be transparent
+			- values above max will be fully opaq
 				
-			color_range:	tuple `(fvec4, fvec4)` of colors matching the value range bounds
+		color_range:	tuple `(fvec4, fvec4)` of colors matching the value range bounds
 		
-		value examples:
+	value examples:
 		
-			* value_range
+		* value_range
 			
-				```
-				(0.4, 0.9)  # erase the lower value and saturate the maxium ones
-				```
+			```
+			(0.4, 0.9)  # erase the lower value and saturate the maxium ones
+			```
 				
-			* color_range
+		* color_range
 			
-				```
-				(fvec4(0,0,1,1), fvec4(0,1,0,1))	 # blue-green
-				(fvec4(0,0.5,1,1), fvec4(1,1,0,1))   # lightblue-yellow
-				(fvec4(1,0,0.3,1), fvec4(1,1,0,1))   # red-yellow
-				(fvec4(0,0,1,1), fvec4(1,0.5,0.1,1)) # blue-orange
-				(fvec4(0,0,1,1), fvec4(1,0.1,0.1,1)) # blue-red
-				(fvec4(0,0,0,1), fvec4(1,1,1,1))     # black-white
-				(fvec4(1,1,1,1), fvec4(1,1,1,1))     # white-white
-				```
+			```
+			(fvec4(0,0,1,1), fvec4(0,1,0,1))	 # blue-green
+			(fvec4(0,0.5,1,1), fvec4(1,1,0,1))   # lightblue-yellow
+			(fvec4(1,0,0.3,1), fvec4(1,1,0,1))   # red-yellow
+			(fvec4(0,0,1,1), fvec4(1,0.5,0.1,1)) # blue-orange
+			(fvec4(0,0,1,1), fvec4(1,0.1,0.1,1)) # blue-red
+			(fvec4(0,0,0,1), fvec4(1,1,1,1))     # black-white
+			(fvec4(1,1,1,1), fvec4(1,1,1,1))     # white-white
+			```
 	'''
 	def __init__(self, scene, voxel: 'ndarray', space: 'fmat4', 
 				value=(0, 1), 

@@ -907,13 +907,13 @@ class Project(Joint):
 	
 class Rack(Joint):
 	''' Rack to gear interaction
-		
-		`radius` is the ratio between the gear rotation and the rack translation
-		
-		Attributes:
-			radius:  ratio between the gear rotation and the rack translation
-			rack:    rack axis tangent to the gear
-			axis:    gear axis
+
+	`radius` is the ratio between the gear rotation and the rack translation
+
+	Attributes:
+		radius:  ratio between the gear rotation and the rack translation
+		rack:    rack axis tangent to the gear
+		axis:    gear axis
 	'''
 	def __init__(self, solids, radius:float, rack:Axis, axis):
 		self.solids = solids
@@ -971,16 +971,16 @@ class Rack(Joint):
 
 class Gear(Joint):
 	''' Gear interaction between two solids.
-	
-		`ratio` is the factor from the rotation of s1 to the rotation of s2
-		The two pinions are considered circular, but no assumption is made on their radius or relative inclination.
-		The interaction is symetric.
-		
-		Attributes:
-			ratio:  the gear rotation transmission ratio
-			centerline: the relative positioning of the gears axis, could be 'float', `vec3`, `mat3`, `quat`, `mat4`
-			axis:  first gear axis
-			local:  second gear axis
+
+	`ratio` is the factor from the rotation of s1 to the rotation of s2
+	The two pinions are considered circular, but no assumption is made on their radius or relative inclination.
+	The interaction is symetric.
+
+	Attributes:
+		ratio:  the gear rotation transmission ratio
+		centerline: the relative positioning of the gears axis, could be 'float', `vec3`, `mat3`, `quat`, `mat4`
+		axis:  first gear axis
+		local:  second gear axis
 	'''
 	def __init__(self, solids, ratio:float, centerline:mat4, axis, local):
 		self.solids = solids

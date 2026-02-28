@@ -1,9 +1,9 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 '''
 	The functions here allow to move or extrude meshes along their normals
-	
-    Note:
-        Any offseting provided here only rely on the vertex and edge normals of the input meshes, so don't expect a nice result if your mesh is too chaotic to have meaningful normals
+
+	Note:
+		Any offseting provided here only rely on the vertex and edge normals of the input meshes, so don't expect a nice result if your mesh is too chaotic to have meaningful normals
 '''
 
 from .mathutils import *
@@ -15,16 +15,16 @@ __all__ = ['thicken', 'inflate', 'inflate_offsets', 'expand']
 
 def inflate_offsets(surface: Mesh, offset: float, method='face') -> '[vec3]':
 	''' Displacements vectors for points of a surface we want to inflate.
-		
-		Parameters:
-			offset:
-				the distance from the surface to the offset surface. Its meaning depends on `method`
-			method:     
-				determines if the distance is from the old to the new faces, edges or points
-				possible values: `'face', 'edge', 'point'`
+
+	Parameters:
+		offset:
+			the distance from the surface to the offset surface. Its meaning depends on `method`
+		method:
+			determines if the distance is from the old to the new faces, edges or points
+			possible values: `'face', 'edge', 'point'`
 	'''
 	pnormals = surface.vertexnormals()
-	
+
 	# smooth normal offsets laterally when they are closer than `offset`
 	outlines = surface.outlines_oriented()
 	l = len(pnormals)
@@ -40,7 +40,7 @@ def inflate_offsets(surface: Mesh, offset: float, method='face') -> '[vec3]':
 		# renormalize
 		for i in range(l):
 			pnormals[i] = normals[i] = normalize(normals[i])
-	
+
 	# compute offset length depending on the method
 	if method == 'face':
 		lengths = [inf]*len(pnormals)
@@ -49,14 +49,14 @@ def inflate_offsets(surface: Mesh, offset: float, method='face') -> '[vec3]':
 			for p in face:
 				lengths[p] = min(lengths[p], 1/dot(pnormals[p], fnormal))
 		return typedlist((pnormals[p]*lengths[p]*offset   for p in range(len(pnormals))), dtype=vec3)
-	
+
 	elif method == 'edge':
 		lengths = [inf]*len(pnormals)
 		for edge,enormal in surface.edgenormals().items():
 			for p in edge:
 				lengths[p] = min(lengths[p], 1/dot(pnormals[p], enormal))
 		return typedlist((pnormals[p]*lengths[p]*offset	for p in range(len(pnormals))), dtype=vec3)
-		
+
 	elif method == 'point':
 		return typedlist((pnormals[p]*offset	for p in range(len(pnormals))), dtype=vec3)
 
@@ -65,17 +65,16 @@ def inflate(surface:Mesh, offset:float, method='face') -> 'Mesh':
 
 	![inflate result](../screenshots/offseting-inflate.png)
 
-		Parameters:
-			offset:       the distance from the surface to the offseted surface. its meaning depends on `method`
-			method:       determines if the distance is from the old to the new faces, edges or points
-        
-        Example:
-            
-            >>> sphere = pierce(
-            ...         icosphere(O, 1), 
-            ...         brick(min=vec3(0), max=vec3(2)) .flip(),
-            ...         )
-            >>> inflate(sphere, 0.1)
+	Parameters:
+		offset:       the distance from the surface to the offseted surface. its meaning depends on `method`
+		method:       determines if the distance is from the old to the new faces, edges or points
+
+	Examples:
+		>>> sphere = pierce(
+		...         icosphere(O, 1),
+		...         brick(min=vec3(0), max=vec3(2)) .flip(),
+		...         )
+		>>> inflate(sphere, 0.1)
 	'''
 	return Mesh(
 				typedlist((p+d  if isfinite(d) else p   for p,d in zip(surface.points, inflate_offsets(surface, offset, method))), dtype=vec3),
@@ -88,34 +87,33 @@ def thicken(surface: Mesh, thickness: float, alignment:float=0, method='face') -
 
 	![thicken result](../screenshots/offseting-thicken.png)
 
-		Parameters:
-			thickness:    determines the distance between the two surfaces (can be negative to go the opposite direction to the normal).
-			alignment:    specifies which side is the given surface: 0 is for the first, 1 for the second side, 0.5 thicken all apart the given surface.
-			method:       determines if the thickness is from the old to the new faces, edges or points
-			
-        Example:
-            
-            >>> sphere = pierce(
-            ...         icosphere(O, 1), 
-            ...         brick(min=vec3(0), max=vec3(2)) .flip(),
-            ...         )
-            >>> thicken(sphere, 0.1)
+	Parameters:
+		thickness:    determines the distance between the two surfaces (can be negative to go the opposite direction to the normal).
+		alignment:    specifies which side is the given surface: 0 is for the first, 1 for the second side, 0.5 thicken all apart the given surface.
+		method:       determines if the thickness is from the old to the new faces, edges or points
+
+	Examples:
+		>>> sphere = pierce(
+		...         icosphere(O, 1),
+		...         brick(min=vec3(0), max=vec3(2)) .flip(),
+		...         )
+		>>> thicken(sphere, 0.1)
 	'''
 	displts = inflate_offsets(surface, thickness, method)
-	
+
 	a = alignment
 	b = alignment-1
 	m = (	Mesh(
-				typedlist((p+d*a  for p,d in zip(surface.points,displts)), dtype=vec3), 
-				surface.faces[:], 
-				surface.tracks[:], 
+				typedlist((p+d*a  for p,d in zip(surface.points,displts)), dtype=vec3),
+				surface.faces[:],
+				surface.tracks[:],
 				surface.groups)
 		+	Mesh(
-				typedlist((p+d*b  for p,d in zip(surface.points,displts)), dtype=vec3), 
-				surface.faces, 
-				surface.tracks, 
+				typedlist((p+d*b  for p,d in zip(surface.points,displts)), dtype=vec3),
+				surface.faces,
+				surface.tracks,
 				surface.groups[:]
-				) .flip() 
+				) .flip()
 		)
 	t = len(m.groups)
 	l = len(surface.points)
@@ -130,15 +128,14 @@ def expand(surface: Mesh, offset: float, collapse=True) -> Mesh:
 
 	![expand result](../screenshots/offseting-expand.png)
 
-		Parameters:
-			offset:		distance from the outline point to the expanded outline points
-			collapse:	if True, expanded points leading to crossing edges will collapse into one
-			
-        Example:
-        
-            >>> expand(
-            ...     revolution(wire([vec3(1,1,0), vec3(0,1,0)]), Axis(O,X), pi),
-            ...     0.5)
+	Parameters:
+		offset:		distance from the outline point to the expanded outline points
+		collapse:	if True, expanded points leading to crossing edges will collapse into one
+
+	Examples:
+		>>> expand(
+		...     revolution(wire([vec3(1,1,0), vec3(0,1,0)]), Axis(O,X), pi),
+		...     0.5)
 	'''
 	# outline with associated face normals
 	pts = surface.points
@@ -147,11 +144,11 @@ def expand(surface: Mesh, offset: float, collapse=True) -> Mesh:
 		for e in ((face[0], face[1]), (face[1], face[2]), (face[2],face[0])):
 			if e in edges:	del edges[e]
 			else:			edges[(e[1], e[0])] = surface.facenormal(face)
-	
+
 	# return the point on tangent for a couple of edges from the frontier
 	def tangent(e0, e1):
 		mid = axis_midpoint(
-				(pts[e0[1]], pts[e0[0]] - pts[e0[1]]), 
+				(pts[e0[1]], pts[e0[0]] - pts[e0[1]]),
 				(pts[e1[0]], pts[e1[1]] - pts[e1[0]]),
 				)
 		d0 = pts[e0[1]] - pts[e0[0]]
@@ -161,7 +158,7 @@ def expand(surface: Mesh, offset: float, collapse=True) -> Mesh:
 		if dot(t, cross(n0, d0)) < 0:
 			t = -t
 		return mid + t * offset
-	
+
 	# cross neighbooring normals
 	for loop in suites(edges, cut=False):
 		assert loop[-1] == loop[0],  "non-manifold input mesh"
@@ -182,7 +179,7 @@ def expand(surface: Mesh, offset: float, collapse=True) -> Mesh:
 					# consecutive edges aroung j
 					ej0, ej1 = (loop[j-1], loop[j]), ej0
 					tj = tangent(ej0, ej1)
-					
+
 					if dot(ti - tj, pts[ei1[0]] - pts[ej0[1]]) <= NUMPREC * length2(pts[ei1[0]] - pts[ej0[1]]):
 						tk += tj
 						weight += 1
@@ -193,7 +190,7 @@ def expand(surface: Mesh, offset: float, collapse=True) -> Mesh:
 					extended[k] = tk/weight
 			else:
 				extended[i-1] = ti
-		
+
 		# insert the new points
 		j = l = len(pts)
 		g = len(surface.groups)
@@ -201,7 +198,7 @@ def expand(surface: Mesh, offset: float, collapse=True) -> Mesh:
 		for i in range(len(extended)):
 			if extended[i] != extended[i-1]:
 				pts.append(extended[i])
-				
+
 		# create the faces
 		for i in range(len(extended)):
 			if extended[i] != extended[i-1]:
@@ -209,14 +206,14 @@ def expand(surface: Mesh, offset: float, collapse=True) -> Mesh:
 				j += 1
 			else:
 				mktri(surface, (loop[i-1], loop[i], (j if j > l else len(pts)) -1), g)
-	
+
 	return surface
 
 
 def axis_midpoint(a0: Axis, a1: Axis, x=0.5) -> vec3:
-	''' Return the midpoint of two axis. 
+	''' Return the midpoint of two axis.
 		`x` is the blending factor between `a0` and `a1`
-		
+
 		- `x = 0` gives the point of `a0` the closest to `a1`
 		- `x = 1` gives the point of `a1` the closest to `a0`
 	'''
@@ -228,4 +225,3 @@ def axis_midpoint(a0: Axis, a1: Axis, x=0.5) -> vec3:
 		p0 + unproject(project(p1-p0, noproject(d0, d1)), d0),
 		p1 + unproject(project(p0-p1, noproject(d1, d0)), d1),
 		x)
-

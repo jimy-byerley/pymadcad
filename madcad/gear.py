@@ -57,21 +57,20 @@ from madcad.mathutils import COMPREC
 def rackprofile(step, height=None, offset=0, asymetry=None, pressure_angle=radians(20), resolution=None) -> Wire:
 	''' Generate a 1-period tooth profile for a rack
 
-		![rackprofile](../screenshots/rackprofile.png)
+	![rackprofile](../screenshots/rackprofile.png)
 
-		Parameters:
-
-			step:		period length over the primitive line
-			height:			tooth half height
-			offset:	 	rack reference line offset with the primitive line (as a distance)
-						  - the primitive line is the adherence line with gears
-						  - the reference line is the line half the tooth is above and half below
-			pressure_angle:		angle of the tooth sides, a.k.a  pressure angle of the contact
+	Parameters:
+		step:		period length over the primitive line
+		height:			tooth half height
+		offset:	 	rack reference line offset with the primitive line (as a distance)
+					  - the primitive line is the adherence line with gears
+					  - the reference line is the line half the tooth is above and half below
+		pressure_angle:		angle of the tooth sides, a.k.a  pressure angle of the contact
 	'''
 	# change name for convenience
 	h = height
 	a = asymetry
-	e = offset 
+	e = offset
 	if h is None:
 		h = default_height(step, pressure_angle)
 	if a is None:
@@ -91,15 +90,14 @@ def rackprofile(step, height=None, offset=0, asymetry=None, pressure_angle=radia
 def gearprofile(step, teeth, height=None, offset=0, asymetry=None, pressure_angle=radians(20), resolution=None, **kwargs) -> Wire:
 	''' Generate a 1-period tooth profile for a straight gear
 
-		![gearprofile](../screenshots/gearprofile.png)
+	![gearprofile](../screenshots/gearprofile.png)
 
-		Parameters:
-
-			step:		period length over the primitive circle
-			tooth:			number of tooth on the gear this profile is meant for
-			height:			tooth half height
-			offset:		offset distance of the matching rack profile (see above)
-			pressure_angle:		pressure angle in the contact
+	Parameters:
+		step:		period length over the primitive circle
+		tooth:			number of tooth on the gear this profile is meant for
+		height:			tooth half height
+		offset:		offset distance of the matching rack profile (see above)
+		pressure_angle:		pressure angle in the contact
 	'''
 	# change name for convenience
 	z = teeth
@@ -215,7 +213,7 @@ def gearprofile(step, teeth, height=None, offset=0, asymetry=None, pressure_angl
 
 def gearcircles(step, teeth, height=None, offset=0, pressure_angle=radians(20)):
 	''' return the convenient circles radius for a gear with the given parameters
-		  return is `(primitive, base, bottom, top)`
+	return is `(primitive, base, bottom, top)`
 	'''
 	if height is None:
 		height = default_height(step, pressure_angle)
@@ -263,12 +261,10 @@ def pattern_full(ext_radius, int_radius, depth, int_height=0, **kwargs) -> Mesh:
 	the second `Web` is the bottom of the structure.
 
 	Parameters:
-
 		ext_radius (float): float (radius of the external border of the pattern
 		int_radius (float): radius of the internal border of the pattern
 		depth (float): face width
 		int_height (float):
-
 			if you want a pinion with a structure thinner than the value of `depth`,
 			the total height will be `total_height = depth - 2 * int_height`
 	"""
@@ -304,7 +300,6 @@ def pattern_circle(
 	the second `Web` is the bottom of the structure and the last element `Mesh` is all side surfaces.
 
 	Parameters:
-
 		ext_radius (float): radius of the external border of the structure
 		int_radius (float): radius of the internal border of the structure
 		depth (float): face width
@@ -316,7 +311,6 @@ def pattern_circle(
 		circles_place (float): radius where the origins of circles are placed
 
 	Note:
-
 		- For instance, with a ratio of 1.5, the radius of circles `circles_radius` will be divided by 1.5
 		- If `circles_radius` is chosen, `ratio` won't impact the radius of circles `circles_radius`
 	"""
@@ -374,7 +368,6 @@ def create_pattern_rect(
 	and `pattern_rounded` when `pattern` = "rounded"
 
 	Parameters:
-
 		ext_radius (float): radius of the external border of the structure
 		int_radius (float):  radius of the internal border of the structure
 		depth (float): face width
@@ -387,7 +380,6 @@ def create_pattern_rect(
 		rounded (bool): if it is True, the pattern will be rounded
 
 	Note:
-
 		- For instance, if `ratio` is 1.5, the area of the pattern will be divided by 1.5.
 		- If `r_int` and `r_ext` are chosen, `ratio` won't impact these parameters
 	"""
@@ -472,7 +464,6 @@ def pattern_rect(
 	the second `Web` is the bottom of the structure and the last element `Mesh` is all side surfaces.
 
 	Parameters:
-
 		ext_radius: float (radius of the external border of the structure)
 		int_radius: float (radius of the internal border of the structure)
 		depth: float (face width)
@@ -484,7 +475,6 @@ def pattern_rect(
 		int_thickness (float): external radius of the pattern
 
 	Note:
-
 		- For instance, if `ratio` is 1.5, the area of the pattern will be divided by 1.5.
 		- If `r_int` and `r_ext` are chosen, `ratio` won't impact these parameters
 	"""
@@ -510,7 +500,6 @@ def pattern_rounded(
 	the second `Web` is the bottom of the structure and the last element `Mesh` is all side surfaces.
 
 	Parameters:
-
 		ext_radius: float (radius of the external border of the structure)
 		int_radius: float (radius of the internal border of the structure)
 		depth: float (face width)
@@ -522,7 +511,6 @@ def pattern_rounded(
 		int_thickness (float): external radius of the pattern
 
 	Note:
-
 		- For instance, if `ratio` is 1.5, the area of the pattern will be divided by 1.5.
 		- If `r_int` and `r_ext` are chosen, `ratio` won't impact these parameters
 	"""
@@ -555,15 +543,13 @@ def gearexterior(
 	![gearexterior](../screenshots/gearexterior.png)
 
 	Parameters:
-
-			profile (Web):			profile of the pinion generated by `gearprofile`
-			depth (float):			extrusion eight - width of the gear along its axis
-			step (float):			step of chordal pitch, must be specified for non-null helix_angle, unused otherwise
-			helix_angle (float):	helix angle for helical gears - only without filet; `filet` = False - it must be a radian angle
-			chamfer (bool | float | (float, float)):
-
-				set the parameter of chamfer `(angle, ratio)` such as `angle` is the chamfer angle,
-				`ratio` is where the chamfer is applied (`rmin + ratio * (rmax - rmin)`)
+		profile (Web):			profile of the pinion generated by `gearprofile`
+		depth (float):			extrusion eight - width of the gear along its axis
+		step (float):			step of chordal pitch, must be specified for non-null helix_angle, unused otherwise
+		helix_angle (float):	helix angle for helical gears - only without filet; `filet` = False - it must be a radian angle
+		chamfer (bool | float | (float, float)):
+			set the parameter of chamfer `(angle, ratio)` such as `angle` is the chamfer angle,
+			`ratio` is where the chamfer is applied (`rmin + ratio * (rmax - rmin)`)
 	"""
 
 	# Parameters
@@ -638,19 +624,15 @@ def gearstructure(
 	![gearstructure](../screenshots/gearstructure.png)
 
 	Parameters:
-
 		ext_radius (float):
-
-				given by the attribut `_radius` of the result of `repeataround` -
-				to avoid interference, it must be smaller than `_radius` (for instance 0.95 * `_radius`))
-
+			given by the attribut `_radius` of the result of `repeataround` -
+			to avoid interference, it must be smaller than `_radius` (for instance 0.95 * `_radius`))
 		int_radius (float):	it is the same radius of the largest radius of the hub part
 		depth (float):		face width
 		pattern:			any of 'full', 'circle', 'rect', 'rounded'
 		int_height (float):
-
-				if you want a pinion with a structure thinner than the value of `depth`,
-				the total height will be `total_height = depth - 2 * int_height`
+			if you want a pinion with a structure thinner than the value of `depth`,
+			the total height will be `total_height = depth - 2 * int_height`
 	"""
 	# int_radius must not be 0
 	int_radius = int_radius or 0.1 * ext_radius
@@ -672,7 +654,6 @@ def gearhub(
 	Generate a hub for a pinion part
 
 	Parameters:
-
 		bore_radius (float):	radius of the central bore
 		depth (float):			face width; same parameter for `gearexterior` and `gearstructure`
 		int_height (float):		only useful for no hub case, checkout the function `gearstructure` for more information
@@ -680,7 +661,6 @@ def gearhub(
 		hub_radius (float):		external radius of the hub
 
 	Note:
-
 		- if `bore_radius` is null, the function will return a top circle and a bottom circle used for `geargather` function
 		- if `hub_height` is null, the function will return a structure with a bore and without a hub
 	"""
@@ -806,12 +786,9 @@ def gear(
 	Any extra argument will go to functions `gearprofile`, `gearstructure`, or `gearhub`
 
 	Parameters:
-
 		step (float):
-
 			tooth step over the primitive curve, same as the matching rack step
 			the primitive perimeter is `step * teeth` and radius is `step * teeth / 2*pi`
-
 		teeth (int):				number of teeth
 		depth (float):			extrusion eight - width of the gear along its axis
 		bore_radius (float):	radius of the main bore
@@ -838,7 +815,7 @@ def gear(
 
 		ratio (float):	influence the proportion of dimensions of the structure
 
-		Note: `int_height` impacts the thickness of the structure unless specified
+	Note: `int_height` impacts the thickness of the structure unless specified
 
 	* Extra parameters for `gearhub`
 
@@ -873,7 +850,6 @@ def get_pitch_cone_angle(z_pinion:int, z_wheel:int, shaft_angle:float=0.5 * pi) 
 	The pitch cone angle of the wheel is equal to `shaft_angle - gamma_p`
 
 	Parameters:
-
 		z_pinion (int): 		the number of teeth on the filet pinion
 		z_wheel (int): 			the number of teeth on the filet wheel
 		shaft_angle (float): 	the shaft angle
@@ -886,13 +862,11 @@ def spherical_involute(cone_angle:float, t0:float, t:float) -> vec3:
 	Return spherical involute function
 
 	Parameters:
-
 		t (float): 				the angular position
 		t0 (float): 			the difference phase
 		cone_angle (float): 	the cone angle
 
 	Return:
-
 		a normalized `vec3`
 	"""
 	cos_g, sin_g = cos(cone_angle), sin(cone_angle)
@@ -908,14 +882,12 @@ def spherical_involuteof(pitch_cone_angle:float, t0:float, pressure_angle:float,
 	Return the spherical interference function
 
 	Parameters:
-
 		t (float): 					the angular position
 		t0 (float): 				the difference phase
 		pitch_cone_angle (float):	the pitch cone angle
 		pressure_angle(float): 				the height angle offset of the rack
 
 	Return:
-
 		a normalized `vec3`
 	"""
 	cos_p, sin_p = cos(pitch_cone_angle), sin(pitch_cone_angle)
@@ -930,7 +902,6 @@ def derived_spherical_involute(cone_angle:float, t0:float):
 	Return the function of the derived spherical involute function.
 
 	Parameters:
-
 		cone_angle (float): 	the cone angle
 		t0 (float): 			the phase difference
 	"""
@@ -947,7 +918,6 @@ def jacobian_spherical_involute(base_cona_angle:float, pitch_cone_angle:float, t
 	Return the function of the jacobian used for the newton method in `spherical_gearprofile`
 
 	Parameters:
-
 		base_cona_angle (float): 	the base cone angle
 		pitch_cone_angle (float): 	the pitch cone angle
 		t01 (float): 				the phase of the spherical involute function
@@ -973,13 +943,10 @@ def spherical_rack_tools(teeth:float, pressure_angle:float=pi / 9, ka:float=1, k
 		4) the phase of space
 		5) the function to generate a tooth
 
-	Parameters :
-
+	Parameters:
 		teeth (float):
-
 			number of tooth of the rack equal to `z_pinion / sin(pitch_cone_angle)`
 			or `z_wheel / sin(shaft_angle - pitch_cone_angle)`
-
 		pressure_angle (float): the pressure angle of the gear
 		ka (float): 			the addendum coefficient
 		kd (float): 			the dedendum coefficient
@@ -1012,12 +979,9 @@ def spherical_rackprofile(teeth:float, pressure_angle:float=pi / 9, ka:float=1, 
 	![spherical_rackprofile](../screenshots/spherical_rackprofile.png)
 
 	Parameters:
-
 		teeth (float):
-
 			number of tooth of the rack equal to `z_pinion / sin(pitch_cone_angle)`
 			or `z_wheel / sin(shaft_angle - pitch_cone_angle)`
-
 		pressure_angle (float): 	the pressure angle of the gear
 		ka (float): 				the addendum coefficient
 		kd (float): 				the dedendum coefficient
@@ -1047,7 +1011,6 @@ def spherical_gearprofile(
 	![spherical_gearprofile](../screenshots/spherical_gearprofile.png)
 
 	Parameters:
-
 		teeth (int):						number of tooth on the gear this profile is meant for
 		pitch_cone_angle (float): 		the pitch cone angle
 		pressure_angle (float):			pressure angle of the tooth
@@ -1151,12 +1114,9 @@ def bevelgear(
 	![bevelgear](../screenshots/bevelgear.png)
 
 	Parameters:
-
 		step (float):
-
 			tooth step over the primitive curve, same as the matching rack step
 			the primitive perimeter is `step * teeth` and radius is `step * teeth / (2 * pi)`
-
 		teeth (int):		 			number of teeth
 		pitch_cone_angle (float):	pitch cone angle
 		pressure_angle (float):		the pressure angle of the tooth
@@ -1189,12 +1149,9 @@ def straight_bevel_gear(
 	Generate a filet gear where teeth are straight.
 
 	Parameters:
-
 		step (float):
-
 			tooth step over the primitive curve, same as the matching rack step
 			the primitive perimeter is `step * teeth` and radius is `step * teeth / (2 * pi)`
-
 		teeth (int):		 			number of teeth
 		pitch_cone_angle (float):	pitch cone angle
 		pressure_angle (flaot):		the pressure angle of the tooth
@@ -1292,12 +1249,9 @@ def helical_bevel_gear(
 	Generate a filet gear where teeth are helical.
 
 	Parameters:
-
 		step (float):
-
 			tooth step over the primitive curve, same as the matching rack step
 			the primitive perimeter is `step * teeth` and radius is `step * teeth / (2 * pi)`
-
 		teeth (int):		 			number of teeth
 		pitch_cone_angle (float):	pitch cone angle
 		pressure_angle (float):		the pressure angle of the tooth
@@ -1448,12 +1402,10 @@ def _get_intersection(A: vec3, B: vec3, C: vec3, D: vec3) -> float:
 		C (vec3):	Point
 		D (vec3):	Point
 
-	Example:
-	```
-	t = _get_intersection(A, B, C, D)
-	AB = B - A
-	I = A + t * AB # intersection point
-	```
+	Examples:
+		>>> t = _get_intersection(A, B, C, D)
+		>>> AB = B - A
+		>>> I = A + t * AB # intersection point
 	"""
 	AB = B - A
 	CD = D - C
@@ -1479,18 +1431,14 @@ def matrix4placement(teeth:int, shaft_angle:float) -> mat4x4:
 	This matrix is helpful when you want to place bevel gears.
 
 	Parameters:
-
 		teeth (int):				number of tooth on the gear
 		shaft_angle (float): 	the shaft angle
 
-	Example:
-
-		```python
-		pinion = bevelgear(step, z_pinion, ...)
-		wheel = bevelgear(step, z_wheel, ...)
-		myparts = Solid(pinion=pinion, ...)
-		matrix = matrix4placement(z_pinion, shaft_angle)
-		show([wheel, myparts.transform(matrix)])
-		```
+	Examples:
+		>>> pinion = bevelgear(step, z_pinion, ...)
+		>>> wheel = bevelgear(step, z_wheel, ...)
+		>>> myparts = Solid(pinion=pinion, ...)
+		>>> matrix = matrix4placement(z_pinion, shaft_angle)
+		>>> show([wheel, myparts.transform(matrix)])
 	"""
 	return mat4(angleAxis(shaft_angle, Y)) * mat4(angleAxis(pi + pi / teeth, Z))
