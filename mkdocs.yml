@@ -6,6 +6,22 @@ theme:
   name: material
   logo: docs/logo.png
   favicon: docs/logo.ico
+  palette:
+    - scheme: default
+      primary: deep purple
+      accent: purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: green
+      accent: green
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+hooks:
+  - docs/screenshot_remove_backgrounds.py
 
 markdown_extensions:
   - admonition
@@ -35,6 +51,7 @@ plugins:
             show_source: true
             members_order: source
             show_root_heading: true
+            show_root_full_path: false
             allow_inspection: true
             preload_modules:
               - pyglm
