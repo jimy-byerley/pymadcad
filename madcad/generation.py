@@ -51,7 +51,7 @@ def extrusion(shape, trans:transform, alignment:float=0) -> Mesh:
 
 def revolution(shape, axis=Axis(O,Z), angle:float=2*pi, alignment:float=0, resolution=None) -> Mesh:
 	''' Create a revolution surface by extruding the given outline
-		`steps` is the number of steps between the start and the end of the extrusion
+	`steps` is the number of steps between the start and the end of the extrusion
 
 	![revolution result](../screenshots/generation-revolution.png)
 
@@ -60,10 +60,12 @@ def revolution(shape, axis=Axis(O,Z), angle:float=2*pi, alignment:float=0, resol
 		angle:    angle of rotation between the given profile and the final produced profile
 		axis:     the axis to rotate around
 		alignment:  the relative position of the input shape in the resulting mesh
+
 			- `0` means at the beginning
 			- `1` means at the end
+
 		resolution:   resolution setting for the biggest produced circle, such as for primitives
-			
+
 	Examples:
 		>>> revolution(
 		... 	ArcThrough(4*Z+Y, 6*Z, 4*Z-Y), 
@@ -92,7 +94,7 @@ def helix(shape, height:float, angle:float, radius:float=1., axis=Axis(O,Z), ali
 
 	![helix result](../screenshots/generation-helix.png)
 
-		This variant expects the input shape to be close to orthogonal to the axis direction and is used to produce an screw/helix from its section
+	This variant expects the input shape to be close to orthogonal to the axis direction and is used to produce an screw/helix from its section
 
 	Parameters:
 		shape:    the shape to extrude (Web, Wire, or Mesh), ideally a section
@@ -101,10 +103,12 @@ def helix(shape, height:float, angle:float, radius:float=1., axis=Axis(O,Z), ali
 		angle:    the helix angle at `radius`
 		axis:     the axis to rotate around and translate along
 		alignment:  the relative position of the input shape in the resulting mesh
+
 			- `0` means at the beginning
 			- `1` means at the end
+
 		resolution:   resolution setting for subdivisions
-			
+
 	Examples:
 		>>> helix(
 		... 	regon(Axis(O,Z), 1, 4).subdivide(4), 
@@ -124,7 +128,7 @@ def screw(shape, turns:float=1., axis=Axis(O,Z), step:float=None, alignment:floa
 
 	![screw result](../screenshots/generation-screw.png)
 
-		This variant expexts the input shape to be close to coplanar to the axis direction and is used to produce a screw/helix from its profile
+	This variant expects the input shape to be close to coplanar to the axis direction and is used to produce a screw/helix from its profile
 
 	Parameters:
 		shape:    the shape to extrude (Web, Wire, or Mesh), ideally a profile
@@ -132,10 +136,12 @@ def screw(shape, turns:float=1., axis=Axis(O,Z), step:float=None, alignment:floa
 		step:     the translation after a complete rotation, if not provided it is automatically adjusted to the profile's height
 		axis:     the axis to rotate around and translate along
 		alignment:  the relative position of the input shape in the resulting mesh
+
 			- `0` means at the beginning
 			- `1` means at the end
+
 		resolution:   resolution setting for subdivisions
-			
+
 	Examples:
 		>>> screw(
 		... 	wire([vec3(0,1,1), vec3(0,2,1), vec3(0,1,0)]).segmented(),
@@ -241,12 +247,12 @@ def extrans(section, transformations:iter, links=None) -> Mesh:
 	Parameters:
 		section:           a `Web` or a `Mesh`
 		transformations:   iterable of mat4, one each section
-		link:              iterable of tuples (a,b,t)  with:
-								`(a,b)` the sections to link (indices of values returned by `transformation`).
-								`t` the group number of that link, to combine with the section groups		
-									
-								if `links` is not specified, it will link each transformed section to the previous one.
-								This is equivalent to giving links `(i, i+1, 0)`
+		links:             iterable of tuples (a,b,t)  with
+			`(a,b)` the sections to link (indices of values returned by `transformation`),
+			`t` the group number of that link, to combine with the section groups.
+
+			If `links` is not specified, it will link each transformed section to the previous one.
+			This is equivalent to giving links `(i, i+1, 0)`
 	
 	Examples:
 		>>> extrans(
@@ -327,11 +333,11 @@ def extrans(section, transformations:iter, links=None) -> Mesh:
 # --- filling things ---
 
 def flatsurface(outline, normal=None) -> 'Mesh':
-	''' Generates a surface for a flat outline using the prefered triangulation method .
+	''' Generates a surface for a flat outline using the prefered triangulation method.
 
 	![flatsurface result](../screenshots/generation-flatsurface.png)
 
-		if `normal` is specified, it must be the normal vector to the plane, and will be used to orient the face.
+	If `normal` is specified, it must be the normal vector to the plane, and will be used to orient the face.
 	'''
 	if isinstance(outline, Wire):
 		m = triangulation.triangulation_outline(outline, normal)
@@ -344,9 +350,9 @@ def flatsurface(outline, normal=None) -> 'Mesh':
 
 def icosurface(pts, ptangents, resolution=None) -> 'Mesh':
 	''' Generate a surface ICO (a subdivided triangle) with its points interpolated using interpol2tri.
-	
-		- If normals are given instead of point tangents (for ptangents), the surface will fit a sphere.
-		- Else `ptangents` must be a list of couples (2 edge tangents each point).
+
+	- If normals are given instead of point tangents (for ptangents), the surface will fit a sphere.
+	- Else `ptangents` must be a list of couples (2 edge tangents each point).
 	'''
 	# compute normals to points
 	if isinstance(ptangents[0], tuple):
@@ -408,14 +414,13 @@ def brick(*args, **kwargs) -> 'Mesh':
 
 	![brick result](../screenshots/generation-brick.png)
 
-		It can be constructed in the following ways:
-		
-			- brick(Box)
-			- brick(min, max)
-			- brick(center=vec3(0), size=vec3(-inf), alignment=0.5)
-			
+	It can be constructed in the following ways:
+
+	- `brick(Box)`
+	- `brick(min, max)`
+	- `brick(center=vec3(0), size=vec3(-inf), alignment=0.5)`
+
 	Parameters:
-			
 		min:	the corner with minimal coordinates
 		max:	the corner with maximal coordinates
 		center: the center of the box
@@ -591,7 +596,7 @@ def square(axis:primitives.Axis, width:float) -> 'Mesh':
 
 	![square result](../screenshots/generation-square.png)
 
-		Useful to quickly create a cutplane
+	Useful to quickly create a cutplane
 	'''
 	x,y,z = dirbase(axis[1])
 	return Mesh(
@@ -638,7 +643,7 @@ def icosphere(center:vec3, radius:float, resolution=None) -> 'Mesh':
 
 	![icosphere result](../screenshots/generation-icosphere.png)
 
-		Points are obtained from a subdivided icosahedron and reprojected on the desired radius.
+	Points are obtained from a subdivided icosahedron and reprojected on the desired radius.
 	'''
 	div = settings.curve_resolution(2/6*pi*radius, 2/6*pi, resolution)
 	ico = icosahedron(center, radius).subdivide(div-1)
@@ -676,11 +681,9 @@ def regon(axis:primitives.Axis, radius, n, alignment=vec3(1,0,0)) -> 'Wire':
 
 def repeat(pattern, repetitions:int, transform):
 	''' Create a mesh duplicating n times the given pattern, each time applying the given transform.
-		
+
 	Parameters:
-		
-		pattern:   can either be a `Mesh`, `Web` or `Wire`   
-					the return type will depend on the input type
+		pattern:   can either be a `Mesh`, `Web` or `Wire`, the return type will depend on the input type
 		repetitions:   the number of repetitions
 		transform:     is the transformation between each duplicate
 	'''
