@@ -18,6 +18,7 @@ rustc-hash = "2.0"
 heapless = "0.8"
 
 multiversion = "0.8"
+i_triangle = "0.39"
 
 [profile.release]
 lto = true

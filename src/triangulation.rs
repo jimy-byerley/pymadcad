@@ -480,18 +480,118 @@ pub fn flat_loops(
 }
 
 
+/// Signed area of a 2D polygon (shoelace formula).
+/// Positive for CCW winding, negative for CW.
+pub fn loop_area_2d(points: &[Vec2]) -> Float {
+    let n = points.len();
+    if n < 3 {
+        return 0.0;
+    }
+    let mut area = 0.0;
+    for i in 0..n {
+        let j = (i + 1) % n;
+        area += points[i][0] * points[j][1];
+        area -= points[j][0] * points[i][1];
+    }
+    area * 0.5
+}
+
+/// Ray-casting point-in-polygon test for a 2D contour.
+/// The contour is given as a sequence of points forming a closed polygon
+/// (last point connects back to first).
+pub fn point_in_loop_2d(point: Vec2, contour: &[Vec2]) -> bool {
+    let n = contour.len();
+    let mut inside = false;
+    let mut j = n - 1;
+    for i in 0..n {
+        let pi = contour[i];
+        let pj = contour[j];
+        if ((pi[1] > point[1]) != (pj[1] > point[1]))
+            && (point[0] < (pj[0] - pi[0]) * (point[1] - pi[1]) / (pj[1] - pi[1]) + pi[0])
+        {
+            inside = !inside;
+        }
+        j = i;
+    }
+    inside
+}
+
+
+/// A group of contours: one outer boundary and zero or more holes.
+/// Each contour is a list of 2D points with a parallel list of original point indices.
+struct LoopGroup {
+    /// 2D points of the outer contour
+    outer: Vec<Vec2>,
+    /// Original point indices for the outer contour
+    outer_indices: Vec<Index>,
+    /// 2D points of each hole
+    holes: Vec<Vec<Vec2>>,
+    /// Original point indices for each hole
+    holes_indices: Vec<Vec<Index>>,
+}
+
+/// Group oriented 2D loops into (outer + holes) sets.
+///
+/// Each input loop is a pair of (2D projected points, original point indices).
+/// Loops are sorted by |area| descending. Each loop is either assigned as a hole
+/// to an existing group whose outer contour contains it, or creates a new group.
+fn group_loops(loops: Vec<(Vec<Vec2>, Vec<Index>)>) -> Vec<LoopGroup> {
+    if loops.is_empty() {
+        return Vec::new();
+    }
+
+    // Compute areas and sort by |area| descending
+    let mut with_area: Vec<(Float, Vec<Vec2>, Vec<Index>)> = loops
+        .into_iter()
+        .map(|(pts, idx)| {
+            let area = loop_area_2d(&pts);
+            (area, pts, idx)
+        })
+        .collect();
+    with_area.sort_by(|a, b| b.0.abs().partial_cmp(&a.0.abs()).unwrap_or(std::cmp::Ordering::Equal));
+
+    let mut groups: Vec<LoopGroup> = Vec::new();
+
+    for (_area, pts, idx) in with_area {
+        if pts.is_empty() {
+            continue;
+        }
+        // Test first point of this loop against existing groups' outers
+        let test_point = pts[0];
+        let target = groups.iter().position(|g| point_in_loop_2d(test_point, &g.outer));
+        match target {
+            Some(i) => {
+                groups[i].holes.push(pts);
+                groups[i].holes_indices.push(idx);
+            }
+            None => {
+                groups.push(LoopGroup {
+                    outer: pts,
+                    outer_indices: idx,
+                    holes: Vec::new(),
+                    holes_indices: Vec::new(),
+                });
+            }
+        }
+    }
+
+    groups
+}
+
 /// Triangulate a web of edges (possibly with multiple disconnected loops/holes).
 ///
-/// Takes raw points and edges, finds bridges between disconnected components,
-/// extracts oriented loops, projects each loop to 2D, and triangulates.
+/// Takes raw points and edges, extracts oriented loops, groups them by
+/// containment, and triangulates each group using constrained Delaunay.
 ///
 /// Returns triangle indices into the original `points` array.
 pub fn triangulation_closest(
     points: &[Vec3],
     edges: &[UVec2],
     normal: Vec3,
-    prec: Float,
+    _prec: Float,
 ) -> Result<Vec<UVec3>, String> {
+    use i_triangle::float::triangulatable::Triangulatable;
+
     let (x, y, _) = dirbase(normal, None);
 
     // find bridge edges to connect disconnected components
@@ -504,30 +604,77 @@ pub fn triangulation_closest(
     // extract flat oriented loops
     let loops = flat_loops(points, &all_edges, normal)?;
 
-    // surface precision for triangulation_loop_d2
-    let surface_prec = prec * prec / NUMPREC;
+    // project each loop to 2D and collect original indices
+    // strip closing duplicate (flat_loops returns loops where last == first)
+    let projected: Vec<(Vec<Vec2>, Vec<Index>)> = loops
+        .into_iter()
+        .map(|mut lp| {
+            if lp.len() >= 2 && lp.first() == lp.last() {
+                lp.pop();
+            }
+            lp
+        })
+        .filter(|lp| lp.len() >= 3)
+        .map(|loop_indices| {
+            let proj: Vec<Vec2> = loop_indices
+                .iter()
+                .map(|&idx| {
+                    let p = points[idx as usize];
+                    Vec2::from([p.dot(x), p.dot(y)])
+                })
+                .collect();
+            (proj, loop_indices)
+        })
+        .collect();
 
     let mut result = Vec::new();
 
-    for loop_indices in &loops {
-        if loop_indices.len() < 3 {
-            continue;
+    for (proj, loop_indices) in projected {
+        // collect unique input points with their original indices
+        let mut input_points: Vec<([f64; 2], Index)> = Vec::new();
+        let mut seen: FxHashSet<Index> = FxHashSet::default();
+        for (p, &idx) in proj.iter().zip(loop_indices.iter()) {
+            if seen.insert(idx) {
+                input_points.push((p.into_array(), idx));
+            }
         }
 
-        // project loop points to 2D
-        let proj: Vec<Vec2> = loop_indices
+        // build single contour for iTriangle
+        let contour: Vec<[f64; 2]> = proj.iter().map(|p| p.into_array()).collect();
+
+        // triangulate with delaunay
+        let triangulation = vec![contour]
+            .triangulate()
+            .into_delaunay()
+            .to_triangulation::<u32>();
+
+        // map output points to original indices by nearest-neighbor
+        let output_map: Vec<Option<Index>> = triangulation.points
             .iter()
-            .map(|&idx| {
-                let p = points[idx as usize];
-                Vec2::from([p.dot(x), p.dot(y)])
+            .map(|op| {
+                let mut best_idx = None;
+                let mut best_dist = Float::INFINITY;
+                for &(ip, idx) in &input_points {
+                    let dx = op[0] - ip[0];
+                    let dy = op[1] - ip[1];
+                    let d = dx * dx + dy * dy;
+                    if d < best_dist {
+                        best_dist = d;
+                        best_idx = Some(idx);
+                    }
+                }
+                best_idx
             })
             .collect();
 
-        // triangulate and map local indices back to original point indices
-        let simplices = triangulation_loop_d2(&proj, surface_prec)
-            .map_err(|_| format!("triangulation failed for loop of {} points", loop_indices.len()))?;
-        result.extend(simplices.iter()
-            .map(|simplex| simplex.map(|i| loop_indices[i as usize])));
+        for tri in triangulation.indices.chunks_exact(3) {
+            let a = output_map[tri[0] as usize];
+            let b = output_map[tri[1] as usize];
+            let c = output_map[tri[2] as usize];
+            if let (Some(a), Some(b), Some(c)) = (a, b, c) {
+                result.push(UVec3::from([a, b, c]));
+            }
+        }
     }
 
     Ok(result)
