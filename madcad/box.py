@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from typing import Generic, TypeVar
 from copy import copy
 
 import numpy as np
@@ -9,9 +8,7 @@ from .mathutils import (
         mat2, mat3, mat4, inf, glm
     )
 
-T = TypeVar("T")
-
-class Box(Generic[T]):
+class Box:
     ''' This class describes a box always orthogonal to the base axis, used as convex for area delimitations 
     
         box can be created either by poviding:
