@@ -49,7 +49,7 @@ class Web(NMesh):
 			r.__iadd__(other)
 			return r
 		else:
-			raise NotImplementedError()
+			return NotImplemented
 			
 	def __iadd__(self, other):
 		''' append the faces and points of the other mesh '''
