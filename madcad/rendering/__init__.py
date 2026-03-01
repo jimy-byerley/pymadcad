@@ -42,58 +42,61 @@ __all__ = [
 		"render",
 	]
 
-from ..qt import QApplication
+try:
+    from ..qt import QApplication
+except ImportError:
+    pass
+else:
+    def show(scene:Scene|dict|list, interest: Box = None, size=uvec2(400, 400), projection=None, navigation=True, **options):
+        '''
+        Easy and convenient way to create a window containing a `View3D` on a `Scene`
 
-def show(scene:Scene|dict|list, interest: Box = None, size=uvec2(400, 400), projection=None, navigation=True, **options):
-	'''
-	Easy and convenient way to create a window containing a `View3D` on a `Scene`
+        If a `QApplication` is not already running, a `QApplication` is created and the functions only returns when the window has been closed and all GUI destroyed
 
-	If a `QApplication` is not already running, a `QApplication` is created and the functions only returns when the window has been closed and all GUI destroyed
+        Parameters:
+            scene:     a mapping (dict or list) giving the objects to render in the scene
+            interest:  the region of interest to zoom on at the window initialization
+            size:      the window size (pixel)
+            projection: an object handling the camera projection (aka intrinsic parameters), see `QView3D.projection`
+            navigation: an object handling the camera movements, see `QView3D.navigation`
+            options:   options to set in `Scene.options`
 
-	Parameters:
-		scene:     a mapping (dict or list) giving the objects to render in the scene
-		interest:  the region of interest to zoom on at the window initialization
-		size:      the window size (pixel)
-		projection: an object handling the camera projection (aka intrinsic parameters), see `QView3D.projection`
-		navigation: an object handling the camera movements, see `QView3D.navigation`
-		options:   options to set in `Scene.options`
+        Tip:
+            For integration in a Qt window or to manipulate the view, you should directly use `View`
+        '''
+        import sys
+        
+        if not isinstance(scene, Scene):
+            scene = Scene(scene, options)
 
-	Tip:
-		For integration in a Qt window or to manipulate the view, you should directly use `View`
-	'''
-	import sys
-	
-	if not isinstance(scene, Scene):
-		scene = Scene(scene, options)
+        # detect existing QApplication
+        app = QApplication.instance()
+        created = False
+        if not app:
+            app = QApplication(sys.argv)
+            created = True
 
-	# detect existing QApplication
-	app = QApplication.instance()
-	created = False
-	if not app:
-		app = QApplication(sys.argv)
-		created = True
+        # use the Qt color scheme if specified
+        if settings.display['system_theme']:
+            settings.use_qt_colors()
 
-	# use the Qt color scheme if specified
-	if settings.display['system_theme']:
-		settings.use_qt_colors()
+        # create the scene as a window
+        view = QView3D(scene, projection=projection, navigation=navigation)
+        view.resize(*size)
+        view.show()
+        scene.prepare()
 
-	# create the scene as a window
-	view = QView3D(scene, projection=projection, navigation=navigation)
-	view.resize(*size)
-	view.show()
-	scene.prepare()
+        # make the camera see everything
+        if not interest:	
+            interest = view.scene.root.box
+        view.center(interest.center)
+        view.adjust(interest)
 
-	# make the camera see everything
-	if not interest:	
-		interest = view.scene.root.box
-	view.center(interest.center)
-	view.adjust(interest)
-
-	# run eventually created QApplication
-	if created:
-		err = app.exec()
-		if err != 0:
-			print('error: Qt exited with code', err)
+        # run eventually created QApplication
+        if created:
+            err = app.exec()
+            if err != 0:
+                print('error: Qt exited with code', err)
 
 
 def render(scene:Scene|dict|list, size=uvec2(400, 400), view:fmat4=None, proj:fmat4=None, interest:Box=None, alpha=False, **options) -> np.ndarray:
