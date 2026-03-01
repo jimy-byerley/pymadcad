@@ -222,7 +222,7 @@ else:
 	class QView3D(QWidget):
 		gl: View
 		''' underlying opengl rendering system '''
-		navigation: Orbit|None # TODO: Add TurnTable
+		navigation: Orbit|Turntable|None
 		''' turns basic screen actions into camera movements '''
 		projection: Perspective|Orthographic
 		''' generates the projection matrix '''
