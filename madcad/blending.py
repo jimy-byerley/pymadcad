@@ -51,9 +51,13 @@ To come in a next version
 	... )
 '''
 
-from .mesh import Mesh, Wire, Web, wire, mkquad, numpy_to_typedlist, typedlist_to_numpy
-from .hashing import connef, edgekey, suites, arrangeface
-from .mathutils import *
+from .mesh import Mesh, Wire, Web, mkquad, numpy_to_typedlist, typedlist_to_numpy
+from .hashing import connef, suites
+from .mathutils import (
+        vec3, imax, noproject, interpol2, intri_smooth, interpol1, isfinite,
+        anglebt, length2, dot, length, normalize, distance, uvec3, distance2
+    )
+from .mesh import mktri
 from . import settings
 from . import generation
 
@@ -291,7 +295,7 @@ def multijunction(*nodes, **kwargs):
 			key - hashable objects used to implicitely define an interface
 			mix - float used to set the interface center
 	'''
-	indev
+	raise NotImplementedError("In development")
 
 	
 def interfaces_center(pts, *loops):
@@ -370,16 +374,16 @@ def match_closest(line1, line2) -> '[(int, int)]':
 
 def dividematch_length(line1, line2, resolution=None, associated=None) -> '[(vec3, vec3)]':
 	''' Insert additional couples to ensure smoothness '''
-	indev
+	raise NotImplementedError("In development")
 
 def dividematch_closest(w0:Wire, w1:Wire, resolution=None, associated=None) -> (Wire, Wire):
-	indev
+	raise NotImplementedError("In development")
 
 def blend(interfaces, generate='straight', match='length', resolution=None) -> 'Mesh':
 	''' Create a direct blended surface between unclosed lines '''	
 	pts, tangents, weights, loops = get_interfaces(args, tangents, weight)
 	
-	indev
+	raise NotImplementedError("In development")
 	
 def blendloop(interface, center=None, tangents='tangent', weight=1., resolution=None) -> Mesh:
 	''' Blend inside a loop interface 

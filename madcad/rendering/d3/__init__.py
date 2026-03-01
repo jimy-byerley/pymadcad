@@ -3,10 +3,19 @@
 	implementation of views and displays for 3D
 '''
 import numpy as np
+from .view import (
+	GLView3D, Offscreen3D, QView3D, Orbit, Turntable, Perspective, Orthographic
+)
 
+from ...mathutils import fvec3
 from ...common import resourcedir
-from ...mathutils import Box, fvec3
-from ..base import Display
+from ...box import Box
+
+__all__ = [
+	'GLView3D', 'Offscreen3D', 'QView3D', 'Orbit', 'Turntable', 'Perspective',
+	'Orthographic', "load_shader_ident", "load_shader_subident",
+	"load_shader_wire", "load_shader_uniformcolor", "npboundingbox",
+]
 
 def load_shader_ident(scene):
 	return scene.context.program(
@@ -44,6 +53,3 @@ def npboundingbox(points: np.ndarray, ignore=False) -> Box:
 			fvec3(np.nan_to_num(np.min(points, axis=0), True, +np.inf)),
 			fvec3(np.nan_to_num(np.max(points, axis=0), True, -np.inf)),
 			)
-
-from . import view, marker, dense
-from .view import *

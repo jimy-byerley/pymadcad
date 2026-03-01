@@ -4,7 +4,7 @@
 
 from libc.math cimport fabs, ceil, floor, sqrt, fmod, isfinite, INFINITY
 cimport cython
-import glm
+from pyglm import glm
 
 cdef:
 	NUMPREC = 1e-13

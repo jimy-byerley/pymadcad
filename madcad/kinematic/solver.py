@@ -9,15 +9,45 @@ __all__ = [
 	'KinematicError',
 	]
 
-from copy import copy, deepcopy
+from copy import copy
+from math import inf
 from dataclasses import dataclass
 import itertools
+
 import numpy as np
 import numpy.linalg as la
-import scipy
-from pnprint import nprint
 
-from ..mathutils import *
+from ..assembly import Solid
+from ..mathutils import (
+		vec3, Screw, mat3, vec4, vec2, dmat4x3, mat4, fmat4, translate,
+		affineInverse, normalize, quat, vec1, typedlist
+		)
+from ..scheme import Scheme
+
+__all__ = [
+	"Chain",
+	"Dynamic",
+	"Free",
+	"Inertia",
+	"Joint",
+	"Kinematic",
+	"KinematicError",
+	"Reverse",
+	"Weld",
+	"arcs",
+	"cycles",
+	"depthfirst",
+	"flatten",
+	"flatten_state",
+	"null_space",
+	"partial_difference",
+	"regularize_grad",
+	"shortcycles",
+	"squeeze_homogeneous",
+	"structure_state",
+	"unsqueeze_homogeneous",
+]
+
 
 mat4x3 = dmat4x3
 
@@ -519,7 +549,7 @@ class Chain(Joint):
 		# 			),
 		# 		))
 	def forces(self, dynamic:list[Dynamic], inertias:list[Inertia], exterior:dict[object,Screw]=None, motors:dict[Joint,Screw]=None) -> list[Screw]:
-		indev
+		raise NotImplementedError("In development")
 	
 	def to_kinematic(self) -> 'Kinematic':
 		return Kinematic(inputs=self.joints, outputs=[self.solids[-1]], ground=self.solids[0])
@@ -530,11 +560,11 @@ class Chain(Joint):
 			
 			it also returns the solids base definitions relative to the denavit-hartenberg convention, it the joints already follows the conventions, these should be eye matrices 
 		'''
-		indev
+		raise NotImplementedError("In development")
 		
 	def from_dh(dh, transforms=None) -> 'Self':
 		''' build a kinematic chain from a denavit-hartenberge representation, and eventual base definitions relative to the denavit-hartenberg convention '''
-		indev
+		raise NotImplementedError("In development")
 		
 	def __repr__(self):
 		return '{}({})'.format(self.__class__.__name__, repr(self.joints))
@@ -1014,12 +1044,12 @@ class Kinematic:
 	def dynamics(self, solids:dict[object,Dynamic], joints:list[Dynamic]) -> dict[object,Dynamic]:
 		''' from local dynamics to global dynamics, the reverse is rarely needed '''
 		# propagate velocity and acceleration
-		indev
+		raise NotImplementedError("In development")
 	def forces(self, dynamics:dict[object,Dynamic], inertias:dict[object,Inertia], exterior:dict[object,Screw]=None, motors:dict[Joint,Screw]=None) -> list[Screw]:
 		''' from dynamics to joint forces, the reverse is trivial application of Newton law '''
 		# propagate forces
 		# balance sum using the motors
-		indev
+		raise NotImplementedError("In development")
 	
 	def __repr__(self):
 		if self.inputs and self.outputs:

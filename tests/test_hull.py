@@ -1,8 +1,8 @@
 from madcad.mesh import web
 from madcad.generation import brick, icosphere, uvsphere
-from madcad.primitives import Circle, Interpolated
-from madcad.rendering import show
-from madcad.hull import *
+from madcad.primitives import Circle
+from madcad.mathutils import O, X, Y, Z, vec3
+from madcad.hull import convexhull, convexoutline
 from . import visualcheck
 
 @visualcheck

@@ -4,7 +4,7 @@ version = "0.19.1"
 description = "Simple yet powerful CAD (Computer Aided Design) library, written with Python"
 authors = [
     { name="jimy-byerley", email="jimy.byerley@gmail.com" },
-    { name="bourbonut", email="bourbonut@gmail.com" },
+    { name="bourbonut", email="ben.bourbon06@gmail.com" },
     ]
 license = {text = "LGPL v3"}
 readme = "README.md"

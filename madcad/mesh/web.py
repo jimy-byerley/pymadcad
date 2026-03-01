@@ -1,5 +1,13 @@
 from __future__ import annotations
-from .container import *
+from numbers import Integral
+from collections import OrderedDict
+
+from .container import ensure_typedlist, NMesh, typedlist_to_numpy, reprarray, MeshError, striplist
+from ..hashing import Asso, edgekey, suites, connpe
+from ..mathutils import (
+		vec3, distance_pe, uvec2, cross, length2, distance, length, dot,
+		normalize, typedlist, inf
+	)
 from .wire import Wire
 
 
@@ -60,7 +68,7 @@ class Web(NMesh):
 				self.tracks.extend(t+lt   for t in other.tracks)
 			return self
 		else:
-			return NotImplemented
+			raise NotImplementedError()
 	
 	def __eq__(self, other):
 		''' meshes are equal only when their buffers are byte to byte identical 
@@ -85,7 +93,7 @@ class Web(NMesh):
 		self.points, self.edges, reindex = striplist(self.points, self.edges)
 		return reindex
 	
-	def mergepoints(self, merges) -> 'self':
+	def mergepoints(self, merges) -> Web:
 		''' merge points with the merge dictionnary {src index: dst index}
 			merged points are not removed from the buffer.
 		'''
@@ -146,7 +154,7 @@ class Web(NMesh):
 		return min( range(len(self.edges)),
 					key=lambda i: distance_pe(point, self.edgepoints(i)) )
 	
-	def group(self, quals) -> 'Self':
+	def group(self, quals) -> Web:
 		''' extract a part of the mesh corresponding to the designated groups.
 			
 			Groups can be be given in either the following ways:
@@ -176,7 +184,7 @@ class Web(NMesh):
 			tracks.append(self.tracks[i])
 		return Web(self.points, edges, tracks, self.groups)
 	
-	def replace(self, mesh, groups=None) -> 'self':
+	def replace(self, mesh, groups=None) -> Web:
 		''' replace the given groups by the given mesh.
 			If groups is not specified, it will take the matching groups (with same index) in the current mesh
 		'''
@@ -231,7 +239,7 @@ class Web(NMesh):
 					self.options,
 					)
 	
-	def subdivide(self, div=1) -> 'Self':
+	def subdivide(self, div=1) -> Web:
 		''' Subdivide all edges by the number of cuts '''
 		n = div+2
 		pts = typedlist(dtype=vec3)
@@ -261,7 +269,7 @@ class Web(NMesh):
 		''' return the points that are ending arcs
 			1D equivalent of Mesh.outlines()
 		'''
-		return Wire(self.points, typedlist(self.extremtities_unoriented, dtype='I'))
+		return Wire(self.points, typedlist(self.extremities_unoriented, dtype='I'))
 	
 	def extremities_unoriented(self) -> set[int]:
 		''' return the points that are ending unoriented arcs
@@ -447,7 +455,7 @@ class Web(NMesh):
 					for loop in suites(self.edges, oriented=False)]
 					
 	
-	def orient(self, dir=None, normal=None, conn=None) -> 'Self':
+	def orient(self, dir=None, normal=None, conn=None) -> Web:
 		''' flip the necessary faces to make the normals consistent, ensuring the continuity of the out side.
 			
 			Argument `dir` tries to make the result deterministic:

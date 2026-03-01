@@ -1,11 +1,11 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 from PIL import Image, ImageFont, ImageDraw
-import numpy.core as np
+import numpy._core as np
 import moderngl as mgl
 
-from ..mathutils import fvec3, fvec4
 from ..rendering import Display, highlight_color
 from ..common import resourcedir
+from ..mathutils import fvec3, fvec4
 from .. import settings
 from . import font_path, processalign
 
