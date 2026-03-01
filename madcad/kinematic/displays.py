@@ -17,7 +17,11 @@ from ..scheme import Scheme, halo_screen
 from ..generation import revolution
 from ..mesh import web
 from .solver import Kinematic, KinematicError, regularize_grad, structure_state, flatten_state
-from ..qt import Qt, QEvent, QTimer
+
+try:
+	from ..qt import Qt, QEvent, QTimer
+except ImportError:
+	pass
 
 __all__ = ['ChainManip', 'KinematicManip', 'scale_solid', 'world_solid']
 
