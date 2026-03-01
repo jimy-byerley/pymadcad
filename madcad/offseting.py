@@ -6,9 +6,13 @@
         Any offseting provided here only rely on the vertex and edge normals of the input meshes, so don't expect a nice result if your mesh is too chaotic to have meaningful normals
 '''
 
-from .mathutils import *
-from .mesh import Mesh, Web, Wire, MeshError, web, wire, mkquad, mktri
-from .hashing import edgekey, facekeyo, suites
+from copy import deepcopy
+from .mathutils import (
+		vec3, project, isfinite, NUMPREC, Axis, unproject, noproject,
+		normalize, cross, length, smoothstep, dot, length2, mix, inf, typedlist
+		)
+from .mesh import Mesh, mkquad, mktri
+from .hashing import suites
 
 __all__ = ['thicken', 'inflate', 'inflate_offsets', 'expand']
 

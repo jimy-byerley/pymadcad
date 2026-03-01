@@ -1,13 +1,8 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
-import math
-from .mathutils import (
-		vec3, uvec2,
-		anglebt, cross, dot, length, distance, normalize, noproject,
-		distance_pp, distance_pa, distance_pe, distance_aa, distance_ae,
-		)
+from .mathutils import vec3, anglebt, dot, distance_pe, distance_ae, uvec2, inf
 from .mesh import Mesh, Web
-from .hashing import edgekey, connpp, connef
+from .hashing import connpp, connef
 
 __all__ = ['select', 'stopangle', 'crossover', 'straight', 'short', 'selexpr', 'edgenear']
 
@@ -142,7 +137,7 @@ def edgenear(web, obj):
 		raise TypeError("obj must be a point or an axis")
 	if isinstance(web, Mesh):	web = web.groupoutlines()
 	best = None
-	score = math.inf
+	score = inf
 	for edge in web.edges:
 		d = dist((web.points[edge[0]], web.points[edge[1]]))
 		if d < score:

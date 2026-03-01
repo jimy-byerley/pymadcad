@@ -1,18 +1,17 @@
 from __future__ import annotations
 
-import inspect, pickle
+import pickle
+from collections.abc import Callable
 from os import mkdir
 from os.path import abspath, exists
-from functools import wraps, reduce
-from operator import xor
+from functools import wraps
 
 from pnprint import nformat
 
-from madcad.rendering import show
 from madcad.qt import QApplication, QMessageBox, QWidget, QLabel, QGridLayout, QPlainTextEdit, QFont
 from madcad.rendering import QView3D, Scene
 
-def visualcheck(test:Callable) -> Callable:
+def visualcheck(test: Callable) -> Callable:
     ''' decorator for non-regression tests, providing snapshot caching and visual inspection '''
     @wraps(test)
     def wrapper(*args, **kwargs):

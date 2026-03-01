@@ -1,18 +1,18 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
+from __future__ import annotations
 
 from copy import copy, deepcopy
-from random import random
 import numpy as np
 import numpy.lib.recfunctions as rfn
-from array import array
-from collections import OrderedDict, Counter
-from numbers import Integral, Real
-import math
 
-from ..mathutils import *
-from ..hashing import *
-from .. import settings
+from ..box import Box
+from ..hashing import PointSet
+from ..mathutils import NUMPREC, isfinite, vec3, transformer, typedlist, distance
 
+__all__ = [
+		"MeshError", "NMesh", "numpy_to_typedlist", "typedlist_to_numpy",
+		"ensure_typedlist", "reprarray", "striplist",
+	]
 
 class MeshError(Exception):	
 	''' Inconsistent data in mesh '''
@@ -24,7 +24,7 @@ class NMesh(object):
 	
 	# BEGIN --- data management ---
 	
-	def own(self, **kwargs) -> 'Self':
+	def own(self, **kwargs) -> NMesh:
 		''' Return a copy of the current mesh, which attributes are referencing the original data or duplicates if demanded
 		
 			Example:
@@ -41,14 +41,14 @@ class NMesh(object):
 				setattr(new, name, deepcopy(getattr(self, name)))
 		return new
 	
-	def option(self, **kwargs) -> 'self':
+	def option(self, **kwargs) -> NMesh:
 		''' Update the internal options with the given dictionary and the keywords arguments.
 			This is only a shortcut to set options in a method style.
 		'''
 		self.options.update(kwargs)
 		return self
 	
-	def transform(self, trans) -> 'Self':
+	def transform(self, trans) -> NMesh:
 		''' Apply the transform to the points of the mesh, returning the new transformed mesh'''
 		trans = transformer(trans)
 		transformed = copy(self)
@@ -77,7 +77,7 @@ class NMesh(object):
 		self.groups, self.tracks, reindex = striplist(self.groups, self.tracks)
 		return reindex
 	
-	def mergegroups(self, defs=None, merges=None) -> 'self':
+	def mergegroups(self, defs=None, merges=None) -> NMesh:
 		''' Merge the groups according to the merge dictionary
 			The new groups associated can be specified with defs
 			The former unused groups are not removed from the buffer and the new ones are appended
@@ -98,7 +98,7 @@ class NMesh(object):
 					self.tracks[i] = merges[t]+l
 		return self
 	
-	def finish(self) -> 'self':
+	def finish(self) -> NMesh:
 		''' Finish and clean the mesh 
 			note that this operation can cost as much as other transformation operation
 			job done
@@ -134,7 +134,7 @@ class NMesh(object):
 		return min(	range(len(self.points)), 
 					lambda i: distance(self.points[i], point))
 	
-	def qualify(self, *quals, select=None, replace=False) -> 'self':
+	def qualify(self, *quals, select=None, replace=False) -> NMesh:
 		''' Set a new qualifier for the given groups 
 		
 			Parameters:
@@ -258,7 +258,7 @@ class NMesh(object):
 
 
 
-def numpy_to_typedlist(array: 'ndarray', dtype) -> 'typedlist':
+def numpy_to_typedlist(array: np.ndarray, dtype) -> typedlist:
 	''' Convert a numpy.ndarray into a typedlist with the given dtype, if the conversion is possible term to term '''
 	ndtype = np.array(typedlist(dtype)).dtype
 	if ndtype.fields:
@@ -266,7 +266,7 @@ def numpy_to_typedlist(array: 'ndarray', dtype) -> 'typedlist':
 	else:
 		return typedlist(array.astype(ndtype, copy=False), dtype)
 	
-def typedlist_to_numpy(array: 'typedlist', dtype) -> 'ndarray':
+def typedlist_to_numpy(array: 'typedlist', dtype) -> np.ndarray:
 	''' Convert a typedlist to a numpy.ndarray with the given dtype, if the conversion is possible term to term '''
 	tmp = np.asarray(array)
 	if tmp.dtype.fields:
@@ -285,7 +285,7 @@ def ensure_typedlist(obj, dtype):
 # ----- internal helpers ------
 
 
-def reprarray(array, name):
+def reprarray(array, name) -> str:
 	content = ', '.join((repr(e) for e in array))
 	return '['+content+']'
 

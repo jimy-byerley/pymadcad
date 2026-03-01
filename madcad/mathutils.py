@@ -3,26 +3,49 @@
 ''' Group of functions and math classes of pymadcad '''
 
 from __future__ import annotations
-
-try:
-	from pyglm import glm
-	from pyglm.glm import *
-except ImportError:
-	import glm
-	from glm import *
-del version, license
-
-import math
-from math import pi, inf, nan, atan2
-from copy import deepcopy
-max = __builtins__['max']
-min = __builtins__['min']
-any = __builtins__['any']
-all = __builtins__['all']
-round = __builtins__['round']
+from collections.abc import Callable
 
 from arrex import typedlist
-import arrex.glm
+import arrex.glm # noqa: F401
+from pyglm import glm
+from pyglm.glm import (
+		acos, affineInverse, angleAxis, asin, atan, ceil, clamp, cos, cross,
+		degrees, distance, distance2, dmat2, dmat2x3, dmat3, dmat3x2, dmat4,
+		dmat4x3, dot, dquat, dvec2, dvec3, dvec4, e, exp, floor, fmat2, fmat3,
+		fmat4, fquat, fvec1, fvec2, fvec3, fvec4, i64vec3, inverse, isinf,
+		isnan, ivec2, l1Norm, length, length2, log, mat3_cast, mat4x4, mix,
+		normalize, perspective, pow, radians, reflect, rotate, scale, sign,
+		sin, slerp, smoothstep, sqrt, tan, translate, transpose, u8vec4, uvec2,
+		uvec3, vec1
+	)
+
+# math most used functions and constants
+from math import (
+	inf, nan, isfinite as _isfinite, atan2, dist, gcd, hypot, isclose, pi,
+)
+
+__all__ = [
+		"Axis", "COMPREC", "NUMPREC", "O", "Point", "Screw", "Vector", "X",
+		"Y", "Z", "acos", "affineInverse", "angleAxis", "anglebt", "arclength",
+		"asin", "atan", "atan2", "bisect", "ceil", "clamp", "comoment", "cos",
+		"cross", "degrees", "dirbase", "dist", "distance", "distance2",
+		"distance_aa", "distance_ae", "distance_pa", "distance_pe",
+		"distance_pt", "dmat2", "dmat2x3", "dmat3", "dmat3x2", "dmat4",
+		"dmat4x3", "dot", "dquat", "dvec2", "dvec3", "dvec4", "e", "exp",
+		"fbisect", "find", "floor", "fmat2", "fmat3", "fmat4", "fquat",
+		"fvec1", "fvec2", "fvec3", "fvec4", "gcd", "glm", "hypot", "i64vec3",
+		"imax", "inf", "interpol1", "interpol2", "intri_flat",
+		"intri_parabolic", "intri_smooth", "intri_sphere", "inverse",
+		"isclose", "isfinite", "isinf", "isnan", "ivec2", "l1Norm", "length",
+		"length2", "linrange", "linstep", "log", "mat2", "mat3", "mat3_cast",
+		"mat4", "mat4x4", "mix", "nan", "noproject", "norm1", "norm2",
+		"normalize", "norminf", "perp", "perpdot", "perspective", "pi", "pow",
+		"project", "quat", "radians", "reflect", "rotate", "rotatearound",
+		"scale", "scaledir", "sign", "sin", "skew", "slerp", "smoothstep",
+		"sqrt", "tan", "transform", "transformer", "translate", "transpose",
+		"typedlist", "u8vec4", "unproject", "unskew", "uvec2", "uvec3", "vec1",
+		"vec2", "vec3", "vec4"
+	]
 
 # alias definitions
 vec2 = dvec2
@@ -33,12 +56,18 @@ vec4 = dvec4
 mat4 = dmat4
 quat = dquat
 
+# aliases, for those who like them
+Vector = Point = vec3
+
+# norm L1  ie.  `abs(x) + abs(y) + abs(z)`
+norm1 = l1Norm
+# norm L2  ie.  `sqrt(x**2 + y**2 + z**2)`   the usual distance also known as euclidian distance or manhattan distance
+norm2 = length
+
 # numerical precision of floats used
 NUMPREC = 1e-13	# float64 here, so 14 decimals
 #NUMPREC = 1e-6	# float32 here, so 7 decimals, so 1e-6 when exponent is 1
 COMPREC = 1-NUMPREC
-
-from .box import Box, boundingbox
 
 # common base definition, for end user
 O = vec3(0,0,0)
@@ -50,16 +79,12 @@ Z = vec3(0,0,1)
 def isfinite(x):
 	''' Return false if x contains a `inf` or a `nan` '''
 	if isinstance(x, (int,float)):
-		return math.isfinite(x)
+		return _isfinite(x)
 	return not (glm.any(isinf(x)) or glm.any(isnan(x)))
 
 def norminf(x):
 	''' Norm L infinite  ie.  `max(abs(x), abs(y), abs(z))` '''
 	return max(glm.abs(x))
-# norm L1  ie.  `abs(x) + abs(y) + abs(z)`
-norm1 = l1Norm
-# norm L2  ie.  `sqrt(x**2 + y**2 + z**2)`   the usual distance also known as euclidian distance or manhattan distance
-norm2 = length
 
 def anglebt(x,y) -> float:
 	''' Angle between two vectors 
@@ -402,10 +427,6 @@ def linrange(start, stop=None, step=None, div=0, end=True):
 		t += step
 
 
-# aliases, for those who like them
-Vector = Point = vec3
-
-
 class Axis(object):
 	''' A 3D (zeroed) axis with an origin and a direction
 	
@@ -582,7 +603,7 @@ class Screw:
 		return Screw(location or vec3(0), *unskew(mat))
 	
 	@staticmethod
-	def from_rate(f:callable, t:float, dt=1e-6) -> Screw:
+	def from_rate(f:Callable[[float],float], t:float, dt=1e-6) -> Screw:
 		''' compute a Screw of a frame by rating the given function `f` at the given instant `t`
 		
 			`f` is supposed to
@@ -597,7 +618,7 @@ class Screw:
 			
 	def display(self, scene):
 		# TODO draw resultant and moment vectors at the current location
-		indev
+		raise NotImplementedError("In developement")
 
 
 def comoment(t1:Screw, t2:Screw) -> float:
@@ -608,7 +629,7 @@ def comoment(t1:Screw, t2:Screw) -> float:
 	t2 = t2.locate(t1.location)
 	return dot(t1.moment, t2.resultant) + dot(t2.moment, t1.resultant)
 
-def skew(r:vec3, t:vec3=None) -> mat3|mat4:
+def skew(r:vec3, t:vec3|None=None) -> mat3|mat4:
 	''' skew matrix of 3D vector `v` (pre cross product matrix). it `t` is given, it provides a fourth column (usefull for affine transforms) 
 	
 		>>> r = vec3(...)

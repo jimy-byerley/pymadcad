@@ -8,10 +8,16 @@ import numpy as np
 import moderngl as mgl
 from pnprint import nprint
 
-from ... import settings
-from ...mathutils import *
 from ..base import Scene, empty
-from ..utils import *
+from ..utils import glsize, forwardproperty, qpoint_to_vec, CheapMap, receiver, snailaround, vec_to_qpoint
+from ... import settings
+from ...qt import QPoint
+from ...box import Box
+from ...mathutils import (
+		vec3, vec2, isfinite, noproject, bisect, fmat4, uvec2, fvec3, fquat,
+		inverse, fmat3, transpose, fvec2, length, length2, affineInverse,
+		translate, quat, fvec4, perspective, ivec2, glm, tan, pi, atan2, exp
+		)
 
 __all__ = ['GLView3D', 'Offscreen3D', 'QView3D', 'Orbit', 'Turntable', 'Perspective', 'Orthographic']
 
@@ -55,7 +61,7 @@ class GLView3D:
 		if size:
 			self._reallocate(size)
 	
-	def render(self, size:uvec2=None, view:fmat4=None, proj:fmat4=None) -> Self:
+	def render(self, size:uvec2=None, view:fmat4=None, proj:fmat4=None) -> GLView3D:
 		''' trigger the rendering of a frame, do not wait for the result 
 		
 			- the `view` and `proj` instance attributes can be changed on the fly without extra cost.
@@ -140,11 +146,11 @@ class Offscreen3D:
 	''' 3D view giving images accessible to numpy buffers '''
 	gl: View
 	''' opengl renderer '''
-	color: ndarray[np.uint8]
+	color: np.ndarray[np.uint8]
 	''' result image from the previous rendering, showing the  '''
-	depth: ndarray[np.float32]|None
+	depth: np.ndarray[np.float32]|None
 	''' result image from the previous rendering '''
-	ident: ndarray[np.uint16]|None
+	ident: np.ndarray[np.uint16]|None
 	''' result image from the previous rendering '''
 	enable_alpha: bool
 	''' if enabled, `self.color` is RGBA else it is 'RGB' '''
@@ -171,7 +177,7 @@ class Offscreen3D:
 		if size:
 			self._reallocate(size)
 	
-	def render(self, size:uvec2=None, view:fmat4=None, proj:fmat4=None) -> Self:
+	def render(self, size:uvec2=None, view:fmat4=None, proj:fmat4=None) -> GLView3D:
 		'''
 			render the scene and retreive the result in the `color`, `depth` and `ident` attributes
 			
@@ -216,11 +222,11 @@ else:
 	class QView3D(QWidget):
 		gl: View
 		''' underlying opengl rendering system '''
-		navigation: Orbit|TurnTable|None
+		navigation: Orbit|None # TODO: Add TurnTable
 		''' turns basic screen actions into camera movements '''
 		projection: Perspective|Orthographic
 		''' generates the projection matrix '''
-		color: ndarray[np.uint8]
+		color: np.ndarray[np.uint8]
 		''' last rendering '''
 		depth: CheapMap[np.float32]
 		''' access to the depthmap from last rendering '''

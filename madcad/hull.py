@@ -9,9 +9,12 @@
 
 from __future__ import annotations
 import scipy.spatial
-from .mathutils import *
+from .mathutils import (
+		vec3, vec2, dirbase, noproject, NUMPREC, uvec3, uvec2, transpose,
+		dmat2x3, dot, length2, cross, normalize, isnan, glm, typedlist
+	)
 from .mesh import Mesh, Web, Wire, numpy_to_typedlist, typedlist_to_numpy
-from .hashing import Asso, edgekey, facekeyo, arrangeface, connef, connpe
+from .hashing import Asso, edgekey, facekeyo
 
 from copy import copy
 from collections import Counter

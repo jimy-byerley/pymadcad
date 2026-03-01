@@ -6,15 +6,19 @@
 	Most of the time you don't need to set the offset yourself. It can be automatically calculated by several methods, depending on the shape you want to get. Those methods are called `cutters` and are executed using `planeoffsets`.
 '''
 
-from .mathutils import *
-from .mesh import *
-from .hashing import *
 from . import generation as gt
 from . import hashing
-from . import text
 from . import settings
+from .hashing import connef, edgekey, connpp, suites, connpe
+from .mathutils import (
+		NUMPREC, vec3, noproject, interpol1, interpol2, anglebt, arclength,
+		dirbase, unproject, isfinite, normalize, dot, cross, distance, length,
+		dmat3, inverse, transpose, dvec3, uvec3, uvec2, distance2, typedlist,
+		sqrt, inf
+		)
 from .triangulation import triangulation_outline
 from .blending import blenditer, match_length
+from .mesh import Mesh, Web, MeshError, line_simplification, Wire, web
 
 from numbers import Number
 from functools import singledispatch, partial

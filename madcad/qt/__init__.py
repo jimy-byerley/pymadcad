@@ -12,7 +12,6 @@ import sys, importlib
 alternatives = ['PyQt5', 'PySide6', 'PyQt6']
 
 def use(lib):
-    backend = importlib.import_module(lib)
     module = importlib.import_module(__name__+'.'+lib)
     globals().update(vars(module))
 
@@ -24,10 +23,15 @@ else:
     for lib in alternatives:
         try:
             use(lib)
-        except ImportError as e:
-            # print(e)
+        except ImportError:
             pass
         else:
             break
     else:
-        raise ImportError('no Qt wrapper found: PySide6, PyQt5, PyQt6')
+        raise ImportError(
+            'no Qt wrapper found: PySide6, PyQt5, PyQt6. \n\n'
+            'Please install pyqt5 or pyqt6 or pyside6 by running one of these commands: \n'
+            'pip install pyqt5\n'
+            'pip install pyqt6\n'
+            'pip install pyside6'
+        )

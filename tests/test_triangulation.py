@@ -1,6 +1,7 @@
 from copy import deepcopy
+from math import cos, sin, pi
 
-from madcad import *
+from madcad import Web, Wire, Circle, vec3, O, Z, web, show, Interpolated, Softened
 from madcad.triangulation import triangulation, triangulation_outline
 from . import visualcheck
 from .variants import variants

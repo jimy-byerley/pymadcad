@@ -1,7 +1,6 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 from __future__ import annotations
 import traceback
-from weakref import WeakValueDictionary
 from dataclasses import dataclass
 from copy import deepcopy, copy
 from operator import attrgetter
@@ -9,9 +8,9 @@ from operator import attrgetter
 import moderngl as mgl
 
 from .. import settings
-from ..mathutils import fvec3, inf
 from ..box import Box, boundingbox
 from .utils import writeproperty
+from ..mathutils import fvec3, inf
 
 __all__ = ['Scene', 'Step', 'Display', 'Group', 'Displayable']
 

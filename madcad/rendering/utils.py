@@ -6,7 +6,13 @@ import numpy as np
 
 from .. import settings
 from ..mathutils import ivec2, uvec2, fvec4, mix
+from ..qt import QPoint, QSize
 
+__all__ = [
+    "writeproperty", "forwardproperty", "sceneshare", "receiver", "Weak", "Rc",
+    "CheapMap", "snail", "snailaround", "glsize", "highlight_color",
+    "vec_to_qpoint", "qpoint_to_vec", "vec_to_qsize", "qsize_to_vec",
+]
 
 def writeproperty(func):
 	''' Decorator to create a property that has only an action on variable write '''
@@ -73,7 +79,7 @@ class Rc:
 	def __init__(self, other):
 		if isinstance(other, Weak):
 			self.weak = other
-		elif isisntance(other, Rc):
+		elif isinstance(other, Rc):
 			self.weak = other.weak
 		else:
 			self.weak = Weak(other)
@@ -161,15 +167,9 @@ def highlight_color(display: Display, color: fvec3) -> fvec3:
 	elif display.hovered:   highlight = fvec4(settings.display['hover_color'])
 	else:                   highlight = fvec4(0)
 	return mix(color, highlight.rgb, highlight.a)
-			
-# qt conversion functions
 
-try:
-	from ..qt import QPoint, QSize
-except ImportError:
-	pass
-else:
-	def vec_to_qpoint(p: ivec2) -> QPoint: 	return QPoint(p.x, p.y)
-	def qpoint_to_vec(p: QPoint) -> ivec2:	return ivec2(p.x(), p.y())
-	def vec_to_qsize(p: uvec2) -> QSize: 	return QSize(p.x, p.y)
-	def qsize_to_vec(p: QSize) -> uvec2:	return uvec2(p.size(), p.height())
+# qt conversion functions
+def vec_to_qpoint(p: ivec2) -> QPoint: 	return QPoint(p.x, p.y)
+def qpoint_to_vec(p: QPoint) -> ivec2:	return ivec2(p.x(), p.y())
+def vec_to_qsize(p: uvec2) -> QSize: 	return QSize(p.x, p.y)
+def qsize_to_vec(p: QSize) -> uvec2:	return uvec2(p.size(), p.height())
