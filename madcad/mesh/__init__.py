@@ -1,57 +1,52 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 
-'''	
-	
+'''
+
 	Topology
 	--------
-		
+
 	A lot of similarities exists between these classes, because many of their methods are topologically generic to every dimension. They are often implemented for specific mesh
 	For convenience, there is aliases to these classes highlighting their topology genericity
-	
+
 	- Mesh0	(alias to `Wire`) mesh with inner dimension 0 (simplices are points)
 	- Mesh1	(alias to `Web`) mesh with inner dimension 1 (simplices are edges)
 	- Mesh2	(alias to `Mesh`) mesh with inner dimension 2 (simplices are triangles)
-	
+
 	naming:
-	
+
 	- a mesh outer dimension is the dimension of the space its points belong to. for `vec3` it is 3. In madcad, all meshes have outer dimension 3
 	- a mesh inner dimension is the dimension of the space of its simplices. for a line it is 1 because 1 scalar is sufficient to interpolate over a line
-	
+
 	Architecture
 	------------
-	
+
 	The data structures defined here are just containers, they do not intend a specific usage of the geometries as it can be with halfedges, binary trees, etc. The data structures here intend to store efficiently the mesh information and allow basic data operation like concatenation, find-replace, and so.
-	
+
 	The following considerations are common to the classes here:
-	
+
 	- the classes are just wrapping references to data buffers
-	
 		they do not own exclusively their content, nor it is forbidden to hack into their content (it is just lists, you can append, insert, copy, etc what you want).
 		As so, it is almost no cost to shallow-copy a mesh, or to create it from existing buffers without computation nor data copy. It is very common that several meshes are sharing the same buffer of points, faces, groups ...
-		
+
 	- the management of the container's data ownership is left to the user
-	
 		the user has to copy the data explicitely when necessary to unlink containers sharing the same buffers. To allow the user to do so, the madcad functions observe the following rules:
-		
 		+ the container's methods that modify a small portion of its data does so in-place. when they do not return a particular value, they do return 'self' (lowercase, meaning the current container instance)
-		
 		+ the container's methods that modify a big amount of its data do return a new container instance, sharing the untouched buffers with the current one and duplicating the altered data. They do return a new instance of 'Self' (uppercase, meaning it is the current container type)
-		
-	- the methods defined for containers are only simple and very general operations. 
-	
+
+	- the methods defined for containers are only simple and very general operations.
 		The more complex operations are left to separated functions.
 		Most of the time, container methods are for data/buffers management, connectivity operations, and mathematical caracteristics extractions (like normals, surface, volume, etc)
-		
+
 	See `Mesh.own()` for instance.
-		
+
 	Inner identification
 	--------------------
-	
-	The containers are provided with an inner-identification system allowing to keep track of portion of geometries in the mesh across operations applies on. This is permitted by their field `tracks` and `groups`. Each simplex (point, edge or face depending of the mesh inner dimension) is associated to a group number referencing a group definition in the group list. 
-	
+
+	The containers are provided with an inner-identification system allowing to keep track of portion of geometries in the mesh across operations applies on. This is permitted by their field `tracks` and `groups`. Each simplex (point, edge or face depending of the mesh inner dimension) is associated to a group number referencing a group definition in the group list.
+
 	Groups definitions can be anything, but more often is a dictionnary (containing the group attributes we can filter on), or simply `None`.
 	To easily extract portions of one mesh, its is straightforward to associate keys to the interesting groups using `.qualify(key)` and then select groups calling `.group(key)` to retreive it later. groups can also be filtered manually.
-	
+
 	See `Mesh.qualify()` for more details
 '''
 
@@ -59,7 +54,7 @@ from ..mathutils import *
 
 
 __all__ = [
-		'Mesh', 'Web', 'Wire', 'MeshError', 'web', 'wire', 
+		'Mesh', 'Web', 'Wire', 'MeshError', 'web', 'wire',
 		'line_simplification', 'mesh_distance', 'striplist',
 		'typedlist_to_numpy', 'numpy_to_typedlist', 'ensure_typedlist',
 		]
@@ -84,13 +79,13 @@ Mesh2 = Mesh
 
 def line_simplification(web, prec=None):
 	''' return a dictionnary of merges to simplify edges when there is points aligned.
-	
+
 		This function sort the points to remove on the height of the triangle with adjacent points.
 		The returned dictionnary is guaranteed without cycles
 	'''
 	if not prec:	prec = web.precision()
 	pts = web.points
-	
+
 	# simplify points when it forms triangles with too small height
 	merges = {}
 	def process(a,b,c):
@@ -102,18 +97,18 @@ def line_simplification(web, prec=None):
 		else:
 			merges[b] = a
 			return a
-	
+
 	for k,line in enumerate(suites(web.edges, oriented=False)):
 		s = line[0]
 		for i in range(2, len(line)):
 			s = process(s, line[i-1], line[i])
 		if line[0]==line[-1]: process(s, line[0], line[1])
-		
+
 	# remove redundancies in merges (there can't be loops in merges)
 	for k,v in merges.items():
 		while v in merges and merges[v] != v:
 			merges[k] = v = merges[v]
-	
+
 	return merges
 
 
@@ -163,11 +158,11 @@ def distance2_pm(point, mesh) -> '(d, prim)':
 	return score, best
 
 def mesh_distance(m0, m1) -> '(d, prim0, prim1)':
-	''' minimal distance between elements of meshes 
-	
+	''' minimal distance between elements of meshes
+
 		The result is a tuple `(distance, primitive from m0, primitive from m1)`.
 		`primitive` can be:
-		
+
 			:int:				index of the closest point
 			:(int,int):			indices of the closest edge
 			:(int,int,int): 	indices of the closest triangle
@@ -192,11 +187,10 @@ def mesh_distance(m0, m1) -> '(d, prim0, prim1)':
 		# comfront to the mesh
 		return min((
 				(*distance2_pm(m.points[i], o), i)
-				for i in it), 
+				for i in it),
 				key=lambda t:t[0])
 	# symetrical evaluation
 	d0 = analyse(m0, m1)
 	d1 = analyse(m1, m0)
 	if d0[0] < d1[0]:	return (sqrt(d0[0]), d0[2], d0[1])
 	else:				return (sqrt(d1[0]), d1[1], d1[2])
-	

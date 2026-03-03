@@ -53,6 +53,8 @@ plugins:
             show_root_heading: true
             show_root_full_path: false
             allow_inspection: true
+            show_if_no_docstring: true
+            merge_init_into_class: true
             preload_modules:
               - pyglm
               - glm
