@@ -7,18 +7,18 @@ theme:
   logo: docs/logo.png
   favicon: docs/logo.ico
   palette:
-    - scheme: default
-      primary: deep purple
-      accent: purple
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
     - scheme: slate
       primary: green
       accent: green
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
+    - scheme: default
+      primary: deep blue
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
 
 hooks:
   - docs/screenshot_remove_backgrounds.py

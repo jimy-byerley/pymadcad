@@ -47,7 +47,7 @@ def has_alpha_background(img, threshold_ratio=0.05):
 	return transparent_count / total > threshold_ratio
 
 
-def make_dark_transparent(path, low=10, high=100):
+def make_dark_transparent(path, low=5, high=100):
 	"""Replace background pixels with transparency.
 
 	The background color is detected as the most frequent color in the image.
@@ -74,30 +74,30 @@ def make_dark_transparent(path, low=10, high=100):
 	bg = detect_background(img)
 
 	# compute per-pixel color distance to the background
-	pixels = img[:, :, :3].astype(np.float64)
+	pixels = img[:, :, :3].astype(np.float32)
 	distance = np.sqrt(np.sum((pixels - bg) ** 2, axis=2))
 
 	# alpha from color distance: 0 below low, linear ramp to 1 at high
 	alpha_f = np.clip((distance - low) / (high - low), 0.0, 1.0)
 
 	# smooth alpha edges with a gaussian blur to propagate into transition pixels
-	alpha_blurred = cv2.GaussianBlur(alpha_f, (0, 0), sigmaX=1.5)
+	alpha_blurred = cv2.GaussianBlur(alpha_f, (0, 0), sigmaX=2.)
 	# blur can only expand transparency, not reduce it
 	alpha_f = np.minimum(alpha_f, alpha_blurred)
 
 	# decontaminate edge colors: recover the original foreground by
 	# removing the background contribution from anti-aliased pixels
 	# pixel = alpha * fg + (1 - alpha) * bg  =>  fg = (pixel - (1-a)*bg) / a
-	safe_alpha = np.maximum(alpha_f, 0.1)
-	decontaminated = np.clip(
-		(pixels - (1.0 - alpha_f[:, :, np.newaxis]) * bg) / safe_alpha[:, :, np.newaxis],
-		0, 255,
-	)
-	# keep original colors for fully opaque pixels
-	opaque = alpha_f >= 0.99
-	decontaminated[opaque] = pixels[opaque]
+	safe_alpha = np.maximum(alpha_f, 0.01)
+	decontaminated = (pixels - (1.0 - alpha_f[:, :, np.newaxis]) * bg) / safe_alpha[:, :, np.newaxis]
+	# we can make mistake in decontaminating that leads to overestimate the value
+	error_factor = np.maximum(decontaminated.max(axis=2), 255)/255
+	# increase alpha when error happens
+	alpha_f = np.minimum(alpha_f * error_factor, 1)
+	# lower decontaminated value with the correction, this has the effect of normalizing more the value
+	decontaminated = decontaminated / error_factor[:,:,None]
 
-	img[:, :, :3] = decontaminated.astype(np.uint8)
+	img[:, :, :3] = (decontaminated).astype(np.uint8)
 	img[:, :, 3] = (alpha_f * 255).astype(np.uint8)
 	cv2.imwrite(path, img)
 	print(f"  done (bg={bg.astype(int).tolist()}): {path}")
