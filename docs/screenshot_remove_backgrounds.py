@@ -14,12 +14,47 @@ import cv2
 import numpy as np
 
 
-def make_dark_transparent(path, low=30, high=60):
-	"""Replace dark background pixels with transparency.
+def detect_background(img, quantize=8):
+	"""Detect the background color as the most represented value in the image.
 
-	Pixels with luminance <= low become fully transparent.
-	Pixels with luminance between low and high get a smooth alpha ramp.
-	Pixels with luminance >= high remain fully opaque.
+	Colors are quantized into bins of size `quantize` to tolerate slight variations
+	(e.g. anti-aliasing, compression artifacts). Returns the center of the most
+	frequent bin as a BGR tuple.
+	"""
+	# use only the BGR channels
+	pixels = img[:, :, :3].reshape(-1, 3).astype(np.int16)
+	# quantize to bins
+	binned = (pixels // quantize) * quantize + quantize // 2
+	# pack into a single int per pixel for fast counting
+	keys = binned[:, 0].astype(np.int32) | (binned[:, 1].astype(np.int32) << 8) | (binned[:, 2].astype(np.int32) << 16)
+	values, counts = np.unique(keys, return_counts=True)
+	best = values[np.argmax(counts)]
+	# refine: average the actual pixel colors that fell into the winning bin
+	mask = keys == best
+	return pixels[mask].astype(np.float64).mean(axis=0)
+
+
+def has_alpha_background(img, threshold_ratio=0.05):
+	"""Detect whether the image already has a transparent background.
+
+	Returns True if the image has an alpha channel and more than
+	`threshold_ratio` of pixels are fully transparent (alpha == 0).
+	"""
+	if img.shape[2] < 4:
+		return False
+	transparent_count = np.count_nonzero(img[:, :, 3] == 0)
+	total = img.shape[0] * img.shape[1]
+	return transparent_count / total > threshold_ratio
+
+
+def make_dark_transparent(path, low=10, high=100):
+	"""Replace background pixels with transparency.
+
+	The background color is detected as the most frequent color in the image.
+	Pixels within `low` color-distance from the background become fully transparent.
+	Between `low` and `high`, alpha ramps smoothly from 0 to 255.
+	Beyond `high`, pixels remain fully opaque.
+	Images that already have a transparent background are skipped.
 	"""
 	img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
 	if img is None:
@@ -30,16 +65,42 @@ def make_dark_transparent(path, low=30, high=60):
 	if img.shape[2] == 3:
 		img = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
 
-	# compute luminance from BGR channels
-	b, g, r = img[:, :, 0], img[:, :, 1], img[:, :, 2]
-	luminance = 0.299 * r + 0.587 * g + 0.114 * b
+	# skip images that already have a transparent background
+	if has_alpha_background(img):
+		print(f"  skipped (already transparent): {path}")
+		return
 
-	# smooth alpha ramp: 0 at low, 255 at high
-	alpha = np.clip((luminance - low) / (high - low) * 255, 0, 255).astype(np.uint8)
+	# detect background color from histogram
+	bg = detect_background(img)
 
-	img[:, :, 3] = alpha
+	# compute per-pixel color distance to the background
+	pixels = img[:, :, :3].astype(np.float64)
+	distance = np.sqrt(np.sum((pixels - bg) ** 2, axis=2))
+
+	# alpha from color distance: 0 below low, linear ramp to 1 at high
+	alpha_f = np.clip((distance - low) / (high - low), 0.0, 1.0)
+
+	# smooth alpha edges with a gaussian blur to propagate into transition pixels
+	alpha_blurred = cv2.GaussianBlur(alpha_f, (0, 0), sigmaX=1.5)
+	# blur can only expand transparency, not reduce it
+	alpha_f = np.minimum(alpha_f, alpha_blurred)
+
+	# decontaminate edge colors: recover the original foreground by
+	# removing the background contribution from anti-aliased pixels
+	# pixel = alpha * fg + (1 - alpha) * bg  =>  fg = (pixel - (1-a)*bg) / a
+	safe_alpha = np.maximum(alpha_f, 0.1)
+	decontaminated = np.clip(
+		(pixels - (1.0 - alpha_f[:, :, np.newaxis]) * bg) / safe_alpha[:, :, np.newaxis],
+		0, 255,
+	)
+	# keep original colors for fully opaque pixels
+	opaque = alpha_f >= 0.99
+	decontaminated[opaque] = pixels[opaque]
+
+	img[:, :, :3] = decontaminated.astype(np.uint8)
+	img[:, :, 3] = (alpha_f * 255).astype(np.uint8)
 	cv2.imwrite(path, img)
-	print(f"  done: {path}")
+	print(f"  done (bg={bg.astype(int).tolist()}): {path}")
 
 
 def main():
