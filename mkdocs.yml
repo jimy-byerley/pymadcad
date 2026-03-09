@@ -60,11 +60,9 @@ plugins:
               - glm
 
 nav:
-  - Home: index.md
   - Installation: installation.md
   - Concepts: concepts.md
   - Guide:
-    - guide/index.md
     - Overview: guide/overview.md
     - Good Practices: guide/goodpractices.md
     - Generation: guide/generation.md
@@ -73,7 +71,6 @@ nav:
     - Display: guide/display.md
     - Read/Write: guide/io.md
   - Reference:
-    - reference/index.md
     - Math Utilities: reference/mathutils.md
     - Mesh:
       - reference/mesh/index.md
