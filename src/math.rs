@@ -16,6 +16,7 @@ pub const NUMPREC: Float = 1e-13;
 pub type Vec2 = Vector<Float, 2>;
 pub type Vec3 = Vector<Float, 3>;
 pub type Vec4 = Vector<Float, 4>;
+pub type FVec3 = Vector<f32, 3>;
 pub type UVec2 = Vector<Index, 2>;
 pub type UVec3 = Vector<Index, 3>;
 
@@ -69,6 +70,13 @@ pub fn perp(v: Vec2) -> Vec2 {
 /// Dot product of a with perpendicular vector to b, equivalent to `dot(a, perp(b))`
 pub fn perpdot(a: Vec2, b: Vec2) -> Float {
     -a[1] * b[0] + a[0] * b[1]
+}
+
+/// Angle between two vectors (in radians)
+pub fn anglebt(a: Vec3, b: Vec3) -> Float {
+    let d = a.square_length().sqrt() * b.square_length().sqrt();
+    if d == 0.0 { return 0.0; }
+    (a.dot(b) / d).clamp(-1.0, 1.0).acos()
 }
 
 /// Return a base using the given direction as z axis

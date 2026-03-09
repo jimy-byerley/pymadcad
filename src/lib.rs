@@ -79,6 +79,69 @@ mod core {
     }
 
     #[pyfunction]
+    fn vertexnormals(
+        py: Python<'_>,
+        mesh: PySurface,
+    ) -> PyResult<PyTypedList<Vec3>> {
+        let surface = mesh.borrow();
+        let normals = may_detach(py, surface.simplices.len() > 1_000, ||
+            surface.vertexnormals());
+        PyTypedList::new(py, normals)
+    }
+
+    #[pyfunction]
+    fn split_surface(
+        py: Python<'_>,
+        mesh: PySurface,
+        edges: PyTypedList<UVec2>,
+    ) -> PyResult<(PyTypedList<Vec3>, PyTypedList<PaddedUVec3>)> {
+        let surface = mesh.borrow();
+        let edge_arrays: Vec<[Index; 2]> = edges.as_slice().iter()
+            .map(|e| *e.as_array())
+            .collect();
+        let result = surface.split(&edge_arrays);
+        let faces: Vec<PaddedUVec3> = result.simplices.into_owned().into_iter().map(|v| v.into()).collect();
+        Ok((
+            PyTypedList::new(py, result.points.into_owned())?,
+            PyTypedList::new(py, faces)?,
+        ))
+    }
+
+    #[pyfunction]
+    fn display_buffers_surface(
+        py: Python<'_>,
+        mesh: PySurface,
+        sharp_angle: Float,
+    ) -> PyResult<(
+        PyTypedList<PaddedFVec3>,
+        PyTypedList<PaddedFVec3>,
+        PyTypedList<PaddedUVec3>,
+        PyTypedList<UVec2>,
+        PyTypedList<Index>,
+    )> {
+        let surface = mesh.borrow();
+        let bufs = may_detach(py, surface.simplices.len() > 1_000, ||
+            surface.display_buffers(sharp_angle));
+        // TODO use non padded vectors as soon as arrex handles them
+        let points: Vec<PaddedFVec3> = bufs.points.into_iter()
+            .map(PaddedFVec3::from)
+            .collect();
+        let normals: Vec<PaddedFVec3> = bufs.normals.into_iter()
+            .map(PaddedFVec3::from)
+            .collect();
+        let faces: Vec<PaddedUVec3> = bufs.faces.into_iter()
+            .map(PaddedUVec3::from)
+            .collect();
+        Ok((
+            PyTypedList::new(py, points)?,
+            PyTypedList::new(py, normals)?,
+            PyTypedList::new(py, faces)?,
+            PyTypedList::new(py, bufs.edges)?,
+            PyTypedList::new(py, bufs.idents)?,
+        ))
+    }
+
+    #[pyfunction]
     fn intersect_triangles(
         f0: (PyVec3, PyVec3, PyVec3),
         f1: (PyVec3, PyVec3, PyVec3),

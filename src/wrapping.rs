@@ -44,7 +44,25 @@ unsafe impl DType for Vec3 {
         py.import("madcad.mathutils").unwrap().getattr("vec3").unwrap()
     }
 }
-unsafe impl DType for UVec2 { 
+/// Padded FVec3 for Python buffer compatibility (fvec3 has 4 bytes padding to 16 bytes)
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct PaddedFVec3 {
+    pub data: [f32; 3],
+    _padding: f32,
+}
+impl From<FVec3> for PaddedFVec3 {
+    fn from(v: FVec3) -> Self {
+        Self { data: *v.as_array(), _padding: 0.0 }
+    }
+}
+unsafe impl DType for PaddedFVec3 {
+    fn py_format() -> &'static CStr   {c"fffxxxx"}
+    fn py_dtype(py: Python<'_>) -> Bound<'_, PyAny>  {
+        py.import("madcad.mathutils").unwrap().getattr("fvec3").unwrap()
+    }
+}
+unsafe impl DType for UVec2 {
     fn py_format() -> &'static CStr   {c"II"}
     fn py_dtype(py: Python<'_>) -> Bound<'_, PyAny>  {
         py.import("madcad.mathutils").unwrap().getattr("uvec2").unwrap()

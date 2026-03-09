@@ -235,37 +235,8 @@ class Mesh(NMesh):
 		
 	def vertexnormals(self) -> '[vec3]':
 		''' list of normals for each point '''
-		
-		# collect the mesh border as edges and as points
-		outline = self.outlines_oriented()
-		border = set()
-		for a,b in outline:
-			border.add(a)
-			border.add(b)
-		
-		# sum contributions to normals
-		l = len(self.points)
-		normals = typedlist.full(vec3(0), l)
-		for face in self.faces:
-			normal = self.facenormal(face)
-			if not isfinite(normal):	continue
-			for i in range(3):
-				o = self.points[face[i]]
-				# point on the surface
-				if face[i] not in border:
-					# triangle normals are weighted by their angle at the point
-					contrib = anglebt(self.points[face[i-2]]-o, self.points[face[i-1]]-o)
-					normals[face[i]] += contrib * normal
-				# point on the outline
-				elif (face[i], face[i-1]) in outline:
-					# only the triangle creating the edge does determine its normal
-					normals[face[i]] += normal
-					normals[face[i-1]] += normal
-		
-		for i in range(l):
-			normals[i] = normalize(normals[i])
-		assert len(normals) == len(self.points)
-		return normals
+		from madcad import core
+		return core.vertexnormals(self)
 		
 	def tangents(self) -> '{int: vec3}':
 		''' tangents to outline points '''
@@ -515,40 +486,11 @@ class Mesh(NMesh):
 		return idents
 		
 	def split(self, edges) -> 'Self':
-		''' split the mesh around the given edges. 
+		''' split the mesh around the given edges.
 			The points in common with two or more designated edges will be dupliated once or more, and the face indices will be reassigned so that faces each side of the given edges will own a duplicate of that point each.
 		'''
-		# get connectivity and set of edges to manage
-		conn = connef(self.faces)
-		edges = set(edgekey(*edge)   for edge in edges)
-		newfaces = deepcopy(self.faces)
-		# for each edge, reassign neighboring faces to the proper points
-		for edge in edges:
-			for pivot in edge:
-				if edge in conn and pivot in newfaces[conn[edge]]:
-					dupli = len(self.points)
-					self.points.append(self.points[pivot])
-					
-					# change the point index in every neighbooring face
-					front = edge
-					while front in conn:
-						fi = conn[front]
-						f = arrangeface(self.faces[fi], pivot)
-						fm = arrangeface(newfaces[fi], pivot)
-						
-						assert f[0] == pivot
-						if fm[0] != pivot: 
-							break
-						
-						newfaces[fi] = uvec3(dupli, fm[1], fm[2])
-						if pivot == front[0]:	front = (pivot, f[2])
-						elif pivot == front[1]:	front = (f[1], pivot)
-						else:
-							raise AssertionError('error in connectivity')
-						if edgekey(*front) in edges:
-							break
-		
-		self.faces = newfaces
+		from madcad import core
+		self.points, self.faces = core.split_surface(self, typedlist(edges, dtype=uvec2))
 		return self
 	
 	def islands(self, conn=None) -> list[Mesh]:
@@ -678,40 +620,17 @@ class Mesh(NMesh):
 	def display(self, scene):
 		from ..rendering import Display
 		from .displays import MeshDisplay
-		
-		m = self.own(points=True)
-		
-		m.split(m.frontiers().edges)
-		edges = m.outlines().edges
-		
-		# select edges above a threshold
-		tosplit = []
-		thresh = cos(settings.display['sharp_angle'])
-		conn = connef(m.faces)
-		for edge, f1 in conn.items():
-			if edge[1] > edge[0]:	continue
-			f2 = conn.get((edge[1],edge[0]))
-			if f2 is None:	continue
-			if m.tracks[f1] != m.tracks[f2] or dot(m.facenormal(f1), m.facenormal(f2)) <= thresh:
-				tosplit.append(edge)
-		
-		m.split(tosplit)
-		
-		# get the group each point belong to
-		idents = [0] * len(m.points)
-		for face, track in zip(m.faces, m.tracks):
-			for p in face:
-				idents[p] = track
-		
-		normals = m.vertexnormals()
-		
-		if not m.points or not m.faces:	
+		from madcad import core
+
+		points, normals, faces, edges, idents = core.display_buffers_surface(self, settings.display['sharp_angle'])
+
+		if not len(points) or not len(faces):
 			return Display()
-		
-		return MeshDisplay(scene, 
-				typedlist_to_numpy(m.points, 'f4'), 
-				typedlist_to_numpy(normals, 'f4'), 
-				typedlist_to_numpy(m.faces, 'u4'),
+
+		return MeshDisplay(scene,
+				typedlist_to_numpy(points, 'f4'),
+				typedlist_to_numpy(normals, 'f4'),
+				typedlist_to_numpy(faces, 'u4'),
 				typedlist_to_numpy(edges, 'u4'),
 				typedlist_to_numpy(idents, 'u4'),
 				color = self.options.get('color'),
