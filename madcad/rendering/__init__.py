@@ -31,7 +31,7 @@ except ImportError:
 	pass
 else:
 
-	def show(scene:Scene|dict|list, interest: Box = None, size=uvec2(400, 400), projection=None, navigation=True, **options):
+	def show(scene:Scene|dict|list, interest: Box = None, size=uvec2(400, 400), projection=None, navigation=True, enable_alpha=False, **options):
 		'''
 		Easy and convenient way to create a window containing a `View3D` on a `Scene`
 
@@ -43,13 +43,14 @@ else:
 			size:      the window size (pixel)
 			projection: an object handling the camera projection (aka intrinsic parameters), see `QView3D.projection`
 			navigation: an object handling the camera movements, see `QView3D.navigation`
+			enable_alpha: if enabled, the view background is transparent
 			options:   options to set in `Scene.options`
 
 		Tip:
 			For integration in a Qt window or to manipulate the view, you should directly use `View`
 		'''
 		import sys
-		
+
 		if not isinstance(scene, Scene):
 			scene = Scene(scene, options)
 
@@ -65,7 +66,7 @@ else:
 			settings.use_qt_colors()
 
 		# create the scene as a window
-		view = QView3D(scene, projection=projection, navigation=navigation)
+		view = QView3D(scene, projection=projection, navigation=navigation, enable_alpha=enable_alpha)
 		view.resize(*size)
 		view.show()
 		scene.prepare()

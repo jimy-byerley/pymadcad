@@ -35,8 +35,9 @@ class GLView3D:
 	enable_ident: bool
 	''' enable `self.ident` '''
 	
-	def __init__(self, scene, size:uvec2=None, view:fmat4=None, proj:fmat4=None, 
-			enable_ident=True, 
+	def __init__(self, scene, size:uvec2=None, view:fmat4=None, proj:fmat4=None,
+			enable_ident=True,
+			enable_alpha=False,
 			**uniforms):
 		self.scene = scene if isinstance(scene, Scene) else Scene(scene)
 		self.view = view
@@ -46,6 +47,7 @@ class GLView3D:
 		self.ident = None
 		self.targets = []
 		self.enable_ident = enable_ident
+		self.enable_alpha = enable_alpha
 		# indentifiers management for the ident map
 		self._steps = []  # identifiers before each ident stack step
 		self._stepi = 0
@@ -82,12 +84,13 @@ class GLView3D:
 		
 	def _reallocate(self, size):
 		''' ensure the framebuffer fit the given size, reallocate if needed '''
-		if self.screen and size == self.screen.size:
+		components = 4 if self.enable_alpha else 3
+		if self.screen and size == self.screen.size and self.screen.color_attachments[0].components == components:
 			return
 		ctx = self.scene.context
 		self.targets.clear()
-		self.screen = ctx.simple_framebuffer(size, components=3, dtype='f1')
-		self._screen_multisample = ctx.simple_framebuffer(size, components=3, samples=4, dtype='f1')
+		self.screen = ctx.simple_framebuffer(size, components=components, dtype='f1')
+		self._screen_multisample = ctx.simple_framebuffer(size, components=components, samples=4, dtype='f1')
 		self.targets.append(('screen', self._screen_multisample, self._setup_screen))
 		if self.enable_ident:
 			self.ident = ctx.simple_framebuffer(size, components=1, dtype='u2')
@@ -119,11 +122,10 @@ class GLView3D:
 		
 		background = settings.display['background_color']
 		if len(background) == 3:
-			self.target.clear(*background, alpha=1)
-		elif len(background) == 4:
-			self.target.clear(*background)
-		else:
-			raise ValueError(f"background_color must be a RGB or RGBA tuple, currently {background}")
+			background = fvec4(background, float(not self.enable_alpha))
+		if self.enable_alpha:
+			background = fvec4(background.rgb*background.a, background.a)
+		self.target.clear(*background)
 
 	def identstep(self, nidents):
 		''' Updates the amount of rendered idents and return the start ident for the calling rendering pass?
@@ -152,22 +154,22 @@ class Offscreen3D:
 	''' enable `self.depth` '''
 	enable_ident: bool
 	''' enable `self.ident` '''
-		
+
 	scene = forwardproperty('gl', 'scene')
 	view = forwardproperty('gl', 'view')
 	proj = forwardproperty('gl', 'proj')
 	uniforms = forwardproperty('gl', 'uniforms')
 	enable_ident = forwardproperty('gl', 'enable_ident')
+	enable_alpha = forwardproperty('gl', 'enable_alpha')
 	
 	def __init__(self, scene, size:uvec2=None, view:fmat4=None, proj:fmat4=None, 
 			enable_depth=False, 
 			enable_ident=False, 
 			enable_alpha=False,
 			**uniforms):
-		self.gl = GLView3D(scene, size, view, proj, enable_ident, **uniforms)
+		self.gl = GLView3D(scene, size, view, proj, enable_ident, enable_alpha, **uniforms)
 		self.color = self.depth = self.ident = None
 		self.enable_depth = enable_depth
-		self.enable_alpha = enable_alpha
 		if size:
 			self._reallocate(size)
 	
@@ -183,10 +185,7 @@ class Offscreen3D:
 			self.gl.render(size, view, proj)
 			self._reallocate(size)
 		# retreive everything from the GPU to the CPU
-		if self.enable_alpha:
-			self.gl.screen.read_into(self.color, components=4)
-		else:
-			self.gl.screen.read_into(self.color, components=3)
+		self.gl.screen.read_into(self.color, components=self.color.shape[2])
 		# switch vertical axis to convert from opengl image convention to usual (and Qt) image convention
 		self.color[:] = self.color[::-1]
 		if self.enable_ident:
@@ -198,10 +197,11 @@ class Offscreen3D:
 		return self
 		
 	def _reallocate(self, size):
-		if self.color is not None and size == self.color.shape[::-1]:
+		components = 4 if self.enable_alpha else 3
+		if self.color is not None and size == self.color.shape[::-1] and self.color.shape[2] == components:
 			return
 		w,h = size
-		self.color = np.empty((h,w,3), dtype='u1')
+		self.color = np.empty((h,w,components), dtype='u1')
 		self.ident = np.empty((h,w), dtype='u2')  if self.enable_ident else None
 		self.depth = np.empty((h,w), dtype='f4')  if self.enable_depth else None
 
@@ -236,13 +236,14 @@ else:
 		view = forwardproperty('gl', 'view')
 		proj = forwardproperty('gl', 'proj')
 		uniforms = forwardproperty('gl', 'uniforms')
+		enable_alpha = forwardproperty('gl', 'enable_alpha')
 		
-		def __init__(self, scene, projection=None, navigation=True, parent=None):
+		def __init__(self, scene, projection=None, navigation=True, enable_alpha=False, parent=None):
 			QWidget.__init__(self, parent)
 			self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 			self.setAttribute(Qt.WidgetAttribute.WA_AcceptTouchEvents, True)
 			self.setMouseTracking(True)
-			self.gl = GLView3D(scene)
+			self.gl = GLView3D(scene, enable_alpha=enable_alpha)
 			if navigation is True:
 				navigation = globals()[settings.controls['navigation']]()
 			self.navigation = navigation
@@ -257,11 +258,12 @@ else:
 			
 		def _reallocate(self, size):
 			w, h = size
-			if self.color is not None and w == self.color.shape[1] and h == self.color.shape[0]:
+			components = 3 + self.gl.enable_alpha
+			if self.color is not None and w == self.color.shape[1] and h == self.color.shape[0] and self.color.shape[2] == components:
 				return
 			self.ident = CheapMap(self.gl.ident, attachment=0)
 			self.depth = CheapMap(self.gl.ident, attachment=-1)
-			self.color = np.empty((h,w,3), dtype='u1')
+			self.color = np.empty((h,w,components), dtype='u1')
 		
 		def paintEvent(self, painter):
 			w = self.width()
@@ -275,16 +277,21 @@ else:
 			)
 			self._reallocate(size)
 			# retreive buffer
-			self.gl.screen.read_into(self.color, components=3)
+			components = self.color.shape[2]
+			self.gl.screen.read_into(self.color, components=components)
 			# switch vertical axis to convert from opengl image convention to usual (and Qt) image convention
 			self.color[:] = self.color[::-1]
 			# copy to Qt
+			fmt = QImage.Format.Format_RGBA8888_Premultiplied if components == 4 else QImage.Format.Format_RGB888
 			image = QImage(
 				self.color,
-				self.color.shape[1], 
+				self.color.shape[1],
 				self.color.shape[0],
-				QImage.Format.Format_RGB888)
-			painter = QPainter(self).drawImage(0, 0, image)
+				fmt)
+			painter = QPainter(self)
+			if components == 4:
+				painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+			painter.drawImage(0, 0, image)
 		
 		def event(self, evt):
 			if isinstance(evt, QInputEvent):
