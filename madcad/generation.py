@@ -18,7 +18,7 @@ from copy import copy
 __all__ = [
 	'extrans', 'extrusion', 'revolution', 'helix', 'screw', 'saddle', 'tube', 
 	'repeat', 'repeataround',
-	'flatsurface', 'icosurface',
+	'fill', 'icosurface',
 	'square', 'brick', 'parallelogram', 'cylinder', 'cone', 'pyramid', 'icosahedron', 'icosphere', 'uvsphere', 'regon', 
 	]
 
@@ -332,10 +332,10 @@ def extrans(section, transformations:iter, links=None) -> Mesh:
 
 # --- filling things ---
 
-def flatsurface(outline, normal=None) -> 'Mesh':
+def fill(outline, normal=None) -> 'Mesh':
 	''' Generates a surface for a flat outline using the prefered triangulation method.
 
-	![flatsurface result](../screenshots/generation-flatsurface.png)
+	![fill result](../screenshots/generation-fill.png)
 
 	If `normal` is specified, it must be the normal vector to the plane, and will be used to orient the face.
 	'''
@@ -545,7 +545,7 @@ def cylinder(bottom:vec3, top:vec3, radius:float, fill=True, resolution=None) ->
 	'''
 	direction = top-bottom
 	base = wire(primitives.Circle(Axis(bottom,normalize(direction)), radius), resolution=resolution)
-	if fill:	base = flatsurface(base).flip()
+	if fill:	base = fill(base).flip()
 	return extrusion(base, direction)
 
 def cone(summit:vec3, base:vec3, radius:float, fill=True, resolution=None) -> 'Mesh':
@@ -560,7 +560,7 @@ def cone(summit:vec3, base:vec3, radius:float, fill=True, resolution=None) -> 'M
 		fill (bool):    whether to put a face at the base
 	'''
 	base = wire(primitives.Circle(Axis(base, normalize(summit-base)), radius), resolution=resolution)
-	if fill:	base = flatsurface(base)
+	if fill:	base = fill(base)
 	return pyramid(summit, base)
 		
 def pyramid(summit:vec3, base) -> 'Mesh':

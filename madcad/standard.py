@@ -715,7 +715,7 @@ def coilspring_compression(length, d=None, thickness=None, solid=True):
 
 	return Solid(
 			part=tube(
-				flatsurface(Circle(
+				fill(Circle(
 					(path[0],Y),
 					thickness/2,
 					resolution=('div',6)
@@ -768,7 +768,7 @@ def coilspring_tension(length, d=None, thickness=None, solid=True):
 
 	return Solid(
 			part=tube(
-				flatsurface(Circle(
+				fill(Circle(
 					(path[0],Z),
 					thickness/2,
 					resolution=('div',6)
@@ -843,7 +843,7 @@ def coilspring_torsion(arm,
 
 	return Solid(
 			part=tube(
-				flatsurface(Circle(
+				fill(Circle(
 					(path[0], normalize(path[0]-path[1])),
 					thickness/2,
 					resolution=('div',6),
@@ -1104,7 +1104,7 @@ def bearing_roller(dint, dext=None, h=None, contact=0, hint=None, hext=None, det
 		roller = revolution(Segment(mix(p1,p3,0.05), mix(p3,p1,0.05)), angled)
 		roller.check()
 		for hole in roller.outlines().islands():
-			roller += flatsurface(wire(hole))
+			roller += fill(wire(hole))
 			roller.check()
 
 		# number of rollers that can fit in

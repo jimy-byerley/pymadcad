@@ -1090,7 +1090,7 @@ def note_label(placement, offset=None, text='!', style='rect'):
 		raise ValueError("style must be 'rect' or 'circle'")
 	sch.set(space=halo_screen(fvec3(p+offset)))
 	sch.add(outline, shader='line', layer=0)
-	sch.add(gt.flatsurface(wire(outline)), color=fvec4(settings.display['background_color'],0), shader='fill', layer=1e-3)
+	sch.add(gt.fill(wire(outline)), color=fvec4(settings.display['background_color'],0), shader='fill', layer=1e-3)
 	sch.add(Displayable(TextDisplay,
 				p+offset, 
 				text, 

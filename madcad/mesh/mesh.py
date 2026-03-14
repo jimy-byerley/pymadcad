@@ -617,7 +617,6 @@ class Mesh(NMesh):
 	def display(self, scene):
 		from ..rendering import Display
 		from .displays import MeshDisplay
-<<<<<<< HEAD
 		from madcad import core
 
 		points, normals, faces, edges, idents = core.display_buffers_surface(self, settings.display['sharp_angle'])
@@ -629,42 +628,6 @@ class Mesh(NMesh):
 				typedlist_to_numpy(points, 'f4'),
 				typedlist_to_numpy(normals, 'f4'),
 				typedlist_to_numpy(faces, 'u4'),
-=======
-
-		m = self.own(points=True)
-
-		m.split(m.frontiers().edges)
-		edges = m.outlines().edges
-
-		# select edges above a threshold
-		tosplit = []
-		thresh = cos(settings.display['sharp_angle'])
-		conn = connef(m.faces)
-		for edge, f1 in conn.items():
-			if edge[1] > edge[0]:	continue
-			f2 = conn.get((edge[1],edge[0]))
-			if f2 is None:	continue
-			if m.tracks[f1] != m.tracks[f2] or dot(m.facenormal(f1), m.facenormal(f2)) <= thresh:
-				tosplit.append(edge)
-
-		m.split(tosplit)
-
-		# get the group each point belong to
-		idents = [0] * len(m.points)
-		for face, track in zip(m.faces, m.tracks):
-			for p in face:
-				idents[p] = track
-
-		normals = m.vertexnormals()
-
-		if not m.points or not m.faces:
-			return Display()
-
-		return MeshDisplay(scene,
-				typedlist_to_numpy(m.points, 'f4'),
-				typedlist_to_numpy(normals, 'f4'),
-				typedlist_to_numpy(m.faces, 'u4'),
->>>>>>> master
 				typedlist_to_numpy(edges, 'u4'),
 				typedlist_to_numpy(idents, 'u4'),
 				color = self.options.get('color'),

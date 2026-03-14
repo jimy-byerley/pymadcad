@@ -93,7 +93,7 @@ def test_sections():
 	for section in sections:
 		section.check()
 		assert section.isvalid()
-		surface = flatsurface(section)
+		surface = fill(section)
 		surface.check()
 		
 	return [ section.transform(i*Z)  for i,section in enumerate(sections) ]

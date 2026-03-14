@@ -132,8 +132,8 @@ class Revolute(Joint):
 		# sch.add([z*size*0.5, o+z*size*0.5], shader='line')
 		sch.add(c1, shader='line')
 		sch.add(c2, shader='line')
-		sch.add(gt.flatsurface(c1), shader='ghost')
-		sch.add(gt.flatsurface(c2), shader='ghost')
+		sch.add(gt.fill(c1), shader='ghost')
+		sch.add(gt.fill(c2), shader='ghost')
 		
 		if attach_end:
 			sch.set(shader='line')
