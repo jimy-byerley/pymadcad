@@ -376,10 +376,10 @@ class Display:
 		''' Handle input events occuring on the area of this display (or of one of its subdisplay).
 			For subdisplay events, the parents control functions are called first, and the sub display controls are called only if the event is not accepted by parents
 			
-			Parameters:
-				key:    the key path for the current display
-				sub:    the key path for the subdisplay
-				evt:    the Qt event (see Qt doc)
+		Parameters:
+			key:    the key path for the current display
+			sub:    the key path for the subdisplay
+			evt:    the Qt event (see Qt doc)
 		'''
 		pass
 	
@@ -443,8 +443,8 @@ class Group(Display):
 			
 			former children that do not match keys in the given dictionnary are dropped
 			
-			Note:
-				the new content will not be immediately available in `self.displays` because they will only be buffered at next rendering. it makes this function thread safe and able to run without a reference to the scene
+		Note:
+			the new content will not be immediately available in `self.displays` because they will only be buffered at next rendering. it makes this function thread safe and able to run without a reference to the scene
 		'''
 		if len(args) == 1:
 			src, = args

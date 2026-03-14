@@ -200,8 +200,8 @@ class SolidDisplay(ExplodableGroup):
 		
 			update to the solid pose and its content dictionnary
 			
-			Note:
-				the new content will not be immediately available in `self.displays` because they will only be buffered at next rendering. it makes this function thread safe and able to run without a reference to the scene
+		Note:
+			the new content will not be immediately available in `self.displays` because they will only be buffered at next rendering. it makes this function thread safe and able to run without a reference to the scene
 		'''
 		if len(args) == 1:
 			src, = args

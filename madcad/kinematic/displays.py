@@ -33,11 +33,11 @@ __all__ = ['ChainManip', 'KinematicManip', 'scale_solid', 'world_solid']
 class ChainManip(Group):
 	''' object to display and interact with a robot in the 3d view
 
-		Attributes:
-			chain:  the kinematic chain this display is rendering
-			pose:   joints poses in the last rendered frame
-			parts:  solids poses in the last rendered frame
-			toolcenter (vec3):   current end-solid rotation point in rotation mode, relative to last solid
+	Attributes:
+		chain:  the kinematic chain this display is rendering
+		pose:   joints poses in the last rendered frame
+		parts:  solids poses in the last rendered frame
+		toolcenter (vec3):   current end-solid rotation point in rotation mode, relative to last solid
 	'''
 	min_colinearity = 1e-2
 	max_increment = 0.3
@@ -258,14 +258,14 @@ class ChainManip(Group):
 
 		
 class KinematicManip(Group):
-	''' 
-        Display that holds a kinematic structure and allows the user to move it
-        
-        Attributes:
-            kinemaitc:  the kinematic this display is rendering
-            pose:       joints poses in the last rendered frame
-            parts:      solids poses in the last rendered frame
-            toolcenter:  current solid rotation point in rotation mode, relative to kinematic ground
+	'''
+	Display that holds a kinematic structure and allows the user to move it
+
+	Attributes:
+		kinematic:  the kinematic this display is rendering
+		pose:       joints poses in the last rendered frame
+		parts:      solids poses in the last rendered frame
+		toolcenter:  current solid rotation point in rotation mode, relative to kinematic ground
 	'''
 	max_increment = 0.3
 	prec = 1e-6
@@ -374,11 +374,11 @@ class KinematicManip(Group):
 					
 	def _move_opt(self, optmove, optjac):
 		'''
-			newton method step for moving the mechanism
-			
-			Parameters:
-				optmove:  the vector of the desired optional movement
-				optjac:   the jacobian of the residuals for the desired optional movement
+		newton method step for moving the mechanism
+
+		Parameters:
+			optmove:  the vector of the desired optional movement
+			optjac:   the jacobian of the residuals for the desired optional movement
 		'''
 		costmove = -self.kinematic.cost_residuals(self.pose)
 		# priority factor, lowering the optional move while the closed loop error is big

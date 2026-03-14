@@ -787,8 +787,8 @@ class Turntable:
 class Perspective:
 	''' Object used as `View.projection` 
 	
-		Attributes:
-			fov (float):	field of view (rad), defaulting to `settings.display['field_of_view']`
+	Attributes:
+		fov (float):	field of view (rad), defaulting to `settings.display['field_of_view']`
 	'''
 	def __init__(self, fov=None):
 		self.fov = fov or settings.display['field_of_view']
@@ -802,11 +802,11 @@ class Perspective:
 class Orthographic:
 	''' Object used as `View.projection` 
 	
-		Attributes:
-			size (float):  
+	Attributes:
+		size (float):  
 			
-				factor between the distance from camera to navigation center and the zone size to display
-				defaulting to `tan(settings.display['field_of_view']/2)`
+			factor between the distance from camera to navigation center and the zone size to display
+			defaulting to `tan(settings.display['field_of_view']/2)`
 	'''
 	def __init__(self, size=None):
 		self.size = size or tan(settings.display['field_of_view']/2)

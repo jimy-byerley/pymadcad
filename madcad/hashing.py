@@ -79,11 +79,11 @@ def suites(lines, oriented=True, cut=True, loop=False):
 	''' Return a list of the suites that can be formed with lines.
 		`lines` is an iterable of edges
 		
-		Parameters:
-			oriented:      specifies that (a,b) and (c,b) will not be assembled
-			cut:           cut suites when they are crossing each others
+	Parameters:
+		oriented:      specifies that (a,b) and (c,b) will not be assembled
+		cut:           cut suites when they are crossing each others
 		
-		Return a list of the sequences that can be formed
+	Return a list of the sequences that can be formed
 	'''
 	# TODO: rewrite this to use hashmaps instead of search loops
 	lines = list(lines)

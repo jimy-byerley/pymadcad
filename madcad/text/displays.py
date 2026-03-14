@@ -39,8 +39,10 @@ def char_placement(fontsize, c, l, n):
 
 
 class TextDisplay(Display):
-	''' halo display of a monospaced text 
-	
+	''' halo display of a monospaced text
+
+		![text display](../screenshots/note_floating.png)
+
 		This class is usually used through `scheme.note_floating()`
 	'''
 	pointsdef = [
