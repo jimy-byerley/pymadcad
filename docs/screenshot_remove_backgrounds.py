@@ -122,13 +122,12 @@ def main():
 	print("All done.")
 
 
-def on_pre_build(config, **kwargs):
-	"""MkDocs hook: remove dark backgrounds from screenshots before build."""
-	directory = os.path.join(os.path.dirname(__file__), "screenshots")
-	directory = os.path.abspath(directory)
+def on_post_build(config, **kwargs):
+	"""MkDocs hook: remove dark backgrounds from screenshots in the built site."""
+	directory = os.path.join(config['site_dir'], "screenshots")
 	files = sorted(glob.glob(os.path.join(directory, "**", "*.png"), recursive=True))
 	if files:
-		print(f"Processing {len(files)} PNG screenshots")
+		print(f"Processing {len(files)} PNG screenshots in {directory}")
 		for f in files:
 			make_dark_transparent(f)
 
