@@ -78,8 +78,8 @@ hole = Circle((O, Z), 5)
 profile = web([exterior, web(hole).flip().qualify("hole")]) # qualify "hole" for future usage
 result = (
     extrusion(profile, depth * Z)
-    + flatsurface(profile)
-    + flatsurface(profile.transform(depth * Z).flip())
+    + fill(profile)
+    + fill(profile.transform(depth * Z).flip())
 )
 show(
     [
@@ -102,8 +102,8 @@ hole = Circle((O, Z), 5)
 profile = web([exterior, web(hole).flip()])
 result = (
     extrusion(profile, depth * Z)
-    + flatsurface(profile)
-    + flatsurface(profile.transform(depth * Z).flip())
+    + fill(profile)
+    + fill(profile.transform(depth * Z).flip())
 )
 print(result.groups) # [None, None, None, None]
 show(
@@ -129,8 +129,8 @@ hole = Circle((O, Z), 5)
 profile = web([exterior, web(hole).flip()])
 result = (
     extrusion(profile, depth * Z)
-    + flatsurface(profile)
-    + flatsurface(profile.transform(depth * Z).flip())
+    + fill(profile)
+    + fill(profile.transform(depth * Z).flip())
 )
 extraction_top = select(result, vec3(5, 0, 20)) # or vec3(0, 5, 20)
 extraction_bottom = select(result, vec3(5, 0, 0)) # or vec3(0, 5, 0)

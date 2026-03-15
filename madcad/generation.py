@@ -545,7 +545,7 @@ def cylinder(bottom:vec3, top:vec3, radius:float, fill=True, resolution=None) ->
 	'''
 	direction = top-bottom
 	base = wire(primitives.Circle(Axis(bottom,normalize(direction)), radius), resolution=resolution)
-	if fill:	base = fill(base).flip()
+	if fill:	base = _fill(base).flip()
 	return extrusion(base, direction)
 
 def cone(summit:vec3, base:vec3, radius:float, fill=True, resolution=None) -> 'Mesh':
@@ -560,7 +560,7 @@ def cone(summit:vec3, base:vec3, radius:float, fill=True, resolution=None) -> 'M
 		fill (bool):    whether to put a face at the base
 	'''
 	base = wire(primitives.Circle(Axis(base, normalize(summit-base)), radius), resolution=resolution)
-	if fill:	base = fill(base)
+	if fill:	base = _fill(base)
 	return pyramid(summit, base)
 		
 def pyramid(summit:vec3, base) -> 'Mesh':
@@ -711,3 +711,6 @@ def repeataround(pattern, repetitions:int=None, axis=Axis(O,Z), angle=2*pi):
 		repetitions = round(angle / (upper - lower))
 	return repeat(pattern, repetitions, rotatearound(angle/repetitions, axis))
 
+
+# avoid name clashing in functions with a fill argument
+_fill = fill

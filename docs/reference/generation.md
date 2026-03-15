@@ -1,4 +1,4 @@
-# generation -- Functions to generate mesh surfaces from lines or meshes
+<!-- # generation -- Functions to generate mesh surfaces from lines or meshes -->
 
 ::: madcad.generation
     options:
@@ -35,5 +35,5 @@
 
 ## Others
 
-::: madcad.generation.flatsurface
+::: madcad.generation.fill
 ::: madcad.generation.icosurface

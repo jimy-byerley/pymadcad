@@ -12,7 +12,7 @@ The most common functions are
 * thicken
 * tube
 * saddle
-* flatsurface
+* fill
 * repeat
 
 Some of them are presented here. For more details, see [generation](../reference/generation.md).
@@ -26,7 +26,7 @@ int_circle = Circle((O, Z), 5)
 # Create outline for extrusion to get the lateral surface
 profile = web(ext_circle) + web(int_circle).flip() # .flip() to make a hole
 # Create top and bottom surface
-head = flatsurface(profile)
+head = fill(profile)
 bottom = head.flip() # .flip() to reverse bright and dark surface
 head = head.transform(10 * (Z + 0.2 * Y))
 # Generate extrusion of `profile` with the direction `10 * (Z + 0.2 * Y)`
@@ -37,7 +37,7 @@ show([m])
 ![](../screenshots/generation/extrusion.png)
 
 !!! note
-    Another way to get this result and to avoid creating `head` and `bottom`, is to replace `profile` by `profile = flatsurface(web(ext_circle) + web(int_circle).flip()).flip()`.
+    Another way to get this result and to avoid creating `head` and `bottom`, is to replace `profile` by `profile = fill(web(ext_circle) + web(int_circle).flip()).flip()`.
 
 ## Revolution
 
@@ -93,7 +93,7 @@ primitives = [Segment(A, B), ArcCentered((O, Z), B, C), Segment(C, D)]
 # Apply the function repeat with the transformation `rotatearound(angle, (O, -Z))`
 web_repeat = repeat(web(primitives), 26, rotatearound(angle, (O, -Z))) # or rotate(angle, -Z)
 web_repeat.mergeclose()
-m = extrusion(5 * Z, flatsurface(web_repeat.flip() + web(Circle((O, Z), 15))))
+m = extrusion(5 * Z, fill(web_repeat.flip() + web(Circle((O, Z), 15))))
 show([m])
 ```
 

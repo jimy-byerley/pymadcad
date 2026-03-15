@@ -149,10 +149,11 @@ class Joint:
 		Returns:
 			a list of the matrix derivatives of `self.direct()`, one each parameter
 		'''
+		flattened = flatten_state(state)
 		grad = []
 		base = self.direct(state)
-		for i in range(len(state)):
-			grad.append(partial_difference(self.direct, state, base, i, delta))
+		for i in range(len(flattened)):
+			grad.append(_partial_difference(self.direct, state, flattened, base, i, delta))
 		return grad
 
 	def scheme(self, size: float, junc: vec3=None) -> '[Scheme]':
@@ -167,15 +168,15 @@ class Joint:
 		return display
 
 
-def partial_difference(f, x, fx, i, d):
+def _partial_difference(f, ref, x, fx, i, d):
 	p = copy(x)
 	try:
 		p[i] = x[i] + d
-		return (f(p) - fx) / d
+		return (f(structure_state(p, ref)) - fx) / d
 	except KinematicError:
 		try:
 			p[i] = x[i] - d
-			return (fx - f(p)) / d
+			return (fx - f(structure_state(p, ref))) / d
 		except KinematicError:
 			pass
 	raise ValueError('cannot compute below or above parameter {} given value'.format(i))
@@ -1051,7 +1052,7 @@ def structure_state(flat, structure):
 				structured.append(next(it))
 		return structured
 	elif isinstance(structure, (int,float)):
-		return flat
+		return float(flat[0])
 	elif isinstance(structure, (vec1, vec2, vec3, vec4, quat)):
 		return type(structure)(*[x  for i,x in zip(range(len(structure)), flat)])
 	elif isinstance(structure, np.ndarray):

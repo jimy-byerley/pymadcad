@@ -21,8 +21,6 @@ def test_drotate():
 def test_joints():
 	def check(joint):
 		for i in range(5):
-			print(joint, i)
-			
 			pose = np.arange(len(flatten_state(joint.default))) + float(i)
 			close = pose + 0.2
 			pose = structure_state(pose, joint.default)		
