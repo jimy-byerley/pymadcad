@@ -37,6 +37,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+      - name: Install OpenGL
+        run: |
+          apt-get install -y libegl1-mesa-dev libgl1-mesa-dri
       - name: Build and install
         run: |
           uv sync --extra dev --extra ply --extra stl --extra obj
