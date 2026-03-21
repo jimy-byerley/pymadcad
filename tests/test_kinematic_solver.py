@@ -23,6 +23,17 @@ def test_joints():
 		for i in range(5):
 			print(joint, i)
 			
+			# consistent dimension in coordinates declarations
+			assert flatten_state(joint.default).size == flatten_state(joint.increment).size
+			assert flatten_state(joint.default).size == flatten_state(joint.bounds[0]).size
+			assert flatten_state(joint.default).size == flatten_state(joint.bounds[1]).size
+			
+			# consistent structure in coordinates declarations
+			assert structure_state(flatten_state(joint.default), joint.default) == approx(joint.default)
+			assert structure_state(flatten_state(joint.increment), joint.default) == approx(joint.increment)
+			assert structure_state(flatten_state(joint.bounds[0]), joint.default) == approx(joint.bounds[0])
+			assert structure_state(flatten_state(joint.bounds[1]), joint.default) == approx(joint.bounds[1])
+			
 			pose = np.arange(len(flatten_state(joint.default))) + float(i)
 			close = pose + 0.2
 			pose = structure_state(pose, joint.default)		
@@ -108,7 +119,7 @@ def test_two_bound_pivot_loops():
 		Revolute((3,0), Axis(Y,Z)),
 		Revolute((1,4), Axis(2*X,Z)),
 		Revolute((4,3), Axis(2*X+Y,Z)),
-		]).solve(close=np.arange(6)))
+		]).solve(close=np.arange(6)*0.1, maxiter=1000))
 
 def test_stretched_chain():
 	# skip('numerically unstable')
@@ -130,7 +141,6 @@ def test_looping_chain():
 	print(Kinematic(joints).solve(close=2*pi*np.random.random(len(joints)), maxiter=1000))
 
 def test_grid():
-	skip('numerically unstable')
 	size = 5
 	joints = []
 	def name(x,y):
@@ -141,7 +151,7 @@ def test_grid():
 				joints.append(Revolute((name(x-1,y), name(x,y)), Axis(vec3(1,0,0),Z), Axis(O,Z)))
 			if y > 0:
 				joints.append(Revolute((name(x,y-1), name(x,y)), Axis(vec3(0,1,0),Z), Axis(O,Z)))
-	print(Kinematic(joints).solve(close=2*pi*np.random.random(len(joints)), precision=1e-3, maxiter=1000))
+	print(Kinematic(joints).solve(close=np.random.random(len(joints)), precision=1e-3, maxiter=1000))
 
 def test_screw():
 	def derive(f, t):

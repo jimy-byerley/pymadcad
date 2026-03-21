@@ -35,6 +35,7 @@ class Revolute(Joint):
 	'''
 	bounds = (-inf, inf)
 	default = 0
+	increment = 1
 	
 	def __init__(self, solids, axis: Axis, local=None, default=None, bounds=None):
 		self.solids = solids
@@ -158,6 +159,7 @@ class Planar(Joint):
 	'''
 		
 	bounds = (vec3(-inf), vec3(inf))
+	increment = vec3(inf)
 	default = vec3(0, 0, 0)
 	
 	def __init__(self, solids, axis, local=None, default=None, bounds=None):
@@ -259,6 +261,7 @@ class Prismatic(Joint):
 	'''
 	
 	bounds = (-inf, inf)
+	increment = inf
 	default = 0
 	
 	def __init__(self, solids, axis: Axis, local=None, default=None, bounds=None):
@@ -364,6 +367,7 @@ class Cylindrical(Joint):
 	''' Joint with rotation and translation around an axis
 	'''
 	bounds = (vec2(-inf), vec2(inf))
+	increment = vec2(1, inf)
 	default = vec2(0)
 	
 	def __init__(self, solids, axis: Axis, local=None, default=None, bounds=None):
@@ -496,8 +500,9 @@ class Ball(Joint):
 		return '{}({}, ({:.3g},{:.3g},{:.3g}))'.format(self.__class__.__name__, self.solids, *self.post[3].xyz)
 	
 	bounds = (quat(-2,-2,-2,-2), quat(2,2,2,2))
+	increment = quat(0.5,0.5,0.5,0.5)
 	default = quat()
-			
+	
 	def normalize(self, orient):
 		return normalize(quat(orient))
 	
@@ -604,14 +609,15 @@ class PointSlider(Joint):
 			raise TypeError("PointSlider can only be placed on Axis or mat4")
 		self.scale = max(glm.abs(self.post[3]))
 	
-	default = [0]*5
-	bounds = ([-inf]*5, [inf]*5)
+	default = [0]*6
+	increment = [inf]*2 + [0.5]*4
+	bounds = ([-inf]*2+[-2]*4, [inf]*2+[2]*4)
 	
 	def direct(self, parameters):
 		translation = vec2(parameters[0:2])
-		rotation = quat(parameters[2:5])
+		rotation = quat(parameters[2:6])
 		return self.post * translate(vec3(translation, 0)) * mat4(rotation) * self.pre
-		
+	
 	def inverse(self, matrix, close=None):
 		m = affineInverse(self.post) * matrix * affineInverse(self.pre)
 		return (
@@ -661,7 +667,7 @@ class PointSlider(Joint):
 
 
 class EdgeSlider(Joint):
-	''' Joint for rotation all around a point belonging to a plane.
+	''' Joint for rotation all around a, edge belonging to a plane.
 	
 		Classical definition: Punctiform/Sphere-Plane (axis)
 		The initial state does not require more data
@@ -680,6 +686,7 @@ class EdgeSlider(Joint):
 		self.scale = max(glm.abs(self.post[3]))
 	
 	default = [0]*4
+	increment = [inf]*2 + [1]*2
 	bounds = ([-inf]*4, [inf]*4)
 	
 	def direct(self, parameters):
@@ -755,6 +762,7 @@ class Ring(Joint):
 		self.scale = max(glm.abs(self.post[3]))
 	
 	bounds = ((-inf, -1, -1, -1, -1), (inf, 1, 1, 1, 1))
+	increment = (inf, 0.5, 0.5, 0.5, 0.5)
 	default = (0, 1, 0, 0, 0)
 	
 	def direct(self, orient):
@@ -821,6 +829,7 @@ class Universal(Joint):
 		self.scale = max(glm.abs(self.post[3]))
 	
 	bounds = (vec2(-inf), vec2(inf))
+	increment = vec2(1)
 	default = vec2(0)
 	
 	def direct(self, orient):
@@ -909,6 +918,7 @@ class Rack(Joint):
 		self.scale = max(glm.abs(self.post[3]))
 		
 	bounds = (-inf, inf)
+	increment = 1
 	default = 0
 	
 	def direct(self, translation):
@@ -978,6 +988,7 @@ class Gear(Joint):
 		self.scale = max(glm.abs(self.post[3]))
 		
 	bounds = (-inf, inf)
+	increment = 1
 	default = 0
 		
 	def direct(self, angle):

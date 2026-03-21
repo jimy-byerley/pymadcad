@@ -59,10 +59,12 @@ class Joint:
 		self.default = default
 		self.init(*args, **kwargs)
 	
-	# parameter bounds if any
 	bounds = (-inf, inf)
-	# reference distance scale
+	''' parameter bounds if any '''
+	increment = inf
+	''' parameter max increment in iterative solving, typically the change where non linear effects might change monotony '''
 	scale = 0
+	''' reference distance scale '''
 	
 	def normalize(self, state) -> 'params':
 		'''  make the given joint coordinates consistent. For most joint is is a no-op or just coordinates clipping
@@ -111,7 +113,8 @@ class Joint:
 		'''
 		if close is None:
 			close = self.default
-		max_increment = 0.3
+			
+		max_increment = flatten_state(self.increment)
 		
 		state = close
 		k = 0
@@ -136,7 +139,7 @@ class Joint:
 			# apply correction to pose
 			state = self.normalize(structure_state(
 							flatten_state(state)
-							+ increment * min(1, max_increment / np.abs(increment).max()), 
+							+ increment * min(1, np.abs(max_increment / increment).max()), 
 							state))
 		return state
 	
@@ -152,10 +155,11 @@ class Joint:
 			Returns:
 				a list of the matrix derivatives of `self.direct()`, one each parameter
 		'''
+		flattened = flatten_state(state)
 		grad = []
 		base = self.direct(state)
-		for i in range(len(state)):
-			grad.append(partial_difference(self.direct, state, base, i, delta))
+		for i in range(len(flattened)):
+			grad.append(partial_difference(self.direct, state, flattened, base, i, delta))
 		return grad
 	
 	def scheme(self, size: float, junc: vec3=None) -> '[Scheme]':
@@ -170,15 +174,15 @@ class Joint:
 		return display
 
 
-def partial_difference(f, x, fx, i, d):
+def partial_difference(f, ref, x, fx, i, d):
 	p = copy(x)
 	try:
 		p[i] = x[i] + d
-		return (f(p) - fx) / d
+		return (f(structure_state(p, ref)) - fx) / d
 	except KinematicError:
 		try:
 			p[i] = x[i] - d
-			return (fx - f(p)) / d
+			return (fx - f(structure_state(p, ref))) / d
 		except KinematicError:
 			pass
 	raise ValueError('cannot compute below or above parameter {} given value'.format(i))
@@ -282,6 +286,7 @@ class Weld(Joint):
 		It is useful to fix solids between each other without actually making it the same solid in a kinematic.
 	'''
 	bounds = ((), ())
+	increment = ()
 	default = ()
 	
 	def __init__(self, solids, transform: mat4=None):
@@ -315,6 +320,7 @@ class Free(Joint):
 		np.array([-2]*4 + [-inf]*3, float), 
 		np.array([+2]*4 + [+inf]*3, float), 
 		)
+	increment = np.array([0.5]*4 + [inf]*3, float)
 	default = np.array([1,0,0,0,   0,0,0], float)
 			
 	def normalize(self, parameters):
@@ -455,6 +461,7 @@ class Chain(Joint):
 		self.content = content
 		self.solids = (joints[0].solids[0], joints[-1].solids[-1])
 		self.default = default or [joint.default  for joint in self.joints]
+		self.increment = [joint.increment for joint in self.joints]
 		self.bounds = (
 			[joint.bounds[0]  for joint in self.joints],
 			[joint.bounds[1]  for joint in self.joints],
@@ -656,6 +663,7 @@ class Kinematic:
 		self.joints = joints
 		self.ground = ground
 		self.default = [joint.default  for joint in self.joints]
+		self.increment = [joint.increment  for joint in self.joints]
 		self.bounds = (
 			[joint.bounds[0]  for joint in self.joints],
 			[joint.bounds[1]  for joint in self.joints],
@@ -868,16 +876,18 @@ class Kinematic:
 		if len(self.cycles) == 0:
 			return close
 		
-		max_increment = 0.3
-		prec = 1e-6
-		
 		# state when some joints are fixed
 		joints = []
 		state = []
+		increment = []
 		for joint, p in zip(self.joints, close):
 			if joint not in fixed:
 				joints.append(joint)
 				state.append(p)
+				increment.append(joint.increment)
+		
+		prec = 1e-6
+		max_increment = flatten_state(increment)
 		
 		k = 0
 		while True:
@@ -900,7 +910,7 @@ class Kinematic:
 			increment = la.lstsq(jac.T, move, prec)[0]
 			state = structure_state(
 				flatten_state(state)
-				+ increment * min(1, max_increment / np.abs(increment).max()),
+				+ increment * min(1, np.abs(max_increment / increment).max()),
 				state)
 			
 			for i, joint in enumerate(joints):
@@ -941,7 +951,7 @@ class Kinematic:
 				# check that the given state is consistent, meaning kinematic loops are closed
 				error = poses[joint.solids[-1]] - tip
 				error[3] /= self.scale
-				if np.amax(error) > precision:
+				if np.abs(error).max() > precision:
 					raise KinematicError('position out of reach: kinematic cycles not closed')
 			else:
 				poses[joint.solids[-1]] = tip
@@ -1057,7 +1067,7 @@ def structure_state(flat, structure):
 				structured.append(next(it))
 		return structured
 	elif isinstance(structure, (int,float)):
-		return flat
+		return float(flat[0])
 	elif isinstance(structure, (vec1, vec2, vec3, vec4, quat)):
 		return type(structure)(*[x  for i,x in zip(range(len(structure)), flat)])
 	elif isinstance(structure, np.ndarray):
@@ -1073,7 +1083,7 @@ def null_space(m, rcond=None):
 	M, N = u.shape[0], vh.shape[1]
 	if rcond is None:
 		rcond = np.finfo(s.dtype).eps * max(M, N)
-	tol = np.amax(s) * rcond
+	tol = np.abs(s).max() * rcond
 	dim = np.sum(s > tol, dtype=int)
 	return vh[dim:,:].T.conj()
 

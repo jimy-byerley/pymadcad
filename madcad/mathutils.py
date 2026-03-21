@@ -56,6 +56,7 @@ def isfinite(x):
 def norminf(x):
 	''' Norm L infinite  ie.  `max(abs(x), abs(y), abs(z))` '''
 	return max(glm.abs(x))
+
 # norm L1  ie.  `abs(x) + abs(y) + abs(z)`
 norm1 = l1Norm
 # norm L2  ie.  `sqrt(x**2 + y**2 + z**2)`   the usual distance also known as euclidian distance or manhattan distance
