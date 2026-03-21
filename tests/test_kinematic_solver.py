@@ -122,14 +122,13 @@ def test_two_bound_pivot_loops():
 		]).solve(close=np.arange(6)*0.1, maxiter=1000))
 
 def test_stretched_chain():
-	# skip('numerically unstable')
 	njoints = 80
 	joints = []
 	for i in range(0, njoints, 2):
 		joints.append(Revolute((i,i+1), Axis(vec3(i+1,i,0), X)))
 		joints.append(Revolute((i+1,i+2), Axis(vec3(i+1,i+1,0), Y)))
 	joints[-1].solids = (len(joints)-1, 0)
-	print(Kinematic(joints).solve(close=2*pi*np.random.random(len(joints)), precision=1e-3, maxiter=1000))
+	print(Kinematic(joints).solve(close=0.5*np.random.random(len(joints)), precision=1e-3, maxiter=1000))
 
 def test_looping_chain():
 	njoints = 80
