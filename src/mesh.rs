@@ -12,7 +12,10 @@
 
 use crate::math::*;
 use crate::aabox::*;
+use crate::hashing::{edgekey, connef};
 use std::borrow::Cow;
+use rustc_hash::{FxHashMap, FxHashSet};
+
 
 /// Generic mesh structure for D-dimensional space and S-simplex dimension
 ///
@@ -36,6 +39,14 @@ pub type Web<'a> = Mesh<'a, 3, 2>;
 pub type Wire<'a> = Mesh<'a, 3, 1>;
 
 
+/// GPU-ready display buffers for a surface mesh
+pub struct DisplayBuffers {
+    pub points: Vec<Vector<f32, 3>>,   // f32 positions
+    pub normals: Vec<Vector<f32, 3>>,  // f32 normals
+    pub faces: Vec<UVec3>,             // triangle indices
+    pub edges: Vec<UVec2>,             // outline edge indices
+    pub idents: Vec<Index>,            // group id per point
+}
 
 impl<'a, const D: usize, const S: usize> Mesh<'a, D, S> {
     /// Convert to an owned mesh with 'static lifetime (consumes and clones borrowed data)
@@ -98,6 +109,213 @@ impl Surface<'_> {
     pub fn facenormal(&self, fi: usize) -> Vec3 {
         let [a, b, c] = self.simplexpoints(fi);
         (b - a).cross(c - a).normalize()
+    }
+
+    /// Set of oriented edges delimiting the surface boundary
+    pub fn outlines_oriented(&self) -> FxHashSet<[Index; 2]> {
+        let mut edges: FxHashSet<[Index; 2]> = FxHashSet::default();
+        for face in self.simplices.iter() {
+            for &[a, b] in &[[face[0], face[1]], [face[1], face[2]], [face[2], face[0]]] {
+                if edges.contains(&[a, b]) {
+                    edges.remove(&[a, b]);
+                } else {
+                    edges.insert([b, a]);
+                }
+            }
+        }
+        edges
+    }
+
+    /// Vertex normals weighted by face angle at interior points,
+    /// and by outline edge ownership at border points
+    pub fn vertexnormals(&self) -> Vec<Vec3> {
+        let npoints = self.points.len();
+        let outline = self.outlines_oriented();
+        let border: FxHashSet<Index> = outline.iter()
+            .flat_map(|&[a, b]| [a, b])
+            .collect();
+
+        let mut normals = vec![Vec3::zero(); npoints];
+        for (fi, face) in self.simplices.iter().enumerate() {
+            let normal = self.facenormal(fi);
+            if !is_finite_vec(normal) { continue; }
+
+            for k in 0..3usize {
+                let pi = face[k];
+                let o = self.points[pi as usize];
+
+                if !border.contains(&pi) {
+                    // interior point: weight by angle at this vertex
+                    let prev = self.points[face[(k + 1) % 3] as usize] - o;
+                    let next = self.points[face[(k + 2) % 3] as usize] - o;
+                    normals[pi as usize] = normals[pi as usize] + normal * anglebt(prev, next);
+                } else if outline.contains(&[pi, face[(k + 2) % 3]]) {
+                    // border point on outline edge: unweighted
+                    normals[pi as usize] = normals[pi as usize] + normal;
+                    let other = face[(k + 2) % 3] as usize;
+                    normals[other] = normals[other] + normal;
+                }
+            }
+        }
+
+        for n in normals.iter_mut() {
+            *n = n.normalize();
+        }
+        normals
+    }
+
+    /// Split the mesh around the given edges, returning a new surface.
+    /// Points shared by two or more designated edges are duplicated,
+    /// and face indices are reassigned so faces on each side of the split
+    /// own separate copies of the point.
+    pub fn split(&self, edges: &[[Index; 2]]) -> Surface<'static> {
+        let faces: Vec<[Index; 3]> = self.simplices.iter()
+            .map(|v| *v.as_array())
+            .collect();
+        let conn: FxHashMap<[Index; 2], usize> = connef(&faces);
+        let split_edges: FxHashSet<[Index; 2]> = edges.iter()
+            .map(|&e| edgekey(e[0], e[1]))
+            .collect();
+
+        let mut newfaces = faces.clone();
+        let mut points: Vec<Vec3> = self.points.to_vec();
+
+        for &edge in edges {
+            let ekey = edgekey(edge[0], edge[1]);
+            for &pivot in &[edge[0], edge[1]] {
+                if !conn.contains_key(&ekey) {
+                    continue;
+                }
+                // check that the pivot still appears in the face at this edge
+                let fi = conn[&ekey];
+                if !newfaces[fi].contains(&pivot) {
+                    continue;
+                }
+
+                let dupli = points.len() as Index;
+                points.push(points[pivot as usize]);
+
+                // walk through faces around pivot, reassigning to the duplicate
+                // front is an oriented edge matching conn keys (from connef)
+                let mut front: [Index; 2] = ekey;
+                loop {
+                    if !conn.contains_key(&front) {
+                        break;
+                    }
+                    let fi = conn[&front];
+                    let f = simplex_phase(faces[fi], pivot);
+                    let fm = simplex_phase(newfaces[fi], pivot);
+
+                    assert_eq!(f[0], pivot);
+                    if fm[0] != pivot {
+                        break;
+                    }
+
+                    newfaces[fi] = [dupli, fm[1], fm[2]];
+
+                    // advance to the next oriented edge around pivot
+                    if pivot == front[0] {
+                        front = [pivot, f[2]];
+                    } else {
+                        front = [f[1], pivot];
+                    }
+
+                    if split_edges.contains(&edgekey(front[0], front[1])) {
+                        break;
+                    }
+                }
+            }
+        }
+
+        Surface {
+            points: Cow::Owned(points),
+            simplices: Cow::Owned(newfaces.into_iter().map(Vector::from).collect()),
+            tracks: Cow::Owned(self.tracks.to_vec()),
+        }
+    }
+
+    /// Edges at frontiers between different groups (where adjacent faces have different tracks)
+    pub fn frontiers(&self) -> Vec<[Index; 2]> {
+        let faces: Vec<[Index; 3]> = self.simplices.iter()
+            .map(|v| *v.as_array())
+            .collect();
+        let mut belong: FxHashMap<[Index; 2], Index> = FxHashMap::default();
+        let mut frontier = Vec::new();
+        for (i, face) in faces.iter().enumerate() {
+            let track = self.tracks[i];
+            for &[a, b] in &[[face[0], face[1]], [face[1], face[2]], [face[2], face[0]]] {
+                let e = edgekey(a, b);
+                if let Some(other_track) = belong.remove(&e) {
+                    if other_track != track {
+                        frontier.push(e);
+                    }
+                } else {
+                    belong.insert(e, track);
+                }
+            }
+        }
+        frontier
+    }
+
+    /// Prepare display buffers: split at group frontiers and sharp edges,
+    /// compute vertex normals, and convert to GPU-ready formats.
+    pub fn display_buffers(&self, sharp_angle: Float) -> DisplayBuffers {
+        let thresh = sharp_angle.cos();
+
+        // 1. split at group frontiers
+        let frontier_edges = self.frontiers();
+        let m = self.split(&frontier_edges);
+
+        // 2. collect outline edges (boundary)
+        let outline: Vec<UVec2> = m.outlines_oriented().into_iter().map(UVec2::from).collect();
+
+        // 3. find sharp edges to split
+        let faces: Vec<[Index; 3]> = m.simplices.iter()
+            .map(|v| *v.as_array())
+            .collect();
+        let conn = connef(&faces);
+        let mut tosplit = Vec::new();
+        for (&edge, &f1) in conn.iter() {
+            if edge[1] > edge[0] { continue; }
+            if let Some(&f2) = conn.get(&[edge[1], edge[0]]) {
+                if m.tracks[f1] != m.tracks[f2]
+                    || m.facenormal(f1).dot(m.facenormal(f2)) <= thresh
+                {
+                    tosplit.push(edge);
+                }
+            }
+        }
+
+        // 4. split at sharp edges
+        let m = m.split(&tosplit);
+
+        // 5. build idents: group id per point
+        let mut idents = vec![0 as Index; m.points.len()];
+        for (face, &track) in m.simplices.iter().zip(m.tracks.iter()) {
+            for j in 0..3 {
+                idents[face[j] as usize] = track;
+            }
+        }
+
+        // 6. vertex normals
+        let normals = m.vertexnormals();
+
+        // 7. convert to f32
+        let points_f32: Vec<Vector<f32, 3>> = m.points.iter()
+            .map(|p| Vector::from([p[0] as f32, p[1] as f32, p[2] as f32]))
+            .collect();
+        let normals_f32: Vec<Vector<f32, 3>> = normals.iter()
+            .map(|n| Vector::from([n[0] as f32, n[1] as f32, n[2] as f32]))
+            .collect();
+        let faces_out: Vec<UVec3> = m.simplices.into_owned();
+
+        DisplayBuffers {
+            points: points_f32,
+            normals: normals_f32,
+            faces: faces_out,
+            edges: outline,
+            idents,
+        }
     }
 }
 

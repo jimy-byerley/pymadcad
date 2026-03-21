@@ -149,7 +149,7 @@ def test_edgecrossing():
 
 	def cylinder(axis, radius, height):
 		return extrusion(
-			flatsurface(wire(Circle(axis, radius, resolution=('rad', pi/16)))),
+			fill(wire(Circle(axis, radius, resolution=('rad', pi/16)))),
 			-height*axis[1],
 			)
 
@@ -166,7 +166,7 @@ def test_edgecrossing():
 def test_repetition():
 	def cylinder(axis, radius, height):
 		return extrusion(
-			flatsurface(wire(Circle(axis, radius))),
+			fill(wire(Circle(axis, radius))),
 			-height*axis[1],
 			)
 

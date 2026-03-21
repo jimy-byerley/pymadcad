@@ -63,7 +63,7 @@ def test_generation():
 
 	# tubes	
 	test(tube(
-		flatsurface(wire(Circle((vec3(0),vec3(0,0,-1)), 1))),
+		fill(wire(Circle((vec3(0),vec3(0,0,-1)), 1))),
 		[vec3(0,0,0), vec3(0,0,2), vec3(1,0,3), vec3(4,0,3)],
 		))
 	test(tube(
@@ -75,7 +75,7 @@ def test_generation():
 		[vec3(0,0,0), vec3(0,0,2), vec3(1,0,3), vec3(4,0,3)],
 		))
 	test(tube(
-		flatsurface(wire(Circle((vec3(0),vec3(0,0,-1)), 1))),
+		fill(wire(Circle((vec3(0),vec3(0,0,-1)), 1))),
 		ArcThrough(vec3(0,0,0), vec3(4,1,4), vec3(6,0,3)).mesh(),
 		))
 	test(tube(
@@ -103,7 +103,7 @@ def test_generation():
 
 	# classic volumes
 	test(icosphere(vec3(0,3,0), 1))
-	test(pyramid(vec3(-3,-2,3), flatsurface(regon(Axis(vec3(-3,-3,0), Z), 2, 5))))
+	test(pyramid(vec3(-3,-2,3), fill(regon(Axis(vec3(-3,-3,0), Z), 2, 5))))
 	test(cone(vec3(3,0,2), vec3(3,0,0), 1))
 	test(cylinder(vec3(3,-3,2), vec3(3,-3,0), 1, fill=False))
 	test(cylinder(vec3(3,-3,2), vec3(3,-3,0), 1, fill=True))

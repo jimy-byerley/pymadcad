@@ -6,7 +6,7 @@ from . import visualcheck
 
 @visualcheck
 def test_annotations():
-	part = extrusion(flatsurface(wire(Circle((vec3(1), vec3(0,0,1)), 1))), vec3(-1,-3,-5))
+	part = extrusion(fill(wire(Circle((vec3(1), vec3(0,0,1)), 1))), vec3(-1,-3,-5))
 	cube = brick(center=vec3(-4,0,0), width=vec3(1))
 	part.mergeclose()
 	

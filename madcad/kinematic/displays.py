@@ -33,14 +33,13 @@ __all__ = ['ChainManip', 'KinematicManip', 'scale_solid', 'world_solid']
 class ChainManip(Group):
 	''' object to display and interact with a robot in the 3d view
 
-		Attributes:
-			chain:  the kinematic chain this display is rendering
-			pose:   joints poses in the last rendered frame
-			parts:  solids poses in the last rendered frame
-			toolcenter (vec3):   current end-solid rotation point in rotation mode, relative to last solid
+	Attributes:
+		chain:  the kinematic chain this display is rendering
+		pose:   joints poses in the last rendered frame
+		parts:  solids poses in the last rendered frame
+		toolcenter (vec3):   current end-solid rotation point in rotation mode, relative to last solid
 	'''
 	min_colinearity = 1e-2
-	max_increment = 0.3
 	maxiter = 3
 	prec = 1e-6
 	
@@ -156,7 +155,7 @@ class ChainManip(Group):
 				increment = la.lstsq(jac.transpose(), move * colinearity, 1e-6)[0]
 				self.pose[joint] = self.chain.joints[joint].normalize(
 										(np.asarray(self.pose[joint]) 
-										+ increment * min(1, self.max_increment / np.abs(increment).max())
+										+ increment * min(1, np.abs(self.chain.increment / increment).max())
 									) .clip(*self.chain.joints[joint].bounds))
 				self.parts = self.chain.parts(self.pose)
 
@@ -171,7 +170,7 @@ class ChainManip(Group):
 		
 		self.pose = self.chain.normalize(structure_state((
 						flatten_state(self.pose)
-						+ increment * min(1, self.max_increment / np.abs(increment).max())
+						+ increment * min(1, np.abs(self.chain.increment / increment).max())
 						),
 						self.pose))
 		self.parts = self.chain.parts(self.pose)
@@ -258,16 +257,15 @@ class ChainManip(Group):
 
 		
 class KinematicManip(Group):
-	''' 
-        Display that holds a kinematic structure and allows the user to move it
-        
-        Attributes:
-            kinemaitc:  the kinematic this display is rendering
-            pose:       joints poses in the last rendered frame
-            parts:      solids poses in the last rendered frame
-            toolcenter:  current solid rotation point in rotation mode, relative to kinematic ground
 	'''
-	max_increment = 0.3
+	Display that holds a kinematic structure and allows the user to move it
+
+	Attributes:
+		kinematic:  the kinematic this display is rendering
+		pose:       joints poses in the last rendered frame
+		parts:      solids poses in the last rendered frame
+		toolcenter:  current solid rotation point in rotation mode, relative to kinematic ground
+	'''
 	prec = 1e-6
 	
 	move_maxiter = 5
@@ -321,9 +319,6 @@ class KinematicManip(Group):
 			if key in self.parts:
 				self.displays[key].world = self.world * fmat4(self.parts[key])
 		
-		if not 'scheme' in self.displays:
-			from pnprint import nprint
-			nprint(self.displays)
 		for space in self.displays['scheme'].spacegens:
 			if isinstance(space, (world_solid, scale_solid)) and space.solid in self.parts:
 				space.pose = fmat4(self.parts[space.solid])
@@ -374,11 +369,11 @@ class KinematicManip(Group):
 					
 	def _move_opt(self, optmove, optjac):
 		'''
-			newton method step for moving the mechanism
-			
-			Parameters:
-				optmove:  the vector of the desired optional movement
-				optjac:   the jacobian of the residuals for the desired optional movement
+		newton method step for moving the mechanism
+
+		Parameters:
+			optmove:  the vector of the desired optional movement
+			optjac:   the jacobian of the residuals for the desired optional movement
 		'''
 		costmove = -self.kinematic.cost_residuals(self.pose)
 		# priority factor, lowering the optional move while the closed loop error is big
@@ -398,13 +393,11 @@ class KinematicManip(Group):
 			self.kinematic.cost_jacobian(self.pose).transpose(),
 			])
 		increment = la.lstsq(jac.T, move, 1e-6)[0]
-		# increment = la.solve(jac @ jac.T, jac @ move)
-		# increment = la.inv(jac @ jac.T) @ jac @ move
+		max_increment = flatten_state(self.kinematic.increment)
 		# assemble the new pose and normalize it
 		newpose = self.kinematic.normalize(structure_state(
 			flatten_state(self.pose)
-			+ self.damping * increment,
-			# + self.damping * increment * min(1, self.max_increment / np.abs(increment).max()),
+			+ self.damping * increment * min(1, np.abs(max_increment / increment).max()),
 			self.pose))
 		
 		# try to move
@@ -622,7 +615,7 @@ class DeferedSolving:
 			if problem.prepare:
 				problem.prepare(problem)
 			problem.solve(problem)
-		except Exception as err:
+		except KinematicError as err:
 			print(err)
 			self.problem = None
 			self.timer.stop()

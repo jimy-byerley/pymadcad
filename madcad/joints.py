@@ -32,9 +32,12 @@ def _trivial_eq(self, other):
 
 class Revolute(Joint):
 	''' Joint for revolution around an axis
+
+		![revolute joint](../screenshots/joints-revolute.png)
 	'''
 	bounds = (-inf, inf)
 	default = 0
+	increment = 1
 	
 	def __init__(self, solids, axis: Axis, local=None, default=None, bounds=None):
 		self.solids = solids
@@ -130,8 +133,8 @@ class Revolute(Joint):
 		# sch.add([z*size*0.5, o+z*size*0.5], shader='line')
 		sch.add(c1, shader='line')
 		sch.add(c2, shader='line')
-		sch.add(gt.flatsurface(c1), shader='ghost')
-		sch.add(gt.flatsurface(c2), shader='ghost')
+		sch.add(gt.fill(c1), shader='ghost')
+		sch.add(gt.fill(c2), shader='ghost')
 		
 		if attach_end:
 			sch.set(shader='line')
@@ -150,14 +153,17 @@ class Revolute(Joint):
 
 		
 class Planar(Joint):
-	''' Joint for translation in 2 directions and rotation around the third direction 
-		
+	''' Joint for translation in 2 directions and rotation around the third direction
+
+		![planar joint](../screenshots/joints-planar.png)
+
 		Classical definition:	Planar (direction vector)
 		the initial state requires an additional distance between the solids
 		this class holds an axis for each side, the axis origins are constrained to share the same projections on the normal
 	'''
 		
 	bounds = (vec3(-inf), vec3(inf))
+	increment = vec3(inf)
 	default = vec3(0, 0, 0)
 	
 	def __init__(self, solids, axis, local=None, default=None, bounds=None):
@@ -186,7 +192,7 @@ class Planar(Joint):
 			self.__class__.__name__, self.solids, *self.post[3].xyz, *self.post[2].xyz)
 			
 	def direct(self, position: tuple):
-		return self.post * translate(vec3(position.xy, 0)) * rotate(position.z, Z) * self.pre
+		return mat4(self.post) * translate(vec3(position.xy, 0)) * rotate(position.z, Z) * mat4(self.pre)
 		
 	def inverse(self, matrix, close=None):
 		m = mat4(transpose(self.post)) * matrix * mat4(transpose(self.pre))
@@ -196,8 +202,8 @@ class Planar(Joint):
 		
 	def grad(self, position: vec3, delta=1e-6):
 		return (
-			self.post * dtranslate(X) * translate(position.y*Y) * rotate(position.z, Z) * self.pre,
-			self.post * dtranslate(Y) * translate(position.x*X) * rotate(position.z, Z) * self.pre,
+			self.post * dtranslate(X) * rotate(position.z, Z) * self.pre,
+			self.post * dtranslate(Y) * rotate(position.z, Z) * self.pre,
 			self.post * translate(vec3(position.xy,0)) * drotate(position.z, Z) * self.pre,
 			)
 	
@@ -221,14 +227,14 @@ class Planar(Joint):
 			color = kinematic_color(index[self.solids[0]]),
 			space = scale_solid(self.solids[0], fvec3(o), maxsize/size),
 			)
-		square = gt.parallelogram(x*size, y*size, origin=-gap*size*z, alignment=0.5)
+		square = gt.parallelogram(x*size, y*size, origin=o-gap*size*z, align=0.5)
 		sch.add(square.outlines(), shader='line')
 		sch.add(square, shader='ghost')
 		
 		if attach_start:
-			sch.add(gt.cone(-size*(gap+cornersize)*z, -size*gap*z, size*cornersize, fill=False, resolution=('div', 4)), shader='fill')
+			sch.add(gt.cone(o-size*(gap+cornersize)*z, o-size*gap*z, size*cornersize, fill=False, resolution=('div', 4)), shader='fill')
 			sch.set(shader='line')
-			sch.add(-size*(gap+cornersize)*z)
+			sch.add(o-size*(gap+cornersize)*z)
 			sch.add(attach_start, space=world_solid(self.solids[0]))
 		
 		x,y,z,o = dmat4x3(affineInverse(self.pre))
@@ -237,28 +243,31 @@ class Planar(Joint):
 			color = kinematic_color(index[self.solids[1]]),
 			space = scale_solid(self.solids[1], fvec3(o), maxsize/size),
 			)
-		square = gt.parallelogram(-x*size, y*size, origin=+gap*size*z, alignment=0.5)
+		square = gt.parallelogram(-x*size, y*size, origin=o+gap*size*z, align=0.5)
 		sch.add(square.outlines(), shader='line')
 		sch.add(square, shader='ghost')
 		
 		if attach_end:
-			sch.add(gt.cone(+size*(gap+cornersize)*z, +size*gap*z, size*cornersize, fill=False, resolution=('div', 4)), shader='fill')
+			sch.add(gt.cone(o+size*(gap+cornersize)*z, o+size*gap*z, size*cornersize, fill=False, resolution=('div', 4)), shader='fill')
 			sch.set(shader='line')
-			sch.add(+size*(gap+cornersize)*z)
+			sch.add(o+size*(gap+cornersize)*z)
 			sch.add(attach_end, space=world_solid(self.solids[1]))
 		
 		return sch
 
 
 class Prismatic(Joint):
-	''' Joint for translation only in a direction 
-		
+	''' Joint for translation only in a direction
+
+		![prismatic joint](../screenshots/joints-prismatic.png)
+
 		Classical definition:  Prismatic (direction vector)
 		the initial state requires more parameters: the relative placements of the solids
 		this class holds a base for each of the solids, bases are (0,X,Y)  where X,Y are constrained to keep the same direction across bases, and the bases origins lays on their common Z axis
 	'''
 	
 	bounds = (-inf, inf)
+	increment = inf
 	default = 0
 	
 	def __init__(self, solids, axis: Axis, local=None, default=None, bounds=None):
@@ -317,7 +326,7 @@ class Prismatic(Joint):
 			color = kinematic_color(index[self.solids[0]]),
 			space = scale_solid(self.solids[0], fvec3(o), maxsize/size),
 			)
-		profile = gt.parallelogram(0.4*size*x, 0.4*size*y, origin=o, alignment=0.5, fill=False)
+		profile = gt.parallelogram(0.4*size*x, 0.4*size*y, origin=o, align=0.5, fill=False)
 		profile.tracks = typedlist(range(len(profile.edges)))
 		exterior = gt.extrusion(profile, size*z, alignment=0.5)
 		exterior.splitgroups()
@@ -362,8 +371,11 @@ class Prismatic(Joint):
 
 class Cylindrical(Joint):
 	''' Joint with rotation and translation around an axis
+
+		![cylindrical joint](../screenshots/joints-cylindrical.png)
 	'''
 	bounds = (vec2(-inf), vec2(inf))
+	increment = vec2(1, inf)
 	default = vec2(0)
 	
 	def __init__(self, solids, axis: Axis, local=None, default=None, bounds=None):
@@ -468,7 +480,9 @@ class Cylindrical(Joint):
 
 class Ball(Joint):
 	''' Joint for rotation all around a point.
-	
+
+		![ball joint](../screenshots/joints-ball.png)
+
 		Classical definition: Ball (point)
 		the initial state doen't require more data
 		the class holds a point for each side
@@ -496,8 +510,9 @@ class Ball(Joint):
 		return '{}({}, ({:.3g},{:.3g},{:.3g}))'.format(self.__class__.__name__, self.solids, *self.post[3].xyz)
 	
 	bounds = (quat(-2,-2,-2,-2), quat(2,2,2,2))
+	increment = quat(0.5,0.5,0.5,0.5)
 	default = quat()
-			
+	
 	def normalize(self, orient):
 		return normalize(quat(orient))
 	
@@ -584,7 +599,9 @@ class Ball(Joint):
 
 class PointSlider(Joint):
 	''' Joint for rotation all around a point belonging to a plane.
-	
+
+		![pointslider joint](../screenshots/joints-pointslider.png)
+
 		Classical definition: Punctiform/Sphere-Plane (axis)
 		The initial state does not require more data
 		The class holds a normal axis for the plane side, and a point for the sphere side (that defaults to the axis' origin)
@@ -593,7 +610,7 @@ class PointSlider(Joint):
 		self.solids = solids
 		self.axis = axis
 		local = local or axis
-		
+
 		if isinstance(axis, mat4):
 			self.post = axis
 			self.pre = affineInverse(local)
@@ -604,19 +621,15 @@ class PointSlider(Joint):
 			raise TypeError("PointSlider can only be placed on Axis or mat4")
 		self.scale = max(glm.abs(self.post[3]))
 	
-	default = [*vec2(), *quat()]
-	bounds = ([-inf,-inf, -2,-2,-2,-2], [inf,inf, 2,2,2,2])
-	
-	def normalize(self, parameters):
-		translation = vec2(parameters[0:2])
-		rotation = normalize(quat(parameters[2:6]))
-		return [*translation, *rotation]
+	default = [0]*6
+	increment = [inf]*2 + [0.5]*4
+	bounds = ([-inf]*2+[-2]*4, [inf]*2+[2]*4)
 	
 	def direct(self, parameters):
 		translation = vec2(parameters[0:2])
-		rotation = normalize(quat(parameters[2:6]))
+		rotation = quat(parameters[2:6])
 		return self.post * translate(vec3(translation, 0)) * mat4(rotation) * self.pre
-		
+	
 	def inverse(self, matrix, close=None):
 		m = affineInverse(self.post) * matrix * affineInverse(self.pre)
 		return (
@@ -639,7 +652,7 @@ class PointSlider(Joint):
 			color = kinematic_color(index[self.solids[0]]),
 			space = scale_solid(self.solids[0], fvec3(o), maxsize/size),
 			)
-		square = gt.parallelogram(x*size, y*size, origin=radius*z, alignment=0.5)
+		square = gt.parallelogram(x*size, y*size, origin=o+radius*z, align=0.5)
 		sch.add(square.outlines(), shader='line')
 		sch.add(square, shader='ghost')
 		
@@ -654,7 +667,7 @@ class PointSlider(Joint):
 			color = kinematic_color(index[self.solids[1]]),
 			space = scale_solid(self.solids[1], fvec3(center), maxsize/size),
 			)
-		sch.add(gt.icosphere(vec3(0), radius, resolution), shader='ghost')
+		sch.add(gt.icosphere(center, radius, resolution), shader='ghost')
 		
 		if attach_end:
 			x,y,z = dirbase(attach_end)
@@ -666,7 +679,7 @@ class PointSlider(Joint):
 
 
 class EdgeSlider(Joint):
-	''' Joint for rotation all around a point belonging to a plane.
+	''' Joint for rotation all around a, edge belonging to a plane.
 	
 		Classical definition: Punctiform/Sphere-Plane (axis)
 		The initial state does not require more data
@@ -685,6 +698,7 @@ class EdgeSlider(Joint):
 		self.scale = max(glm.abs(self.post[3]))
 	
 	default = [0]*4
+	increment = [inf]*2 + [1]*2
 	bounds = ([-inf]*4, [inf]*4)
 	
 	def direct(self, parameters):
@@ -716,7 +730,7 @@ class EdgeSlider(Joint):
 			color = kinematic_color(index[self.solids[0]]),
 			space = scale_solid(self.solids[0], fvec3(o), maxsize/size),
 			)
-		square = gt.parallelogram(x*size, y*size, origin=o+radius*z, alignment=0.5)
+		square = gt.parallelogram(x*size, y*size, origin=o+radius*z, align=0.5)
 		sch.add(square.outlines(), shader='line')
 		sch.add(square, shader='ghost')
 		
@@ -760,6 +774,7 @@ class Ring(Joint):
 		self.scale = max(glm.abs(self.post[3]))
 	
 	bounds = ((-inf, -1, -1, -1, -1), (inf, 1, 1, 1, 1))
+	increment = (inf, 0.5, 0.5, 0.5, 0.5)
 	default = (0, 1, 0, 0, 0)
 	
 	def direct(self, orient):
@@ -826,6 +841,7 @@ class Universal(Joint):
 		self.scale = max(glm.abs(self.post[3]))
 	
 	bounds = (vec2(-inf), vec2(inf))
+	increment = vec2(1)
 	default = vec2(0)
 	
 	def direct(self, orient):
@@ -895,13 +911,13 @@ class Project(Joint):
 	
 class Rack(Joint):
 	''' Rack to gear interaction
-		
-		`radius` is the ratio between the gear rotation and the rack translation
-		
-		Attributes:
-			radius:  ratio between the gear rotation and the rack translation
-			rack:    rack axis tangent to the gear
-			axis:    gear axis
+
+	`radius` is the ratio between the gear rotation and the rack translation
+
+	Attributes:
+		radius:  ratio between the gear rotation and the rack translation
+		rack:    rack axis tangent to the gear
+		axis:    gear axis
 	'''
 	def __init__(self, solids, radius:float, rack:Axis, axis):
 		self.solids = solids
@@ -914,6 +930,7 @@ class Rack(Joint):
 		self.scale = max(glm.abs(self.post[3]))
 		
 	bounds = (-inf, inf)
+	increment = 1
 	default = 0
 	
 	def direct(self, translation):
@@ -959,16 +976,16 @@ class Rack(Joint):
 
 class Gear(Joint):
 	''' Gear interaction between two solids.
-	
-		`ratio` is the factor from the rotation of s1 to the rotation of s2
-		The two pinions are considered circular, but no assumption is made on their radius or relative inclination.
-		The interaction is symetric.
-		
-		Attributes:
-			ratio:  the gear rotation transmission ratio
-			centerline: the relative positioning of the gears axis, could be 'float', `vec3`, `mat3`, `quat`, `mat4`
-			axis:  first gear axis
-			local:  second gear axis
+
+	`ratio` is the factor from the rotation of s1 to the rotation of s2
+	The two pinions are considered circular, but no assumption is made on their radius or relative inclination.
+	The interaction is symetric.
+
+	Attributes:
+		ratio:  the gear rotation transmission ratio
+		centerline: the relative positioning of the gears axis, could be 'float', `vec3`, `mat3`, `quat`, `mat4`
+		axis:  first gear axis
+		local:  second gear axis
 	'''
 	def __init__(self, solids, ratio:float, centerline:mat4, axis, local):
 		self.solids = solids
@@ -983,6 +1000,7 @@ class Gear(Joint):
 		self.scale = max(glm.abs(self.post[3]))
 		
 	bounds = (-inf, inf)
+	increment = 1
 	default = 0
 		
 	def direct(self, angle):
@@ -1033,10 +1051,12 @@ class Gear(Joint):
 
 class Helicoid(Joint):
 	''' Screw a solid into an other.
-	
+
+		![helicoid joint](../screenshots/joints-helicoid.png)
+
 		`step` is the translation distance needed for that one solid turn by 2*pi around the other
 		The interaction is symetric.
-		
+
 		not implemented yet
 	'''
 	def __init__(self, s0, s1, step, b0, b1=None, position=None):

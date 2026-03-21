@@ -53,33 +53,32 @@ __all__ = ['Scheme',
 
 
 class Scheme:
-	''' An object containing schematics. 
-	
-		This is a buffer object, it isnot intended to be useful to modify a scheme.
-		
-		Attributes:
-		
-			spaces (list):       a space is any function giving a mat4 to position a point on the screen (openGL convensions as used)
+	''' An object containing schematics.
+
+	This is a buffer object, it isnot intended to be useful to modify a scheme.
+
+	Attributes:
+		spaces (list):       a space is any function giving a mat4 to position a point on the screen (openGL convensions as used)
 			
-			vertices (list):	    
+		vertices (list):	    
 			
-				a vertex is a tuple
+			a vertex is a tuple
 				
-				`(space id, position, normal, color, layer, track, flags)`
+			`(space id, position, normal, color, layer, track, flags)`
 			
-			primitives (list):   
+		primitives (list):   
 			
-				list of buffers (of point indices, edges, triangles, depending on the exact primitive type), associaded to each supported shader in the scheem
+			list of buffers (of point indices, edges, triangles, depending on the exact primitive type), associaded to each supported shader in the scheem
 				
-				currently supported shaders are:
+			currently supported shaders are:
 				
-				- `'line'`  uniform opaque/transparent lines
-				- `'fill'`  uniform opaque/transparent triangles
-				- `'ghost'` triangles of surface that fade when its normal is close to the view
+			- `'line'`  uniform opaque/transparent lines
+			- `'fill'`  uniform opaque/transparent triangles
+			- `'ghost'` triangles of surface that fade when its normal is close to the view
 			
-			components (list):   objects to display setting their local space to one of the spaces
+		components (list):   objects to display setting their local space to one of the spaces
 			
-			current (dict):     last vertex definition, implicitely reused for convenience
+		current (dict):     last vertex definition, implicitely reused for convenience
 	'''
 	def __init__(self, vertices=None, spaces=None, primitives=None, **kwargs):
 		self.vertices = vertices or [] # list of vertices
@@ -226,10 +225,10 @@ class Scheme:
 	class display(Display):
 		''' Display for schemes
 			
-			Attributes:
-			:spaces:       numpy array of matrices for each space, sent as uniform to the shader
-			:vb_vertices:  vertex buffer for vertices
-			:vas:          vertex array associated to each shader
+		Attributes:
+		:spaces:       numpy array of matrices for each space, sent as uniform to the shader
+		:vb_vertices:  vertex buffer for vertices
+		:vas:          vertex array associated to each shader
 		'''
 		max_spaces = 4096  # this maximum size of the spaces array must match the size in the shader
 		
@@ -570,13 +569,18 @@ def mesh_placement(mesh) -> '(pos,normal)':
 
 
 def note_floating(position, text, align=(0,0)):
-	''' place a floating note at given position '''
+	''' place a floating note at given position
+
+		![note_floating](../screenshots/note_floating.png)
+	'''
 	return Displayable(TextDisplay, position, text, align=align, color=settings.colors['annotation'], size=settings.display['view_font_size'])
 
 
 def note_leading(placement, offset=None, text='here'):
 	''' Place a leading note at given position
-	
+
+		![note_leading](../screenshots/note_leading.png)
+
 		`placement` can be any of `Mesh, Web, Wire, axis, vec3`
 	'''
 	origin, normal = mesh_placement(placement)
@@ -608,8 +612,10 @@ def note_leading(placement, offset=None, text='here'):
 	return sch
 
 def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None, side=False):
-	''' Place a distance quotation between 2 points, 
-		the distance can be evaluated along vector `project` if specified 
+	''' Place a distance quotation between 2 points,
+		the distance can be evaluated along vector `project` if specified
+
+		![note_distance](../screenshots/note_distance.png)
 	'''
 	# get text to display
 	if not project:					project = normalize(b-a)
@@ -656,8 +662,10 @@ def note_distance(a, b, offset=0, project=None, d=None, tol=None, text=None, sid
 	return sch
 	
 def note_distance_planes(s0, s1, offset=None, d=None, tol=None, text=None):
-	''' Place a distance quotation between 2 meshes 
-		
+	''' Place a distance quotation between 2 meshes
+
+		![note_distance_planes](../screenshots/note_distance_planes.png)
+
 		`s0` and `s1` can be any of `Mesh, Web, Wire`
 	'''
 	p0, n0 = mesh_placement(s0)
@@ -670,8 +678,10 @@ def note_distance_planes(s0, s1, offset=None, d=None, tol=None, text=None):
 	return note_distance(p0, p1, offset, n0, d, tol, text)
 	
 def note_distance_set(s0, s1, offset=0, d=None, tol=None, text=None):
-	''' Place a distance quotation between 2 objects. This is the distance between the closest elements of both sets 
-	
+	''' Place a distance quotation between 2 objects. This is the distance between the closest elements of both sets
+
+		![note_distance_set](../screenshots/note_distance_set.png)
+
 		`s0` and `s1` can be any of `Mesh, Web, Wire, vec3`
 	'''
 	dist, p0, p1 = mesh_distance(s0, s1)
@@ -690,7 +700,10 @@ def note_distance_set(s0, s1, offset=0, d=None, tol=None, text=None):
 		
 
 def note_angle(a0, a1, offset=0, d=None, tol=None, text=None, unit='deg', side=False):
-	''' Place an angle quotation between 2 axis '''
+	''' Place an angle quotation between 2 axis
+
+		![note_angle](../screenshots/note_angle.png)
+	'''
 	o0, d0 = a0
 	o1, d1 = a1
 	z = normalize(cross(d0,d1))
@@ -748,8 +761,10 @@ def note_angle(a0, a1, offset=0, d=None, tol=None, text=None, unit='deg', side=F
 	return sch
 	
 def note_radius(mesh, offset=None, d=None, tol=None, text=None, propagate=2):
-	''' Place a curvature radius quotation. This will be the minimal curvature radius observed in the mesh 
+	''' Place a curvature radius quotation. This will be the minimal curvature radius observed in the mesh
 		As a mesh is generally speaking an approximation of the desired shape, the radius may be approximative as well
+
+		![note_radius](../screenshots/note_radius.png)
 	'''
 	if isinstance(mesh, Mesh):
 		normals = mesh.vertexnormals()
@@ -787,17 +802,16 @@ def note_radius(mesh, offset=None, d=None, tol=None, text=None, propagate=2):
 	
 def mesh_curvature_radius(mesh, conn=None, normals=None, propagate=2) -> '(distance, point)':
 	''' Find the minimum curvature radius of a mesh.
-	
-		Parameters:
-		
-			mesh:			the surface/line to search
-			conn:			a point-to-point connectivity (computed if not provided)
-			normals:		the vertex normals (computed if not provided)
-			propagate(int):	the maximum propagation rank for points to pick for the regression
-	
-		Return:	`(distance: float, point: int)` where primitives varies according to the input mesh dimension
+
+	Parameters:
+		mesh:			the surface/line to search
+		conn:			a point-to-point connectivity (computed if not provided)
+		normals:		the vertex normals (computed if not provided)
+		propagate(int):	the maximum propagation rank for points to pick for the regression
+
+	Return:	`(distance: float, point: int)` where primitives varies according to the input mesh dimension
 	'''
-		
+
 	def propagate_pp(conn, start, maxrank):
 		front = [(0,s) for s in start]
 		seen = set()
@@ -865,17 +879,16 @@ def mesh_curvature_radius(mesh, conn=None, normals=None, propagate=2) -> '(dista
 	
 def mesh_curvature_radius(mesh, conn=None, normals=None, propagate=2) -> '(distance, point)':
 	''' Find the minimum curvature radius of a mesh.
-	
-		Parameters:
-		
-			mesh:			the surface/line to search
-			conn:			a point-to-point connectivity (computed if not provided)
-			normals:		the vertex normals (computed if not provided)
-			propagate(int):	the maximum propagation rank for points to pick for the regression
-	
-		Return:	`(distance: float, point: int)` where primitives varies according to the input mesh dimension
+
+	Parameters:
+		mesh:			the surface/line to search
+		conn:			a point-to-point connectivity (computed if not provided)
+		normals:		the vertex normals (computed if not provided)
+		propagate(int):	the maximum propagation rank for points to pick for the regression
+
+	Return:	`(distance: float, point: int)` where primitives varies according to the input mesh dimension
 	'''
-		
+
 	curvatures = mesh_curvatures(mesh, conn, normals, propagate)
 	
 	place = min(range(len(mesh.points)),
@@ -885,19 +898,16 @@ def mesh_curvature_radius(mesh, conn=None, normals=None, propagate=2) -> '(dista
 	
 def mesh_curvatures(mesh, conn=None, normals=None, propagate=2):
 	''' Compute the curvature around a point in a mesh/web/wire
-	
-		Parameters:
-		
-			mesh:			the surface/line to search
-			conn:			a point-to-point connectivity (computed if not provided)
-			normals:		the vertex normals (computed if not provided)
-			propagate(int):	the maximum propagation rank for points to pick for the regression
-	
-		Return:	
-			
-			`[(tuple, mat3)]`
-			
-			where the `tuple` contains the curvature in each of the column directions in the `mat3`. The `mat3` has the principal directions of curvature
+
+	Parameters:
+		mesh:			the surface/line to search
+		conn:			a point-to-point connectivity (computed if not provided)
+		normals:		the vertex normals (computed if not provided)
+		propagate(int):	the maximum propagation rank for points to pick for the regression
+
+	Return:
+		`[(tuple, mat3)]`
+		where the `tuple` contains the curvature in each of the column directions in the `mat3`. The `mat3` has the principal directions of curvature
 	'''
 	pts = mesh.points
 		
@@ -968,7 +978,10 @@ def mesh_curvatures(mesh, conn=None, normals=None, propagate=2):
 
 
 def note_bounds(obj):
-	''' Create dimension annotations on the boundingbox of an object '''
+	''' Create dimension annotations on the boundingbox of an object
+
+		![note_bounds](../screenshots/note_bounds.png)
+	'''
 	box = boundingbox(obj)
 	size = 0.05 * length(box.size)
 	return [
@@ -1005,7 +1018,10 @@ def note_angle_planes(s0, s1, offset=0, d=None, tol=None, text=None, unit='deg')
 				offset, d, tol, text, unit)
 				
 def note_angle_edge(part, edge, offset=0, d=None, tol=None, text=None, unit='deg'):
-	''' Place an angle quotation around a mesh edge '''
+	''' Place an angle quotation around a mesh edge
+
+		![note_angle_edge](../screenshots/note_angle_edge.png)
+	'''
 	f0 = None
 	f1 = None
 	for face in part.faces:
@@ -1040,8 +1056,10 @@ def note_surface(placement, offset=None, roughness=None, method=None):
 	indev
 	
 def note_label(placement, offset=None, text='!', style='rect'):
-	''' Place a text label upon an object 
-	
+	''' Place a text label upon an object
+
+		![note_label](../screenshots/note_label.png)
+
 		`placement` can be any of `Mesh, Web, Wire, axis, vec3`
 	'''
 	p, normal = mesh_placement(placement)
@@ -1072,7 +1090,7 @@ def note_label(placement, offset=None, text='!', style='rect'):
 		raise ValueError("style must be 'rect' or 'circle'")
 	sch.set(space=halo_screen(fvec3(p+offset)))
 	sch.add(outline, shader='line', layer=0)
-	sch.add(gt.flatsurface(wire(outline)), color=fvec4(settings.display['background_color'],0), shader='fill', layer=1e-3)
+	sch.add(gt.fill(wire(outline)), color=fvec4(settings.display['background_color'],0), shader='fill', layer=1e-3)
 	sch.add(Displayable(TextDisplay,
 				p+offset, 
 				text, 
