@@ -1,7 +1,6 @@
 from madcad.mesh import web
 from madcad.generation import brick, icosphere, uvsphere
 from madcad.primitives import Circle, Interpolated
-from madcad.rendering import show
 from madcad.hull import *
 from . import visualcheck
 

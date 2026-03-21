@@ -39,7 +39,10 @@ from .generation import extrusion, revolution, repeat, repeataround, extrans
 from .primitives import Circle, ArcCentered, Segment
 from .triangulation import triangulation
 from .selection import *
-from .rendering import show
+try:
+	from .rendering import show
+except ImportError:
+	pass
 from .bevel import filet, chamfer
 from .boolean import intersection
 from .io import cachefunc

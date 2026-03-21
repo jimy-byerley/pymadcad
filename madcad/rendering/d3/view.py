@@ -13,7 +13,7 @@ from ...mathutils import *
 from ..base import Scene, empty
 from ..utils import *
 
-__all__ = ['GLView3D', 'Offscreen3D', 'QView3D', 'Orbit', 'Turntable', 'Perspective', 'Orthographic']
+__all__ = ['GLView3D', 'Offscreen3D', 'Orbit', 'Turntable', 'Perspective', 'Orthographic']
 
 
 class GLView3D:

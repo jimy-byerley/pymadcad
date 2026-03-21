@@ -45,5 +45,5 @@ def npboundingbox(points: np.ndarray, ignore=False) -> Box:
 			fvec3(np.nan_to_num(np.max(points, axis=0), True, -np.inf)),
 			)
 
-from . import view, marker, dense
+from . import view, dense, marker
 from .view import *
