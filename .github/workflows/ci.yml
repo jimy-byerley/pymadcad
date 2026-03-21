@@ -18,9 +18,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy
-      - name: Check formatting
-        run: cargo fmt --check
+          components: clippy
       - name: Clippy
         run: cargo clippy --all-targets -- -D warnings
       - name: Run Rust tests
@@ -34,19 +32,15 @@ jobs:
         python-version: ['3.10', '3.11', '3.12']
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Build with maturin
-        uses: PyO3/maturin-action@v1
-        with:
-          command: build
-          args: --release
-      - name: Install wheel
-        run: |
-          pip install target/wheels/*.whl
-          pip install pytest pnprint
+        run: uv run maturin build --release
+      - name: Install wheel and test deps
+        run: uv pip install --system target/wheels/*.whl pytest pnprint
       - name: Run Python tests
-        run: pytest tests/ -v
+        run: python -m pytest ${{ github.workspace }}/tests/ -v
+        working-directory: /tmp

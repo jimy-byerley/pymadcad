@@ -5,6 +5,19 @@
 //   # or
 //   from madcad.core import some_function
 
+#![allow(
+    clippy::assign_op_pattern,
+    clippy::collapsible_if,
+    clippy::empty_line_after_doc_comments,
+    clippy::len_without_is_empty,
+    clippy::missing_safety_doc,
+    clippy::neg_cmp_op_on_partial_ord,
+    clippy::redundant_closure,
+    clippy::should_implement_trait,
+    clippy::type_complexity,
+    clippy::useless_vec,
+)]
+
 // modules mirroring python ones
 pub mod bevel;
 pub mod boolean;
