@@ -449,6 +449,7 @@ class Chain(Joint):
 
 		solids (tuple):  the (start,end) joints of the chain, as defined in `Joint`
 		default:  the default joints positions
+		increment: the maximum change of joint positions before changin monotony of gradient
 		bounds:   the (min,max) joints positions
 	'''
 	def __init__(self, joints, content:list=None, default=None):
@@ -640,7 +641,8 @@ class Kinematic:
 		inputs:   a list of joints to fix when calling `direct()`
 		outputs:  a list of solids to fix when calling `inverse()`
 
-		default:  the default joint pose of the kinematic
+		default:   the default joint pose of the kinematic
+		increment: the maximum change of joint pose before changing monotony of gradient
 		bounds:   a tuple of (min, max) joint poses
 		scale:    the reference distance scale used to adimension residuals
 	'''
@@ -650,11 +652,14 @@ class Kinematic:
 			if inputs:  ground = inputs[0].solids[0]
 		if (inputs is None) ^ (outputs is None):
 			raise TypeError("inputs and outputs must be both provided or undefined")
-		elif inputs and outputs:
+		if inputs and outputs:
 			outputs = [Free((ground, out))  for out in outputs]
 			joints = inputs + joints + outputs
 			self.inputs = inputs
 			self.outputs = outputs
+		else:
+			self.inputs = None
+			self.outputs = None
 
 		self.content = content
 		self.joints = joints

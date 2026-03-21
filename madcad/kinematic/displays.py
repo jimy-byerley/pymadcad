@@ -393,10 +393,11 @@ class KinematicManip(Group):
 			self.kinematic.cost_jacobian(self.pose).transpose(),
 			])
 		increment = la.lstsq(jac.T, move, 1e-6)[0]
+		max_increment = flatten_state(self.kinematic.increment)
 		# assemble the new pose and normalize it
 		newpose = self.kinematic.normalize(structure_state(
 			flatten_state(self.pose)
-			+ self.damping * increment * min(1, np.abs(self.kinematic.increment / increment).max()),
+			+ self.damping * increment * min(1, np.abs(max_increment / increment).max()),
 			self.pose))
 		
 		# try to move
@@ -614,7 +615,7 @@ class DeferedSolving:
 			if problem.prepare:
 				problem.prepare(problem)
 			problem.solve(problem)
-		except Exception as err:
+		except KinematicError as err:
 			print(err)
 			self.problem = None
 			self.timer.stop()
