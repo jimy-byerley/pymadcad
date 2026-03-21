@@ -1,5 +1,5 @@
-/// Test helpers for Python <-> Rust data conversion testing.
-/// Exposed as the `core.test` sub-module.
+//! Test helpers for Python <-> Rust data conversion testing.
+//! Exposed as the `core.test` sub-module.
 
 use pyo3::prelude::*;
 use crate::math::*;
