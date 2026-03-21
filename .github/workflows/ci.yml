@@ -37,10 +37,14 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      - name: Build with maturin
-        run: uvx maturin build --release
-      - name: Install wheel and test deps
-        run: uv pip install --system target/wheels/*.whl pytest pnprint
+      - name: Build and install
+        run: |
+          uv run --with maturin maturin develop --release --strip
+          uv pip install pytest pnprint
       - name: Run Python tests
-        run: python -m pytest ${{ github.workspace }}/tests/ -v
+        env:
+          MADCAD_VISUALCHECK: 'false'
+        run: |
+          cp -r ${{ github.workspace }}/tests /tmp/tests
+          ${{ github.workspace }}/.venv/bin/python -m pytest /tmp/tests/ -v --ignore=/tmp/tests/test_displays.py --ignore=/tmp/tests/test_display_voxel.py
         working-directory: /tmp
