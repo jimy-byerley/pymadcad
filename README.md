@@ -1,80 +1,131 @@
 ![madcad-logo](docs/logo.png)
 
-# Py-MADCAD
+# PyMADCAD
 
-*>>> it's time to throw parametric softwares out !*
+**Mechanical design as code** -- a Python CAD library for engineers who prefer scripts and automation over clicks.
 
-Simple yet powerful CAD (Computer Aided Design) library, written with Python.
+[![CI](https://github.com/jimy-byerley/pymadcad/actions/workflows/ci.yml/badge.svg)](https://github.com/jimy-byerley/pymadcad/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/pymadcad.svg)](https://pypi.org/project/pymadcad/)
+[![Python](https://img.shields.io/pypi/pyversions/pymadcad.svg)](https://pypi.org/project/pymadcad/)
+[![Documentation](https://readthedocs.org/projects/pymadcad/badge/?version=latest)](https://pymadcad.readthedocs.io/)
+[![Matrix](https://img.shields.io/matrix/madcad:matrix.org.svg)](https://matrix.to/#/#madcad:matrix.org)
 
-- [Official website](https://madcad.netlify.app)
-- [Installation](https://pymadcad.readthedocs.io/en/latest/installation.html)
-- [Documentation](https://pymadcad.readthedocs.io/)
-- [Repository](https://github.com/jimy-byerley/pymadcad)
-- [Matrix community](https://matrix.to/#/#madcad:matrix.org)
+PyMADCAD is a script-based CAD library where **the Python script is the model**. Design mechanical parts with transparent, composable geometry you can version, diff, test, and automate -- no parametric black box, no opaque GUI. It outputs triangulated meshes ready for rendering, simulation, or 3D printing.
 
-[![support-version](https://img.shields.io/pypi/pyversions/pymadcad.svg)](https://img.shields.io/pypi/pyversions/pymadcad)
-[![PyPI version shields.io](https://img.shields.io/pypi/v/pymadcad.svg)](https://pypi.org/project/pymadcad/)
-[![Documentation Status](https://readthedocs.org/projects/pymadcad/badge/?version=latest)](https://pymadcad.readthedocs.io/en/latest/?badge=latest)
-[![#madcad:matrix.org](https://img.shields.io/matrix/madcad:matrix.org.svg)](https://matrix.to/#/#madcad:matrix.org)
+[uimadcad](https://madcad.netlify.app/uimadcad) is the graphical frontend for pymadcad -- an interactive 3D editor with multi-view scene, script editor, and quick primitive tools. Everything you can do in the GUI, you can also do in a script.
 
-## Features
+[Website](https://madcad.netlify.app) ·
+[Documentation](https://pymadcad.readthedocs.io/) ·
+[Examples](examples/) ·
+[Matrix chat](https://matrix.to/#/#madcad:matrix.org)
 
-- surface generation (3D sketch primitives, extrusion, revolution, inflation, tubes, ...)
-- fast boolean operations
-- common mesh file format import/export
-- kinematic manipulation
-- implicit geometry definition through the constraint/solver system
-- objects display with high-quality graphics
+![differential](docs/screenshots/design-differential-symetric.png)
 
-![example-bearing](examples/bearing.png)
+## Install
 
-Checkout some [complete examples](examples)
+```bash
+pip install pymadcad
+```
 
+Optional file format support:
 
-## Sample usage
+```bash
+pip install pymadcad[stl,ply,obj]
+```
+
+## Quick examples
+
+### Extrusion
 
 ```python
 from madcad import *
 
-# define points
-O = vec3(0)
-A = vec3(2,0,0)
-B = vec3(1,2,0)
-C = vec3(0,2,0)
-
-# create a list of primitives
-line = [
-	Segment(O, A),          
-	ArcThrough(A, B, C),
-	Segment(C,O),           
-	]
-
-# create and solve constraints
-solve([
-		Tangent(line[0], line[1], A),   
-		Tangent(line[1], line[2], C),   
-		Radius(line[1], 1.5),           
-	], fixed=[O])
-
-# generate surfaces
-part = extrusion(line, vec3(0,0,1))
-
-# display in a 3D scene
-show([part])
+show(extrusion(ArcThrough(+Y, Z, -Y), 2*X))
 ```
 
-The result will be this window
-![example-window](docs/screenshots/readme-example.png)
+![extrusion](docs/screenshots/generation-extrusion.png)
 
+### Boolean difference
 
-## About
+```python
+from madcad import *
 
-MADCAD is born from the idea that the current approach of parametric CADs for mechanical engineering is not the best possible. This library is part of a project targeting the best possible mechanical design tool for both engineers and handymen. See the 
-[comparison](https://pymadcad.readthedocs.io/en/latest/concepts.html#comparison-with-existing-cad-softwares) 
-for more details.
+m1 = brick(width=vec3(2))
+m2 = m1.transform(vec3(0.5, 0.3, 0.4)).transform(quat(0.7 * vec3(1, 1, 0)))
 
-## License   ![LGPL logo](https://www.gnu.org/graphics/lgplv3-88x31.png)
+show([difference(m1, m2)])
+```
 
-Copyright 2019-2023 Yves Dejonghe <jimy.byerley@gmail.com>
+![boolean](docs/screenshots/manipulation/boolean-op.png)
 
-This library is distributed under the LGPL-v3 license. A copy of that license is provided with this software.
+See the [examples/](examples/) folder and the [guide](https://pymadcad.readthedocs.io/en/latest/guide/overview.html) for more.
+
+![bearing](examples/bearing.png)
+
+## Features
+
+- **Surface generation** -- extrusion, revolution, tube, helix, screw, saddle, and standard shapes
+- **Boolean operations** -- union, intersection, difference with spatial hashing
+- **Kinematic system** -- joints, screw theory, mechanism simulation
+- **Constraint solver** -- tangent, distance, angle, radius, and more
+- **Bevel & blending** -- chamfer, filet, and smooth transitions
+- **Standard library** -- ISO nuts, screws, bearings, gears
+- **File I/O** -- STL, PLY, OBJ import/export
+- **High-quality display** -- OpenGL rendering via moderngl, Qt integration
+
+## Project structure
+
+```
+pymadcad/
+├── madcad/      # Python module
+├── src/         # Rust extensions for the python module (performance-critical operations)
+├── examples/    # example of mechanisms designed with madcad
+├── tests/       # all unit tests for madcad
+└── docs/        # docs based on mkdocs
+```
+
+This python module stands as a library proposing few data structures and a lot of functions to operate them. It is mostly functional and straight forward code style
+The rust extension of pymadcad standard as `madcad.core` and is based on [pyo3](https://pyo3.rs/v0.28.2/) and built with [maturin](https://www.maturin.rs/)
+
+## Development
+
+Here are recommended ways to work with this repo
+
+- start by cloning the repo and setting up an environment
+
+```bash
+# clone this repository from official sources
+git clone https://github.com/jimy-byerley/pymadcad
+cd pymadcad
+
+# Install dependencies
+uv sync
+```
+
+- build and test commands
+
+```bash
+# build the Rust extension for inplace use of madcad, add --release for bechmarks
+maturin develop
+
+# Run tests
+pytest
+
+# Build and serve the docs locally
+mkdocs serve
+```
+
+- package build
+
+```bash
+# build pymadcad package
+maturin build --release
+# just build the docs website
+mkdocs build
+```
+
+## License   ![LGPL](https://www.gnu.org/graphics/lgplv3-88x31.png)
+
+Copyright 2019-2026 Yves Dejonghe <jimy.byerley@gmail.com>
+
+Distributed under the [LGPL-v3](LICENSE) license.
