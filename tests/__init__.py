@@ -18,37 +18,40 @@ else:
 
 def visualcheck(test:Callable) -> Callable:
     ''' decorator for non-regression tests, providing snapshot caching and visual inspection '''
-    if not _visualcheck_enabled:
-        return test
-    @wraps(test)
-    def wrapper(*args, **kwargs):
-        references = abspath('{}/../__snapshot__'.format(__file__))
-        if not exists(references):
-            mkdir(references)
+    if _visualcheck_enabled:
+        @wraps(test)
+        def wrapper(*args, **kwargs):
+            references = abspath('{}/../__snapshot__'.format(__file__))
+            if not exists(references):
+                mkdir(references)
 
-        fullname = '{}/{}.{}.pickle'.format(
-            references,
-            test.__globals__['__name__'],
-            test.__qualname__,
-            )
-        title = '{}.{}'.format(
-            test.__globals__['__name__'],
-            test.__qualname__,
-            )
+            fullname = '{}/{}.{}.pickle'.format(
+                references,
+                test.__globals__['__name__'],
+                test.__qualname__,
+                )
+            title = '{}.{}'.format(
+                test.__globals__['__name__'],
+                test.__qualname__,
+                )
 
-        result = test(*args, **kwargs)
-        reference = None
-        try:
-            binary_result = pickle.dumps(result)
-            binary_reference = open(fullname, 'rb').read()
-            reference = pickle.loads(binary_reference)
-            if binary_result != binary_reference:
-                raise AssertionError("result of {} doesn't match cache".format(test.__name__))
-        except (OSError, AssertionError, FileNotFoundError) as err:
-            if _visualinspect(title, reference, result):
-                open(fullname, 'wb').write(binary_result)
-            else:
-                raise
+            result = test(*args, **kwargs)
+            reference = None
+            try:
+                binary_result = pickle.dumps(result)
+                binary_reference = open(fullname, 'rb').read()
+                reference = pickle.loads(binary_reference)
+                if binary_result != binary_reference:
+                    raise AssertionError("result of {} doesn't match cache".format(test.__name__))
+            except (OSError, AssertionError, FileNotFoundError) as err:
+                if _visualinspect(title, reference, result):
+                    open(fullname, 'wb').write(binary_result)
+                else:
+                    raise
+    else:
+        @wraps(test)
+        def wrapper(*args, **kwargs):
+            test(*args, **kwargs)
     return wrapper
 
 app = None

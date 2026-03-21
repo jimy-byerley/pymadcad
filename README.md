@@ -110,6 +110,8 @@ maturin develop
 
 # Run tests
 pytest
+# run tests but skip visual checks
+MADCAD_VISUALCHECK=false pytest
 
 # Build and serve the docs locally
 mkdocs serve

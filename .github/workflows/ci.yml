@@ -39,8 +39,8 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Build and install
         run: |
-          uv run --with maturin maturin develop --release --strip
-          uv pip install pytest pnprint
+          uv sync --extra dev --extra ply --extra stl --extra obj
+          uv run maturin develop --release --strip
       - name: Run Python tests
         env:
           MADCAD_VISUALCHECK: 'false'
