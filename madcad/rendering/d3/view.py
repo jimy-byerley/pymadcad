@@ -509,14 +509,13 @@ else:
 					pts = evt.touchPoints()
 					# view rotation
 					if len(pts) == 2:
-						dist = (pts[0].pos()-pts[1].pos()).manhattanLength()
 						startlength = (pts[0].lastPos()-pts[1].lastPos()).manhattanLength()
 						zoom = startlength / (pts[0].pos()-pts[1].pos()).manhattanLength()
 						displt = (	(pts[0].pos()+pts[1].pos()) /2 
-								-	(pts[0].lastPos()+pts[1].lastPos()) /2 ) /(dist*2)
+								-	(pts[0].lastPos()+pts[1].lastPos()) /2 ) /self.height()
 						dc = pts[0].pos() - pts[1].pos()
 						dl = pts[0].lastPos() - pts[1].lastPos()
-						rot = (atan2(dc.y(), dc.x()) - atan2(dl.y(), dl.x())) / pi
+						rot = atan2(dc.y(), dc.x()) - atan2(dl.y(), dl.x())
 						self.navigation.zoom(zoom)
 						self.navigation.rotate(fvec3(displt.x(), displt.y(), rot))
 						self.update()
