@@ -1,5 +1,5 @@
-# CI workflow: runs tests on every push/PR
-name: CI
+# runs tests on every push/PR
+name: tests
 
 on:
   push:

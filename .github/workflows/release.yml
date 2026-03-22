@@ -1,5 +1,5 @@
 # Release workflow: builds wheels for all platforms and publishes to PyPI
-name: Release
+name: release
 
 on:
   push:
