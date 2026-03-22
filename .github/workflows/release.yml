@@ -46,7 +46,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist
+          args: --release --out dist --find-interpreter
           manylinux: auto
       - uses: actions/upload-artifact@v4
         with:
@@ -60,20 +60,25 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        target: [x64, x86]
+        include:
+          - arch: x64
+            target: x86_64-pc-windows-msvc
+          - arch: x86
+            target: i686-pc-windows-msvc
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          architecture: ${{ matrix.target }}
+          architecture: ${{ matrix.arch }}
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
+          target: ${{ matrix.target }}
           args: --release --out dist
       - uses: actions/upload-artifact@v4
         with:
-          name: wheels-windows-${{ matrix.target }}
+          name: wheels-windows-${{ matrix.arch }}
           path: dist
 
   # macOS wheels (x86_64 and aarch64/Apple Silicon)
