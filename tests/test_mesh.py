@@ -1,6 +1,6 @@
 from pnprint import nprint
 
-from random import random
+from random import random, seed as random_seed
 from madcad import *
 from madcad.mesh import *
 from . import visualcheck
@@ -65,6 +65,7 @@ def test_distance():
 	assert abs(mesh_distance(m, ico)[0] - 4) < 0.2
 
 def test_orientation():
+	random_seed(7)
 	ico = icosphere(vec3(0), 1)
 	ico.faces = typedlist((f if random()>0.5 else (f[0],f[2],f[1])	for f in ico.faces), dtype=uvec3)
 

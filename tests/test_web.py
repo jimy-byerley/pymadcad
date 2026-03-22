@@ -1,6 +1,6 @@
 from pnprint import nprint
 
-from random import random
+from random import random, seed as random_seed
 from madcad import *
 from madcad.mesh import *
 from . import visualcheck
@@ -44,6 +44,7 @@ def test_frontiers():
     assert set(m.indices) == {5, 1, 2}
 
 def test_orientation():
+	random_seed(7)
 	c = web(Circle(Axis(vec3(0), vec3(0,0,1)), 1))
 	c.edges = typedlist((e if random()>0.5 else (e[1],e[0])	for e in c.edges), dtype=uvec2)
 

@@ -4,10 +4,9 @@ from madcad.rendering import Displayable, show
 import numpy as np
 from . import visualcheck, Hidden
 
-np.random.seed(7)
-
 @visualcheck
 def test_display_voxel():
+	np.random.seed(7)
 	voxel = np.random.random((30,20,10))
 	disp = Displayable(VoxelsDisplay, voxel, fmat4(3,2,1,1), (0.4, 0.9))
 

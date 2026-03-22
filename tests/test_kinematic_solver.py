@@ -8,8 +8,6 @@ from madcad.joints import *
 
 from . import visualcheck
 
-np.random.seed(7)
-
 def test_drotate():
 	from madcad.joints import drotate
 	epsilon = 1e-6
@@ -122,6 +120,7 @@ def test_two_bound_pivot_loops():
 		]).solve(close=np.arange(6)*0.1, maxiter=1000))
 
 def test_stretched_chain():
+	np.random.seed(7)
 	njoints = 80
 	joints = []
 	for i in range(0, njoints, 2):
@@ -131,6 +130,7 @@ def test_stretched_chain():
 	print(Kinematic(joints).solve(close=0.5*np.random.random(len(joints)), precision=1e-3, maxiter=1000))
 
 def test_looping_chain():
+	np.random.seed(7)
 	njoints = 80
 	joints = []
 	for i in range(0, njoints, 2):
@@ -140,6 +140,7 @@ def test_looping_chain():
 	print(Kinematic(joints).solve(close=2*pi*np.random.random(len(joints)), maxiter=1000))
 
 def test_grid():
+	np.random.seed(7)
 	size = 5
 	joints = []
 	def name(x,y):
