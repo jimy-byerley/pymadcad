@@ -200,12 +200,12 @@ class Scene:
 			
 			This must be called by the view widget, once the OpenGL context is set.
 		'''
+		# restack and bufferize
+		try:
+			self.prepare()
+		except Exception:
+			traceback.print_exc()
 		with self.context:
-			# restack and bufferize
-			try:
-				self.prepare()
-			except Exception:
-				traceback.print_exc()
 			# render everything
 			for target, frame, setup in view.targets:
 				try:

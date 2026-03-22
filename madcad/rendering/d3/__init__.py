@@ -46,4 +46,3 @@ def npboundingbox(points: np.ndarray, ignore=False) -> Box:
 			)
 
 from . import view, dense, marker
-from .view import *

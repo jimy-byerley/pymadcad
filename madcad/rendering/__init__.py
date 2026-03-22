@@ -27,6 +27,8 @@ from .d3.view import *
 
 try:
 	from ..qt import QApplication
+	from .d3.view import QView3D
+
 except ImportError:
 	pass
 else:
