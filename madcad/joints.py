@@ -227,7 +227,7 @@ class Planar(Joint):
 			color = kinematic_color(index[self.solids[0]]),
 			space = scale_solid(self.solids[0], fvec3(o), maxsize/size),
 			)
-		square = gt.parallelogram(x*size, y*size, origin=o-gap*size*z, align=0.5)
+		square = gt.parallelogram(x*size, y*size, origin=o-gap*size*z, alignment=0.5)
 		sch.add(square.outlines(), shader='line')
 		sch.add(square, shader='ghost')
 		
@@ -243,7 +243,7 @@ class Planar(Joint):
 			color = kinematic_color(index[self.solids[1]]),
 			space = scale_solid(self.solids[1], fvec3(o), maxsize/size),
 			)
-		square = gt.parallelogram(-x*size, y*size, origin=o+gap*size*z, align=0.5)
+		square = gt.parallelogram(-x*size, y*size, origin=o+gap*size*z, alignment=0.5)
 		sch.add(square.outlines(), shader='line')
 		sch.add(square, shader='ghost')
 		
@@ -326,7 +326,7 @@ class Prismatic(Joint):
 			color = kinematic_color(index[self.solids[0]]),
 			space = scale_solid(self.solids[0], fvec3(o), maxsize/size),
 			)
-		profile = gt.parallelogram(0.4*size*x, 0.4*size*y, origin=o, align=0.5, fill=False)
+		profile = gt.parallelogram(0.4*size*x, 0.4*size*y, origin=o, alignment=0.5, fill=False)
 		profile.tracks = typedlist(range(len(profile.edges)))
 		exterior = gt.extrusion(profile, size*z, alignment=0.5)
 		exterior.splitgroups()
@@ -652,7 +652,7 @@ class PointSlider(Joint):
 			color = kinematic_color(index[self.solids[0]]),
 			space = scale_solid(self.solids[0], fvec3(o), maxsize/size),
 			)
-		square = gt.parallelogram(x*size, y*size, origin=o+radius*z, align=0.5)
+		square = gt.parallelogram(x*size, y*size, origin=o+radius*z, alignment=0.5)
 		sch.add(square.outlines(), shader='line')
 		sch.add(square, shader='ghost')
 		
@@ -730,7 +730,7 @@ class EdgeSlider(Joint):
 			color = kinematic_color(index[self.solids[0]]),
 			space = scale_solid(self.solids[0], fvec3(o), maxsize/size),
 			)
-		square = gt.parallelogram(x*size, y*size, origin=o+radius*z, align=0.5)
+		square = gt.parallelogram(x*size, y*size, origin=o+radius*z, alignment=0.5)
 		sch.add(square.outlines(), shader='line')
 		sch.add(square, shader='ghost')
 		
