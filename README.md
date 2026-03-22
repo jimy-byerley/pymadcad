@@ -4,9 +4,8 @@
 
 **Mechanical design as code** -- a Python CAD library for engineers who prefer scripts and automation over clicks.
 
-[![tests](https://github.com/jimy-byerley/pymadcad/actions/workflows/tests.yml/badge.svg)](https://github.com/jimy-byerley/pymadcad/actions/workflows/tests.yml)
 [![PyPI](https://img.shields.io/pypi/v/pymadcad.svg)](https://pypi.org/project/pymadcad/)
-[![Python](https://img.shields.io/pypi/pyversions/pymadcad.svg)](https://pypi.org/project/pymadcad/)
+[![tests](https://github.com/jimy-byerley/pymadcad/actions/workflows/tests.yml/badge.svg)](https://github.com/jimy-byerley/pymadcad/actions/workflows/tests.yml)
 [![Documentation](https://readthedocs.org/projects/pymadcad/badge/?version=latest)](https://pymadcad.readthedocs.io/)
 [![Matrix](https://img.shields.io/matrix/madcad:matrix.org.svg)](https://matrix.to/#/#madcad:matrix.org)
 
