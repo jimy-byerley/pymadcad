@@ -10,9 +10,8 @@ import moderngl as mgl
 from pnprint import nprint
 
 from ..base import Scene, empty
-from ..utils import glsize, forwardproperty, qpoint_to_vec, CheapMap, receiver, snailaround, vec_to_qpoint
+from ..utils import glsize, forwardproperty, CheapMap, receiver, snailaround
 from ... import settings
-from ...qt import QPoint
 from ...box import Box
 from ...mathutils import (
 		vec3, vec2, isfinite, noproject, bisect, fmat4, uvec2, fvec3, fquat,
@@ -214,8 +213,9 @@ class Offscreen3D:
 
 
 try:
-	from ...qt import (Qt, QApplication, QWidget, QImage, QPainter, 
+	from ...qt import (Qt, QApplication, QWidget, QImage, QPainter,  QPoint,
 					QEvent, QInputEvent, QMouseEvent, QKeyEvent, QTouchEvent)
+	from ..utils import vec_to_qpoint, qpoint_to_vec
 except ImportError:
 	pass
 else:

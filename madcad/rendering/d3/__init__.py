@@ -4,7 +4,7 @@
 '''
 import numpy as np
 from .view import (
-	GLView3D, Offscreen3D, QView3D, Orbit, Turntable, Perspective, Orthographic
+	GLView3D, Offscreen3D, Orbit, Turntable, Perspective, Orthographic
 )
 
 from ...mathutils import fvec3

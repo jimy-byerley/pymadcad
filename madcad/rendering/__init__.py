@@ -26,20 +26,18 @@ from .. import settings
 from ..mathutils import fmat4, uvec2
 from .utils import (
 	writeproperty, forwardproperty, sceneshare, receiver, Weak, Rc, CheapMap,
-	snail, snailaround, glsize, highlight_color, vec_to_qpoint, qpoint_to_vec,
-	vec_to_qsize, qsize_to_vec,
+	snail, snailaround, glsize, highlight_color,
 )
 from .base import Scene, Step, Display, Group, Displayable
-from .d3.view import GLView3D, Offscreen3D, QView3D, Orbit, Turntable, Perspective, Orthographic
+from .d3.view import GLView3D, Offscreen3D, Orbit, Turntable, Perspective, Orthographic
 # from .d2.view import *
 
 __all__ = [
-		"CheapMap", "Display", "Displayable", "GLView3D", "Group", "Offscreen3D",
-		"Orbit", "Orthographic", "Perspective", "QView3D", "Rc", "Scene", "Step",
-		"Turntable", "Weak", "forwardproperty", "glsize", "highlight_color",
-		"qpoint_to_vec", "qsize_to_vec", "receiver", "sceneshare", "snail",
-		"snailaround", "vec_to_qpoint", "vec_to_qsize", "writeproperty", "show",
-		"render",
+        "CheapMap", "Display", "Displayable", "GLView3D", "Group",
+        "Offscreen3D", "Orbit", "Orthographic", "Perspective", "Rc", "Scene",
+        "Step", "Turntable", "Weak", "forwardproperty", "glsize",
+        "highlight_color", "receiver", "sceneshare", "snail",
+        "snailaround","writeproperty", "render",
 	]
 
 try:
