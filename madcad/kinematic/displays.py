@@ -21,6 +21,7 @@ from .solver import Kinematic, KinematicError, regularize_grad, structure_state,
 try:
 	from ..qt import Qt, QEvent, QTimer
 except ImportError:
+	# it not found, assume the event-handlers will not be called
 	pass
 
 __all__ = ['ChainManip', 'KinematicManip', 'scale_solid', 'world_solid']

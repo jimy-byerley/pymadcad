@@ -20,8 +20,9 @@ from pyglm.glm import (
 	)
 
 # math most used functions and constants
+import math
 from math import (
-	inf, nan, isfinite as _isfinite, atan2, dist, gcd, hypot, isclose, pi,
+	inf, nan, atan2, dist, gcd, hypot, isclose, pi,
 )
 
 __all__ = [
@@ -79,7 +80,7 @@ Z = vec3(0,0,1)
 def isfinite(x):
 	''' Return false if x contains a `inf` or a `nan` '''
 	if isinstance(x, (int,float)):
-		return _isfinite(x)
+		return math.isfinite(x)
 	return not (glm.any(isinf(x)) or glm.any(isnan(x)))
 
 def norminf(x):

@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import numpy as np
+from numpy import ndarray
 import moderngl as mgl
 from pnprint import nprint
 
@@ -148,11 +149,11 @@ class Offscreen3D:
 	''' 3D view giving images accessible to numpy buffers '''
 	gl: View
 	''' opengl renderer '''
-	color: np.ndarray[np.uint8]
+	color: ndarray[np.uint8]
 	''' result image from the previous rendering, showing the  '''
-	depth: np.ndarray[np.float32]|None
+	depth: ndarray[np.float32]|None
 	''' result image from the previous rendering '''
-	ident: np.ndarray[np.uint16]|None
+	ident: ndarray[np.uint16]|None
 	''' result image from the previous rendering '''
 	enable_alpha: bool
 	''' if enabled, `self.color` is RGBA else it is 'RGB' '''

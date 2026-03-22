@@ -1,6 +1,5 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 import numpy as np
-from math import exp, log, floor
 
 import moderngl as mgl
 from PIL import Image

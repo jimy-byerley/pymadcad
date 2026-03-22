@@ -6,7 +6,6 @@ import numpy as np
 
 from .. import settings
 from ..mathutils import ivec2, uvec2, fvec4, mix
-from ..qt import QPoint, QSize
 
 __all__ = [
     "writeproperty", "forwardproperty", "sceneshare", "receiver", "Weak", "Rc",
@@ -169,7 +168,12 @@ def highlight_color(display: Display, color: fvec3) -> fvec3:
 	return mix(color, highlight.rgb, highlight.a)
 
 # qt conversion functions
-def vec_to_qpoint(p: ivec2) -> QPoint: 	return QPoint(p.x, p.y)
-def qpoint_to_vec(p: QPoint) -> ivec2:	return ivec2(p.x(), p.y())
-def vec_to_qsize(p: uvec2) -> QSize: 	return QSize(p.x, p.y)
-def qsize_to_vec(p: QSize) -> uvec2:	return uvec2(p.size(), p.height())
+try:
+	from ..qt import QPoint, QSize
+except ImportError:
+	pass
+else:
+	def vec_to_qpoint(p: ivec2) -> QPoint: 	return QPoint(p.x, p.y)
+	def qpoint_to_vec(p: QPoint) -> ivec2:	return ivec2(p.x(), p.y())
+	def vec_to_qsize(p: uvec2) -> QSize: 	return QSize(p.x, p.y)
+	def qsize_to_vec(p: QSize) -> uvec2:	return uvec2(p.size(), p.height())
