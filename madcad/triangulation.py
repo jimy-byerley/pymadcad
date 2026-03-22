@@ -5,6 +5,7 @@ from operator import itemgetter
 from math import inf, atan, atan2, pi
 
 from . import settings
+from . import core
 from .mesh import Mesh, Web, Wire, web
 from .blending import convexhull
 from .hashing import suites, connef

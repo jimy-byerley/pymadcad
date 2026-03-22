@@ -1,4 +1,4 @@
-from random import random
+from random import random, seed as random_seed
 from arrex import typedlist
 from pyglm.glm import uvec2
 from madcad import vec3, Axis, Circle, brick

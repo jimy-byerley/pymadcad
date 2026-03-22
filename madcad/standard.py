@@ -30,7 +30,10 @@ from .mathutils import (
 from .offseting import thicken, inflate
 from .bevel import chamfer, filet
 from .blending import blendloop
-from .generation import revolution, extrusion, regon, extrans, cylinder, repeataround, tube, flatsurface, icosphere, repeat
+from .generation import (
+	revolution, extrusion, regon, extrans, cylinder, repeataround, tube,
+	icosphere, repeat, fill
+)
 from .primitives import TangentEllipsis, Circle, ArcCentered, ArcThrough, Segment
 from .assembly import Solid
 from .selection import select, stopangle

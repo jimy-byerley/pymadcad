@@ -23,14 +23,13 @@
 from .solver import (
 	Chain, Dynamic, Free, Inertia, Joint, Kinematic, KinematicError, Reverse,
 	Weld, arcs, cycles, depthfirst, flatten, flatten_state, null_space,
-	partial_difference, regularize_grad, shortcycles, squeeze_homogeneous,
-	structure_state, unsqueeze_homogeneous,
+	regularize_grad, shortcycles, squeeze_homogeneous, structure_state,
+	unsqueeze_homogeneous,
 )
 
 __all__ = [
 	"Chain", "Dynamic", "Free", "Inertia", "Joint", "Kinematic",
 	"KinematicError", "Reverse", "Weld", "arcs", "cycles", "depthfirst",
-	"flatten", "flatten_state", "null_space", "partial_difference",
-	"regularize_grad", "shortcycles", "squeeze_homogeneous", "structure_state",
-	"unsqueeze_homogeneous",
+	"flatten", "flatten_state", "null_space", "regularize_grad", "shortcycles",
+	"squeeze_homogeneous", "structure_state", "unsqueeze_homogeneous",
 ]

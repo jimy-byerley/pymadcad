@@ -79,28 +79,34 @@ else:
 		if not isinstance(scene, Scene):
 			scene = Scene(scene, options)
 
-        # use the Qt color scheme if specified
-        if settings.display['system_theme']:
-            settings.use_qt_colors()
+		# detect existing QApplication
+		app = QApplication.instance()
+		created = False
+		if not app:
+			app = QApplication(sys.argv)
+			created = True
 
-        # create the scene as a window
-        view = QView3D(scene, projection=projection, navigation=navigation)
-        view.resize(*size)
-        view.show()
-        scene.prepare()
+		# use the Qt color scheme if specified
+		if settings.display['system_theme']:
+			settings.use_qt_colors()
 
-        # make the camera see everything
-        if not interest:	
-            interest = view.scene.root.box
-        view.center(interest.center)
-        view.adjust(interest)
+		# create the scene as a window
+		view = QView3D(scene, projection=projection, navigation=navigation, enable_alpha=enable_alpha)
+		view.resize(*size)
+		view.show()
+		scene.prepare()
 
-        # run eventually created QApplication
-        if created:
-            err = app.exec()
-            if err != 0:
-                print('error: Qt exited with code', err)
+		# make the camera see everything
+		if not interest:	
+			interest = view.scene.root.box
+		view.center(interest.center)
+		view.adjust(interest)
 
+		# run eventually created QApplication
+		if created:
+			err = app.exec()
+			if err != 0:
+				print('error: Qt exited with code', err)
 
 def render(scene:Scene|dict|list, size=uvec2(400, 400), view:fmat4=None, proj:fmat4=None, interest:Box=None, alpha=False, **options) -> np.ndarray:
 	'''

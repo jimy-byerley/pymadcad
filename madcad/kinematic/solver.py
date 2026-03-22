@@ -1,14 +1,6 @@
 # This file is part of pymadcad,  distributed under license LGPL v3
 from __future__ import annotations
 
-__all__ = [
-	'Kinematic', 'Joint', 'Weld', 'Free', 'Reverse', 'Chain',
-	'Dynamic', 'Inertia',
-	'flatten_state', 'structure_state',
-	'cycles', 'shortcycles', 'depthfirst', 'arcs',
-	'KinematicError',
-	]
-
 from copy import copy
 from math import inf
 from dataclasses import dataclass
@@ -40,7 +32,6 @@ __all__ = [
 	"flatten",
 	"flatten_state",
 	"null_space",
-	"partial_difference",
 	"regularize_grad",
 	"shortcycles",
 	"squeeze_homogeneous",
