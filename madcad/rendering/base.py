@@ -82,7 +82,10 @@ class Scene:
 		elif global_context:
 			self.context = global_context
 		else:
-			self.context = global_context = mgl.create_standalone_context(requires=opengl_version)
+			try:
+				self.context = global_context = mgl.create_standalone_context(requires=opengl_version)
+			except Exception:
+				self.context = global_context = mgl.create_standalone_context(requires=opengl_version, backend='egl')
 			self.context.gc_mode = 'auto'
 			self.context.line_width = settings.display["line_width"]
 		

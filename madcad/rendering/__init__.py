@@ -116,5 +116,6 @@ def render(scene:Scene|dict|list, size=uvec2(400, 400), view:fmat4=None, proj:fm
 	if not view:
 		view = translate(interest.center + distance*fvec3(Z))
 		# TODO take the projection transformation into account to get an appropriate distance
-	view = Offscreen3D(scene, size, view, proj, enable_alpha=alpha)
-	return view.render().color
+	with scene.context:
+		view = Offscreen3D(scene, size, view, proj, enable_alpha=alpha)
+		return view.render().color
