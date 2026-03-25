@@ -7,6 +7,10 @@ import numpy as np
 from .. import settings
 from ..mathutils import ivec2, uvec2, fvec4, mix
 
+__all__ = [
+    "writeproperty", "forwardproperty", "sceneshare", "receiver", "Weak", "Rc",
+    "CheapMap", "snail", "snailaround", "glsize", "highlight_color",
+]
 
 def writeproperty(func):
 	''' Decorator to create a property that has only an action on variable write '''
@@ -73,7 +77,7 @@ class Rc:
 	def __init__(self, other):
 		if isinstance(other, Weak):
 			self.weak = other
-		elif isisntance(other, Rc):
+		elif isinstance(other, Rc):
 			self.weak = other.weak
 		else:
 			self.weak = Weak(other)
@@ -161,9 +165,8 @@ def highlight_color(display: Display, color: fvec3) -> fvec3:
 	elif display.hovered:   highlight = fvec4(settings.display['hover_color'])
 	else:                   highlight = fvec4(0)
 	return mix(color, highlight.rgb, highlight.a)
-			
-# qt conversion functions
 
+# qt conversion functions
 try:
 	from ..qt import QPoint, QSize
 except ImportError:

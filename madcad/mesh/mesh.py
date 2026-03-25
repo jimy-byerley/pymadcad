@@ -1,7 +1,18 @@
 from __future__ import annotations
-from .container import *
+from math import inf, cos
+from copy import deepcopy, copy
+from numbers import Integral
+from collections import OrderedDict
+
+from .. import settings
+from .container import ensure_typedlist, NMesh, typedlist_to_numpy, reprarray, MeshError, striplist
+from ..hashing import Asso, edgekey, suites, arrangeface, connef
+from ..mathutils import (
+		vec3, isfinite, anglebt, NUMPREC, mat3, distance_pt, uvec2, cross,
+		length2, length, dot, normalize, uvec3, distance2, mix, clamp, glm,
+		typedlist
+	)
 from .web import Web
-from .wire import Wire
 
 
 class Mesh(NMesh):
@@ -84,8 +95,8 @@ class Mesh(NMesh):
 		'''
 		self.points, self.faces, reindex = striplist(self.points, self.faces)
 		return reindex
-
-	def mergepoints(self, merges) -> 'self':
+	
+	def mergepoints(self, merges) -> Mesh:
 		''' merge points with the merge dictionnary {src index: dst index}
 			merged points are not removed from the buffer.
 		'''
@@ -147,8 +158,8 @@ class Mesh(NMesh):
 		''' return the index of the closest triangle to the given point '''
 		return min(	range(len(self.faces)),
 					key=lambda i: distance_pt(point, self.facepoints(i)) )
-
-	def group(self, quals) -> 'Self':
+	
+	def group(self, quals) -> Mesh:
 		''' extract a part of the mesh corresponding to the designated groups.
 
 			Groups can be be given in either the following ways:
@@ -176,8 +187,8 @@ class Mesh(NMesh):
 			faces.append(self.faces[i])
 			tracks.append(self.tracks[i])
 		return Mesh(self.points, faces, tracks, self.groups)
-
-	def replace(self, mesh, groups=None) -> 'self':
+		
+	def replace(self, mesh, groups=None) -> Mesh:
 		''' replace the given groups by the given mesh.
 			If groups is not specified, it will take the matching groups (with same index) in the current mesh
 		'''
@@ -481,9 +492,9 @@ class Mesh(NMesh):
 		self.points = points
 		self.faces = faces
 		return idents
-
-	def split(self, edges) -> 'Self':
-		''' split the mesh around the given edges.
+		
+	def split(self, edges) -> Mesh:
+		''' split the mesh around the given edges. 
 			The points in common with two or more designated edges will be dupliated once or more, and the face indices will be reassigned so that faces each side of the given edges will own a duplicate of that point each.
 		'''
 		from madcad import core
@@ -504,15 +515,15 @@ class Mesh(NMesh):
 			tracks.clear()
 		self.propagate(atface, atisland, conn=conn)
 		return islands
-
-	def flip(self) -> 'Self':
+	
+	def flip(self) -> Mesh:
 		''' flip all faces, getting the normals opposite '''
 		return Mesh(self.points,
 					typedlist((uvec3(f[0],f[2],f[1]) for f in self.faces), dtype=uvec3),
 					self.tracks,
 					self.groups)
-
-	def orient(self, dir=None, conn=None) -> 'Self':
+	
+	def orient(self, dir=None, conn=None) -> Mesh:
 		''' flip the necessary faces to make the normals consistent, ensuring the continuity of the out side.
 
 			Argument `dir` tries to make the result deterministic:
@@ -578,8 +589,8 @@ class Mesh(NMesh):
 						stack.append(n)
 
 		return self
-
-	def subdivide(self, div=1) -> 'Self':
+	
+	def subdivide(self, div=1) -> Mesh:
 		''' Subdivide all edges by the number of cuts '''
 		n = div+2
 		pts = typedlist(dtype=vec3)

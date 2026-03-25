@@ -5,13 +5,19 @@
 from __future__ import annotations
 
 import numpy as np
+from numpy import ndarray
 import moderngl as mgl
 from pnprint import nprint
 
-from ... import settings
-from ...mathutils import *
 from ..base import Scene, empty
-from ..utils import *
+from ..utils import glsize, forwardproperty, CheapMap, receiver, snailaround
+from ... import settings
+from ...box import Box
+from ...mathutils import (
+		vec3, vec2, isfinite, noproject, bisect, fmat4, uvec2, fvec3, fquat,
+		inverse, fmat3, transpose, fvec2, length, length2, affineInverse,
+		translate, quat, fvec4, perspective, ivec2, glm, tan, pi, atan2, exp
+		)
 
 __all__ = ['GLView3D', 'Offscreen3D', 'Orbit', 'Turntable', 'Perspective', 'Orthographic']
 
@@ -57,7 +63,7 @@ class GLView3D:
 		if size:
 			self._reallocate(size)
 	
-	def render(self, size:uvec2=None, view:fmat4=None, proj:fmat4=None) -> Self:
+	def render(self, size:uvec2=None, view:fmat4=None, proj:fmat4=None) -> GLView3D:
 		''' trigger the rendering of a frame, do not wait for the result 
 		
 			- the `view` and `proj` instance attributes can be changed on the fly without extra cost.
@@ -173,7 +179,7 @@ class Offscreen3D:
 		if size:
 			self._reallocate(size)
 	
-	def render(self, size:uvec2=None, view:fmat4=None, proj:fmat4=None) -> Self:
+	def render(self, size:uvec2=None, view:fmat4=None, proj:fmat4=None) -> GLView3D:
 		'''
 			render the scene and retreive the result in the `color`, `depth` and `ident` attributes
 			
@@ -207,8 +213,9 @@ class Offscreen3D:
 
 
 try:
-	from ...qt import (Qt, QApplication, QWidget, QImage, QPainter, 
+	from ...qt import (Qt, QApplication, QWidget, QImage, QPainter,  QPoint,
 					QEvent, QInputEvent, QMouseEvent, QKeyEvent, QTouchEvent)
+	from ..utils import vec_to_qpoint, qpoint_to_vec
 except ImportError:
 	pass
 else:
@@ -216,11 +223,11 @@ else:
 	class QView3D(QWidget):
 		gl: View
 		''' underlying opengl rendering system '''
-		navigation: Orbit|TurnTable|None
+		navigation: Orbit|Turntable|None
 		''' turns basic screen actions into camera movements '''
 		projection: Perspective|Orthographic
 		''' generates the projection matrix '''
-		color: ndarray[np.uint8]
+		color: np.ndarray[np.uint8]
 		''' last rendering '''
 		depth: CheapMap[np.float32]
 		''' access to the depthmap from last rendering '''

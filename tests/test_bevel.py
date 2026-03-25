@@ -3,7 +3,7 @@ from copy import deepcopy
 from pytest import approx
 
 from madcad.mathutils import *
-from madcad import vec3, saddle, tube, ArcThrough, Web, Wire, web, wire, filet, chamfer, show, brick
+from madcad import vec3, saddle, ArcThrough, Web, Wire, web, wire, filet, chamfer, show, brick, Box
 from madcad.bevel import edgecut
 from . import visualcheck
 

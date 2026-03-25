@@ -4,8 +4,8 @@ import moderngl as mgl
 from PIL import Image
 
 from .. import settings
+from ..mathutils import fvec3, fmat4, normalize, dot, length, fvec4
 from ..common import resourcedir
-from ..mathutils import *
 from ..rendering import Display
 from ..rendering.d3 import npboundingbox, load_shader_wire, load_shader_subident
 
