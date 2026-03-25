@@ -1,3 +1,8 @@
+---
+hide:
+    - navigation
+---
+
 # Main concepts of madcad
 
 ## Comparison with existing CAD softwares

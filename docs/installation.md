@@ -1,3 +1,8 @@
+---
+hide:
+    - navigation
+---
+
 # Installation
 
 In order to install `pymadcad`, you need a version of Python `>=3.8`

@@ -46,7 +46,8 @@ from madcad import *
 # Create a section
 points = [O, X, X + Z, 2 * X + Z, 2 * (X + Z), X + 2 * Z, X + 5 * Z, 5 * Z]
 section = Wire(points).segmented().flip()
-# Create a revolution of `section` with the angle `2 * pi` around the axis `(O, Z)`
+# Create a revolution of `section` with the angle `2 * pi`
+# around the axis `(O, Z)`
 rev = revolution(2 * pi, (O, Z), section)
 rev.mergeclose()
 show([rev])
@@ -90,12 +91,15 @@ D = vec3(0.95 * R * cos(angle), 0.95 * R * sin(angle), 0)
 
 # Primitives + web
 primitives = [Segment(A, B), ArcCentered((O, Z), B, C), Segment(C, D)]
-# Apply the function repeat with the transformation `rotatearound(angle, (O, -Z))`
-web_repeat = repeat(web(primitives), 26, rotatearound(angle, (O, -Z))) # or rotate(angle, -Z)
+# Apply the function repeat with
+# the transformation `rotatearound(angle, (O, -Z))`
+web_repeat = repeat(web(primitives), 26, rotatearound(angle, (O, -Z))) # (1)!
 web_repeat.mergeclose()
 m = extrusion(5 * Z, fill(web_repeat.flip() + web(Circle((O, Z), 15))))
 show([m])
 ```
+
+1. Or `rotate(angle, -Z)`
 
 ![](../screenshots/generation/repeat-rotate.png)
 
@@ -141,7 +145,8 @@ web_repeat.mergeclose()
 # Define the transformation for a helical transformation
 helix_angle = pi / 4
 depth = 10
-# `curve_resolution` allows to get the number of steps for discretization
+# `curve_resolution` allows to get the number
+# of steps for discretization
 step = settings.curve_resolution(
     depth / cos(helix_angle), # length of curve
     depth * tan(helix_angle) / R, # angle of curve
@@ -150,7 +155,8 @@ angle = depth * tan(helix_angle) / R / (step + 1)
 h = depth / (step + 1)
 # Consecutive transformations for extrans
 transformations = (
-    transform((vec3(0, 0, i * h), angleAxis(angle * i, Z))) for i in range(step + 2)
+    transform((vec3(0, 0, i * h),
+    angleAxis(angle * i, Z))) for i in range(step + 2)
 )
 links = ((i, i + 1, 0) for i in range(step + 1))
 result = extrans(web_repeat, transformations, links)
