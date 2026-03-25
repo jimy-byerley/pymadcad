@@ -15,10 +15,10 @@ PyMADCAD is a script-based CAD library where **the Python script is the model**.
 
 [Website](https://madcad.netlify.app) ·
 [Documentation](https://pymadcad.readthedocs.io/) ·
-[Examples](examples/) ·
+[Examples](https://github.com/jimy-byerley/pymadcad/tree/master/examples) ·
 [Matrix chat](https://matrix.to/#/#madcad:matrix.org)
 
-![differential](docs/screenshots/design-differential-symetric.png)
+![differential](https://raw.githubusercontent.com/jimy-byerley/pymadcad/master/docs/screenshots/design-differential-symetric.png)
 
 ## Install
 
@@ -42,7 +42,7 @@ from madcad import *
 show(extrusion(ArcThrough(+Y, Z, -Y), 2*X))
 ```
 
-![extrusion](docs/screenshots/generation-extrusion.png)
+![extrusion](https://raw.githubusercontent.com/jimy-byerley/pymadcad/master/docs/screenshots/generation-extrusion.png)
 
 ### Boolean difference
 
@@ -55,11 +55,11 @@ m2 = m1.transform(vec3(0.5, 0.3, 0.4)).transform(quat(0.7 * vec3(1, 1, 0)))
 show([difference(m1, m2)])
 ```
 
-![boolean](docs/screenshots/manipulation/boolean-op.png)
+![boolean](https://raw.githubusercontent.com/jimy-byerley/pymadcad/master/docs/screenshots/manipulation/boolean-op.png)
 
-See the [examples/](examples/) folder and the [guide](https://pymadcad.readthedocs.io/en/latest/guide/overview.html) for more.
+See the [examples/](https://github.com/jimy-byerley/pymadcad/tree/master/examples) folder and the [guide](https://pymadcad.readthedocs.io/en/latest/guide/overview/) for more.
 
-![bearing](examples/bearing.png)
+![bearing](https://raw.githubusercontent.com/jimy-byerley/pymadcad/master/examples/bearing.png)
 
 ## Features
 
