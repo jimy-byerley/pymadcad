@@ -625,12 +625,12 @@ class Screw:
 		return skew(base.resultant, base.moment)
 	
 	@staticmethod
-	def from_matrix(mat, location=None) -> Screw:
+	def from_matrix(mat: mat3|mat4, location=None) -> Screw:
 		''' convert a velocity matrix into a screw at world location 0 '''
 		return Screw(location or vec3(0), *unskew(mat))
 	
 	@staticmethod
-	def from_rate(f:Callable[[float],float], t:float, dt=1e-6) -> Screw:
+	def from_rate(f:Callable[[float],mat3|mat4], t:float, dt=1e-6) -> Screw:
 		''' compute a Screw of a frame by rating the given function `f` at the given instant `t`
 		
 			`f` is supposed to
@@ -656,7 +656,7 @@ def comoment(t1:Screw, t2:Screw) -> float:
 	t2 = t2.locate(t1.location)
 	return dot(t1.moment, t2.resultant) + dot(t2.moment, t1.resultant)
 
-def skew(r:vec3, t:vec3|None=None) -> mat3|mat4:
+def skew(r:vec3, t:vec3=None) -> mat3|mat4:
 	''' skew matrix of 3D vector `v` (pre cross product matrix). it `t` is given, it provides a fourth column (usefull for affine transforms) 
 	
 		>>> r = vec3(...)

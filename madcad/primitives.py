@@ -39,7 +39,7 @@
 
 '''
 
-import numpy._core as np
+import numpy.core as np
 from .mathutils import (
 		anglebt, interpol2, linrange, project, Axis, vec3, dirbase, unproject,
 		length, normalize, cross, length2, dot, mix, distance, sqrt, sin, cos,
