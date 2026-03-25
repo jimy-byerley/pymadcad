@@ -4,8 +4,10 @@ repo_url: https://github.com/jimy-byerley/pymadcad
 
 theme:
   name: material
-  logo: docs/logo.png
-  favicon: docs/logo.ico
+  logo: logo.png
+  favicon: logo.ico
+  icon:
+    repo: fontawesome/brands/github
   palette:
     - scheme: slate
       primary: green
@@ -19,6 +21,14 @@ theme:
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
+  features:
+    - navigation.tabs
+    - navigation.indexes
+    - navigation.tabs.sticky
+    - navigation.footer
+    - content.code.annotate
+    - content.code.copy
+    - content.code.select
 
 hooks:
   - docs/screenshot_remove_backgrounds.py
@@ -58,6 +68,16 @@ plugins:
             preload_modules:
               - pyglm
               - glm
+
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/jimy-byerley/pymadcad
+      name: Pymadcad on Github
+
+extra_javascript:
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
 
 nav:
   - Installation: installation.md
