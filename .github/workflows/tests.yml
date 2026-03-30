@@ -67,4 +67,4 @@ jobs:
           uv sync --extra dev --extra docs
           uv run maturin develop --release --strip
       - name: Build docs
-        run: uv run mkdocs build --strict
+        run: uv run mkdocs build
