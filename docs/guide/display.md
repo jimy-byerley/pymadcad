@@ -11,7 +11,9 @@ m = screw(10, 20)
 show([m])
 ```
 
-![](../screenshots/display/normal.png)
+<figure markdown="span">
+    ![](../screenshots/display/normal.png)
+</figure>
 
 ## With triangles
 
@@ -22,7 +24,9 @@ m = screw(10, 20)
 show([m], options={"display_wire":True})
 ```
 
-![](../screenshots/display/wire.png)
+<figure markdown="span">
+    ![](../screenshots/display/wire.png)
+</figure>
 
 ## With transparency
 
@@ -33,7 +37,9 @@ m = screw(10, 20)
 show([m], options={"display_faces":False})
 ```
 
-![](../screenshots/display/faces.png)
+<figure markdown="span">
+    ![](../screenshots/display/faces.png)
+</figure>
 
 ## With points
 
@@ -44,7 +50,9 @@ m = screw(10, 20)
 show([m], options={"display_points":True})
 ```
 
-![](../screenshots/display/points.png)
+<figure markdown="span">
+    ![](../screenshots/display/points.png)
+</figure>
 
 ## Color
 
@@ -57,7 +65,9 @@ m["part"].option(color=vec3(70, 130, 180) / 255) # RGB
 show([m])
 ```
 
-![](../screenshots/display/color.png)
+<figure markdown="span">
+    ![](../screenshots/display/color.png)
+</figure>
 
 !!! note
     `screw` returns a `Solid`. `Solid` does not have the method `.option()`.

@@ -41,10 +41,12 @@ A surface in `madcad` is oriented which means it has a bright side and a dark si
 ```python
 from madcad import *
 points = [O, X, X + Z, 2 * X + Z, 2 * (X + Z), X + 2 * Z, X + 5 * Z, 5 * Z]
-section = Wire(points).segmented().flip() # quicker on Wire because there are less points
+section = Wire(points).segmented().flip() # (1)!
 rev = revolution(section) # or .flip() here
 show([section, rev.transform(translate(6 * X))])
 ```
+
+1. Quicker on Wire because there are less points
 
 ![](../screenshots/goodpractices/rev2.png)
 
@@ -75,7 +77,7 @@ from madcad import *
 depth = 20
 exterior = Circle((O, Z), 10)
 hole = Circle((O, Z), 5)
-profile = web([exterior, web(hole).flip().qualify("hole")]) # qualify "hole" for future usage
+profile = web([exterior, web(hole).flip().qualify("hole")]) # (1)!
 result = (
     extrusion(profile, depth * Z)
     + fill(profile)
@@ -84,11 +86,15 @@ result = (
 show(
     [
         result,
-        result.group("hole").transform(translate(16 * X)), # extract faces and edges (Mesh)
-        result.frontiers("hole", None).transform(translate(27 * X)), # extract edges (Web)
+        result.group("hole").transform(translate(16 * X)), # (2)!
+        result.frontiers("hole", None).transform(translate(27 * X)), # (3)!
     ]
 )
 ```
+
+1. Qualify "hole" for future usage
+2. Extract faces and edges (Mesh)
+3. Extract edges (Web)
 
 ![](../screenshots/goodpractices/extract0.png)
 
