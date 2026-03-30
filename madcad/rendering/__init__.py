@@ -19,11 +19,26 @@
 '''
 from __future__ import annotations
 
+import numpy as np
+
+from ..box import Box
 from .. import settings
-from .utils import *
-from .base import *
-from .d3.view import *
+from ..mathutils import fmat4, uvec2
+from .utils import (
+	writeproperty, forwardproperty, sceneshare, receiver, Weak, Rc, CheapMap,
+	snail, snailaround, glsize, highlight_color,
+)
+from .base import Scene, Step, Display, Group, Displayable
+from .d3.view import GLView3D, Offscreen3D, Orbit, Turntable, Perspective, Orthographic
 # from .d2.view import *
+
+__all__ = [
+        "CheapMap", "Display", "Displayable", "GLView3D", "Group",
+        "Offscreen3D", "Orbit", "Orthographic", "Perspective", "Rc", "Scene",
+        "Step", "Turntable", "Weak", "forwardproperty", "glsize",
+        "highlight_color", "receiver", "sceneshare", "snail",
+        "snailaround","writeproperty", "render",
+	]
 
 try:
 	from ..qt import QApplication
@@ -37,7 +52,13 @@ else:
 		'''
 		Easy and convenient way to create a window containing a `View3D` on a `Scene`
 
-		If a `QApplication` is not already running, a `QApplication` is created and the functions only returns when the window has been closed and all GUI destroyed
+        Parameters:
+            scene:     a mapping (dict or list) giving the objects to render in the scene
+            interest:  the region of interest to zoom on at the window initialization
+            size:      the window size (pixel)
+            projection: an object handling the camera projection (aka intrinsic parameters), see `QView3D.projection`
+            navigation: an object handling the camera movements, see `QView3D.navigation`
+            options:   options to set in `Scene.options`
 
 		Parameters:
 			scene:     a mapping (dict or list) giving the objects to render in the scene
@@ -85,8 +106,7 @@ else:
 			if err != 0:
 				print('error: Qt exited with code', err)
 
-
-def render(scene:Scene|dict|list, size=uvec2(400, 400), view:fmat4=None, proj:fmat4=None, interest:Box=None, alpha=False, **options) -> ndarray:
+def render(scene:Scene|dict|list, size=uvec2(400, 400), view:fmat4=None, proj:fmat4=None, interest:Box=None, alpha=False, **options) -> np.ndarray:
 	'''
 	render the given scene to an image
 
