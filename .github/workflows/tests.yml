@@ -51,3 +51,20 @@ jobs:
           cp -r ${{ github.workspace }}/tests /tmp/tests
           ${{ github.workspace }}/.venv/bin/python -m pytest /tmp/tests/ -v --ignore=/tmp/tests/test_displays.py --ignore=/tmp/tests/test_display_voxel.py
         working-directory: /tmp
+
+  # Build documentation
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.13'
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Build and install
+        run: |
+          uv sync --extra docs
+          uv run maturin develop --release --strip
+      - name: Build docs
+        run: uv run mkdocs build --strict

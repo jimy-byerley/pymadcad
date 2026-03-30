@@ -36,6 +36,12 @@ dev = [
     "pytest~=9.0",
     "maturin~=1.7",
 ]
+docs = [
+    "mkdocs>=1.6,<2.0",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.25",
+    "opencv-python-headless>=2",
+]
 
 [project.urls]
 homepage = "https://madcad.netlify.app/pymadcad"

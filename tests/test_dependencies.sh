@@ -21,8 +21,8 @@ python -c "import madcad.rendering.d3"
 python -c "import madcad.text"
 
 # madcad docs
-python -m pip install $(cat $repo/docs/requirements.txt)
-python -m sphinx $repo/docs $test/docs
+python -m pip install "$repo[docs]"
+python -m mkdocs build -f $repo/mkdocs.yml -d $test/docs
 
 # clean
 deactivate

@@ -71,8 +71,6 @@ See [the glm complete reference](https://github.com/Zuzu-Typ/PyGLM/blob/master/w
 ::: madcad.mathutils.transpose
 ::: madcad.mathutils.inverse
 ::: madcad.mathutils.affineInverse
-::: madcad.mathutils.angle
-::: madcad.mathutils.axis
 ::: madcad.mathutils.angleAxis
 
 ## Interpolation functions
@@ -101,7 +99,7 @@ See [the glm complete reference](https://github.com/Zuzu-Typ/PyGLM/blob/master/w
 
 ::: madcad.mathutils.Axis
 ::: madcad.mathutils.isaxis
-::: madcad.mathutils.Box
+::: madcad.box.Box
 ::: madcad.mathutils.Screw
 ::: madcad.mathutils.comoment
 ::: madcad.mathutils.skew

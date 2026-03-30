@@ -9,7 +9,8 @@ from arrex import typedlist
 import arrex.glm # noqa: F401
 from pyglm import glm
 from pyglm.glm import (
-		acos, affineInverse, angleAxis, asin, atan, ceil, clamp, cos, cross,
+		acos, affineInverse, angle, angleAxis, axis, asin, atan, ceil, clamp, cos, cross,
+		step, lerp,
 		degrees, distance, distance2, dmat2, dmat2x3, dmat3, dmat3x2, dmat4,
 		dmat4x3, dot, dquat, dvec2, dvec3, dvec4, e, exp, floor, fmat2, fmat3,
 		fmat4, fquat, fvec1, fvec2, fvec3, fvec4, i64vec3, inverse, isinf,
@@ -27,7 +28,7 @@ from math import (
 
 __all__ = [
 		"Axis", "COMPREC", "NUMPREC", "O", "Point", "Screw", "Vector", "X",
-		"Y", "Z", "acos", "affineInverse", "angleAxis", "anglebt", "arclength",
+		"Y", "Z", "acos", "affineInverse", "angle", "angleAxis", "anglebt", "arclength", "axis",
 		"asin", "atan", "atan2", "bisect", "ceil", "clamp", "comoment", "cos",
 		"cross", "degrees", "dirbase", "dist", "distance", "distance2",
 		"distance_aa", "distance_ae", "distance_pa", "distance_pe",
@@ -38,12 +39,12 @@ __all__ = [
 		"imax", "inf", "interpol1", "interpol2", "intri_flat",
 		"intri_parabolic", "intri_smooth", "intri_sphere", "inverse",
 		"isclose", "isfinite", "isinf", "isnan", "ivec2", "l1Norm", "length",
-		"length2", "linrange", "linstep", "log", "mat2", "mat3", "mat3_cast",
+		"length2", "lerp", "linrange", "linstep", "log", "mat2", "mat3", "mat3_cast",
 		"mat4", "mat4x4", "mix", "nan", "noproject", "norm1", "norm2",
 		"normalize", "norminf", "perp", "perpdot", "perspective", "pi", "pow",
 		"project", "quat", "radians", "reflect", "rotate", "rotatearound",
 		"scale", "scaledir", "sign", "sin", "skew", "slerp", "smoothstep",
-		"sqrt", "tan", "transform", "transformer", "translate", "transpose",
+		"sqrt", "step", "tan", "transform", "transformer", "translate", "transpose",
 		"typedlist", "u8vec4", "unproject", "unskew", "uvec2", "uvec3", "vec1",
 		"vec2", "vec3", "vec4"
 	]
