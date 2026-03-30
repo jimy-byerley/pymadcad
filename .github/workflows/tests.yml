@@ -64,7 +64,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Build and install
         run: |
-          uv sync --extra docs
+          uv sync --extra dev --extra docs
           uv run maturin develop --release --strip
       - name: Build docs
         run: uv run mkdocs build --strict
