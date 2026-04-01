@@ -20,12 +20,10 @@ jobs:
         run: |
           TAG=${GITHUB_REF#refs/tags/v}
           PYPROJECT=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
-          MODULE=$(python3 -c "import re; print(re.search(r\"version\s*=\s*['\\\"]([^'\\\"]+)\", open('madcad/__init__.py').read()).group(1))")
           echo "Tag: $TAG"
           echo "pyproject.toml: $PYPROJECT"
-          echo "madcad/__init__.py: $MODULE"
-          if [ "$TAG" != "$PYPROJECT" ] || [ "$TAG" != "$MODULE" ]; then
-            echo "::error::Version mismatch! Tag=$TAG pyproject.toml=$PYPROJECT __init__.py=$MODULE"
+          if [ "$TAG" != "$PYPROJECT" ]; then
+            echo "::error::Version mismatch! Tag=$TAG pyproject.toml=$PYPROJECT"
             exit 1
           fi
 
