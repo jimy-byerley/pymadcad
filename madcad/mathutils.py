@@ -6,18 +6,21 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from arrex import typedlist
-import arrex.glm # noqa: F401
+import arrex.glm
 from pyglm import glm
 from pyglm.glm import (
-		acos, affineInverse, angle, angleAxis, axis, asin, atan, ceil, clamp, cos, cross,
-		step, lerp,
-		degrees, distance, distance2, dmat2, dmat2x3, dmat3, dmat3x2, dmat4,
-		dmat4x3, dot, dquat, dvec2, dvec3, dvec4, e, exp, floor, fmat2, fmat3,
-		fmat4, fquat, fvec1, fvec2, fvec3, fvec4, i64vec3, inverse, isinf,
-		isnan, ivec2, l1Norm, length, length2, log, mat3_cast, mat4x4, mix,
-		normalize, perspective, pow, radians, reflect, rotate, scale, sign,
-		sin, slerp, smoothstep, sqrt, tan, translate, transpose, u8vec4, uvec2,
-		uvec3, vec1
+	# types
+	dvec1, dvec2, dvec3, dvec4,  dquat,  dmat2, dmat3, dmat4, dmat2x3, dmat3x2, dmat4x3, dmat4x4,
+	fvec1, fvec2, fvec3, fvec4,  fquat,  fmat2, fmat3, fmat4, fmat2x3, fmat3x2,
+	ivec2, ivec4, i64vec3, 
+	uvec2, uvec3, 
+	u8vec4, 
+	# functions
+	acos, affineInverse, angle, angleAxis, asin, atan, axis, ceil, clamp, cos,
+	cross, degrees, distance, distance2, dot, e, exp, floor, inverse, isinf,
+	isnan, l1Norm, length, length2, lerp, log, mat3_cast, mix, normalize,
+	perspective, pow, radians, reflect, rotate, scale, sign, sin, slerp,
+	smoothstep, sqrt, step, tan, translate, transpose,
 	)
 
 # math most used functions and constants
@@ -27,29 +30,32 @@ from math import (
 )
 
 __all__ = [
-		"Axis", "COMPREC", "NUMPREC", "O", "Point", "Screw", "Vector", "X",
-		"Y", "Z", "acos", "affineInverse", "angle", "angleAxis", "anglebt", "arclength", "axis",
-		"asin", "atan", "atan2", "bisect", "ceil", "clamp", "comoment", "cos",
-		"cross", "degrees", "dirbase", "dist", "distance", "distance2",
-		"distance_aa", "distance_ae", "distance_pa", "distance_pe",
-		"distance_pt", "dmat2", "dmat2x3", "dmat3", "dmat3x2", "dmat4",
-		"dmat4x3", "dot", "dquat", "dvec2", "dvec3", "dvec4", "e", "exp",
-		"fbisect", "find", "floor", "fmat2", "fmat3", "fmat4", "fquat",
-		"fvec1", "fvec2", "fvec3", "fvec4", "gcd", "glm", "hypot", "i64vec3",
-		"imax", "inf", "interpol1", "interpol2", "intri_flat",
-		"intri_parabolic", "intri_smooth", "intri_sphere", "inverse",
-		"isclose", "isfinite", "isinf", "isnan", "ivec2", "l1Norm", "length",
-		"length2", "lerp", "linrange", "linstep", "log", "mat2", "mat3", "mat3_cast",
-		"mat4", "mat4x4", "mix", "nan", "noproject", "norm1", "norm2",
-		"normalize", "norminf", "perp", "perpdot", "perspective", "pi", "pow",
-		"project", "quat", "radians", "reflect", "rotate", "rotatearound",
-		"scale", "scaledir", "sign", "sin", "skew", "slerp", "smoothstep",
-		"sqrt", "step", "tan", "transform", "transformer", "translate", "transpose",
-		"typedlist", "u8vec4", "unproject", "unskew", "uvec2", "uvec3", "vec1",
-		"vec2", "vec3", "vec4"
+		# types
+		"vec1", "vec2", "vec3", "vec4",  "quat",  "mat2", "mat3", "mat4",
+		"dvec1", "dvec2", "dvec3", "dvec4",  "dquat",  "dmat2", "dmat3", "dmat4", "dmat2x3", "dmat3x2", "dmat4x3", "dmat4x4",
+		"fvec1", "fvec2", "fvec3", "fvec4",  "fquat",  "fmat2", "fmat3", "fmat4", "fmat2x3", "fmat3x2",
+		"ivec2", "ivec4", "i64vec3",
+		"uvec2", "uvec3",
+		"u8vec4",
+		"typedlist", "Axis", "Screw", "Vector", "Point",
+		# constants
+		"COMPREC", "NUMPREC", "O", "X", "Y", "Z", "e", "glm", "inf", "nan", "pi",
+		# functions
+		"acos", "affineInverse", "angle", "angleAxis", "anglebt", "arclength", "asin", "atan", "atan2", "axis",
+		"bisect", "ceil", "clamp", "comoment", "cos", "cross",
+		"degrees", "dirbase", "dist", "distance", "distance2",
+		"distance_aa", "distance_ae", "distance_pa", "distance_pe", "distance_pt", "dot", "exp",
+		"fbisect", "find", "floor", "gcd", "hypot", "imax",
+		"interpol1", "interpol2", "intri_flat", "intri_parabolic", "intri_smooth", "intri_sphere", "inverse",
+		"isclose", "isfinite", "isinf", "isnan", "l1Norm", "length", "length2", "lerp", "linrange", "linstep", "log",
+		"mat3_cast", "mix", "noproject", "norm1", "norm2", "normalize", "norminf",
+		"perp", "perpdot", "perspective", "pow", "project",
+		"radians", "reflect", "rotate", "rotatearound", "scale", "scaledir", "sign", "sin", "skew", "slerp", "smoothstep", "sqrt", "step",
+		"tan", "transform", "transformer", "translate", "transpose", "unproject", "unskew",
 	]
 
 # alias definitions
+vec1 = dvec1
 vec2 = dvec2
 mat2 = dmat2
 vec3 = dvec3

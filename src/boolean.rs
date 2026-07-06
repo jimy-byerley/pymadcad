@@ -585,7 +585,7 @@ pub fn pierce_surface(
                 let f = *cut.simplices[fi].as_array();
                 // Find the vertex opposite to the frontier edge
                 if let Some(fi_pt) = f.iter().cloned().find(|&v| v != edge[0] && v != edge[1]) {
-                    let rolled = simplex_phase(f, fi_pt);
+                    let rolled = simplex_phase(f, fi_pt).expect("opposite vertex not in face");
                     let next_v = rolled[1];
                     let prev = rolled[2];
                     let m2_normal = m2.facenormal(f2);

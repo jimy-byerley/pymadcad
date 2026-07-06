@@ -143,22 +143,28 @@ from . import (
 
 # the most common tools, imported to access it directly from madcad
 from .mathutils import (
-		Axis, COMPREC, NUMPREC, O, Point, Screw, Vector, X, Y, Z, acos,
-		affineInverse, angleAxis, anglebt, arclength, asin, atan, atan2,
-		bisect, ceil, clamp, comoment, cos, cross, degrees, dirbase, dist,
-		distance, distance2, distance_aa, distance_ae, distance_pa,
-		distance_pe, distance_pt, dmat2, dmat2x3, dmat3, dmat3x2, dmat4,
-		dmat4x3, dot, dquat, dvec2, dvec3, dvec4, e, exp, fbisect, find, floor,
-		fmat2, fmat3, fmat4, fquat, fvec1, fvec2, fvec3, fvec4, gcd, glm,
-		hypot, i64vec3, imax, inf, interpol1, interpol2, intri_flat,
-		intri_parabolic, intri_smooth, intri_sphere, inverse, isclose,
-		isfinite, isinf, isnan, ivec2, l1Norm, length, length2, linrange,
-		linstep, log, mat2, mat3, mat3_cast, mat4, mat4x4, mix, nan, noproject,
-		norm1, norm2, normalize, norminf, perp, perpdot, perspective, pi, pow,
-		project, quat, radians, reflect, rotate, rotatearound, scale, scaledir,
-		sign, sin, skew, slerp, smoothstep, sqrt, tan, transform, transformer,
-		translate, transpose, typedlist, u8vec4, unproject, unskew, uvec2,
-		uvec3, vec1, vec2, vec3, vec4,
+		# types
+		vec1, vec2, vec3, vec4,  quat,  mat2, mat3, mat4,
+		dvec1, dvec2, dvec3, dvec4,  dquat,  dmat2, dmat3, dmat4, dmat2x3, dmat3x2, dmat4x3, dmat4x4,
+		fvec1, fvec2, fvec3, fvec4,  fquat,  fmat2, fmat3, fmat4, fmat2x3, fmat3x2,
+		ivec2, ivec4, i64vec3,
+		uvec2, uvec3,
+		u8vec4,
+		typedlist, Axis, Screw, Vector, Point,
+		# constants
+		COMPREC, NUMPREC, O, X, Y, Z, e, glm, inf, nan, pi,
+		# functions
+		acos, affineInverse, angleAxis, anglebt, arclength, asin, atan, atan2,
+		bisect, ceil, clamp, comoment, cos, cross,
+		degrees, dirbase, dist, distance, distance2,
+		distance_aa, distance_ae, distance_pa, distance_pe, distance_pt, dot, exp,
+		fbisect, find, floor, gcd, hypot, imax,
+		interpol1, interpol2, intri_flat, intri_parabolic, intri_smooth, intri_sphere, inverse,
+		isclose, isfinite, isinf, isnan, l1Norm, length, length2, linrange, linstep, log,
+		mat3_cast, mix, noproject, norm1, norm2, normalize, norminf,
+		perp, perpdot, perspective, pow, project,
+		radians, reflect, rotate, rotatearound, scale, scaledir, sign, sin, skew, slerp, smoothstep, sqrt,
+		tan, transform, transformer, translate, transpose, unproject, unskew,
 	)
 from .box import Box
 from .mesh import Mesh, Web, Wire, MeshError, web, wire
@@ -195,48 +201,6 @@ from .standard import (
 		grooves_profile, grooves, stfloor, stceil
 	)
 
-__all__ = [
-	"Angle","ArcCentered", "ArcTangent", "ArcThrough", "Axis", "Box",
-	"COMPREC", "Chain", "Circle", "Distance", "Ellipsis", "Interpolated",
-	"Joint", "Kinematic", "KinematicError", "Mesh", "MeshError", "NUMPREC",
-	"O", "OnPlane", "Parallel", "Point", "PointOn", "Radius", "Screw",
-	"Segment", "Softened", "Solid", "SolveError", "Tangent", "TangentEllipsis",
-	"TriangulationError", "Vector", "Web", "Wire", "X", "Y", "Z", "acos",
-	"affineInverse", "angleAxis", "anglebt", "arclength", "asin", "atan",
-	"atan2", "bearing", "bearing_slot_exterior", "bearing_slot_interior",
-	"bevel", "bisect", "blend", "blenditer", "blendloop", "blendpair", "bolt",
-	"bolt_slot", "boolean", "brick", "cache", "cachefunc", "ceil", "chamfer",
-	"circular_screwing", "clamp", "coilspring_compression",
-	"coilspring_tension", "coilspring_torsion", "comoment", "cone",
-	"constraints", "convexhull", "convexoutline", "cos", "cross", "cylinder",
-	"degrees", "difference", "dirbase", "dist", "distance", "distance2",
-	"distance_aa", "distance_ae", "distance_pa", "distance_pe", "distance_pt",
-	"dmat2", "dmat2x3", "dmat3", "dmat3x2", "dmat4", "dmat4x3", "dot", "dquat",
-	"dvec2", "dvec3", "dvec4", "e", "edgecut", "exp", "expand", "extrans",
-	"extrusion", "fbisect", "filet", "fill", "find", "floor", "fmat2", "fmat3",
-	"fmat4", "fquat", "fvec1", "fvec2", "fvec3", "fvec4", "gcd", "generation",
-	"glm", "grooves", "grooves_profile", "hashing", "helix", "horizon",
-	"hypot", "i64vec3", "icosahedron", "icosphere", "icosurface", "imax",
-	"inf", "inflate", "inflate_offsets", "interpol1", "interpol2",
-	"intersection", "intri_flat", "intri_parabolic", "intri_smooth",
-	"intri_sphere", "inverse", "io", "isclose", "isconstraint", "isfinite",
-	"isinf", "isnan", "isprimitive", "ivec2", "joints", "junction",
-	"kinematic", "l1Norm", "length", "length2", "linrange", "linstep", "log",
-	"mat2", "mat3", "mat3_cast", "mat4", "mat4x4", "mathutils", "mesh", "mix",
-	"multijunction", "nan", "noproject", "norm1", "norm2", "normalize",
-	"norminf", "nut", "parallelogram", "perp", "perpdot", "perspective", "pi",
-	"pierce", "planeoffsets", "pow", "primitives", "project", "pyramid",
-	"quat", "radians", "read", "reflect", "regon", "render", "repeat",
-	"repeataround", "revolution", "rotate", "rotatearound", "saddle", "scale",
-	"scaledir", "screw", "screw_slot", "section_c", "section_l", "section_s",
-	"section_tslot", "section_w", "segmentation", "select", "settings", "show",
-	"sign", "sin", "skew", "slerp", "slidebearing", "smoothstep", "solve",
-	"sqrt", "square", "standard", "stceil", "stfloor", "suites", "tan", "text",
-	"thicken", "transform", "transformer", "translate", "transpose",
-	"triangulation", "tube", "typedlist", "u8vec4", "union", "unproject",
-	"unskew", "uvec2", "uvec3", "uvsphere", "vec1", "vec2", "vec3", "vec4",
-	"washer", "web", "wire","write",
-]
 
 # Get version from pyproject.toml
 __version__ = importlib.metadata.version("pymadcad")

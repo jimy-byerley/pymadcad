@@ -34,7 +34,7 @@
 
 from .mathutils import (
 		vec2, vec3, interpol1, O, X, Y, Z, rotatearound, Axis, anglebt,
-		linrange, transform, scaledir, mat4x4, mat2, inverse, angleAxis, mat4,
+		linrange, transform, scaledir, mat2, inverse, angleAxis, mat4,
 		quat, length, scale, rotate, cross, normalize, dot, mat3, distance2,
 		mix, translate, length2, radians, tan, pi, atan, cos, sin, sqrt, atan2,
 		acos, log, asin, inf
@@ -1428,7 +1428,7 @@ def _get_intersection(A: vec3, B: vec3, C: vec3, D: vec3) -> float:
 	delta = b * b - 4 * a * c
 	return (-b + sqrt(delta)) / (2 * a)
 
-def matrix4placement(teeth:int, shaft_angle:float) -> mat4x4:
+def matrix4placement(teeth:int, shaft_angle:float) -> mat4:
 	"""
 	Return a matrix of transformation given initial state (Z is the initial axis of revolution).
 	This matrix is helpful when you want to place bevel gears.

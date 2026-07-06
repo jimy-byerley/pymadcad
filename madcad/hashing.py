@@ -36,6 +36,14 @@ def arrangeedge(e, p):
 	''' Return the edge indices rotated the way `p` is the first index, if `p` is in the edge '''
 	if p == e[1]:	return e[1], e[0]
 	else:			return e
+	
+def flipedge(e):
+	''' return same edge with flipped direction '''
+	return e[1], e[0]
+	
+def flipface(f):
+	''' return same face with flipped direction '''
+	return f[0], f[1], f[2]
 
 def connpp(ngons):
 	''' Point to point connectivity 

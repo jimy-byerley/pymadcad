@@ -190,6 +190,15 @@ def horizon(mesh, direction: vec3) -> Web:
 				signs[flipped(edge)] = s
 	return horizon
 
+def summit(mesh, direction: vec3) -> vec3:
+	''' max point along the given direction '''
+	index = max(
+        (point  for face in mesh.faces for point in face),
+        key = lambda point:  dot(mesh.points[point], direction)
+        )
+	return mesh.points[index]
+
+
 
 def flipped(simplex):
 	if len(simplex) == 2:

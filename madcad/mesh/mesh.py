@@ -225,11 +225,11 @@ class Mesh(NMesh):
 		e2 = self.points[f[2]] - p0
 		return normalize(cross(e1, e2))
 
-	def facenormals(self) -> '[vec3]':
+	def facenormals(self) -> typedlist[vec3]:
 		''' list normals for each face '''
 		return typedlist(map(self.facenormal, self.faces), vec3)
 
-	def edgenormals(self) -> '{uvec2: vec3}':
+	def edgenormals(self) -> dict[uvec2, vec3]:
 		''' dict of normals for each UNORIENTED edge '''
 		normals = {}
 		for face in self.faces:
@@ -242,7 +242,7 @@ class Mesh(NMesh):
 		return normals
 
 
-	def vertexnormals(self) -> '[vec3]':
+	def vertexnormals(self) -> typedlist[vec3]:
 		''' list of normals for each point '''
 		from madcad import core
 		return core.vertexnormals(self)

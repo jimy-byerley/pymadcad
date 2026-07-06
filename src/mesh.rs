@@ -203,13 +203,9 @@ impl Surface<'_> {
                         break;
                     }
                     let fi = conn[&front];
-                    let f = simplex_phase(faces[fi], pivot);
-                    let fm = simplex_phase(newfaces[fi], pivot);
-
-                    assert_eq!(f[0], pivot);
-                    if fm[0] != pivot {
-                        break;
-                    }
+                    let f = simplex_phase(faces[fi], pivot).expect("pivot not in face");
+                    let Some(fm) = simplex_phase(newfaces[fi], pivot)
+                        else {break};
 
                     newfaces[fi] = [dupli, fm[1], fm[2]];
 
@@ -373,14 +369,14 @@ impl Wire<'_> {
 }
 
 
-/// Roll the simplex so that the given item is first
-pub fn simplex_phase<T: Copy + PartialEq, const N: usize>(simplex: [T; N], first: T) -> [T; N] {
+/// Roll the simplex so that the given item is first, or `None` if it is not in the simplex
+pub fn simplex_phase<T: Copy + PartialEq, const N: usize>(simplex: [T; N], first: T) -> Option<[T; N]> {
     for i in 0..N {
         if simplex[i] == first {
-            return std::array::from_fn(|j| simplex[(j + i) % N]);
+            return Some(std::array::from_fn(|j| simplex[(j + i) % N]));
         }
     }
-    panic!("requested first item not in simplex");
+    None
 }
 
 /// Return all possible rolls of the simplex
@@ -401,15 +397,16 @@ mod tests {
 
     #[test]
     fn test_simplex_phase_face() {
-        assert_eq!(simplex_phase([0, 1, 2], 0), [0, 1, 2]);
-        assert_eq!(simplex_phase([0, 1, 2], 1), [1, 2, 0]);
-        assert_eq!(simplex_phase([0, 1, 2], 2), [2, 0, 1]);
+        assert_eq!(simplex_phase([0, 1, 2], 0), Some([0, 1, 2]));
+        assert_eq!(simplex_phase([0, 1, 2], 1), Some([1, 2, 0]));
+        assert_eq!(simplex_phase([0, 1, 2], 2), Some([2, 0, 1]));
+        assert_eq!(simplex_phase([0, 1, 2], 3), None);
     }
 
     #[test]
     fn test_simplex_phase_edge() {
-        assert_eq!(simplex_phase([0, 1], 0), [0, 1]);
-        assert_eq!(simplex_phase([0, 1], 1), [1, 0]);
+        assert_eq!(simplex_phase([0, 1], 0), Some([0, 1]));
+        assert_eq!(simplex_phase([0, 1], 1), Some([1, 0]));
     }
 
     #[test]

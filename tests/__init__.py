@@ -17,6 +17,9 @@ if _visualcheck_enabled:
 else:
 	from madcad.rendering import Scene
 
+class VisualCheckError(AssertionError):
+	''' raised when a visual check fails: either the user judged the result wrong or canceled the check '''
+
 def visualcheck(test: Callable) -> Callable:
     ''' decorator for non-regression tests, providing snapshot caching and visual inspection '''
     if _visualcheck_enabled:
@@ -45,10 +48,17 @@ def visualcheck(test: Callable) -> Callable:
                 if binary_result != binary_reference:
                     raise AssertionError("result of {} doesn't match cache".format(test.__name__))
             except (OSError, AssertionError, FileNotFoundError) as err:
-                if _visualinspect(title, reference, result):
+                outcome = _visualinspect(title, reference, result)
+                if outcome == 'accepted':
                     open(fullname, 'wb').write(binary_result)
-                else:
-                    raise
+                elif outcome == 'rejected':
+                    raise VisualCheckError(
+                        "visual check of {} failed: result does not match the reference".format(title)
+                        ) from err
+                else:  # 'canceled'
+                    raise VisualCheckError(
+                        "visual check of {} was canceled (window closed without answering)".format(title)
+                        ) from err
     else:
         @wraps(test)
         def wrapper(*args, **kwargs):
@@ -57,8 +67,12 @@ def visualcheck(test: Callable) -> Callable:
 
 app = None
 
-def _visualinspect(title, reference, result) -> bool:
-    ''' pop a 3d view to visually inspect the result and a question box to give user answer '''
+def _visualinspect(title, reference, result) -> str:
+    ''' pop a 3d view to visually inspect the result and a question box to give user answer
+
+        returns one of 'accepted' (Save), 'rejected' (Discard), or 'canceled' (window closed
+        without answering)
+    '''
     global app
     if app is None:
         app = QApplication([])
@@ -69,11 +83,15 @@ def _visualinspect(title, reference, result) -> bool:
     question.setText("result is different from last time\n is it correct ?")
     question.setStandardButtons(QMessageBox.Save | QMessageBox.Discard)
     question.setModal(False)
-    answer = False
+    # default outcome: if the window is closed without pressing a button, the check is canceled
+    outcome = 'canceled'
     @question.buttonClicked.connect
     def retreive(button):
-        nonlocal answer
-        answer = question.buttonRole(button) == QMessageBox.ButtonRole.AcceptRole
+        nonlocal outcome
+        if question.buttonRole(button) == QMessageBox.ButtonRole.AcceptRole:
+            outcome = 'accepted'
+        else:
+            outcome = 'rejected'
         window.close()
         # app.quit()
 
@@ -114,7 +132,7 @@ def _visualinspect(title, reference, result) -> bool:
     app.exec_()
     # question.exec_()
 
-    return answer
+    return outcome
 
 def _text_view(obj):
     view = QPlainTextEdit(nformat(obj).replace('\t', '    '))
