@@ -140,7 +140,7 @@ def _text_view(obj):
     return view
 
 def _geometry_view(obj):
-    view = QView3D(Scene(obj, options=dict(display_wire=True, display_points=True)))
+    view = QView3D(Scene(obj, options=dict(display_wire=True, display_points=True, selection_sub=True)))
     view.scene.prepare()
     interest = view.scene.root.box
     view.center(interest.center)
