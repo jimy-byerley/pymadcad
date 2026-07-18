@@ -49,11 +49,25 @@ class ChainManip(Group):
 		self.pose = pose or chain.default
 		self.parts = self.chain.parts(self.pose)
 		self.defered = DeferedSolving()
+		self.index = {}
 		
-		if chain.content:
-			for key, solid in enumerate(chain.content):
-				if scene.displayable(solid):
-					self.displays[key] = scene.display(solid)
+		# accept content as list or dict
+		if isinstance(self.chain.content, list):
+			solids = iter(content)
+			content = {self.chain.joints[0].solids[0]: next(solids)}
+			for joint, solid in zip(self.chain.joints, solids):
+				content[joint.solids[1]] = solid
+		elif isinstance(self.chain.content, dict):
+			content = self.chain.content
+		else:
+			raise TypeError("content of {} must be a dict".format(object.__repr__(chain)))
+		
+		for i, joint in enumerate(self.chain.joints):
+			self.index[joint.solids[1]] = i+1
+		
+		for key, solid in self.chain.content.items():
+			if scene.displayable(solid):
+				self.displays[key] = scene.display(solid)
 		
 		scheme, index = kinematic_scheme(chain.joints)
 		scheme += kinematic_toolcenter(self.toolcenter)
@@ -67,16 +81,14 @@ class ChainManip(Group):
 		yield from super().stack(scene)
 
 	def _place_solids(self, view):
-		index = {}
 		for i, joint in enumerate(self.chain.joints):
 			solid = joint.solids[-1]
-			index[solid] = i+1
 			if display := self.displays.get(solid):
 				display.world = self.world * fmat4(self.parts[i+1])
 		
 		for space in self.displays['scheme'].spacegens:
-			if isinstance(space, (world_solid, scale_solid)) and space.solid in index:
-				space.pose = self.world * fmat4(self.parts[index[space.solid]])
+			if isinstance(space, (world_solid, scale_solid)) and space.solid in self.index:
+				space.pose = self.world * fmat4(self.parts[self.index[space.solid]])
 			elif isinstance(space, scheme.halo_screen):
 				if view.scene.options['kinematic_manipulation'] == 'rotate':
 					space.position = fvec3(self.parts[-1] * self.toolcenter)
@@ -122,7 +134,7 @@ class ChainManip(Group):
 		
 		# get 3d location of mouse
 		click = vec3(view.ptat(view.somenear(evt.pos())))
-		joint = max(0, solid-1)
+		joint = self.index[solid]-1
 		anchor = affineInverse(mat4(self.world) * self.parts[joint+1]) * vec4(click,1)
 		
 		while True:
@@ -152,30 +164,40 @@ class ChainManip(Group):
 							for grad in jac) / self.min_colinearity)
 				# combination of the closest directions to the mouse position
 				increment = la.lstsq(jac.transpose(), move * colinearity, 1e-6)[0]
-				self.pose[joint] = self.chain.joints[joint].normalize(
-										(np.asarray(self.pose[joint]) 
-										+ increment * min(1, np.abs(self.chain.increment / increment).max())
-									) .clip(*self.chain.joints[joint].bounds))
+
+				self.pose[joint] = self.chain.joints[joint].normalize(structure_state(
+					flatten_state(self.pose[joint])
+					+ increment * min(1, np.abs(self.chain.increment / increment).max()),
+					self.pose[joint]))
 				self.parts = self.chain.parts(self.pose)
 
 	def _move(self, move, jac):
 		''' newton method step for moving the mechanism
 		'''
-		colinearity = min(1, sum(
-			np.dot(grad, move)**2 / (normsq(grad) + normsq(move) + self.prec)
-			for grad in jac) / self.min_colinearity)
-		
-		increment = la.lstsq(jac.transpose(), move * colinearity, 1e-6)[0]
+		max_increment = flatten_state(self.chain.increment)
+		weight_increment = 0.2
+		increment = la.lstsq(
+			np.concat([
+				# move as requested
+				jac.transpose(), 
+				# prevent too big increment with a cost on joints
+				np.diag(weight_increment / max_increment),
+				]), 
+			np.concat([
+				# move as requested
+				move, 
+				# prevent too big increment with a cost on joints
+				np.zeros(max_increment.size),
+				]), 1e-6)[0]
 		
 		self.pose = self.chain.normalize(structure_state((
 						flatten_state(self.pose)
-						+ increment * min(1, np.abs(self.chain.increment / increment).max())
+						+ increment * min(1, np.abs(max_increment / increment).max())
 						),
 						self.pose))
 		self.parts = self.chain.parts(self.pose)
 
 	def _move_translate(self, view, sub, evt):
-		# translate the tool
 		clicked = vec3(view.ptat(view.somenear(evt.pos())))
 		solid = self.parts[-1]
 		anchor = affineInverse(mat4(self.world) * solid) * vec4(clicked,1)
@@ -213,12 +235,13 @@ class ChainManip(Group):
 				self.defered.set(prepare, solve, self.maxiter)
 
 	def _move_rotate(self, view, sub, evt):
-		# translate the tool
 		clicked = vec3(view.ptat(view.somenear(evt.pos())))
 		solid = self.parts[-1]
 		anchor = affineInverse(mat4(self.world) * solid) * vec4(clicked,1)
-		tool = vec4(self.toolcenter,1)
-		init_tool = solid * tool
+		target_tool = solid * vec4(self.toolcenter,1)
+		target_axis = normalize(target_tool - vec4(affineInverse(view.uniforms['view'] * self.world)[3]))
+		tool = affineInverse(solid) * target_tool
+		axis = affineInverse(solid) * target_axis
 		
 		while True:
 			evt = yield
@@ -229,25 +252,37 @@ class ChainManip(Group):
 				if not (evt.buttons() & Qt.MouseButton.LeftButton):
 					break
 
-				solid = self.parts[-1]
 				model = mat4(view.uniforms['proj'] * view.uniforms['view'] * self.world)
-				current_tool = model * solid * tool
 				target_anchor = qtpos(evt.pos(), view)
-				target_tool = model * init_tool
 				
 				def prepare(problem):
 					problem.jac = self.chain.grad(self.pose)
-				def solve(problem):
+				def solve(problem, model=model, target_anchor=target_anchor, target_tool=target_tool):
+					solid = self.parts[-1]
+					current_tool = model * solid * tool
+					current_anchor = model * solid * anchor
+					weight_center = 10
 					self._move(
 						move = np.concatenate([
-							(init_tool - solid * tool).xyz,
-							(target_anchor - target_tool.xy/target_tool.w) 
-								- (model * solid * normalize(anchor - tool)).xy / current_tool.w,
+							# (target_anchor - target_tool.xy/target_tool.w) 
+							# 	- (model * solid * normalize(anchor - tool)).xy / current_tool.w,
+							
+							# move grasped point under mouse
+							(target_anchor - current_anchor.xy/current_anchor.w),
+							# keep tool center point at the same place
+							(target_tool - solid * tool).xyz / self.chain.scale * weight_center,
+							# keep rotation axis unchanged
+							(target_axis - solid * axis).xyz,
 							]),
 						jac = np.stack([
 							np.concatenate([
-								(grad * tool).xyz, 
-								(model * grad * normalize(anchor - tool)).xy / current_tool.w, 
+								# (model * grad * normalize(anchor - tool)).xy / current_tool.w, 
+								# move grasped point under mouse
+								(model * grad * anchor).xy / current_anchor.w, 
+								# keep tool center point at the same place
+								(grad * tool).xyz / self.chain.scale * weight_center, 
+								# keep rotation axis unchanged
+								(grad * axis).xyz,
 								])
 							for grad in problem.jac]),
 						)
@@ -366,33 +401,40 @@ class KinematicManip(Group):
 			
 			self.toolcenter = affineInverse(place) * (vec3(view.ptfrom(evt.pos(), init)) + offset)
 					
-	def _move_opt(self, optmove, optjac):
+	def _move_opt(self, move_error, move_jac, typical_increment=None):
 		'''
 		newton method step for moving the mechanism
 
 		Parameters:
-			optmove:  the vector of the desired optional movement
-			optjac:   the jacobian of the residuals for the desired optional movement
+			move_error:  the vector of the desired optional movement
+			move_jac:   the jacobian of the residuals for the desired optional movement
 		'''
-		costmove = -self.kinematic.cost_residuals(self.pose)
+		max_increment = flatten_state(self.kinematic.increment)
+		if typical_increment is None:
+			typical_increment = max_increment
+		kin_error = -self.kinematic.cost_residuals(self.pose)
 		# priority factor, lowering the optional move while the closed loop error is big
-		priority = self.move_precision / max(self.move_precision, (costmove**2).max(initial=0))
-		# colinearity factor, lowering the optional move while it doesn't match the mechanism degrees of freedom
-		colinearity = min(1, max(
-			np.dot(optgrad, optmove)**2 / (normsq(optgrad) * normsq(optmove) + self.prec**4)
-			for optgrad in optjac))
+		weight_move = self.move_precision / max(self.move_precision, (kin_error**2).max(initial=0))
+		weight_increment = 0.2
 		
 		# complete problem to solve
 		move = np.hstack([
-			optmove * colinearity * priority, 
-			costmove,
+			# move as requested
+			move_error * weight_move, 
+			# keep the kinematic consistent
+			kin_error,
+			# prevent too big increment with a cost on joints
+			np.zeros(typical_increment.size),
 			])
 		jac = np.hstack([
-			optjac,
+			# move as requested
+			move_jac,
+			# keep the kinematic consistent
 			self.kinematic.cost_jacobian(self.pose).transpose(),
+			# prevent too big increment with a cost on joints
+			np.diag(weight_increment / typical_increment),
 			])
 		increment = la.lstsq(jac.T, move, 1e-6)[0]
-		max_increment = flatten_state(self.kinematic.increment)
 		# assemble the new pose and normalize it
 		newpose = self.kinematic.normalize(structure_state(
 			flatten_state(self.pose)
@@ -424,6 +466,12 @@ class KinematicManip(Group):
 		solid = self.parts[moved]
 		anchor = affineInverse(mat4(self.world) * solid) * vec4(clicked,1)
 		
+		# limit movement on other joints than those close to the moved solid
+		typical_increment = np.concat([
+			flatten_state(structured) * (1 if moved in joint.solids else 0.1)
+			for joint, structured in zip(self.kinematic.joints, self.kinematic.increment)
+			])
+		
 		while True:
 			evt = yield
 			# drag
@@ -446,13 +494,14 @@ class KinematicManip(Group):
 					current_anchor = model * solid * anchor
 					
 					self._move_opt(
-						optmove = np.asarray(
+						move_error = np.asarray(
 							# keep grasped position under mouse
 							target_anchor - current_anchor.xy / current_anchor.w),
-						optjac = np.stack([
+						move_jac = np.stack([
 							# keep grasped position under mouse
 							np.asarray((model * grad * anchor).xy / current_anchor.w)
 							for grad in problem.freejac]),
+						typical_increment = typical_increment,
 						)
 					view.update()
 				
@@ -499,13 +548,13 @@ class KinematicManip(Group):
 					current_anchor = model * solid * anchor
 				
 					self._move_opt(
-						optmove = np.concatenate([
+						move_error = np.concatenate([
 							# move grasped point under mouse
 							target_anchor - current_anchor.xy / current_anchor.w,
 								# keep initial orientation
 							np.ravel(dmat3x2(init_solid - solid)),
 							]),
-						optjac = np.stack([
+						move_jac = np.stack([
 							np.concatenate([
 								# move grasped point under mouse
 								(model * grad * anchor).xy / current_anchor.w, 
@@ -537,8 +586,8 @@ class KinematicManip(Group):
 		anchor = affineInverse(mat4(self.world) * solid) * vec4(clicked,1)
 		target_tool = vec4(self.toolcenter, 1)
 		target_axis = normalize(target_tool - vec4(affineInverse(view.uniforms['view'] * self.world)[3]))
-		axis = affineInverse(solid) * target_axis
 		tool = affineInverse(solid) * target_tool
+		axis = affineInverse(solid) * target_axis
 		
 		while True:
 			evt = yield
@@ -564,21 +613,22 @@ class KinematicManip(Group):
 						kinematic.joints[-1].inverse(self.parts[moved]),
 						))
 					
+					weight_center = 10
 					self._move_opt(
-						optmove = np.concatenate([
+						move_error = np.concatenate([
 							# move grasped point under mouse
 							(target_anchor - current_anchor.xy / current_anchor.w),
 							# keep tool center point at the same place
-							(target_tool - solid * tool).xyz / kinematic.scale,
+							(target_tool - solid * tool).xyz / kinematic.scale * weight_center,
 							# keep rotation axis unchanged
 							(target_axis - solid * axis).xyz,
 							]),
-						optjac = np.stack([
+						move_jac = np.stack([
 							np.concatenate([
 								# move grasped point under mouse
 								(model * grad * anchor).xy / current_anchor.w, 
 								# keep tool center point at the same place
-								(grad * tool).xyz / kinematic.scale, 
+								(grad * tool).xyz / kinematic.scale * weight_center, 
 								# keep rotation axis unchanged
 								(grad * axis).xyz,
 								])
