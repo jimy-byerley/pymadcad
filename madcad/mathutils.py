@@ -21,6 +21,7 @@ from pyglm.glm import (
 	isnan, l1Norm, length, length2, lerp, log, mat3_cast, mix, normalize,
 	perspective, pow, radians, reflect, rotate, scale, sign, sin, slerp,
 	smoothstep, sqrt, step, tan, translate, transpose,
+	roll, pitch, yaw,
 	)
 
 # math most used functions and constants
@@ -52,6 +53,7 @@ __all__ = [
 		"perp", "perpdot", "perspective", "pow", "project",
 		"radians", "reflect", "rotate", "rotatearound", "scale", "scaledir", "sign", "sin", "skew", "slerp", "smoothstep", "sqrt", "step",
 		"tan", "transform", "transformer", "translate", "transpose", "unproject", "unskew",
+		"roll", "pitch", "yaw",
 	]
 
 # alias definitions

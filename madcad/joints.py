@@ -7,7 +7,8 @@ from .mathutils import (
 		mat4, Axis, Screw, vec3, vec2, quat, O, X, Y, Z, project, isfinite,
 		noproject, dirbase, isaxis, affineInverse, rotate, translate,
 		normalize, dmat4x3, dot, length2, transpose, fvec3, cross, isnan, glm,
-		pi, inf, atan2, sin, cos, atan, typedlist, mat3, transform, length
+		pi, inf, atan2, sin, cos, atan, typedlist, mat3, transform, length,
+		roll, pitch, yaw,
 		)
 from . import generation as gt
 from . import generation, primitives, settings
