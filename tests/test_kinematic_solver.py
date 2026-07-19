@@ -17,7 +17,9 @@ def test_drotate():
 			assert np.array(drotate(i,dir)) == approx(np.array(rotate(i+epsilon,dir)-rotate(i,dir))/epsilon, abs=10*epsilon)
 
 def test_joints():
-	def check(joint):
+	def check(joint, scale=1.0):
+		# scale < 1 keeps euler-based rotational dof within (-pi/2, pi/2) so that
+		# matrix -> parameters -> matrix reciprocity is not broken by angle wrapping
 		for i in range(5):
 			print(joint, i)
 			
@@ -27,12 +29,12 @@ def test_joints():
 			assert flatten_state(joint.default).size == flatten_state(joint.bounds[1]).size
 			
 			# consistent structure in coordinates declarations
-			assert structure_state(flatten_state(joint.default), joint.default) == approx(joint.default)
-			assert structure_state(flatten_state(joint.increment), joint.default) == approx(joint.increment)
-			assert structure_state(flatten_state(joint.bounds[0]), joint.default) == approx(joint.bounds[0])
-			assert structure_state(flatten_state(joint.bounds[1]), joint.default) == approx(joint.bounds[1])
+			assert np.array(structure_state(flatten_state(joint.default), joint.default)) == approx(np.array(joint.default))
+			assert np.array(structure_state(flatten_state(joint.increment), joint.default)) == approx(np.array(joint.increment))
+			assert np.array(structure_state(flatten_state(joint.bounds[0]), joint.default)) == approx(np.array(joint.bounds[0]))
+			assert np.array(structure_state(flatten_state(joint.bounds[1]), joint.default)) == approx(np.array(joint.bounds[1]))
 			
-			pose = np.arange(len(flatten_state(joint.default))) + float(i)
+			pose = (np.arange(len(flatten_state(joint.default))) + float(i)) * scale
 			close = pose + 0.2
 			pose = structure_state(pose, joint.default)		
 			close = structure_state(close, joint.default)
@@ -47,6 +49,8 @@ def test_joints():
 	check(Free((0,1)))
 	check(Weld((0,1)))
 	check(Revolute((0,1), Axis(O,normalize(X+Y+Z))))
+	check(EdgeSlider((0,1), translate(vec3(0,0,1))), scale=0.1)
+	check(Universal((0,1), Axis(O,normalize(X+Y+Z))), scale=0.1)
 
 def test_one_free_pivot():
 	assert Kinematic([

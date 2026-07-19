@@ -15,7 +15,7 @@ from . import generation, primitives, settings
 
 __all__ = [
 		'Revolute', 'Planar', 'Prismatic', 'Cylindrical', 'Ball', 'PointSlider',
-		'EdgeSlider', 'Ring', 'Cam', 'Contact', 'Rack', 'Gear', 'Helicoid'
+		'EdgeSlider', 'Ring', 'Universal', 'Cam', 'Contact', 'Rack', 'Gear', 'Helicoid'
 	]
 
 
@@ -720,7 +720,7 @@ class EdgeSlider(Joint):
 		return (
 			*vec2(m[3]),
 			pitch(q),
-			roll(q),
+			yaw(q),
 			)
 	
 	def scheme(self, index, maxsize, attach_start, attach_end):
@@ -861,9 +861,10 @@ class Universal(Joint):
 		
 	def grad(self, orient):
 		pitch, yaw = orient
+		# direct() rotation is mat4(quat(vec3(pitch, yaw, 0))) == rotate(yaw, Y) * rotate(pitch, X)
 		return (
-			self.post * drotate(pitch, X) * self.pre,
-			self.post * drotate(pitch, Y) * self.pre,
+			self.post * rotate(yaw, Y) * drotate(pitch, X) * self.pre,
+			self.post * drotate(yaw, Y) * rotate(pitch, X) * self.pre,
 			)
 			
 	def scheme(self, index, maxsize, attach_start, attach_end):
