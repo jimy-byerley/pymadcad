@@ -19,6 +19,8 @@ def minkowski(a: Mesh, b: Mesh, sharp=0.3, raw=True, bilateral=False) -> Mesh:
 	edgesa = a.edges()
 	normalsb = b.facenormals()
 	
+	# TODO curve flat areas to avoid coplanar cluster of faces
+	
 	# points are offseted by summits in their normal if not sharp
 	# points are replaced by portion of b mesh if sharp
 	# edges are replaced by portion of horizon
@@ -50,6 +52,7 @@ def minkowski(a: Mesh, b: Mesh, sharp=0.3, raw=True, bilateral=False) -> Mesh:
 	new = Mesh()
 	index_points = {}
 	index_groups = {}
+	biases = {}
 	
 	def insert_point(key):
 		if key not in index_points:
@@ -74,6 +77,27 @@ def minkowski(a: Mesh, b: Mesh, sharp=0.3, raw=True, bilateral=False) -> Mesh:
 				raise Exception('internal logic error')
 		return index_groups[key]
 	
+	# edge crossing first to decide biases in case of dubious siding
+	for edge in edgesa:
+		# no sum on outlines
+		if not (edge in conna and flipedge(edge) in conna):
+			continue
+		# if smooth[edge[0]] and smooth[edge[1]]:
+		# 	indev
+		# else:
+		a_direction = a.points[edge[1]] - a.points[edge[0]]
+		a_side = (
+			a.facenormal(conna[edge]),
+			a.facenormal(conna[flipedge(edge)]),
+			)
+		for horizon in _horizon(b, normalsb, connb, a_direction, a_side, biases):
+			mkquad(new, (
+				insert_point((edge[0], horizon[0])),
+				insert_point((edge[0], horizon[1])),
+				insert_point((edge[1], horizon[1])),
+				insert_point((edge[1], horizon[0])),
+				), insert_group((None, None)))
+	
 	for point in range(len(a.points)):
 		# no sum on outlines
 		if point in outlinersa:
@@ -88,32 +112,12 @@ def minkowski(a: Mesh, b: Mesh, sharp=0.3, raw=True, bilateral=False) -> Mesh:
 		# 		for merged in face:
 		# 			index_points[(point, merged)] = index_points[(point, offset)]
 		# else:
-		for face, track in _front(b, adjacents[point]):
+		for face, track in _front(b, normalsb, adjacents[point], biases):
 			mktri(new, (
 				insert_point((point, face[0])),
 				insert_point((point, face[1])),
 				insert_point((point, face[2])),
 				), insert_group((None, track)))
-	
-	for edge in edgesa:
-		# no sum on outlines
-		if not (edge in conna and flipedge(edge) in conna):
-			continue
-		# if smooth[edge[0]] and smooth[edge[1]]:
-		# 	indev
-		# else:
-		a_direction = a.points[edge[1]] - a.points[edge[0]]
-		a_side = (
-			a.facenormal(conna[edge]),
-			a.facenormal(conna[flipedge(edge)]),
-			)
-		for horizon in _horizon(b, normalsb, connb, a_direction, a_side):
-			mkquad(new, (
-				insert_point((edge[0], horizon[0])),
-				insert_point((edge[0], horizon[1])),
-				insert_point((edge[1], horizon[1])),
-				insert_point((edge[1], horizon[0])),
-				), insert_group((None, None)))
 	
 	for face, track in zip(a.faces, a.tracks):
 		offset = _summit(b, a.facenormal(face))
@@ -136,23 +140,31 @@ def _summit(mesh: Mesh, direction: vec3) -> int:
 		key = lambda point:  dot(mesh.points[point], direction)
 		)
 
-def _front(mesh: Mesh, limits: typedlist[vec3]) -> Iterator[uvec3]:
+def _front(mesh: Mesh, normals: typedlist[vec3], limits: typedlist[vec3], biases: dict[vec3, vec3]) -> Iterator[uvec3]:
 	if not limits:
 		return
 		
 	prec = NUMPREC*8
-	for face, track in zip(mesh.faces, mesh.tracks):
-		normal = mesh.facenormal(face)
+	for face, track, normal in zip(mesh.faces, mesh.tracks, normals):
+		normal = biases.get(normal, normal)
 		if all(dot(normal, dir) > prec  for dir in limits):
 			yield face, track
 
-def _horizon(mesh: Mesh, normals: typedlist[vec3], conn: dict, a_direction: vec3, a_side: typedlist[vec3]) -> Iterator[uvec2]:
+def _horizon(mesh: Mesh, normals: typedlist[vec3], conn: dict, a_direction: vec3, a_side: typedlist[vec3], biases: dict[vec3, vec3]) -> Iterator[uvec2]:
 	prec = NUMPREC*8
 	
-	def ishorizon(face0, face1, a_direction):
-		side0 = dot(face0, a_direction)
-		side1 = dot(face1, a_direction)
-		return side0 * side1 < prec**2 and max(abs(side0), abs(side1)) > prec
+	def biased_dot(face, direction):
+		side = dot(biases.get(face, face), direction)
+		if abs(side) < prec:
+			biases[face] = biases.setdefault(face, face + direction * prec*2)
+			side = dot(biases[face], direction)
+		return side
+	
+	def ishorizon(face0, face1, direction):
+		side0 = biased_dot(face0, direction)
+		side1 = biased_dot(face1, direction)
+		# return side0 * side1 < prec**2 and max(abs(side0), abs(side1)) > prec
+		return side0 * side1 < -prec**2
 			
 	for edge in conn:
 		if edge != edgekey(*edge):
@@ -171,7 +183,7 @@ def _horizon(mesh: Mesh, normals: typedlist[vec3], conn: dict, a_direction: vec3
 		and ishorizon(a_side[0], a_side[1], b_direction)
 		# same outer direction
 		and dot(a_side[0] + a_side[1], b_side[0] + b_side[1]) > 0
-			):
+		):
 			if dot(cross(b_direction, a_direction), a_side[0] + a_side[1] + b_side[0] + b_side[1]) < 0:
 				yield edge
 			else:
