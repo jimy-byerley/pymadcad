@@ -16,7 +16,7 @@ __all__ = ['Scene', 'Step', 'Display', 'Group', 'Displayable']
 
 
 # minimum opengl version required by the rendering pipeline
-opengl_version = (4,3)
+opengl_version = 430
 # shared open gl context, None if not yet initialized
 global_context = None
 # helper constant to avoid reinstantiating empty tuples
