@@ -48,13 +48,8 @@ def minkowski(a: Mesh, b: Mesh, sharp=0.3, raw=True, bilateral=False) -> Mesh:
 				raise Exception('internal logic error')
 		return index_groups[key]
 	
-	prec = NUMPREC*8
-	
-	def ishorizon(face0, face1, direction):
-		side0 = _fallback_dot(face0, direction, prec)
-		side1 = _fallback_dot(face1, direction, prec)
-		# return side0 * side1 < prec**2 and max(abs(side0), abs(side1)) > prec
-		return side0 * side1 < -prec**2
+	# prec = NUMPREC*100
+	prec = 0
 	
 	for a_edge in a.adjacency:
 		# no sum on outlines
@@ -62,11 +57,15 @@ def minkowski(a: Mesh, b: Mesh, sharp=0.3, raw=True, bilateral=False) -> Mesh:
 		if a_edge[0] < a_edge[1] or not (a_edge in a.adjacency and reverse in a.adjacency):
 			continue
 		
-		a_direction = a.original.points[a_edge[1]] - a.original.points[a_edge[0]]
+		a_direction = a.randomized.points[a_edge[1]] - a.randomized.points[a_edge[0]]
 		a_side = (
-			(a.original_normals[a.adjacency[a_edge]], a.randomized_normals[a.adjacency[a_edge]]),
-			(a.original_normals[a.adjacency[reverse]], a.randomized_normals[a.adjacency[reverse]]),
+			a.randomized_normals[a.adjacency[a_edge]],
+			a.randomized_normals[a.adjacency[reverse]],
 			)
+		
+		# concave edges do not generate surface
+		if dot(cross(a_side[0], a_side[1]), a_direction) < 0:
+			continue
 		
 		for b_edge in b.adjacency:
 			# no sum on outlines
@@ -74,18 +73,24 @@ def minkowski(a: Mesh, b: Mesh, sharp=0.3, raw=True, bilateral=False) -> Mesh:
 			if b_edge[0] < b_edge[1] or not (b_edge in b.adjacency and reverse in b.adjacency):
 				continue
 		
-			b_direction = b.original.points[b_edge[0]] - b.original.points[b_edge[1]]
+			b_direction = b.randomized.points[b_edge[1]] - b.randomized.points[b_edge[0]]
 			b_side = (
-				(b.original_normals[b.adjacency[b_edge]], b.randomized_normals[b.adjacency[b_edge]]), 
-				(b.original_normals[b.adjacency[reverse]], b.randomized_normals[b.adjacency[reverse]]),
+				b.randomized_normals[b.adjacency[b_edge]],
+				b.randomized_normals[b.adjacency[reverse]],
 				)
+			
+			# concave edges do not generate surface
+			if dot(cross(b_side[0], b_side[1]), b_direction) < 0:
+				continue
+			
+			if dot(a_side[0] + a_side[1], b_side[0] + b_side[1]) <= 0:
+				continue
+			b_horizon = dot(a_side[0], b_direction) * dot(a_side[1], b_direction)
+			a_horizon = dot(b_side[0], a_direction) * dot(b_side[1], a_direction)
+			
 			# two horizons are crossing
-			if (ishorizon(b_side[0], b_side[1], a_direction)
-			and ishorizon(a_side[0], a_side[1], b_direction)
-			# same outer direction
-			and dot(a_side[0][0] + a_side[1][0], b_side[0][0] + b_side[1][0]) > 0
-			):
-				if dot(cross(b_direction, a_direction), a_side[0][0] + a_side[1][0] + b_side[0][0] + b_side[1][0]) < 0:
+			if b_horizon < -prec and a_horizon < -prec:
+				if dot(cross(b_direction, a_direction), a_side[0] + a_side[1] + b_side[0] + b_side[1]) > 0:
 					b_edge = b_edge
 				else:
 					b_edge = flipedge(b_edge)
@@ -97,69 +102,62 @@ def minkowski(a: Mesh, b: Mesh, sharp=0.3, raw=True, bilateral=False) -> Mesh:
 					insert_point((a_edge[1], b_edge[0])),
 					), insert_group((None, None)))
 	
-	for a_point in range(len(a.original.points)):
-		# no sum on outlines
-		if a_point in a.outliners:
-			continue
-		# concave points do not have front faces
-		limits = a.adjacents[a_point]
-		if not limits:
-			return
-		if any(dot(dir, a.original_vertexnormals[a_point]) < 0   for dir in limits):
-			continue
-		
-		for b_face, b_track, b_normal_original, b_normal_randomized in zip(b.original.faces, b.original.tracks, b.original_normals, b.randomized_normals):
-			if all(_fallback_dot((b_normal_original, b_normal_randomized), dir, prec) > prec  for dir in limits):
-				mktri(new, (
-					insert_point((a_point, b_face[0])),
-					insert_point((a_point, b_face[1])),
-					insert_point((a_point, b_face[2])),
-					), insert_group((None, b_track)))
+	from .hashing import connpp
 	
-	for b_point in range(len(b.original.points)):
-		# no sum on outlines
-		if b_point in b.outliners:
-			continue
-		# concave points do not have front faces
-		limits = b.adjacents[b_point]
-		if not limits:
-			return
-		if any(dot(dir, b.original_vertexnormals[b_point]) < 0   for dir in limits):
-			continue
-		
-		for a_face, a_track, a_normal_original, a_normal_randomized in zip(a.original.faces, a.original.tracks, a.original_normals, a.randomized_normals):
-			if all(_fallback_dot((a_normal_original, a_normal_randomized), dir, prec) > prec  for dir in limits):
+	# merges = {}
+	# renormalize = dict()
+	
+	b_adjacency = connpp(b.original.faces)
+	a_undetermined = []
+	for face, (a_face, a_track, a_normal_original, a_normal_randomized) in enumerate(zip(a.original.faces, a.original.tracks, a.original_normals, a.randomized_normals)):
+		for b_point in range(len(b.original.points)):
+			# concave points do not generate surface
+			if dot(b.original_vertexnormals[b_point], a_normal_randomized) < 0:
+				continue
+			# no sum on outlines
+			if b_point in b.outliners:
+				continue
+				
+			if all(dot(b.randomized.points[adjacent] - b.randomized.points[b_point], a_normal_randomized) < -prec for adjacent in b_adjacency[b_point]):
 				mktri(new, (
 					insert_point((a_face[0], b_point)),
 					insert_point((a_face[1], b_point)),
 					insert_point((a_face[2], b_point)),
 					), insert_group((a_track, None)))
-					
-# 	for a_face, a_track, a_normal_original, a_normal_randomized in zip(a.original.faces, a.original.tracks, a.original_normals, a.randomized_normals):
-# 		b_point = max(
-# 			range(len(b.original.points)),
-# 			key = lambda point:  _fallback_dot((a_normal_original, a_normal_randomized), b.original.points[point], prec)
-# 			)
-# 		if b_point in b.outliners:
-# 			continue
-# 		mktri(new, (
-# 			insert_point((a_face[0], b_point)),
-# 			insert_point((a_face[1], b_point)),
-# 			insert_point((a_face[2], b_point)),
-# 			), insert_group((a_track, None)))
-# 	
-# 	for b_face, b_track, b_normal_original, b_normal_randomized in zip(b.original.faces, b.original.tracks, b.original_normals, b.randomized_normals):
-# 		a_point = max(
-# 			range(len(a.original.points)),
-# 			key = lambda point:  _fallback_dot((b_normal_original, b_normal_randomized), a.original.points[point], prec)
-# 			)
-# 		if a_point in a.outliners:
-# 			continue
-# 		mktri(new, (
-# 			insert_point((a_point, b_face[0])),
-# 			insert_point((a_point, b_face[1])),
-# 			insert_point((a_point, b_face[2])),
-# 			), insert_group((None, b_track)))
+			
+				# ref = index_points[(a_face[0], b_point)]
+				
+				# if b.smooth[b_point]:
+				# 	for a_adjacent in a_face:
+				# 		if a.smooth[a_adjacent]:
+				# 			adjacent = (a_adjacent, b_point)
+				# 			if adjacent in index_points:
+				# 				target = merges.get(ref, ref)
+				# 				merges[index_points[adjacent]] = target
+				# 				new.points[target] += new.points[index_points[adjacent]] / renormalize.get(index_points[adjacent], 1)
+				# 				renormalize[target] = renormalize.get(target, 1) + 1
+	
+	a_adjacency = connpp(a.original.faces)
+	b_undetermined = []
+	for face, (b_face, b_track, b_normal_original, b_normal_randomized) in enumerate(zip(b.original.faces, b.original.tracks, b.original_normals, b.randomized_normals)):
+		for a_point in range(len(a.original.points)):
+			# concave points do not generate surface
+			if dot(a.original_vertexnormals[a_point], b_normal_randomized) < 0:
+				continue
+			# no sum on outlines
+			if a_point in a.outliners:
+				continue
+			
+			if all(dot(a.randomized.points[adjacent] - a.randomized.points[a_point], b_normal_randomized) < -prec for adjacent in a_adjacency[a_point]):
+				mktri(new, (
+					insert_point((a_point, b_face[0])),
+					insert_point((a_point, b_face[1])),
+					insert_point((a_point, b_face[2])),
+					), insert_group((None, b_track)))
+
+	# for index, amount in renormalize.items():
+	# 	new.points[index] /= amount
+	# new.mergepoints(merges)
 	
 	if raw:
 		return new
@@ -176,6 +174,7 @@ class _Mesh:
 	randomized_normals: typedlist[vec3]
 	outliners: set[int]
 	adjacents: list[list[vec3]]
+	smooth: list[bool]
 
 def _precompute(mesh: Mesh) -> _Mesh:
 	mesh = mesh.own(points=True)
@@ -184,7 +183,10 @@ def _precompute(mesh: Mesh) -> _Mesh:
 	outliners = set()
 	for edge in mesh.outlines_oriented():
 		outliners.update(edge)
-	randomized = _randomize(_convexify(mesh, adjacency, 1e-5), 1e-8)
+	# randomized = _randomize(_convexify(mesh, adjacency, 1e-5), 1e-8)
+	from .mathutils import quat
+	epsilon = 1e-6
+	randomized = _convexify(mesh, adjacency, epsilon).transform(quat(vec3(1, 2, 3)*epsilon))
 	original_normals = mesh.facenormals()
 	randomized_normals = randomized.facenormals()
 	
@@ -194,7 +196,16 @@ def _precompute(mesh: Mesh) -> _Mesh:
 		dir = mesh.points[edge[0]] - mesh.points[edge[1]]
 		adjacents[edge[0]].append(+dir)
 		adjacents[edge[1]].append(-dir)
-		
+	
+	# decide smooth points
+	sharp = 0.3
+	cos_sharp = cos(sharp/2) + NUMPREC
+	smooth = [True] * len(mesh.points)
+	for face, normal in zip(mesh.faces, original_normals):
+		for point in face:
+			if dot(normal, original_vertexnormals[point]) < cos_sharp:
+				smooth[point] = False
+	
 	return _Mesh(
 		original = mesh,
 		randomized = randomized,
@@ -204,6 +215,7 @@ def _precompute(mesh: Mesh) -> _Mesh:
 		original_normals = original_normals,
 		randomized_normals = randomized_normals,
 		adjacents = adjacents,
+		smooth = smooth,
 		)
 
 def _summit(mesh: Mesh, direction: vec3, biased: vec3) -> int:
@@ -255,6 +267,8 @@ def _horizon(mesh: Mesh, normals: typedlist[vec3], conn: dict, a_direction: vec3
 				yield flipedge(edge)
 
 def _fallback_dot(a: tuple[vec3, vec3], b: vec3, prec):
+	return dot(a[0], b)
+	
 	prod = dot(a[0], b)
 	if prod <= prec:
 		prod = dot(a[1], b)

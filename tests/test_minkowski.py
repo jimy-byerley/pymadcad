@@ -34,6 +34,7 @@ def test_mesh_mesh():
         (icosphere(O, 1), brick(size=vec3(1)).group({0,2,3})),
         (icosphere(O, 1), brick(size=vec3(1)).group({0,1,2})),
         (icosphere(O, 0.5), concavebrick),
+        (icosphere(O, 0.3), concavebrick.transform(mat3(2.5)).flip()),
         # (icosphere(O, 1), icosphere(O, 0.8).transform(quat(vec3(0.001, 0.001, 0)))),
         (icosphere(O, 1), icosphere(O, 0.8)),
         (icosphere(O, 1), revolution(ArcCentered(Axis(O,Z), X*1, -X*1), Axis(O,X), pi/2).finish()),
