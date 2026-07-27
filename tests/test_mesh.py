@@ -1,5 +1,6 @@
 from pnprint import nprint
 
+from copy import deepcopy
 from random import random, seed as random_seed
 from madcad import *
 from madcad.mesh import *
@@ -146,6 +147,94 @@ def test_vertexnormals():
 		expected = normalize(m.points[i] - center)
 		# normal should be roughly radial (dot product close to 1)
 		assert dot(n, expected) > 0.95, f"point {i}: normal {n} not radial to {expected}"
+
+@visualcheck
+def test_subdivide_to():
+	cases = [
+		# regular faces, all edges subdivided at once
+		(icosahedron(O, 1), 0.6),
+		(brick(width=vec3(1)), 0.4),
+		# flat but elongated faces, the longest edges are subdivided first
+		(brick(width=vec3(4, 1, 0.2)), 0.6),
+		(parallelogram(4*X, 0.3*Y), 0.5),
+		# coarse and fine surfaces mixed, the subdivision must stay local
+		(icosahedron(O, 1) + icosphere(4*X, 1), 0.5),
+		# slivers gathering at the summit and at the poles
+		(cone(2*Z, O, 1), 0.15),
+		(uvsphere(O, 1), 0.15),
+		# flat facets and curved surface mixed
+		(cylinder(O, 3*Z, 1), 0.5),
+		]
+	results = []
+	# each case is a column, each subdivision size is a row
+	rows = max(obj.box().width.y  for obj, size in cases) + 1
+	place = 0
+	for obj, size in cases:
+		npoints = len(obj.points)
+		for row, target in enumerate((size, size/3)):
+			div = obj.subdivide_to(target)
+			div.check()
+			assert div.issurface()
+			# the input must be left untouched
+			assert len(obj.points) == npoints
+			# no edge above the target size
+			assert max(distance2(div.points[a], div.points[b])  for a,b in div.edges()) <= target**2
+			# no face lost nor overlapping
+			assert abs(div.surface() - obj.surface()) <= 1e-9 * obj.surface()
+			# the outline is only subdivided, so there is no T-junction
+			assert div.isenvelope() == obj.isenvelope()
+			assert abs(div.outlines().length() - obj.outlines().length()) <= 1e-9 * (obj.outlines().length() or 1)
+			# both faces sharing an edge reused the same midpoint, so there is nothing to merge
+			# (points unused by the input are simply propagated, hence the strip)
+			stripped = deepcopy(div)
+			stripped.strippoints()
+			assert not stripped.mergeclose()
+			# groups are propagated to the new faces
+			assert div.groups is obj.groups
+			assert set(div.tracks) == set(obj.tracks)
+
+			# spread the results along X, whatever their own dimensions
+			box = obj.box()
+			results.append(div.transform((place - box.min.x + 0.5)*X + row*rows*Y))
+		place += box.width.x + 1
+
+	return results
+
+def test_subdivide_to_flat():
+	# an elongated flat quad must be subdivided across its length, dropping its diagonal instead
+	# of subdividing it, otherwise the diagonal degenerates into slivers
+	for width, size in [(Y, 1.1), (0.3*Y, 0.5)]:
+		flat = parallelogram(4*X, width)
+		div = flat.subdivide_to(size)
+		div.check()
+		assert abs(div.surface() - flat.surface()) <= 1e-9 * flat.surface()
+		for face in div.faces:
+			lengths = sorted(distance(div.points[face[t-2]], div.points[face[t-1]])  for t in range(3))
+			assert lengths[2] <= 2*lengths[0], 'sliver face {} in {}'.format(face, div)
+
+def test_subdivide_to_limits():
+	obj = icosphere(O, 1)
+	# nothing to subdivide, the mesh must be returned as is
+	same = obj.subdivide_to(10)
+	assert same.faces == obj.faces
+	assert same.tracks == obj.tracks
+	# a needle triangle must converge instead of subdividing forever
+	needle = Mesh(
+		[vec3(0), vec3(10,0,0), vec3(0,0.01,0)],
+		[uvec3(0,1,2)],
+		)
+	div = needle.subdivide_to(0.5)
+	div.check()
+	assert max(distance2(div.points[a], div.points[b])  for a,b in div.edges()) <= 0.5**2
+	assert abs(div.surface() - needle.surface()) <= 1e-9 * needle.surface()
+	# a size must be given
+	for size in (0, -1, nan):
+		try:
+			obj.subdivide_to(size)
+		except ValueError:
+			pass
+		else:
+			raise AssertionError('subdivide_to accepted size {}'.format(size))
 
 def test_display_buffers():
 	import math
