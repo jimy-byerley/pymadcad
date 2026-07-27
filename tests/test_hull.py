@@ -12,6 +12,7 @@ def test_hull():
 			brick(width=vec3(1)),
 			icosphere(O, 1),
 			brick(width=vec3(1)) + icosphere(vec3(1,2,3), 1),
+			icosphere(O, 1) + icosphere(vec3(1,2,3), 1),
 			brick(width=vec3(1)) + icosphere(vec3(0,1,0), 1),
 			brick(center=vec3(0,0,1), width=vec3(1)) + uvsphere(vec3(0,1,0), 1) + icosphere(vec3(0,-1,0), 0.8),
 			web(Circle((O,Z), 1)),

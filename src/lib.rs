@@ -24,11 +24,13 @@ pub mod boolean;
 pub mod wrapping;
 pub mod hashing;
 pub mod math;
+pub mod rand;
 pub mod mesh;
 pub mod aabox;
 pub mod triangulation;
 pub mod rasterize;
 pub mod hull;
+pub mod minkowski;
 pub mod test;
 
 use pyo3::prelude::*;
@@ -38,6 +40,7 @@ use pyo3::marker::Ungil;
 use pyo3::types::{PyList, PyDict};
 
 create_exception!(core, TriangulationError, PyException);
+create_exception!(core, HullError, PyException);
 
 /// Rust core module for pymadcad
 #[pymodule]
@@ -56,6 +59,33 @@ mod core {
     
     #[pymodule_export]
     use super::TriangulationError;
+
+    #[pymodule_export]
+    use super::HullError;
+
+    #[pyfunction]
+    fn convexhull_3d(
+        py: Python<'_>,
+        points: PyTypedList<Vec3>,
+    ) -> PyResult<PyTypedList<PaddedUVec3>> {
+        let simplices = may_detach(py, points.len() > 1_000, ||
+            super::hull::convexhull_3d(points.as_slice()))
+            .map_err(|e| HullError::new_err(e.to_string()))?;
+        // TODO use non padded vectors as soon as arrex handles them
+        let padded: Vec<PaddedUVec3> = simplices.into_iter().map(|v| v.into()).collect();
+        PyTypedList::new(py, padded)
+    }
+
+    #[pyfunction]
+    fn convexhull_2d(
+        py: Python<'_>,
+        points: PyTypedList<Vec2>,
+    ) -> PyResult<PyTypedList<UVec2>> {
+        let simplices = may_detach(py, points.len() > 1_000, ||
+            super::hull::convexhull_2d(points.as_slice()))
+            .map_err(|e| HullError::new_err(e.to_string()))?;
+        PyTypedList::new(py, simplices)
+    }
 
     #[pyfunction]
     fn triangulation_loop_d2(

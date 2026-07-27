@@ -8,12 +8,12 @@
 '''
 
 from __future__ import annotations
-import scipy.spatial
+from . import core
 from .mathutils import (
 		vec3, vec2, dirbase, noproject, NUMPREC, uvec3, uvec2, transpose,
 		dmat2x3, dot, length2, cross, normalize, isnan, glm, typedlist
 	)
-from .mesh import Mesh, Web, Wire, numpy_to_typedlist, typedlist_to_numpy
+from .mesh import Mesh, Web, Wire
 from .hashing import Asso, edgekey, facekeyo
 
 from copy import copy
@@ -25,18 +25,16 @@ def simple_convexhull(points: typedlist[vec3]) -> typedlist[uvec3]:
 	''' Just like `convexhull()` but minimalist.
 		It does not take care of groups crossing. It doesn't return a new Mesh but a buffer of triangles indices
 	'''
-	# return numpy_to_typedlist(scipy.spatial.ConvexHull(typedlist_to_numpy(points, 'f8'), qhull_options='Qa Qc QJ Qt Qbb Qx').simplices, uvec3)
-	return numpy_to_typedlist(scipy.spatial.ConvexHull(typedlist_to_numpy(points, 'f8'), qhull_options='QJ Pp').simplices, uvec3)
+	return core.convexhull_3d(points)
 
 def simple_convexoutline(points: typedlist[vec2]) -> typedlist[uvec2]:
-	''' Just like `convexhull()` but minimalist.
-		It does not take care of groups crossing. It doesn't return a new Mesh but a buffer of triangles indices
+	''' Just like `convexoutline()` but minimalist.
+		It does not take care of groups crossing. It doesn't return a new Web but a buffer of edges indices
 	'''
-	# return numpy_to_typedlist(scipy.spatial.ConvexHull(typedlist_to_numpy(points, 'f8'), qhull_options='Qa Qc QJ Qt Qbb Qx').simplices, uvec3)
-	return numpy_to_typedlist(scipy.spatial.ConvexHull(typedlist_to_numpy(points, 'f8'), qhull_options='QJ Pp').simplices, uvec2)
+	return core.convexhull_2d(points)
 
 
-def convexhull(source: '[vec3]') -> Mesh:
+def convexhull(source: typedlist[vec3]|Mesh|Web|Wire) -> Mesh:
 	''' compute the convex hull of the input container
 
 	![convexhull result](../screenshots/hull-convexhull.png)
@@ -58,10 +56,11 @@ def convexhull(source: '[vec3]') -> Mesh:
 		points = typedlist(source, dtype=vec3)
 		source = None
 
-	return restore_groups(source, simple_convexhull(points)).orient()
+	# no orient() needed, simple_convexhull() already returns outward oriented triangles
+	return restore_groups(source, simple_convexhull(points))
 
 
-def convexoutline(source: '[vec3]', normal: vec3=None, flatten: bool=False) -> Web:
+def convexoutline(source: typedlist[vec3]|Mesh|Web|Wire, normal: vec3=None, flatten: bool=False) -> Web:
 	''' based on `convexhull()` but will extract the loop formed by the edges in the biggest planar projection of the convex hull
 
 	![convexoutline result](../screenshots/hull-convexoutline.png)
@@ -88,7 +87,8 @@ def convexoutline(source: '[vec3]', normal: vec3=None, flatten: bool=False) -> W
 	direction = normal or widest_surface_direction(Mesh(source.points, simple_convexhull(points)))
 	x, y, z = dirbase(direction)
 	proj = transpose(dmat2x3(x, y))
-	outline = restore_groups(source, simple_convexoutline(typedlist(proj * p  for p in points))) .orient(direction)
+	# no orient() needed, simple_convexoutline() already returns a counterclockwise loop in the (x,y) base
+	outline = restore_groups(source, simple_convexoutline(typedlist(proj * p  for p in points)))
 	if flatten:
 		outline.strippoints()
 		center = outline.barycenter()
@@ -229,7 +229,6 @@ def widest_surface_direction(mesh) -> vec3:
 
 	# select the average surface direction
 	return normalize(direction)
-
 
 """
 def hull(bounds: Web) -> Web:

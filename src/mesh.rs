@@ -159,7 +159,16 @@ impl Surface<'_> {
         }
 
         for n in normals.iter_mut() {
-            *n = n.normalize();
+            // guard against degenerate accumulations (non-manifold or non-envelope
+            // meshes can produce a zero-sum, e.g. two coincident faces of opposite
+            // orientation): normalizing a null vector would yield NaN and poison the
+            // whole triangle in the shader (missing triangles). Fall back to zero.
+            let len = n.square_length().sqrt();
+            *n = if len.is_finite() && len > NUMPREC {
+                *n / len
+            } else {
+                Vec3::zero()
+            };
         }
         normals
     }
@@ -253,6 +262,53 @@ impl Surface<'_> {
         frontier
     }
 
+    /// Duplicate any point still referenced by faces of different groups so that
+    /// every point belongs to exactly one track.
+    ///
+    /// `split()` separates groups by walking the edge connectivity, but that walk
+    /// relies on `connef` which only keeps one face per oriented edge. On
+    /// non-manifold meshes (an edge shared by more than two faces) the walk cannot
+    /// reach every face, so some faces of distinct groups keep sharing points.
+    /// This pass is connectivity-independent: it simply assigns each point to the
+    /// first group that claims it and hands every other group its own copy, so no
+    /// displayed face ever mixes tracks and vertex normals are not averaged across
+    /// group frontiers.
+    pub fn separate_by_track(&self) -> Surface<'static> {
+        let mut points: Vec<Vec3> = self.points.to_vec();
+        let mut newfaces: Vec<UVec3> = self.simplices.to_vec();
+        // track owning each original point, None while unassigned
+        let mut owner: Vec<Option<Index>> = vec![None; points.len()];
+        // per (original point, track) duplicate index, created lazily
+        let mut dup: FxHashMap<(Index, Index), Index> = FxHashMap::default();
+
+        for (fi, face) in self.simplices.iter().enumerate() {
+            let track = self.tracks[fi];
+            let mut nf = *face.as_array();
+            for slot in nf.iter_mut() {
+                let p = *slot;
+                match owner[p as usize] {
+                    None => owner[p as usize] = Some(track),
+                    Some(t) if t == track => {}
+                    Some(_) => {
+                        let idx = *dup.entry((p, track)).or_insert_with(|| {
+                            let ni = points.len() as Index;
+                            points.push(points[p as usize]);
+                            ni
+                        });
+                        *slot = idx;
+                    }
+                }
+            }
+            newfaces[fi] = UVec3::from(nf);
+        }
+
+        Surface {
+            points: Cow::Owned(points),
+            simplices: Cow::Owned(newfaces),
+            tracks: Cow::Owned(self.tracks.to_vec()),
+        }
+    }
+
     /// Prepare display buffers: split at group frontiers and sharp edges,
     /// compute vertex normals, and convert to GPU-ready formats.
     pub fn display_buffers(&self, sharp_angle: Float) -> DisplayBuffers {
@@ -284,6 +340,10 @@ impl Surface<'_> {
 
         // 4. split at sharp edges
         let m = m.split(&tosplit);
+
+        // 4b. guard: separate any points the topological split left shared between
+        //     groups (non-manifold frontiers), so no displayed face mixes tracks
+        let m = m.separate_by_track();
 
         // 5. build idents: group id per point
         let mut idents = vec![0 as Index; m.points.len()];
@@ -423,5 +483,52 @@ mod tests {
             simplex_roll([0, 1]),
             [[0, 1], [1, 0]],
         );
+    }
+
+    fn surface(points: Vec<[Float; 3]>, faces: Vec<[Index; 3]>, tracks: Vec<Index>) -> Surface<'static> {
+        Surface {
+            points: Cow::Owned(points.into_iter().map(Vec3::from).collect()),
+            simplices: Cow::Owned(faces.into_iter().map(UVec3::from).collect()),
+            tracks: Cow::Owned(tracks),
+        }
+    }
+
+    /// A non-manifold edge shared by more than two faces of different groups must
+    /// not produce a displayed face whose points belong to different groups.
+    /// The edge connectivity walk in `split` cannot reach every face here, so the
+    /// `separate_by_track` guard is what keeps the idents consistent.
+    #[test]
+    fn test_display_separates_nonmanifold_tracks() {
+        // edge (0,1) shared by 4 faces, one per group
+        let m = surface(
+            vec![[0.,0.,0.], [1.,0.,0.], [0.,1.,0.], [0.,-1.,0.], [0.,0.,1.], [0.,0.,-1.]],
+            vec![[0,1,2], [1,0,3], [0,1,4], [1,0,5]],
+            vec![0, 1, 2, 3],
+        );
+        let bufs = m.display_buffers(0.7);
+        for f in &bufs.faces {
+            let (a, b, c) = (bufs.idents[f[0] as usize], bufs.idents[f[1] as usize], bufs.idents[f[2] as usize]);
+            assert!(a == b && b == c, "displayed face {:?} mixes tracks", f.as_array());
+        }
+    }
+
+    /// A degenerate / non-envelope configuration (here a bowtie: two coplanar
+    /// triangles of opposite orientation meeting at a single vertex) sums to a
+    /// null normal. It must be guarded so no NaN reaches the display buffers,
+    /// which would otherwise make the triangle vanish in the shader.
+    #[test]
+    fn test_display_normals_finite_on_degenerate() {
+        let m = surface(
+            vec![[0.,0.,0.], [1.,1.,0.], [1.,-1.,0.], [-1.,1.,0.], [-1.,-1.,0.]],
+            vec![[0,1,2], [0,3,4]],
+            vec![0, 0],
+        );
+        let bufs = m.display_buffers(0.7);
+        for n in &bufs.normals {
+            assert!(
+                n[0].is_finite() && n[1].is_finite() && n[2].is_finite(),
+                "non-finite normal {:?}", n.as_array(),
+            );
+        }
     }
 }

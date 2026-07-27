@@ -47,7 +47,7 @@ To come in a next version
 	... )
 '''
 
-from .mesh import Mesh, Wire, Web, mkquad, numpy_to_typedlist, typedlist_to_numpy
+from .mesh import Mesh, Wire, Web, mkquad
 from .hashing import connef, suites
 from .mathutils import (
         vec3, imax, noproject, interpol2, intri_smooth, interpol1, isfinite,
@@ -308,15 +308,11 @@ def interfaces_center(pts, *loops):
 	return center / total if total else center
 
 def convexhull(pts):
-	import scipy.spatial
+	from . import core
 	if len(pts) == 3:
 		return Mesh(pts, [(0,1,2),(0,2,1)])
 	else:
-		return Mesh(pts, numpy_to_typedlist(
-			scipy.spatial.ConvexHull(
-				typedlist_to_numpy(pts, 'f8'), 
-				qhull_options='QJ Pp',
-				).simplices, uvec3))
+		return Mesh(pts, core.convexhull_3d(pts))
 	
 
 
