@@ -236,7 +236,7 @@ def subdivide_to(mesh: Mesh, size: float) -> Mesh:
 				final.add_quad(quad, track)
 			
 			# one cut
-			elif lengths[order[3]] > size2 and (lengths[order[2]] <= size2 or lengths[order[2]]*4 <= lengths[order[3]]):
+			elif lengths[order[3]] > size2 and (lengths[order[3]] > 2*lengths[order[2]]  or lengths[order[2]] <= size2):
 			# elif lengths[order[2]] <= size2:
 				k = order[3]
 				split = midpoint(quad[k-3], quad[k-0])
@@ -249,8 +249,7 @@ def subdivide_to(mesh: Mesh, size: float) -> Mesh:
 					new.add_quad(uvec4(split, quad[k-3], quad[k-2], split), track)
 			
 			# two cuts
-			elif lengths[order[2]] > size2 and (lengths[order[1]] <= size2 or lengths[order[1]]*4 <= lengths[order[2]]):
-			# elif lengths[order[1]] <= size2:
+			elif lengths[order[2]] > size2:
 				# adjacent sides
 				if abs(order[2] - order[3]) % 2 == 1:
 					k = order[3] if (order[3]-1) % 4 == order[2] else order[2]
@@ -267,43 +266,7 @@ def subdivide_to(mesh: Mesh, size: float) -> Mesh:
 					new.add_quad(uvec4(split1, split2, quad[k-3], quad[k-2]), track)
 					new.add_quad(uvec4(split2, split1, quad[k-1], quad[k-0]), track)
 			
-			
-			# three cuts
-			elif lengths[order[1]] > size2 and (lengths[order[0]] <= size2 or lengths[order[0]]*4 <= lengths[order[1]]):
-			# elif lengths[order[0]] <= size2:
-				k = (order[0]+2) % 4
-				split1 = midpoint(quad[k-1], quad[k-0])
-				split2 = midpoint(quad[k-0], quad[k-3])
-				split3 = midpoint(quad[k-2], quad[k-3])
-				new.add_quad(uvec4(split1, split3, quad[k-2], quad[k-1]), track)
-				if distance2(points[split2], points[split1]) < distance2(points[split2], points[split3]):
-					new.add_quad(uvec4(split3, split1, split2, quad[k-3]), track)
-					new.add_quad(uvec4(split2, split1, quad[k-0], split2), track)
-				else:
-					new.add_quad(uvec4(split2, split3, split1, quad[k-0]), track)
-					new.add_quad(uvec4(split3, split2, quad[k-3], split3), track)
-			
-			# two cuts
-			# elif lengths[order[2]] > size2 and (lengths[order[1]] <= size2 or lengths[order[1]]*4 <= lengths[order[2]]):
-			elif lengths[order[2]] > size2:
-				# adjacent sides
-				if abs(order[2] - order[3]) % 2 == 1 and order[1] <= size2:
-					k = order[3] if (order[3]-1) % 4 == order[2] else order[2]
-					split1 = midpoint(quad[k-0], quad[k-3])
-					split2 = midpoint(quad[k-1], quad[k-0])
-					new.add_quad(uvec4(quad[k-0], split1, split2, quad[k-0]), track)
-					new.add_quad(uvec4(quad[k-1], split2, split1, quad[k-3]), track)
-					new.add_quad(uvec4(quad[k-3], quad[k-2], quad[k-2], quad[k-1]), track)
-				# opposite sides
-				else:
-					k = order[3]
-					split1 = midpoint(quad[k-2], quad[k-1])
-					split2 = midpoint(quad[k-0], quad[k-3])
-					new.add_quad(uvec4(split1, split2, quad[k-3], quad[k-2]), track)
-					new.add_quad(uvec4(split2, split1, quad[k-1], quad[k-0]), track)
-			
-			else:
-				raise AssertionError("should always fall into the above cases, internal logic issue")
+			# cases with more edges to split can be acheived by combinations of 1 or 2 splits in next iteration
 			
 		# prepare next iteration
 		# from madcad.rendering import show
