@@ -589,171 +589,43 @@ class Mesh(NMesh):
 						stack.append(n)
 
 		return self
+		
+	def ngons(self, prec=None) -> Iterator[typedlist['I']]:
+		if prec is None:
+			prec = NUMPREC * 8
+		prec2 = prec**2
+		
+		seen = set()
+		front = typedlist(dtype='I')
+		adjacency = connef(self.faces)
+		
+		for start in range(len(self.faces)):
+			if start in seen:
+				continue
+			front.append(start)
+			
+			normal = self.facenormal(start)
+			track = self.tracks[start]
+			ngon = typedlist(dtype='I')
+			while front:
+				current = front.pop()
+				if self.tracks[current] != track:
+					continue
+				if current in seen:
+					continue
+				if distance2(normal, self.facenormal(current)) > prec2:
+					continue
+				seen.add(current)
+				ngon.append(current)
+				face = self.faces[current]
+				for i in range(3):
+					edge = (face[i-1], face[i-2])
+					if edge in adjacency:
+						front.append(adjacency[edge])
+			
+			yield ngon
+			
 	
-	def subdivide(self, div=1) -> Mesh:
-		''' Subdivide all edges by the number of cuts '''
-		n = div+2
-		pts = typedlist(dtype=vec3)
-		faces = typedlist(dtype=uvec3)
-		tracks = typedlist(dtype='I')
-		c = 0
-		for f,t in enumerate(self.tracks):
-			# place the points
-			o,p0,p1 = self.facepoints(f)
-			x = p0-o
-			y = p1-o
-			for i in range(n):
-				u = i/(n-1)
-				for j in range(n-i):
-					v = j/(n-1)
-					p = o + u*x + v*y
-					pts.append(p)
-			# create the faces
-			for i in reversed(range(1,n+1)):
-				for j in range(i-1):
-					s = c+j
-					faces.append(uvec3(s, s+i, s+1))
-				for j in range(1,i-1):
-					s = c+j
-					faces.append(uvec3(s, s+i-1, s+i))
-				c += i
-			tracks.extend([t] * (len(faces)-len(tracks)))
-
-		new = Mesh(pts, faces, tracks, self.groups)
-		new.mergeclose()
-		return new
-
-	def subdivide_to(self, size: float) -> Mesh:
-		''' Subdivide faces until no edge is longer than `size`
-
-			Edges are split only where needed, so the result is dense where the input is coarse and left
-			untouched where it is already fine enough.
-			An edge is split when longer than `size`, unless dominated by a much longer edge of the same
-			face: the dominant edge is then split first and the face reassessed, so triangles keep a good
-			shape instead of propagating slivers.
-
-			A face pair forming an elongated quad is handled as a quad rather than as 2 triangles: it is
-			subdivided across its longest pair of opposite edges and its diagonal is dropped instead of
-			subdivided, as subdividing it would only generate more slivers in the same direction.
-			Such a pair must be coplanar, convex, and in the same group, so this never alters the surface
-			nor the groups.
-
-			Parameters:
-				size:  maximum edge length in the result
-
-			Note:
-				even though the subdivision is decided face per face, the result has no T-junction: an edge
-				is always bisected at its middle and to a depth only depending on its own length, so both
-				faces sharing an edge do split it the same way, even when not at the same iteration.
-				this holds only because every criterion here is monotonic in the edge length: a criterion
-				able to definitively reject an edge longer than `size` (or to accept an edge shorter than
-				it, like the quad criterion without its size condition) would need the splits to be marked
-				per edge before subdividing
-		'''
-		if not size > 0:
-			raise ValueError('size must be positive')
-		size2 = size**2
-		div2 = 2**2
-		prec = NUMPREC*8
-		points = self.points[:]
-		# midpoints are kept across iterations, so both faces sharing an edge reuse the same point
-		splits = {}
-
-		def midpoint(a: int, b: int) -> int:
-			key = edgekey(a, b)
-			if key not in splits:
-				splits[key] = len(points)
-				points.append(mix(points[a], points[b], 0.5))
-			return splits[key]
-
-		def pairing(i, face, normal):
-			''' find a coplanar neighbor forming an elongated quad with `face`
-
-				return its contour rotated so that its longest pair of opposite edges is
-				`(p[0],p[1])` and `(p[2],p[3])`, and the neighbor index
-			'''
-			for k in range(3):
-				j = adjacent.get((face[k-1], face[k-2]))
-				if j is None or j == i or paired[j] or current.tracks[j] != current.tracks[i]:
-					continue
-				other = current.faces[j]
-				if dot(normal, current.facenormal(other)) < 1-prec:
-					continue
-				# contour of the pair of faces, its diagonal is `(quad[0], quad[2])`
-				quad = (face[k-2], arrangeface(other, face[k-1])[2], face[k-1], face[k])
-				# the diagonal can only be moved in a convex contour
-				if any(dot(normal, cross(
-							points[quad[t-1]] - points[quad[t-2]],
-							points[quad[t]] - points[quad[t-1]] )) <= 0
-						for t in range(4)):
-					continue
-				# `lengths[t]` is the edge from `quad[t]` to `quad[t+1]`
-				lengths = [distance2(points[quad[t]], points[quad[t-3]])  for t in range(4)]
-				for e in range(2):
-					long = min(lengths[e], lengths[e-2])
-					short = max(lengths[e-1], lengths[e-3])
-					# a pair of opposite edges twice longer than the other pair, and too big
-					if long > size2 and long >= short*div2:
-						return j, [quad[(e+t) % 4]  for t in range(4)]
-			return None
-
-		final = Mesh(points, groups=self.groups)
-		current = Mesh(points, self.faces, self.tracks, self.groups)
-		while current.faces:
-			next = Mesh(points, groups=self.groups)
-			adjacent = connef(current.faces)
-			paired = [False] * len(current.faces)
-
-			# a pair of coplanar faces forming an elongated quad is subdivided across its longest
-			# edges, dropping its diagonal instead of subdividing it. this is the only way to keep
-			# that diagonal from degenerating into slivers, as its direction is the wrong one
-			for i, face in enumerate(current.faces):
-				if paired[i]:
-					continue
-				found = pairing(i, face, current.facenormal(face))
-				if not found:
-					continue
-				j, p = found
-				paired[i] = paired[j] = True
-				track = current.tracks[i]
-				splita = midpoint(p[0], p[1])
-				splitb = midpoint(p[2], p[3])
-				mkquad(next, (p[0], splita, splitb, p[3]), track)
-				mkquad(next, (splita, p[1], p[2], splitb), track)
-
-			for i, (face, track) in enumerate(zip(current.faces, current.tracks)):
-				if paired[i]:
-					continue
-				# `lengths[t]` is the edge opposite to `face[t]`, and so is its midpoint
-				lengths = [distance2(points[face[t-2]], points[face[t-1]])  for t in range(3)]
-				order = sorted(range(3), key=lengths.__getitem__)
-
-				# longest edge smaller than the subdivision size, this face is done
-				if lengths[order[2]] <= size2:
-					mktri(final, face, track)
-				# one edge twice longer than the others, or one last edge too big, subdivide it
-				elif lengths[order[1]] <= size2 or lengths[order[1]]*div2 < lengths[order[2]]:
-					k = order[2]
-					split = midpoint(face[k-2], face[k-1])
-					mktri(next, uvec3(face[k], face[k-2], split), track)
-					mktri(next, uvec3(face[k], split, face[k-1]), track)
-				# two edges twice longer than the last, or two last edges too big, subdivide them
-				elif lengths[order[0]] <= size2 or lengths[order[0]]*div2 < lengths[order[1]]:
-					k = order[0]   # the intact edge, the two subdivided ones meet at `face[k]`
-					split1 = midpoint(face[k], face[k-2])
-					split2 = midpoint(face[k-1], face[k])
-					mktri(next, uvec3(face[k], split1, split2), track)
-					mkquad(next, (face[k-2], face[k-1], split2, split1), track)
-				# all the same magnitude but bigger than the expected size, subdivide all
-				else:
-					split = [midpoint(face[t-2], face[t-1])  for t in range(3)]
-					mktri(next, uvec3(*split), track)
-					for t in range(3):
-						mktri(next, uvec3(face[t], split[t-1], split[t-2]), track)
-			current = next
-
-		return final
-
 	# END BEGIN ----- output methods ------
 
 	def display(self, scene):

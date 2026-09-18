@@ -18,6 +18,7 @@ from .mathutils import (
 		inf, tan 
 	)
 from .mesh import Mesh, Web, Wire, web, wire, mkquad
+from .smooth import subdivide
 from .box import Box
 
 __all__ = [
@@ -651,7 +652,7 @@ def icosphere(center:vec3, radius:float, resolution=None) -> 'Mesh':
 	Points are obtained from a subdivided icosahedron and reprojected on the desired radius.
 	'''
 	div = settings.curve_resolution(2/6*pi*radius, 2/6*pi, resolution)
-	ico = icosahedron(center, radius).subdivide(div-1)
+	ico = subdivide(icosahedron(center, radius), div-1)
 	for i,p in enumerate(ico.points):
 		ico.points[i] = center + radius * normalize(p-center)
 	return ico
