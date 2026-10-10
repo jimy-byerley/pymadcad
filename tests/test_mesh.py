@@ -189,3 +189,32 @@ def test_display_buffers():
 	for i in referenced:
 		l = length(normals[i])
 		assert abs(l - 1) < 0.01, f"normal {i} not unit length: {l}"
+
+
+def test_ngons():
+	''' ngons() must group connected coplanar faces of a same group '''
+	def check(mesh, sizes):
+		ngons = list(mesh.ngons())
+		# the ngons partition the faces: no empty ngon, no face missed nor duplicated
+		assert sorted(map(len, ngons)) == sorted(sizes)
+		assert sorted(i  for ngon in ngons for i in ngon) == list(range(len(mesh.faces)))
+		# faces of a same ngon share their group and their normal
+		for ngon in ngons:
+			for i in ngon:
+				assert mesh.tracks[i] == mesh.tracks[ngon[0]]
+				assert distance2(mesh.facenormal(i), mesh.facenormal(ngon[0])) <= NUMPREC*8
+
+	# icosahedron: no two faces are coplanar, so each triangle is its own ngon
+	check(icosahedron(O, 1), [1]*20)
+
+	# cube: each side is 2 coplanar triangles
+	check(brick(width=vec3(2)), [2]*6)
+
+	# square based pyramid: 4 triangular sides and a square base made of 2 triangles
+	check(pyramid(vec3(0,0,2), square((O,Z), 2)), [1, 1, 1, 1, 2])
+
+	# faces of different groups never merge, even when coplanar
+	cube = brick(width=vec3(2))
+	cube.tracks[1] = len(cube.groups)
+	cube.groups.append(None)
+	check(cube, [2]*5 + [1, 1])

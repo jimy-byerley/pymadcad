@@ -13,11 +13,11 @@ from pyglm.glm import (
 	dvec1, dvec2, dvec3, dvec4,  dquat,  dmat2, dmat3, dmat4, dmat2x3, dmat3x2, dmat4x3, dmat4x4,
 	fvec1, fvec2, fvec3, fvec4,  fquat,  fmat2, fmat3, fmat4, fmat2x3, fmat3x2,
 	ivec2, ivec4, i64vec3, 
-	uvec2, uvec3, 
+	uvec2, uvec3, uvec4,
 	u8vec4, 
 	# functions
 	acos, affineInverse, angle, angleAxis, asin, atan, axis, ceil, clamp, cos,
-	cross, degrees, distance, distance2, dot, e, exp, floor, inverse, isinf,
+	cross, degrees, determinant, distance, distance2, dot, e, exp, floor, inverse, isinf,
 	isnan, l1Norm, length, length2, lerp, log, mat3_cast, mix, normalize,
 	perspective, pow, radians, reflect, rotate, scale, sign, sin, slerp,
 	smoothstep, sqrt, step, tan, translate, transpose,
@@ -36,7 +36,7 @@ __all__ = [
 		"dvec1", "dvec2", "dvec3", "dvec4",  "dquat",  "dmat2", "dmat3", "dmat4", "dmat2x3", "dmat3x2", "dmat4x3", "dmat4x4",
 		"fvec1", "fvec2", "fvec3", "fvec4",  "fquat",  "fmat2", "fmat3", "fmat4", "fmat2x3", "fmat3x2",
 		"ivec2", "ivec4", "i64vec3",
-		"uvec2", "uvec3",
+		"uvec2", "uvec3", "uvec4",
 		"u8vec4",
 		"typedlist", "Axis", "Screw", "Vector", "Point",
 		# constants
@@ -44,7 +44,7 @@ __all__ = [
 		# functions
 		"acos", "affineInverse", "angle", "angleAxis", "anglebt", "arclength", "asin", "atan", "atan2", "axis",
 		"bisect", "ceil", "clamp", "comoment", "cos", "cross",
-		"degrees", "dirbase", "dist", "distance", "distance2",
+		"degrees", "determinant", "dirbase", "dist", "distance", "distance2",
 		"distance_aa", "distance_ae", "distance_pa", "distance_pe", "distance_pt", "dot", "exp",
 		"fbisect", "find", "floor", "gcd", "hypot", "imax",
 		"interpol1", "interpol2", "intri_flat", "intri_parabolic", "intri_smooth", "intri_sphere", "inverse",

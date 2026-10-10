@@ -30,7 +30,6 @@ pub mod aabox;
 pub mod triangulation;
 pub mod rasterize;
 pub mod hull;
-pub mod minkowski;
 pub mod test;
 
 use pyo3::prelude::*;

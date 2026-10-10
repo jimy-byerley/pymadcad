@@ -26,6 +26,12 @@ def test_mesh_mesh():
     concavebrick = brick(size=vec3(1))
     concavebrick.points[2] = vec3(0)
     
+    from madcad.boolean import intersection
+    complex = intersection(
+        brick(size=2),
+        (icosphere(Z+X, 0.7) + brick(size=0.7*2, center=Z-X)).flip() + icosphere(Z*1.5, 2),
+        )
+    
     x = 0
     for a, b in [
         (brick(size=vec3(0.5)), brick(size=vec3(1))),
@@ -39,6 +45,7 @@ def test_mesh_mesh():
         (icosphere(O, 1), icosphere(O, 0.8)),
         (icosphere(O, 1), revolution(ArcCentered(Axis(O,Z), X*1, -X*1), Axis(O,X), pi/2).finish()),
         (icosphere(O, 0.3), revolution(ArcCentered(Axis(O,Z), X*1.5, -X*1.5), Axis(O,X), pi/2).finish().flip()),
+        (icosphere(O, 0.3), complex),
         ]:
         
         # # temporary perturabtion of points to avoid any coplanarity

@@ -589,6 +589,42 @@ class Mesh(NMesh):
 						stack.append(n)
 
 		return self
+		
+	def ngons(self, prec=None) -> Iterator[typedlist['I']]:
+		if prec is None:
+			prec = NUMPREC * 8
+		prec2 = prec**2
+		
+		seen = set()
+		front = typedlist(dtype='I')
+		adjacency = connef(self.faces)
+		
+		for start in range(len(self.faces)):
+			if start in seen:
+				continue
+			front.append(start)
+			
+			normal = self.facenormal(start)
+			track = self.tracks[start]
+			ngon = typedlist(dtype='I')
+			while front:
+				current = front.pop()
+				if self.tracks[current] != track:
+					continue
+				if current in seen:
+					continue
+				if distance2(normal, self.facenormal(current)) > prec2:
+					continue
+				seen.add(current)
+				ngon.append(current)
+				face = self.faces[current]
+				for i in range(3):
+					edge = (face[i-1], face[i-2])
+					if edge in adjacency:
+						front.append(adjacency[edge])
+			
+			yield ngon
+			
 	
 	# END BEGIN ----- output methods ------
 
