@@ -738,7 +738,7 @@ class Orbit:
 
 	def rotate(self, offset: vec3):
 		# rotate from view euler angles
-		self.orientation = inverse(fquat(fvec3(-offset.y, -offset.x, offset.z) * pi)) * self.orientation
+		self.orientation = inverse(fquat(fvec3(-offset.y * pi, -offset.x * pi, offset.z))) * self.orientation
 
 class Turntable:
 	''' Navigation rotating on yaw and pitch around a center 
