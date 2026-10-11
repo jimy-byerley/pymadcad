@@ -34,17 +34,17 @@ def test_mesh_mesh():
     
     x = 0
     for a, b in [
-        (brick(size=vec3(0.5)), brick(size=vec3(1))),
-        (brick(size=vec3(0.5)).transform(quat(X+Y+Z, Z)), brick(size=vec3(1))),
+        # (brick(size=vec3(0.5)), brick(size=vec3(1))),
+        # (brick(size=vec3(0.5)).transform(quat(X+Y+Z, Z)), brick(size=vec3(1))),
         (icosphere(O, 1), brick(size=vec3(1))),
-        (icosphere(O, 1), brick(size=vec3(1)).group({0,2,3})),
-        (icosphere(O, 1), brick(size=vec3(1)).group({0,1,2})),
+        # (icosphere(O, 1), brick(size=vec3(1)).group({0,2,3})),
+        # (icosphere(O, 1), brick(size=vec3(1)).group({0,1,2})),
         (icosphere(O, 0.5), concavebrick),
-        (icosphere(O, 0.3), concavebrick.transform(mat3(2.5)).flip()),
+        # (icosphere(O, 0.3), concavebrick.transform(mat3(2.5)).flip()),
         # (icosphere(O, 1), icosphere(O, 0.8).transform(quat(vec3(0.001, 0.001, 0)))),
         (icosphere(O, 1), icosphere(O, 0.8)),
-        (icosphere(O, 1), revolution(ArcCentered(Axis(O,Z), X*1, -X*1), Axis(O,X), pi/2).finish()),
-        (icosphere(O, 0.3), revolution(ArcCentered(Axis(O,Z), X*1.5, -X*1.5), Axis(O,X), pi/2).finish().flip()),
+        # (icosphere(O, 1), revolution(ArcCentered(Axis(O,Z), X*1, -X*1), Axis(O,X), pi/2).finish()),
+        # (icosphere(O, 0.3), revolution(ArcCentered(Axis(O,Z), X*1.5, -X*1.5), Axis(O,X), pi/2).finish().flip()),
         (icosphere(O, 0.3), complex),
         ]:
         
@@ -65,4 +65,5 @@ def test_mesh_mesh():
     for mesh in results[-6:]:
         mesh.mergegroups()
     
+    show(results, display_points=True, display_wire=True, display_faces=False)
     return results

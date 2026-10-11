@@ -4,9 +4,46 @@ from math import cos
 from random import Random
 from dataclasses import dataclass
 
-from .mathutils import dot, cross, vec3, typedlist, NUMPREC
+from .mathutils import dot, cross, mix, vec3, typedlist, NUMPREC, uvec2, uvec3, mat3, dmat2x3, transpose, inverse, normalize
 from .mesh import Mesh, Web, mktri, mkquad
-from .hashing import connef, edgekey, flipedge
+from .hashing import connpp, connef, edgekey, flipedge
+
+
+def interp_edge_direction(edge, points, normals, regularisation, direction):
+	c = sum(points[p]  for p in edge) / len(edge)
+	c0 = dot(direction, normals[edge[0]] + regularisation*(points[edge[0]] - c))
+	c1 = dot(direction, normals[edge[1]] + regularisation*(points[edge[1]] - c))
+	if c0 * c1 < 0:
+		x = -c0 / (c1 - c0)
+		return mix(points[edge[0]], points[edge[1]], x)
+	# corners = dmat2x3(*[normals[p] + regularisation*(points[p] - c)  for p in edge])
+	# x = transpose(corners) * direction
+	# if all(x > 0   for x in x):
+	# 	return dmat2x3(*[points[p]  for p in edge]) * x / sum(x)
+	return None
+	
+def interp_face_direction(face, points, normals, regularisation, direction):
+	c = sum(points[p]  for p in face) / len(face)
+	# print([normals[p] + regularisation*(points[p] - c)  for p in face])
+	corners = mat3(*[normals[p] + regularisation*(points[p] - c)  for p in face])
+	x = inverse(corners) * direction
+	if all(x > 0   for x in x):
+		return mat3(*[points[p]  for p in face]) * x / sum(x)
+	return None
+
+def edge_phase(simplex, start):
+	if simplex[1] == start:
+		return uvec2(simplex[1], simplex[0])
+	else:
+		return uvec2(simplex)
+
+def triangle_phase(simplex, start):
+	if simplex[1] == start:
+		return uvec3(simplex[1], simplex[2], simplex[0])
+	elif simplex[2] == start:
+		return uvec3(simplex[2], simplex[0], simplex[1])
+	else:
+		return uvec3(simplex)
 
 
 def minkowski(a: Mesh, b: Mesh, sharp=0.3, raw=True, bilateral=False) -> Mesh:
@@ -62,36 +99,65 @@ def minkowski(a: Mesh, b: Mesh, sharp=0.3, raw=True, bilateral=False) -> Mesh:
 	# 				if dot(normalize(points[a_left] - points[a_point]), normalize(points[a_point] - points[a_right])) < cosangle:
 	# 					dot(a.normals[a.adjacency
 					
-# 	for a_start in a.adjacency:
-# 		center = a_start[0]
-# 		
-# 		# find adjacent points and adjacent face normals
-# 		normals = []
-# 		neighboors = []
-# 		edge = a_start
-# 		current = a.adjacency.get(current)
-# 		while edge is not None:
-# 			face = simplex_phase(a.original.faces[edge])
-# 			normals.append(a.normals[edge])
-# 			neighboors.append(face[2])
-# 			edge = a.adjacency.get(uvec2(face[0], face[2]))
-# 			current = a.adjacency.get(current)
-# 		
-# 		flat = True
-# 		for i in range(len(neighboors)):
-# 			if dot(normals[i-1], normals[i]) >= cosangle:
-# 				continue
-# 			# non flat
-# 			flat = False
-# 			for j in range(1, len(neighboors)):
-# 				# smooth suite of edges
-# 				if dot(
-# 					normalize(points[neighboors[i]] - points[center]), 
-# 					normalize(points[center] - points[neighboors[j]]),
-# 					) > cosangle:
-# 					indev
-# 		if flat:
-# 			indev
+	cosangle = cos(sharp)
+	reg = a.original.precision() * 1e4
+	reached = set()
+	for a_start in a.adjacency:
+		center = a_start[0]
+		if center in reached:
+			continue
+		
+		# find adjacent points and adjacent face normals
+		normals = []
+		neighboors = []
+		frontier = a_start
+		while frontier in a.adjacency:
+			current = a.adjacency.get(frontier)
+			face = triangle_phase(a.original.faces[current], center)
+			normals.append(a.original_normals[current])
+			neighboors.append(face[1])
+			frontier = (face[0], face[2])
+			if frontier == a_start:
+				break
+		
+		# print(len(neighboors))
+		
+		flat = True
+		for i in range(len(neighboors)):
+			if dot(normals[i-1], normals[i]) >= cosangle:
+				continue
+			# non flat
+			flat = False
+			for j in range(1, len(neighboors)):
+				if dot(normals[j-1], normals[j]) >= cosangle:
+					continue
+				# smooth suite of edges
+				# print(center, neighboors[i], neighboors[j], dot(
+				# 	normalize(a.original.points[neighboors[i]] - a.original.points[center]), 
+				# 	normalize(a.original.points[center] - a.original.points[neighboors[j]]),
+				# 	))
+				if dot(
+					normalize(a.original.points[neighboors[i]] - a.original.points[center]), 
+					normalize(a.original.points[center] - a.original.points[neighboors[j]]),
+					) > cosangle:
+					print('saddle', center)
+					direction = a.original.points[neighboors[j]] - a.original.points[neighboors[i]]
+					for edge in b.adjacency:
+						if interp := interp_edge_direction(edge, b.original.points, b.original_vertexnormals, reg, direction):
+							added = len(new.points)
+							new.points.append(a.original.points[center] + interp)
+							for p in edge:
+								index_points[(center, p)] = added
+		if flat:
+			# print('smooth', center)
+			direction = a.original_vertexnormals[center]
+			for face in b.original.faces:
+				if interp := interp_face_direction(face, b.original.points, b.original_vertexnormals, reg, direction):
+					added = len(new.points)
+					new.points.append(a.original.points[center] + interp)
+					for p in face:
+						index_points[(center, p)] = added
+					
 	
 	# prec = NUMPREC*100
 	prec = 0
@@ -154,7 +220,6 @@ def minkowski(a: Mesh, b: Mesh, sharp=0.3, raw=True, bilateral=False) -> Mesh:
 					
 	# TODO for smooth case, pair adjacent edges with a small angle and interpolate the profile to insert
 	
-	from .hashing import connpp
 	
 	merges = {}
 	renormalize = dict()
