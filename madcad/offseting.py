@@ -16,8 +16,60 @@ from .hashing import suites
 
 __all__ = ['thicken', 'inflate', 'inflate_offsets', 'expand']
 
+def _limit_collapsing_offsets(surface: Mesh, displacements):
+	'''Limit vertex displacements to prevent neighbouring edges from collapsing.'''
 
-def inflate_offsets(surface: Mesh, offset: float, method='face') -> '[vec3]':
+	points = surface.points
+	factors = [1.0] * len(points)
+
+	# Collect unique mesh edges
+	edges = set()
+	for face in surface.faces:
+		for i in range(len(face)):
+			a = face[i]
+			b = face[(i+1) % len(face)]
+			edges.add((min(a, b), max(a, b)))
+
+	# Minimum allowed remaining edge
+	#  length (as a fraction of original)
+	min_ratio = 0.05
+
+	# Iteratively reduce displacements on edges that would collapse
+	for iteration in range(32):
+		changed = False
+
+		for a, b in edges:
+			edge = points[b] - points[a]
+			edge_length2 = length2(edge)
+
+			if edge_length2 <= NUMPREC**2:
+				continue
+
+			da = displacements[a] * factors[a]
+			db = displacements[b] * factors[b]
+
+			new_edge = edge + db - da
+			ratio = dot(new_edge, edge) / edge_length2
+
+			if ratio < min_ratio:
+				# Reduce both endpoint displacements
+				scale = max(0.0, min(1.0, (1 - min_ratio) / (1 - ratio)))
+
+
+				factors[a] *= scale
+				factors[b] *= scale
+
+				changed = True
+
+		if not changed:
+			break
+
+	return typedlist(
+		(displacements[i] * factors[i] for i in range(len(points))),
+		dtype=vec3
+	)
+
+def inflate_offsets(surface: Mesh, offset: float, method='face', collapse=False) -> list[vec3]:
 	''' Displacements vectors for points of a surface we want to inflate.
 
 	Parameters:
@@ -26,45 +78,103 @@ def inflate_offsets(surface: Mesh, offset: float, method='face') -> '[vec3]':
 		method:
 			determines if the distance is from the old to the new faces, edges or points
 			possible values: `'face', 'edge', 'point'`
+		collapse:
+			If True, limits vertex displacements to prevent neighbouring edges from collapsing
+			when the offset is large. This does not guarantee the absence of self-intersections.
+
 	'''
-	pnormals = surface.vertexnormals()
+	pnormals = typedlist((n if isfinite(n) and length2(n) > NUMPREC**2 else vec3(0)
+	                      for n in surface.vertexnormals()), dtype=vec3)
+
 
 	# smooth normal offsets laterally when they are closer than `offset`
 	outlines = surface.outlines_oriented()
 	l = len(pnormals)
 	normals = deepcopy(pnormals)
-	for i in range(5):	# the number of steps is the diffusion distance through the mesh
-		for a,b in outlines:
-			d = surface.points[a] - surface.points[b]		# edge direction
-			t = cross(pnormals[a]+pnormals[b], d)	# surface tangent normal to the edge
-			# contribution stars when the offset points are closer than `offset`
-			contrib = 1 - smoothstep(0, offset, length(offset*(pnormals[a]-pnormals[b])+d))
-			normals[a] += contrib * 0.5*project(pnormals[b]-pnormals[a], t)
-			normals[b] += contrib * 0.5*project(pnormals[a]-pnormals[b], t)
+
+	for i in range(5):
+		for a, b in outlines:
+			d = surface.points[a] - surface.points[b]
+			t = cross(pnormals[a] + pnormals[b], d)
+
+			contrib = 1 - smoothstep(0, offset,length(abs(offset) * (pnormals[a] - pnormals[b]) + d))
+
+			normals[a] += contrib * 0.5 * project(pnormals[b] - pnormals[a], t)
+			normals[b] += contrib * 0.5 * project(pnormals[a] - pnormals[b], t)
+
 		# renormalize
 		for i in range(l):
-			pnormals[i] = normals[i] = normalize(normals[i])
+			if length2(normals[i]) > NUMPREC**2:
+				pnormals[i] = normals[i] = normalize(normals[i])
+			else:
+				normals[i] = pnormals[i]
 
 	# compute offset length depending on the method
+		# compute offset length depending on the method
 	if method == 'face':
-		lengths = [inf]*len(pnormals)
+		lengths = [inf] * len(pnormals)
+
 		for face in surface.faces:
 			fnormal = surface.facenormal(face)
+
 			for p in face:
-				lengths[p] = min(lengths[p], 1/dot(pnormals[p], fnormal))
-		return typedlist((pnormals[p]*lengths[p]*offset   for p in range(len(pnormals))), dtype=vec3)
+				denominator = dot(pnormals[p], fnormal)
+
+				if denominator > NUMPREC:
+					lengths[p] = min(lengths[p], 1 / denominator)
+
+		displacements = typedlist(
+			(
+				pnormals[p] * lengths[p] * offset
+				if isfinite(lengths[p]) and isfinite(pnormals[p])
+				else vec3(0)
+				for p in range(len(pnormals))
+			),
+			dtype=vec3
+		)
 
 	elif method == 'edge':
-		lengths = [inf]*len(pnormals)
-		for edge,enormal in surface.edgenormals().items():
+		lengths = [inf] * len(pnormals)
+
+		for edge, enormal in surface.edgenormals().items():
 			for p in edge:
-				lengths[p] = min(lengths[p], 1/dot(pnormals[p], enormal))
-		return typedlist((pnormals[p]*lengths[p]*offset	for p in range(len(pnormals))), dtype=vec3)
+				denominator = dot(pnormals[p], enormal)
+
+				if denominator > NUMPREC:
+					lengths[p] = min(lengths[p], 1 / denominator)
+
+		displacements = typedlist(
+			(
+				pnormals[p] * lengths[p] * offset
+				if isfinite(lengths[p]) and isfinite(pnormals[p])
+				else vec3(0)
+				for p in range(len(pnormals))
+			),
+			dtype=vec3
+		)
 
 	elif method == 'point':
-		return typedlist((pnormals[p]*offset	for p in range(len(pnormals))), dtype=vec3)
+		displacements = typedlist(
+			(
+				pnormals[p] * offset
+				if isfinite(pnormals[p])
+				else vec3(0)
+				for p in range(len(pnormals))
+			),
+			dtype=vec3
+		)
 
-def inflate(surface:Mesh, offset:float, method='face') -> 'Mesh':
+	else:
+		raise ValueError("method must be 'face', 'edge', or 'point'")
+
+
+
+	if collapse:
+		displacements = _limit_collapsing_offsets(surface, displacements)
+
+	return displacements
+
+def inflate(surface:Mesh, offset:float, method='face', collapse=False) -> 'Mesh':
 	''' Move all points of the surface to make a new one at a certain distance of the last one
 
 	![inflate result](../screenshots/offseting-inflate.png)
@@ -72,6 +182,8 @@ def inflate(surface:Mesh, offset:float, method='face') -> 'Mesh':
 	Parameters:
 		offset:       the distance from the surface to the offseted surface. its meaning depends on `method`
 		method:       determines if the distance is from the old to the new faces, edges or points
+		collapse:     If True, limits vertex displacements to prevent neighbouring edges from collapsing when the offset is large. 
+		This does not guarantee the absence of self-intersections.
 
 	Examples:
 		>>> sphere = pierce(
@@ -81,12 +193,12 @@ def inflate(surface:Mesh, offset:float, method='face') -> 'Mesh':
 		>>> inflate(sphere, 0.1)
 	'''
 	return Mesh(
-				typedlist((p+d  if isfinite(d) else p   for p,d in zip(surface.points, inflate_offsets(surface, offset, method))), dtype=vec3),
+				typedlist((p+d  if isfinite(d) else p   for p,d in zip(surface.points, inflate_offsets(surface, offset, method, collapse))), dtype=vec3),
 				surface.faces,
 				surface.tracks,
 				surface.groups)
 
-def thicken(surface: Mesh, thickness: float, alignment:float=0, method='face') -> 'Mesh':
+def thicken(surface: Mesh, thickness: float, alignment:float=0, method='face', collapse=False) -> 'Mesh':
 	''' Thicken a surface by extruding it, points displacements are made along normal.
 
 	![thicken result](../screenshots/offseting-thicken.png)
@@ -95,6 +207,8 @@ def thicken(surface: Mesh, thickness: float, alignment:float=0, method='face') -
 		thickness:    determines the distance between the two surfaces (can be negative to go the opposite direction to the normal).
 		alignment:    specifies which side is the given surface: 0 is for the first, 1 for the second side, 0.5 thicken all apart the given surface.
 		method:       determines if the thickness is from the old to the new faces, edges or points
+		collapse: 	  If True, limits vertex displacements to reduce local edge collapse and improve the resulting geometry for large thickness values.
+    				  This does not guarantee the absence of self-intersections.
 
 	Examples:
 		>>> sphere = pierce(
@@ -103,7 +217,8 @@ def thicken(surface: Mesh, thickness: float, alignment:float=0, method='face') -
 		...         )
 		>>> thicken(sphere, 0.1)
 	'''
-	displts = inflate_offsets(surface, thickness, method)
+	displts = inflate_offsets(surface, thickness, method, collapse=collapse)
+
 
 	a = alignment
 	b = alignment-1
